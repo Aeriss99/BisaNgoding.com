@@ -1,5 +1,4 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 
 interface Props {
   children?: ReactNode;
@@ -32,9 +31,9 @@ export class ErrorBoundary extends Component<Props, State> {
           <pre className="text-xs text-left bg-red-100 p-4 rounded-lg overflow-auto max-w-full text-red-800 mb-6">
             {this.state.error?.message}
           </pre>
-          <Link to="/" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl">
+          <a href="/" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl">
             Kembali ke Beranda
-          </Link>
+          </a>
         </div>
       );
     }
