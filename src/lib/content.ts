@@ -1,47 +1,78 @@
-import type { Lesson, Module } from '../types/schema';
+import type { Lesson, Module, QuizQuestion } from '../types/schema';
 import modulesJson from '../../content/modules.json';
 
 export const modulesData = modulesJson as Module[];
 
-// Load all JSON files in content/
-const lessonFiles = import.meta.glob('../../content/**/*.json', { eager: true });
+/** Dua id dianggap modul yang sama: 'dasar' == 'java-dasar' == 'module-01-dasar' */
+function sameModule(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return a.endsWith('-' + b) || b.endsWith('-' + a);
+}
 
+/** Kembalikan id modul resmi dari modules.json (dipakai untuk semua URL) */
+export function resolveModuleId(idOrAlias: string): string {
+  const found = modulesData.find((m) => sameModule(m.id, idOrAlias));
+  return found ? found.id : idOrAlias;
+}
+
+export function getModule(idOrAlias: string): Module | undefined {
+  return modulesData.find((m) => sameModule(m.id, idOrAlias));
+}
+
+const lessonFiles = import.meta.glob('../../content/**/*.json', { eager: true });
 const lessonsCache: Record<string, Lesson> = {};
 
 Object.keys(lessonFiles).forEach((path) => {
-  if (path.includes('modules.json')) return;
+  if (path.endsWith('modules.json') || path.endsWith('quiz.json') || path.endsWith('outline.json')) return;
   const mod = lessonFiles[path] as any;
-  const lessonData = mod.default || mod;
-  if (!lessonData) {
-    console.error(`Gagal memuat ${path}: data kosong`);
+  const data = mod?.default || mod;
+  if (!data || !data.id) {
+    console.error(`Gagal memuat ${path}: data kosong atau tidak ada field 'id'`);
     return;
   }
-  if (!lessonData.id) {
-    console.error(`Gagal memuat ${path}: tidak ada field 'id'`);
-    return;
+  if (lessonsCache[data.id]) {
+    console.error(`ID pelajaran dobel: '${data.id}' di ${path}`);
   }
-  if (lessonsCache[lessonData.id]) {
-    console.error(`Peringatan: ID dobel '${lessonData.id}' ditemukan di ${path}`);
-  }
-  
-  // Deteksi skeleton
-  const isSkeleton = 
-    lessonData.title?.includes(' - Pelajaran ') || 
-    lessonData.title?.includes('TODO');
-  if (isSkeleton) {
-    // console.warn(`Skeleton/draft dilewati: ${lessonData.title} (${path})`);
-    // Boleh dilog, tapi untuk tampilan di UI filternya ada di ModuleDetail
-  }
-
-  lessonsCache[lessonData.id] = lessonData as Lesson;
+  lessonsCache[data.id] = data as Lesson;
 });
+
+export function isSkeletonLesson(lesson: Lesson): boolean {
+  const t = lesson.title || '';
+  return t.includes(' - Pelajaran ') || t.includes('TODO') || (lesson.cards?.length ?? 0) <= 1;
+}
 
 export function getLesson(id: string): Lesson | undefined {
   return lessonsCache[id];
 }
 
-export function getLessonsForModule(moduleId: string): Lesson[] {
+/** Semua pelajaran modul, termasuk skeleton */
+export function getLessonsForModule(idOrAlias: string): Lesson[] {
   return Object.values(lessonsCache)
-    .filter((l) => l.moduleId === moduleId || (moduleId === 'dasar' && l.moduleId === 'java-dasar'))
+    .filter((l) => sameModule(l.moduleId, idOrAlias))
     .sort((a, b) => a.order - b.order);
+}
+
+/** Pelajaran yang layak ditampilkan ke user */
+export function getVisibleLessons(idOrAlias: string): Lesson[] {
+  return getLessonsForModule(idOrAlias).filter((l) => !isSkeletonLesson(l));
+}
+
+const quizFiles = import.meta.glob('../../content/**/quiz.json', { eager: true });
+
+/** Ambil bank soal quiz sebuah modul, null jika belum ada */
+export function getQuizQuestions(idOrAlias: string): QuizQuestion[] | null {
+  const mod = getModule(idOrAlias);
+  const candidates = [idOrAlias, mod?.id, ...getLessonsForModule(idOrAlias).map((l) => l.moduleId)]
+    .filter(Boolean) as string[];
+
+  for (const path of Object.keys(quizFiles)) {
+    const folder = path.split('/').slice(-2)[0] || '';
+    const cocok = candidates.some((id) => folder === id || folder.endsWith('-' + id) || id.endsWith('-' + folder) || folder.includes(id));
+    if (!cocok) continue;
+    const raw = quizFiles[path] as any;
+    const data = raw?.default || raw;
+    if (Array.isArray(data) && data.length > 0) return data as QuizQuestion[];
+  }
+  return null;
 }

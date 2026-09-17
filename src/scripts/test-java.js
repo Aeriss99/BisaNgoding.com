@@ -152,7 +152,10 @@ function runAll() {
     }
   }
 
-  fs.writeFileSync(path.join(__dirname, '../../reports/java.md'), report);
+  const reportPath = path.join(__dirname, '../../reports/java.md');
+  const reportDir = path.dirname(reportPath);
+  if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
+  fs.writeFileSync(reportPath, report);
 
   // cleanup tmp
   fs.rmSync(tmpDir, { recursive: true, force: true });

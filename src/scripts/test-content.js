@@ -178,7 +178,10 @@ async function run() {
   }
 
   report += `\nTotal: ${validCount} selesai, ${skeletonCount} skeleton, ${errors} error.\n`;
-  fs.writeFileSync(path.join(__dirname, '../../reports/content.md'), report);
+  const reportPath = path.join(__dirname, '../../reports/content.md');
+  const reportDir = path.dirname(reportPath);
+  if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
+  fs.writeFileSync(reportPath, report);
 
   if (errors > 0) {
     console.error(`Ada ${errors} error di test konten!`);
