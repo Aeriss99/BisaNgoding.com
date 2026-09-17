@@ -3,6 +3,7 @@ export interface Module {
   title: string;
   order: number;
   lessonCount: number;
+  status?: 'ready' | 'draft';
   estimatedHours?: number;
 }
 
