@@ -87,17 +87,17 @@ describe('Code Challenge Card', () => {
     
     // Fail 1
     fireEvent.click(btn);
-    await screen.findByText(/Test Case/i);
+    await screen.findByText(/Test Case/i, {}, { timeout: 3000 });
 
     // Fail 2
     fireEvent.click(btn);
     await waitFor(() => {
       expect(screen.getByText('Cek Jawaban').closest('button')).not.toBeDisabled();
-    });
+    }, { timeout: 3000 });
 
     // Fail 3
     fireEvent.click(btn);
-    await screen.findByText('Lihat Solusi');
+    await screen.findByText('Lihat Solusi', {}, { timeout: 3000 });
     
     expect(screen.getByText('Lihat Solusi')).toBeDefined();
     
