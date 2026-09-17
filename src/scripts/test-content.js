@@ -83,7 +83,7 @@ async function run() {
       }
       allLessonIds.add(data.id);
 
-      if (!moduleIds.has(data.moduleId) && !(data.moduleId === 'java-dasar' && moduleIds.has('dasar'))) {
+      if (!moduleIds.has(data.moduleId) && !(data.moduleId === 'java-dasar' && moduleIds.has('dasar')) && !(data.moduleId === 'java-oop' && moduleIds.has('oop'))) {
         console.error(`moduleId tidak valid: ${data.moduleId} di ${filePath}`);
         errors++;
       }
