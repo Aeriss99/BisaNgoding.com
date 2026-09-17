@@ -49,7 +49,7 @@ function buildRunnerSource(runId: number): string {
   ].join('\n');
 }
 
-function buildIframeSrcdoc(baseUrl: string): string {
+function buildIframeSrcdoc(baseUrl: string, toolsPath: string): string {
   return `<!doctype html>
 <html><head>
 <base href="${baseUrl}" />
@@ -72,15 +72,23 @@ function buildIframeSrcdoc(baseUrl: string): string {
     cheerpOSAddStringFile('/str/Runner.java', enc.encode(d.runnerSource));
     cheerpOSAddStringFile('/str/stdin.txt', enc.encode(d.stdin || ''));
     try {
+      try { await cjFileBlob('${toolsPath}'); } catch(e) {
+        window.parent.postMessage({ id: id, stdout: '', stderr: 'File compiler tidak ditemukan di ${toolsPath}', exitCode: 1 }, '*');
+        return;
+      }
+
       var cx = await cheerpjRunMain(
-        'com.sun.tools.javac.Main', '/app/tools.jar',
+        'com.sun.tools.javac.Main', '${toolsPath}',
+        '-Xstdout', '/files/javac' + runId + '.txt',
         '/str/Main.java', '/str/Runner.java', '-d', '/files/'
       );
       if (cx !== 0) {
-        window.parent.postMessage({ id: id, stdout: '', stderr: 'Kompilasi gagal. Periksa sintaks kode Anda.', exitCode: 1 }, '*');
+        var compErr = 'Kompilasi gagal.';
+        try { compErr = await (await cjFileBlob('/files/javac' + runId + '.txt')).text(); } catch(_) {}
+        window.parent.postMessage({ id: id, stdout: '', stderr: compErr, exitCode: 1 }, '*');
         return;
       }
-      var rx = await cheerpjRunMain('Runner', '/app/tools.jar:/files/');
+      var rx = await cheerpjRunMain('Runner', '${toolsPath}:/files/');
       var stdout = '', stderr = '';
       try { stdout = await (await cjFileBlob('/files/out' + runId + '.txt')).text(); } catch(_) {}
       try { stderr = await (await cjFileBlob('/files/err' + runId + '.txt')).text(); } catch(_) {}
@@ -115,7 +123,11 @@ function getOrCreateIframe(): Promise<void> {
       }
     };
     window.addEventListener('message', onMsg);
-    iframe.srcdoc = buildIframeSrcdoc(import.meta.env.BASE_URL);
+    
+    const base = import.meta.env.BASE_URL;
+    const rawPath = '/app' + base + 'tools.jar';
+    const toolsPath = rawPath.replace(/\/\//g, '/');
+    iframe.srcdoc = buildIframeSrcdoc(base, toolsPath);
   });
   return iframeReadyPromise;
 }
