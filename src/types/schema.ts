@@ -4,6 +4,7 @@ export interface Module {
   order: number;
   lessonCount: number;
   status?: 'ready' | 'draft';
+  requires?: string;
   estimatedHours?: number;
 }
 

@@ -148,6 +148,7 @@ function runAll() {
   for (const folder of folders) {
     const files = fs.readdirSync(path.join(contentDir, folder)).filter(f => f.endsWith('.json'));
     for (const file of files) {
+      if (file.includes('quiz') || file.includes('modules')) continue;
       processLesson(path.join(contentDir, folder, file));
     }
   }
