@@ -49,10 +49,9 @@ function buildRunnerSource(runId: number): string {
   ].join('\n');
 }
 
-function buildIframeSrcdoc(baseUrl: string, toolsPath: string): string {
+function buildIframeSrcdoc(toolsPath: string): string {
   return `<!doctype html>
 <html><head>
-<base href="${baseUrl}" />
 <script src="${CHEERPJ_CDN}"></script>
 <script>
 (async function() {
@@ -71,20 +70,31 @@ function buildIframeSrcdoc(baseUrl: string, toolsPath: string): string {
     cheerpOSAddStringFile('/str/Main.java', enc.encode(d.code));
     cheerpOSAddStringFile('/str/Runner.java', enc.encode(d.runnerSource));
     cheerpOSAddStringFile('/str/stdin.txt', enc.encode(d.stdin || ''));
-    try {
-      try { await cjFileBlob('${toolsPath}'); } catch(e) {
-        window.parent.postMessage({ id: id, stdout: '', stderr: 'File compiler tidak ditemukan di ${toolsPath}', exitCode: 1 }, '*');
-        return;
-      }
 
+    // Verify tools.jar is accessible (to catch 404s before cryptic javac failures)
+    try {
+      var blob = await cjFileBlob('${toolsPath}');
+      if (!blob || blob.size < 1000) {
+        throw new Error('Blob too small, likely 404 html');
+      }
+    } catch(e) {
+      window.parent.postMessage({ id: id, stdout: '', stderr: 'File compiler tidak ditemukan di ${toolsPath}', exitCode: 1 }, '*');
+      return;
+    }
+
+    try {
       var cx = await cheerpjRunMain(
         'com.sun.tools.javac.Main', '${toolsPath}',
         '-Xstdout', '/files/javac' + runId + '.txt',
         '/str/Main.java', '/str/Runner.java', '-d', '/files/'
       );
       if (cx !== 0) {
-        var compErr = 'Kompilasi gagal.';
-        try { compErr = await (await cjFileBlob('/files/javac' + runId + '.txt')).text(); } catch(_) {}
+        var compErr = 'Gagal compile (tidak ada pesan dari javac).';
+        try { 
+          var errBlob = await cjFileBlob('/files/javac' + runId + '.txt');
+          var errText = await errBlob.text();
+          if (errText && errText.trim().length > 0) compErr = errText;
+        } catch(_) {}
         window.parent.postMessage({ id: id, stdout: '', stderr: compErr, exitCode: 1 }, '*');
         return;
       }
@@ -127,7 +137,7 @@ function getOrCreateIframe(): Promise<void> {
     const base = import.meta.env.BASE_URL;
     const rawPath = '/app' + base + 'tools.jar';
     const toolsPath = rawPath.replace(/\/\//g, '/');
-    iframe.srcdoc = buildIframeSrcdoc(base, toolsPath);
+    iframe.srcdoc = buildIframeSrcdoc(toolsPath);
   });
   return iframeReadyPromise;
 }
