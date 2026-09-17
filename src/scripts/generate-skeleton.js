@@ -14,7 +14,7 @@ const baseContentDir = path.join(__dirname, '../../content');
 function generateSkeleton() {
   modulesData.forEach((mod) => {
     const paddedOrder = String(mod.order).padStart(2, '0');
-    const folderName = `module-${paddedOrder}-${mod.id.replace('java-', '')}`;
+    const folderName = `module-${paddedOrder}-${mod.id}`;
     const folderPath = path.join(baseContentDir, folderName);
 
     if (!fs.existsSync(folderPath)) {

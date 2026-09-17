@@ -2,26 +2,31 @@ import { useState } from 'react';
 import type { RunnableCard, CodeChallengeCard } from '../../types/schema';
 import CodeMirror from '@uiw/react-codemirror';
 import { java } from '@codemirror/lang-java';
-import { Play, Loader2, CheckCircle } from 'lucide-react';
+import { Play, Loader2, CheckCircle, Lightbulb, RefreshCw } from 'lucide-react';
 import { runJavaCode } from '../../lib/javaRunner';
 
 export function RunnableCardComponent({ card }: { card: RunnableCard }) {
   const [code, setCode] = useState(card.code);
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   const handleRun = async () => {
     setIsRunning(true);
-    setOutput('Memuat JVM dan menjalankan kode...\n');
+    setTimedOut(false);
+    setOutput('Memuat Java... (pertama kali agak lama)\n');
     try {
       const res = await runJavaCode(code);
-      if (res.exitCode === 0) {
+      if (res.timedOut) {
+        setTimedOut(true);
+        setOutput('Program terlalu lama berjalan.');
+      } else if (res.exitCode === 0) {
         setOutput(res.stdout || 'Program selesai tanpa output.');
       } else {
         setOutput(`Error:\n${res.stderr}`);
       }
     } catch (e: any) {
-      setOutput(`Gagal menjalankan kode: ${e.message}`);
+      setOutput(`Gagal: ${e.message}`);
     } finally {
       setIsRunning(false);
     }
@@ -41,17 +46,27 @@ export function RunnableCardComponent({ card }: { card: RunnableCard }) {
           basicSetup={{ lineNumbers: true }}
         />
       </div>
-      <button 
-        onClick={handleRun}
-        disabled={isRunning}
-        className="w-full bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
-      >
-        {isRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
-        {isRunning ? 'Menjalankan...' : 'Jalankan Kode'}
-      </button>
+      <div className="flex gap-2">
+        <button 
+          onClick={handleRun}
+          disabled={isRunning}
+          className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
+        >
+          {isRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
+          {isRunning ? 'Menjalankan...' : 'Jalankan Kode'}
+        </button>
+        {timedOut && (
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
+          >
+            <RefreshCw className="w-4 h-4" /> Muat Ulang
+          </button>
+        )}
+      </div>
       
       {output && (
-        <div className="mt-4 p-4 bg-gray-900 text-green-400 font-mono text-sm rounded-xl whitespace-pre-wrap shadow-inner">
+        <div className="mt-4 p-4 bg-gray-900 text-green-400 font-mono text-sm rounded-xl whitespace-pre-wrap shadow-inner overflow-x-auto">
           {output}
         </div>
       )}
@@ -64,7 +79,7 @@ export function CodeChallengeCardComponent({
   onSuccess 
 }: { 
   card: CodeChallengeCard,
-  onSuccess: () => void 
+  onSuccess: (attempts: number) => void 
 }) {
   const [code, setCode] = useState(card.starterCode);
   const [output, setOutput] = useState('');
@@ -72,41 +87,53 @@ export function CodeChallengeCardComponent({
   const [attempts, setAttempts] = useState(0);
   const [isSuccess, setIsSuccess] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  const [showSolution, setShowSolution] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   const handleCheck = async () => {
     setIsRunning(true);
+    setTimedOut(false);
     setOutput('Memeriksa jawaban...\n');
     try {
-      const res = await runJavaCode(code);
-      
-      if (res.exitCode !== 0) {
-        setOutput(`Error:\n${res.stderr}`);
-        setAttempts(a => a + 1);
-        return;
-      }
-
-      // Check against all tests
       let allPassed = true;
-      for (const test of card.tests) {
-        // Strip whitespace for forgiving comparison
+      let finalOutput = '';
+
+      for (let i = 0; i < card.tests.length; i++) {
+        const test = card.tests[i];
+        const res = await runJavaCode(code, test.input);
+
+        if (res.timedOut) {
+          setTimedOut(true);
+          setOutput('Program terlalu lama berjalan.');
+          allPassed = false;
+          break;
+        }
+
+        if (res.exitCode !== 0) {
+          finalOutput = `Error pada Test Case ${i + 1}:\n${res.stderr}`;
+          allPassed = false;
+          break;
+        }
+
         const actual = res.stdout.trim();
         const expected = test.expectedOutput.trim();
         if (actual !== expected) {
           allPassed = false;
-          setOutput(`Output tidak sesuai.\nHarapan: ${expected}\nAktual: ${actual}`);
+          finalOutput = `Test Case ${i + 1} Gagal.\nInput: ${test.input || '(kosong)'}\nHarapan: ${expected}\nAktual: ${actual}`;
           break;
         }
       }
 
       if (allPassed) {
-        setOutput(`Output:\n${res.stdout}\n\n✅ Sempurna! Kode Anda benar.`);
+        setOutput(`Semua test case berhasil!\n✅ Sempurna! Kode Anda benar.`);
         setIsSuccess(true);
-        onSuccess();
-      } else {
+        onSuccess(attempts + 1);
+      } else if (!timedOut) {
+        setOutput(finalOutput);
         setAttempts(a => a + 1);
       }
     } catch (e: any) {
-      setOutput(`Gagal menjalankan kode: ${e.message}`);
+      setOutput(`Gagal: ${e.message}`);
       setAttempts(a => a + 1);
     } finally {
       setIsRunning(false);
@@ -126,28 +153,46 @@ export function CodeChallengeCardComponent({
         />
       </div>
       
-      <button 
-        onClick={handleCheck}
-        disabled={isRunning || isSuccess}
-        className={`w-full font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${
-          isSuccess 
-            ? 'bg-green-100 text-green-700' 
-            : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white'
-        }`}
-      >
-        {isRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : 
-         isSuccess ? <CheckCircle className="w-5 h-5" /> : 
-         <Play className="w-5 h-5" />}
-        {isRunning ? 'Memeriksa...' : isSuccess ? 'Berhasil!' : 'Cek Jawaban'}
-      </button>
+      <div className="flex gap-2 mt-2">
+        <button 
+          onClick={handleCheck}
+          disabled={isRunning || isSuccess}
+          className={`flex-1 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${
+            isSuccess 
+              ? 'bg-green-100 text-green-700' 
+              : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white'
+          }`}
+        >
+          {isRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : 
+           isSuccess ? <CheckCircle className="w-5 h-5" /> : 
+           <Play className="w-5 h-5" />}
+          {isRunning ? 'Memeriksa...' : isSuccess ? 'Berhasil!' : 'Cek Jawaban'}
+        </button>
+        {timedOut && (
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
+          >
+            <RefreshCw className="w-4 h-4" /> Muat Ulang
+          </button>
+        )}
+      </div>
 
       {attempts >= 3 && !isSuccess && (
-        <button 
-          onClick={() => setShowHint(true)}
-          className="text-sm text-blue-600 underline text-center w-full block mt-2"
-        >
-          Butuh Bantuan? Lihat Petunjuk
-        </button>
+        <div className="flex justify-between mt-2">
+          <button 
+            onClick={() => setShowHint(true)}
+            className="text-sm text-blue-600 underline flex items-center gap-1"
+          >
+            <Lightbulb className="w-4 h-4"/> Petunjuk
+          </button>
+          <button 
+            onClick={() => setShowSolution(true)}
+            className="text-sm text-red-600 underline"
+          >
+            Lihat Solusi
+          </button>
+        </div>
       )}
 
       {showHint && !isSuccess && (
@@ -159,8 +204,18 @@ export function CodeChallengeCardComponent({
         </div>
       )}
 
+      {showSolution && !isSuccess && (
+        <div className="p-4 bg-red-50 text-red-800 rounded-xl text-sm border border-red-200">
+          <p className="font-bold mb-1">Solusi:</p>
+          <pre className="font-mono bg-white p-2 rounded mt-1 border border-red-100 overflow-x-auto">
+            {/* The prompt says to add a solution field to CodeChallengeCard, fallback if missing */}
+            {(card as any).solution || 'Solusi belum tersedia untuk tantangan ini.'}
+          </pre>
+        </div>
+      )}
+
       {output && (
-        <div className={`mt-4 p-4 font-mono text-sm rounded-xl whitespace-pre-wrap shadow-inner ${
+        <div className={`mt-4 p-4 font-mono text-sm rounded-xl whitespace-pre-wrap shadow-inner overflow-x-auto ${
           isSuccess ? 'bg-green-900 text-green-400' : 'bg-gray-900 text-gray-200'
         }`}>
           {output}

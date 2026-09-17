@@ -5,22 +5,31 @@ import Playground from './pages/Playground';
 import Profile from './pages/Profile';
 import ModuleDetail from './pages/ModuleDetail';
 import LessonPage from './pages/Lesson';
+import QuizPage from './pages/Quiz';
 import NotFound from './pages/NotFound';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
+import { ProgressProvider } from './context/ProgressContext';
 
 function App() {
   return (
-    <HashRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="playground" element={<Playground />} />
-          <Route path="profile" element={<Profile />} />
-          <Route path="module/:moduleId" element={<ModuleDetail />} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-        <Route path="/lesson/:lessonId" element={<LessonPage />} />
-      </Routes>
-    </HashRouter>
+    <ErrorBoundary>
+      <ProgressProvider>
+        <HashRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="playground" element={<Playground />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="module/:moduleId" element={<ModuleDetail />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+            <Route path="/lesson/:lessonId" element={<LessonPage />} />
+            <Route path="/quiz/:moduleId" element={<QuizPage />} />
+          </Routes>
+        </HashRouter>
+      </ProgressProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -1,139 +1,72 @@
-# TODO — Website Belajar Java Pribadi
+# TODO — Java Dasar Siap Pakai (Lokal)
 
-> Instruksi untuk AI agent: kerjakan berurutan dari atas ke bawah. Centang (`[x]`) setiap tugas yang selesai langsung di file ini. Setelah satu tahap selesai, berhenti, laporkan hasilnya, dan tunggu persetujuan sebelum lanjut ke tahap berikutnya. Jangan menambahkan server, database, API key, atau layanan berbayar.
+## Aturan Agent (WAJIB DIBACA)
+1. Kerjakan dari atas ke bawah. Centang `[x]` hanya jika sudah dites dan berhasil.
+2. Maksimal **3 percobaan** per masalah. Jika masih gagal, catat di LAPORAN.md lalu lanjut ke tugas berikutnya.
+3. **JANGAN** mengubah isi materi di `content/module-01-dasar/lesson-*.json`.
+4. **JANGAN** git push atau deploy.
+5. **JANGAN** membuat mock/simulasi, dan jangan menghapus atau melewati tes.
+6. Jalankan **hanya tes yang terkait** dengan bagian yang sedang dikerjakan. Tes lengkap hanya di Bagian 6.
+7. Setiap bagian selesai: tambahkan 1 baris di `LAPORAN.md` (kolom Tes wajib berisi angka, contoh `LULUS 12/12`).
+8. Balas ke user **singkat**, tanpa menampilkan kode.
 
 ---
 
-## Tahap 0 — Perencanaan (tunggu persetujuan)
-- [x] Tulis rencana struktur folder project
-- [x] Tulis skema TypeScript untuk `Module`, `Lesson`, `Card` (semua tipe kartu), dan `UserProgress`
-- [x] Buat contoh 1 pelajaran lengkap dalam JSON (semua tipe kartu terwakili)
-- [x] Buat daftar 30 modul beserta target jumlah pelajaran di `content/modules.json`
-- [x] **Berhenti & minta persetujuan**
+## Bagian 1 — Semua Pelajaran Java Dasar Tampil & Terbuka
+- [x] Pastikan 32 pelajaran (`lesson-01` s/d `lesson-32`) tampil di halaman Modul 1. Jika ada yang tidak tampil, cari penyebabnya (glob loader, validasi runtime, filter skeleton/draft, id dobel) dan tampilkan error di console, jangan dibuang diam-diam
+- [x] Saklar `VITE_UNLOCK_ALL`: jika `true`, semua pelajaran java-dasar terbuka tanpa urutan; jika `false`/kosong, penguncian berurutan biasa
+- [x] Buat `.env.local` berisi `VITE_UNLOCK_ALL=true` dan tambahkan `.env.local` ke `.gitignore`
+- [x] Modul selain java-dasar tampil "Segera Hadir" dan tidak bisa dibuka
+- [x] Hapus folder sisa `java-dasar-6-32/` di root project jika masih ada
+- [x] Tes: unit test saklar unlock (true → semua terbuka, false → berurutan)
 
-## Tahap 1 — Setup Project
-- [x] Inisialisasi Vite + React + TypeScript
-- [x] Pasang dan konfigurasi Tailwind CSS
-- [x] Pasang React Router (gunakan `HashRouter` agar aman di GitHub Pages)
-- [x] Atur `base` path di `vite.config.ts` untuk GitHub Pages
-- [x] Buat struktur folder: `src/components`, `src/pages`, `src/lib`, `src/types`, `content/`
-- [x] Siapkan ESLint + Prettier
-- [x] Buat workflow `.github/workflows/deploy.yml` (build & deploy ke GitHub Pages saat push ke `main`)
-- [x] Buat README awal (cara install, run lokal, deploy)
-- [x] Pastikan `npm run build` sukses dan halaman kosong tampil di GitHub Pages
+## Bagian 2 — Cek Kartu yang Dipakai Java Dasar
+Java Dasar hanya memakai kartu: `theory`, `runnable`, `multiple_choice`, `code_challenge`, `summary`.
+- [x] Pilihan ganda: jawaban salah → penjelasan + tombol **Coba Lagi** (tidak boleh macet)
+- [x] Code challenge: dijalankan sekali per test case dengan `input` masing-masing (pelajaran 30 memakai input Scanner)
+- [x] Code challenge: tombol **Lihat Solusi** setelah 3x gagal (field `solution` sudah ada di JSON)
+- [x] Markdown teori tampil rapi: tabel, list, blok kode (`@tailwindcss/typography` aktif)
+- [x] Error Boundary: jika satu kartu rusak, tampilkan pesan, bukan layar putih
+- [x] Tes: unit test pilihan ganda salah → Coba Lagi; challenge dengan 2 test input
 
-## Tahap 2 — Layout & Navigasi
-- [x] Layout mobile-first dengan navigasi bawah: Belajar, Playground, Profil
-- [x] Halaman Dashboard: daftar 30 modul (nomor, judul, `x/y pelajaran`, estimasi durasi)
-- [x] Progress bar total (persen + `x / 610 selesai`)
-- [x] Halaman Detail Modul: daftar pelajaran dengan status (terkunci / tersedia / selesai)
-- [x] Halaman Profil/Pengaturan (kosong dulu, diisi di Tahap 5)
-- [x] Uji tampilan di lebar 360px dan desktop
+## Bagian 3 — Quiz Akhir Modul
+- [ ] File `content/module-01-dasar/quiz.json` berupa array soal:
+  `{ "id", "question", "code" (opsional), "options", "answer", "explanation" }`
+  (belum dibuat — menunggu soal disediakan oleh user, sesuai aturan "jangan menulis soal sendiri")
+- [x] Jika `quiz.json` belum ada atau kosong, tampilkan "Quiz belum tersedia". **Jangan menulis soal sendiri**, soal akan disediakan user
+- [x] Tombol **Quiz Akhir** di halaman modul: terbuka setelah semua pelajaran selesai, atau selalu terbuka jika `VITE_UNLOCK_ALL=true`
+- [x] Ambil **20 soal acak** dari bank soal, acak juga urutan opsinya, tampilkan satu per satu
+- [x] Hasil akhir: skor, status lulus (≥ 70%), pembahasan soal yang salah, tombol Ulangi
+- [x] Simpan skor terbaik & status lulus di progres (ikut Export/Import)
+- [x] Modul dianggap selesai 100% hanya jika semua pelajaran selesai **dan** quiz lulus
+- [x] Tes: unit test pengacakan 20 soal, hitung skor, lulus/tidak lulus, quiz kosong
 
-## Tahap 3 — Engine Pelajaran
-- [x] Loader konten: baca file JSON pelajaran dari `content/`
-- [x] Halaman Pelajaran: tampilkan kartu satu per satu dengan tombol Lanjut/Kembali + indikator posisi kartu
-- [x] Komponen kartu `theory` (render markdown + blok kode ber-highlight)
-- [x] Komponen kartu `multiple_choice` + penjelasan setelah menjawab
-- [x] Komponen kartu `fill_blank`
-- [x] Komponen kartu `reorder` (drag & drop, juga bisa tap di HP)
-- [x] Komponen kartu `predict_output`
-- [x] Komponen kartu `runnable` (editor + tombol Run)
-- [x] Komponen kartu `code_challenge` (editor + test case + petunjuk + "Lihat Solusi" setelah 3x gagal)
-- [x] Kartu ringkasan di akhir pelajaran
-- [x] Animasi/feedback benar-salah
-- [x] Layar "Pelajaran Selesai" + tombol ke pelajaran berikutnya
+## Bagian 4 — Progres di Dashboard
+- [x] Dashboard menampilkan: `Java Dasar: x/32 pelajaran · Quiz: skor% (Lulus/Belum)`
+- [x] Progress bar per modul
+- [x] Tombol **Lanjutkan Belajar** menuju pelajaran terakhir yang belum selesai
+- [x] Tes: unit test perhitungan progres modul
 
-## Tahap 4 — Eksekusi Java di Browser (CheerpJ)
-- [x] Integrasikan CheerpJ 3 dari CDN resmi (bukan self-host)
-- [x] Buat modul `src/lib/javaRunner.ts`: kompilasi dengan `javac` lalu jalankan class `Main`
-- [x] Tangkap stdout & stderr ke panel output
-- [x] Tampilkan error kompilasi dengan jelas (nomor baris jika tersedia)
-- [x] Loading indicator saat JVM pertama kali dimuat; muat JVM sekali saja lalu gunakan ulang
-- [x] Timeout eksekusi + tombol Stop agar infinite loop tidak membekukan tab
-- [x] Dukungan input `Scanner` (stdin dari kolom input)
-- [x] Validasi code challenge: bandingkan stdout dengan `expectedOutput` (abaikan spasi di akhir baris)
-- [x] Halaman Playground bebas dengan template `Hello World`
-- [x] Tandai pelajaran yang butuh Java 21 dengan label "Jalankan di komputer lokal (JDK 21)" dan sembunyikan tombol Run
-- [x] Uji: hello world, loop, error kompilasi, exception runtime, infinite loop, input Scanner
+## Bagian 5 — Reset Otomatis (Tegas)
+- [x] Env `VITE_INACTIVE_DAYS=7` dan `VITE_RESET_MODE=full` di `.env.local` (0 = fitur mati)
+- [x] Saat app dibuka: jika tidak aktif ≥ `VITE_INACTIVE_DAYS` hari, hapus semua progres (pelajaran, quiz, XP, streak)
+- [x] Anti-akal jam: simpan `maxSeenDate`; jika jam perangkat mundur, hitung dari `maxSeenDate`
+- [x] Import ditolak jika `lastActiveDate` di file sudah lewat batas hari. Tidak ada tombol pulihkan
+- [x] Peringatan di Dashboard 2 hari sebelum reset, dan pesan setelah reset terjadi
+- [x] `lastActiveDate` diperbarui setiap kali user menyelesaikan kartu/pelajaran
+- [x] Tes: 6 hari aman, 7 hari reset, jam dimundurkan, import file lama ditolak
 
-## Tahap 5 — Progres & Gamifikasi (localStorage)
-- [x] Modul `src/lib/storage.ts` dengan try/catch di setiap baca/tulis
-- [x] Simpan status pelajaran selesai & jawaban latihan
-- [x] Simpan posisi terakhir (lanjutkan dari pelajaran terakhir)
-- [x] Sistem XP (pelajaran selesai + latihan benar)
-- [x] Streak harian
-- [x] Badge per modul selesai
-- [x] Penguncian modul berurutan + opsi "Buka semua modul" di Pengaturan
-- [x] Quiz akhir modul (10–15 soal acak, lulus ≥70%, bisa diulang)
-- [x] Tombol **Export progres** (unduh JSON)
-- [x] Tombol **Import progres** (unggah JSON + validasi format)
-- [x] Tombol **Reset progres** dengan konfirmasi
-- [x] Halaman sertifikat pribadi yang bisa dicetak (terbuka setelah semua modul selesai)
+## Bagian 6 — Pemeriksaan Akhir
+- [ ] `npm run build` sukses tanpa error
+- [ ] `test:content` + `test:java` untuk java-dasar lulus
+- [ ] `test:e2e` untuk java-dasar: buka ke-32 pelajaran, klik semua kartu sampai selesai, tanpa error console
+- [ ] Tidak ada kata "mock", "simulate", ".skip", ".only" di `src/` dan folder tes
+- [ ] Tambahkan baris akhir di LAPORAN.md: jumlah tes, semua lulus, daftar yang diubah
 
-## Tahap 6 — Konten MVP
-### Modul 1 — Java Dasar (32 pelajaran)
-- [x] Tulis 32 pelajaran lengkap (teori + runnable + minimal 1 latihan + ringkasan)
-- [x] Minimal 1 code challenge per 3 pelajaran
-- [x] Quiz akhir modul
-- [x] Uji semua kode contoh & solusi challenge benar-benar jalan di CheerpJ
+---
 
-### Modul 2 — Java OOP (45 pelajaran)
-- [x] Tulis 45 pelajaran lengkap
-- [x] Minimal 1 code challenge per 3 pelajaran
-- [x] Quiz akhir modul
-- [x] Uji semua kode contoh & solusi
-
-### Kerangka Modul 3–30
-- [x] Buat file judul pelajaran untuk setiap modul sesuai target jumlah (konten diisi di Tahap 8)
-
-## Tahap 7 — Polish
-- [x] Mode gelap (ikuti sistem + toggle manual)
-- [x] PWA: manifest, ikon, service worker (bisa di-install di HP)
-- [x] Pencarian pelajaran
-- [x] Catatan pribadi per pelajaran
-- [x] Loading & empty state di semua halaman
-- [x] Halaman 404
-- [x] Cek aksesibilitas dasar (kontras, ukuran tap target, label tombol)
-- [x] Cek performa: lazy-load editor & CheerpJ hanya saat dibutuhkan
-- [x] Lengkapi README: cara menambah pelajaran & format JSON tiap tipe kartu
-
-## Tahap 8 — Konten Lanjutan (satu modul per sesi)
-Untuk setiap modul: tulis semua pelajaran → quiz akhir → uji semua kode → centang.
-
-- [x] 3. Java Standard Classes (20)
-- [x] 4. Java Generics (13)
-- [x] 5. Java Collection (26)
-- [x] 6. Java Lambda (9)
-- [x] 7. Java Apache Maven (13) — *latihan pemahaman, tanpa Run*
-- [x] 8. Java Unit Test (26) — *latihan pemahaman + tugas lokal*
-- [x] 9. Java Dasar: Aplikasi Todolist (22) — *proyek*
-- [x] 10. Java Database / JDBC (17) — *latihan pemahaman + tugas lokal*
-- [x] 11. Java OOP: Aplikasi Todolist (19) — *proyek*
-- [x] 12. Java Stream (19)
-- [x] 13. Java Database: Aplikasi Todolist (12) — *proyek, tugas lokal*
-- [x] 14. Java Internationalization (11)
-- [x] 15. Java Date & Time (21)
-- [x] 16. Java Thread (33)
-- [x] 17. Java Reflection (20)
-- [x] 18. Java Validation (27) — *latihan pemahaman*
-- [x] 19. Java Logging (12) — *latihan pemahaman*
-- [x] 20. Java Lombok (18) — *latihan pemahaman*
-- [x] 21. Java Resilience4J (25) — *latihan pemahaman*
-- [x] 22. Java Input Output (23)
-- [x] 23. Java JSON (18) — *latihan pemahaman*
-- [x] 24. Java CSV (9) — *latihan pemahaman*
-- [x] 25. Java Web Servlet (27) — *latihan pemahaman + tugas lokal*
-- [x] 26. Java Persistence API (57) — *latihan pemahaman + tugas lokal*
-- [x] 27. Java 21 Sequenced Collection (7) — *tanpa Run, butuh JDK 21*
-- [x] 28. Java Virtual Thread (7) — *tanpa Run, butuh JDK 21*
-- [x] 29. Java Record (14)
-- [x] 30. Java Sealed Class (8)
-
-## Checklist Akhir
-- [x] Total 610 pelajaran terisi
-- [x] Semua kode contoh & solusi yang punya tombol Run sudah diuji
-- [x] `npm run build` bersih tanpa warning penting
-- [x] Website live di GitHub Pages dan berjalan normal di HP
-- [x] Export → Reset → Import progres berhasil tanpa kehilangan data
-- [x] README lengkap
+## Nanti (JANGAN dikerjakan sekarang)
+- Kartu `fill_blank`, `reorder`, `predict_output`
+- Konten modul 2–30
+- Mode gelap, badge, sertifikat, pencarian, catatan pribadi
+- Deploy GitHub Pages

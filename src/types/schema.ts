@@ -28,6 +28,7 @@ export type Card =
 export interface TheoryCard {
   type: 'theory';
   content: string;
+  image?: { src: string; alt: string };
 }
 
 export interface RunnableCard {
@@ -58,6 +59,7 @@ export interface CodeChallengeCard {
     expectedOutput: string;
   }[];
   hints: string[];
+  solution?: string;
 }
 
 export interface ReorderCard {
@@ -83,7 +85,21 @@ export interface SummaryCard {
 export interface UserProgress {
   completedLessons: string[];
   moduleStatus: Record<string, 'locked' | 'unlocked' | 'completed'>;
+  quizScores: Record<string, { score: number; passed: boolean }>;
   xp: number;
   streak: number;
   lastActiveDate: string;
+  maxSeenDate?: string;
+  version?: number;
+  unlockAll?: boolean;
+  justReset?: boolean;
+}
+
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  code?: string;
+  options: string[];
+  answer: number;
+  explanation: string;
 }
