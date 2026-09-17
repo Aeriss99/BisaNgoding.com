@@ -1,12 +1,11 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { BookOpen, Terminal, User } from 'lucide-react';
+import { BookOpen, User } from 'lucide-react';
 
 export default function Layout() {
   const location = useLocation();
 
   const navItems = [
     { path: '/', label: 'Belajar', icon: BookOpen },
-    { path: '/playground', label: 'Playground', icon: Terminal },
     { path: '/profile', label: 'Profil', icon: User },
   ];
 
