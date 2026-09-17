@@ -14,8 +14,8 @@ if (!fs.existsSync(tmpDir)) {
 
 const JDK17_JAVAC = 'javac';
 const JDK17_JAVA = 'java';
-const JDK21_JAVAC = '/usr/lib/jvm/java-21-openjdk-amd64/bin/javac';
-const JDK21_JAVA = '/usr/lib/jvm/java-21-openjdk-amd64/bin/java';
+const JDK21_JAVAC = fs.existsSync('/usr/lib/jvm/java-21-openjdk-amd64/bin/javac') ? '/usr/lib/jvm/java-21-openjdk-amd64/bin/javac' : 'javac';
+const JDK21_JAVA = fs.existsSync('/usr/lib/jvm/java-21-openjdk-amd64/bin/java') ? '/usr/lib/jvm/java-21-openjdk-amd64/bin/java' : 'java';
 
 let errors = 0;
 let report = '# Laporan Test Java\n\n| File | Kartu | Pesan Error |\n|---|---|---|\n';
