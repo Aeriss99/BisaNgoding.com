@@ -49,9 +49,10 @@ function buildRunnerSource(runId: number): string {
   ].join('\n');
 }
 
-function buildIframeSrcdoc(): string {
+function buildIframeSrcdoc(baseUrl: string): string {
   return `<!doctype html>
 <html><head>
+<base href="${baseUrl}" />
 <script src="${CHEERPJ_CDN}"></script>
 <script>
 (async function() {
@@ -114,7 +115,7 @@ function getOrCreateIframe(): Promise<void> {
       }
     };
     window.addEventListener('message', onMsg);
-    iframe.srcdoc = buildIframeSrcdoc();
+    iframe.srcdoc = buildIframeSrcdoc(import.meta.env.BASE_URL);
   });
   return iframeReadyPromise;
 }
