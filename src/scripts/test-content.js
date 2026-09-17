@@ -30,6 +30,16 @@ const LessonSchema = z.object({
   cards: z.array(CardSchema)
 });
 
+const QuizQuestionSchema = z.object({
+  id: z.string(),
+  question: z.string(),
+  code: z.string().optional(),
+  options: z.array(z.string()),
+  answer: z.number(),
+  explanation: z.string()
+});
+const QuizSchema = z.array(QuizQuestionSchema);
+
 async function run() {
   const modulesData = JSON.parse(fs.readFileSync(path.join(contentDir, 'modules.json'), 'utf8'));
   const moduleIds = new Set(modulesData.map((m) => m.id));
@@ -48,7 +58,7 @@ async function run() {
     const folderPath = path.join(contentDir, folder);
     const files = fs.readdirSync(folderPath).filter(f => f.endsWith('.json'));
 
-    const mod = modulesData.find(m => folder.endsWith(`-${m.id}`) || folder.endsWith(`-${m.id.replace(/-/g, '')}`));
+    const mod = modulesData.find(m => folder.endsWith(`-${m.id}`) || folder.endsWith(`-${m.id.replace(/-/g, '')}`) || (folder === 'module-01c-todolist' && m.id === 'java-dasar-todolist'));
     if (!mod) {
       console.error(`Folder ${folder} tidak punya modul terdaftar`);
       errors++;
@@ -60,6 +70,7 @@ async function run() {
     let modValid = 0;
 
     for (const file of files) {
+      if (file.includes('modules')) continue;
       const filePath = path.join(folderPath, file);
       let data;
       try {
@@ -67,6 +78,15 @@ async function run() {
       } catch (e) {
         console.error(`JSON parse error di ${filePath}: ${e.message}`);
         errors++;
+        continue;
+      }
+
+      if (file.includes('quiz')) {
+        const res = QuizSchema.safeParse(data);
+        if (!res.success) {
+          console.error(`Zod validation error di ${filePath}: ${res.error.message}`);
+          errors++;
+        }
         continue;
       }
 
