@@ -49,7 +49,7 @@ function runJava(code, stdin, javaVersion) {
   try {
     out = spawnSync(javaCmd, ['-cp', runDir, className], {
       input: stdin,
-      timeout: 5000,
+      timeout: 15000,
       encoding: 'utf-8'
     });
   } catch (e) {
