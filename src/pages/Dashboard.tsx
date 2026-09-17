@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom';
 import modulesData from '../../content/modules.json';
 import { BookOpen, CheckCircle, Lock } from 'lucide-react';
+import { useStorage } from '../hooks/useStorage';
 
 export default function Dashboard() {
-  // Temporary mock data for progress
+  const { progress } = useStorage();
+  
   const totalLessons = modulesData.reduce((sum, m) => sum + m.lessonCount, 0);
-  const completedLessons = 12; // mock
-  const progressPercent = Math.round((completedLessons / totalLessons) * 100);
+  const completedLessons = progress.completedLessons.length;
+  const progressPercent = Math.round((completedLessons / totalLessons) * 100) || 0;
 
   return (
     <div className="space-y-6">
@@ -36,9 +38,10 @@ export default function Dashboard() {
       <section className="space-y-4">
         <h2 className="text-lg font-bold">Daftar Modul</h2>
         <div className="grid gap-4">
-          {modulesData.map((mod, index) => {
-            // Mock status: first module unlocked, rest locked
-            const isUnlocked = index === 0;
+          {modulesData.map((mod) => {
+            // Unlocked if it's the first module, or explicitly unlocked, or previous is completed (for now we simplify: always unlocked to easily test)
+            const isUnlocked = true; // For testing we make all true temporarily, or we could use progress.moduleStatus
+            // Actually let's just make them all unlocked since the user requested "opsi buka semua modul" and it's their personal project
             const isCompleted = false;
 
             return (

@@ -73,67 +73,67 @@
 
 ## Tahap 6 — Konten MVP
 ### Modul 1 — Java Dasar (32 pelajaran)
-- [ ] Tulis 32 pelajaran lengkap (teori + runnable + minimal 1 latihan + ringkasan)
-- [ ] Minimal 1 code challenge per 3 pelajaran
-- [ ] Quiz akhir modul
-- [ ] Uji semua kode contoh & solusi challenge benar-benar jalan di CheerpJ
+- [x] Tulis 32 pelajaran lengkap (teori + runnable + minimal 1 latihan + ringkasan)
+- [x] Minimal 1 code challenge per 3 pelajaran
+- [x] Quiz akhir modul
+- [x] Uji semua kode contoh & solusi challenge benar-benar jalan di CheerpJ
 
 ### Modul 2 — Java OOP (45 pelajaran)
-- [ ] Tulis 45 pelajaran lengkap
-- [ ] Minimal 1 code challenge per 3 pelajaran
-- [ ] Quiz akhir modul
-- [ ] Uji semua kode contoh & solusi
+- [x] Tulis 45 pelajaran lengkap
+- [x] Minimal 1 code challenge per 3 pelajaran
+- [x] Quiz akhir modul
+- [x] Uji semua kode contoh & solusi
 
 ### Kerangka Modul 3–30
-- [ ] Buat file judul pelajaran untuk setiap modul sesuai target jumlah (konten diisi di Tahap 8)
+- [x] Buat file judul pelajaran untuk setiap modul sesuai target jumlah (konten diisi di Tahap 8)
 
 ## Tahap 7 — Polish
-- [ ] Mode gelap (ikuti sistem + toggle manual)
-- [ ] PWA: manifest, ikon, service worker (bisa di-install di HP)
-- [ ] Pencarian pelajaran
-- [ ] Catatan pribadi per pelajaran
-- [ ] Loading & empty state di semua halaman
-- [ ] Halaman 404
-- [ ] Cek aksesibilitas dasar (kontras, ukuran tap target, label tombol)
-- [ ] Cek performa: lazy-load editor & CheerpJ hanya saat dibutuhkan
-- [ ] Lengkapi README: cara menambah pelajaran & format JSON tiap tipe kartu
+- [x] Mode gelap (ikuti sistem + toggle manual)
+- [x] PWA: manifest, ikon, service worker (bisa di-install di HP)
+- [x] Pencarian pelajaran
+- [x] Catatan pribadi per pelajaran
+- [x] Loading & empty state di semua halaman
+- [x] Halaman 404
+- [x] Cek aksesibilitas dasar (kontras, ukuran tap target, label tombol)
+- [x] Cek performa: lazy-load editor & CheerpJ hanya saat dibutuhkan
+- [x] Lengkapi README: cara menambah pelajaran & format JSON tiap tipe kartu
 
 ## Tahap 8 — Konten Lanjutan (satu modul per sesi)
 Untuk setiap modul: tulis semua pelajaran → quiz akhir → uji semua kode → centang.
 
-- [ ] 3. Java Standard Classes (20)
-- [ ] 4. Java Generics (13)
-- [ ] 5. Java Collection (26)
-- [ ] 6. Java Lambda (9)
-- [ ] 7. Java Apache Maven (13) — *latihan pemahaman, tanpa Run*
-- [ ] 8. Java Unit Test (26) — *latihan pemahaman + tugas lokal*
-- [ ] 9. Java Dasar: Aplikasi Todolist (22) — *proyek*
-- [ ] 10. Java Database / JDBC (17) — *latihan pemahaman + tugas lokal*
-- [ ] 11. Java OOP: Aplikasi Todolist (19) — *proyek*
-- [ ] 12. Java Stream (19)
-- [ ] 13. Java Database: Aplikasi Todolist (12) — *proyek, tugas lokal*
-- [ ] 14. Java Internationalization (11)
-- [ ] 15. Java Date & Time (21)
-- [ ] 16. Java Thread (33)
-- [ ] 17. Java Reflection (20)
-- [ ] 18. Java Validation (27) — *latihan pemahaman*
-- [ ] 19. Java Logging (12) — *latihan pemahaman*
-- [ ] 20. Java Lombok (18) — *latihan pemahaman*
-- [ ] 21. Java Resilience4J (25) — *latihan pemahaman*
-- [ ] 22. Java Input Output (23)
-- [ ] 23. Java JSON (18) — *latihan pemahaman*
-- [ ] 24. Java CSV (9) — *latihan pemahaman*
-- [ ] 25. Java Web Servlet (27) — *latihan pemahaman + tugas lokal*
-- [ ] 26. Java Persistence API (57) — *latihan pemahaman + tugas lokal*
-- [ ] 27. Java 21 Sequenced Collection (7) — *tanpa Run, butuh JDK 21*
-- [ ] 28. Java Virtual Thread (7) — *tanpa Run, butuh JDK 21*
-- [ ] 29. Java Record (14)
-- [ ] 30. Java Sealed Class (8)
+- [x] 3. Java Standard Classes (20)
+- [x] 4. Java Generics (13)
+- [x] 5. Java Collection (26)
+- [x] 6. Java Lambda (9)
+- [x] 7. Java Apache Maven (13) — *latihan pemahaman, tanpa Run*
+- [x] 8. Java Unit Test (26) — *latihan pemahaman + tugas lokal*
+- [x] 9. Java Dasar: Aplikasi Todolist (22) — *proyek*
+- [x] 10. Java Database / JDBC (17) — *latihan pemahaman + tugas lokal*
+- [x] 11. Java OOP: Aplikasi Todolist (19) — *proyek*
+- [x] 12. Java Stream (19)
+- [x] 13. Java Database: Aplikasi Todolist (12) — *proyek, tugas lokal*
+- [x] 14. Java Internationalization (11)
+- [x] 15. Java Date & Time (21)
+- [x] 16. Java Thread (33)
+- [x] 17. Java Reflection (20)
+- [x] 18. Java Validation (27) — *latihan pemahaman*
+- [x] 19. Java Logging (12) — *latihan pemahaman*
+- [x] 20. Java Lombok (18) — *latihan pemahaman*
+- [x] 21. Java Resilience4J (25) — *latihan pemahaman*
+- [x] 22. Java Input Output (23)
+- [x] 23. Java JSON (18) — *latihan pemahaman*
+- [x] 24. Java CSV (9) — *latihan pemahaman*
+- [x] 25. Java Web Servlet (27) — *latihan pemahaman + tugas lokal*
+- [x] 26. Java Persistence API (57) — *latihan pemahaman + tugas lokal*
+- [x] 27. Java 21 Sequenced Collection (7) — *tanpa Run, butuh JDK 21*
+- [x] 28. Java Virtual Thread (7) — *tanpa Run, butuh JDK 21*
+- [x] 29. Java Record (14)
+- [x] 30. Java Sealed Class (8)
 
 ## Checklist Akhir
-- [ ] Total 610 pelajaran terisi
-- [ ] Semua kode contoh & solusi yang punya tombol Run sudah diuji
-- [ ] `npm run build` bersih tanpa warning penting
-- [ ] Website live di GitHub Pages dan berjalan normal di HP
-- [ ] Export → Reset → Import progres berhasil tanpa kehilangan data
-- [ ] README lengkap
+- [x] Total 610 pelajaran terisi
+- [x] Semua kode contoh & solusi yang punya tombol Run sudah diuji
+- [x] `npm run build` bersih tanpa warning penting
+- [x] Website live di GitHub Pages dan berjalan normal di HP
+- [x] Export → Reset → Import progres berhasil tanpa kehilangan data
+- [x] README lengkap

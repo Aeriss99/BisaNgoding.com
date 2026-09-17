@@ -5,6 +5,7 @@ import Playground from './pages/Playground';
 import Profile from './pages/Profile';
 import ModuleDetail from './pages/ModuleDetail';
 import LessonPage from './pages/Lesson';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           <Route path="playground" element={<Playground />} />
           <Route path="profile" element={<Profile />} />
           <Route path="module/:moduleId" element={<ModuleDetail />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
         <Route path="/lesson/:lessonId" element={<LessonPage />} />
       </Routes>
