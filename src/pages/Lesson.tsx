@@ -94,7 +94,7 @@ export default function LessonPage() {
     switch (c.type) {
       case 'theory':
         return (
-          <div className="prose prose-blue max-w-none">
+          <div className="prose prose-blue max-w-none lg:max-w-[70ch] lg:mx-auto">
             {c.image && (
               <div className="my-4 flex justify-center">
                 <img src={c.image.src.startsWith('http') ? c.image.src : `/images/${c.image.src}`} alt={c.image.alt} className="max-w-full h-auto rounded-lg" />
@@ -271,8 +271,8 @@ export default function LessonPage() {
   const showFooterNextButton = !isQuizCard || challengePassed;
   
   return (
-    <div className="flex flex-col h-screen bg-[var(--color-bg-base)] items-center md:py-6">
-      <div className="w-full max-w-xl md:max-w-4xl h-full md:h-auto md:min-h-[80vh] md:rounded-2xl bg-white flex flex-col brutal-border relative overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-[var(--color-bg-base)] items-center lg:py-0">
+      <div className="w-full max-w-xl lg:max-w-4xl h-screen lg:min-h-screen lg:h-auto lg:rounded-none bg-white flex flex-col brutal-border lg:border-y-0 relative overflow-hidden">
         {/* Header */}
         <header className="p-4 border-b flex items-center gap-4 bg-white z-10 sticky top-0">
           <Link to={`/module/${lesson.moduleId}`} className="text-gray-500 hover:text-gray-900">
@@ -289,8 +289,8 @@ export default function LessonPage() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-32 text-base md:text-lg">
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-10 pb-32 lg:pb-10 text-base md:text-lg flex flex-col">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
             <ErrorBoundary>
               {renderCardContent(card)}
             </ErrorBoundary>
@@ -298,7 +298,7 @@ export default function LessonPage() {
         </main>
 
         {/* Footer */}
-        <footer className="p-4 border-t-2 border-[var(--color-text-main)] bg-[var(--color-bg-base)] absolute bottom-0 left-0 right-0 z-10 shadow-[0_-4px_0_#1A1A1A] pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <footer className="p-4 border-t-2 border-[var(--color-text-main)] bg-[var(--color-bg-base)] absolute lg:static lg:mt-auto bottom-0 left-0 right-0 z-10 lg:shadow-none shadow-[0_-4px_0_#1A1A1A] pb-[calc(1rem+env(safe-area-inset-bottom))] lg:pb-4 w-full">
           {showFooterNextButton ? (
             <div className="flex gap-2">
               <button
