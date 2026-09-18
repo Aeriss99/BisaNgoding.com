@@ -19,13 +19,14 @@ interface PendingCallback {
 }
 const pendingCallbacks = new Map<string, PendingCallback>();
 
-function buildRunnerSource(runId: number): string {
-  const outFile = `/files/out${runId}.txt`;
-  const errFile = `/files/err${runId}.txt`;
+function buildRunnerSource(): string {
   return [
     'import java.io.*;',
     'public class Runner {',
     '  public static void main(String[] a) throws Exception {',
+    '    String runId = a.length > 0 ? a[0] : "0";',
+    '    String outFile = "/files/out" + runId + ".txt";',
+    '    String errFile = "/files/err" + runId + ".txt";',
     '    ByteArrayOutputStream ob = new ByteArrayOutputStream();',
     '    ByteArrayOutputStream eb = new ByteArrayOutputStream();',
     '    System.setOut(new PrintStream(ob, true, "UTF-8"));',
@@ -39,14 +40,14 @@ function buildRunnerSource(runId: number): string {
     '      code = 1;',
     '    }',
     '    try {',
-    `      FileOutputStream fo = new FileOutputStream("${outFile}");`,
+    '      FileOutputStream fo = new FileOutputStream(outFile);',
     '      fo.write(ob.toByteArray()); fo.close();',
-    `      FileOutputStream fe = new FileOutputStream("${errFile}");`,
+    '      FileOutputStream fe = new FileOutputStream(errFile);',
     '      fe.write(eb.toByteArray()); fe.close();',
     '    } catch (Exception ex) {}',
     '    System.exit(code);',
     '  }',
-    '}',
+    '}'
   ].join('\n');
 }
 
@@ -55,7 +56,12 @@ function buildIframeSrcdoc(toolsPath: string): string {
 <html><head>
 <script src="${CHEERPJ_CDN}"></script>
 <script>
-window.lastCompiledCode = null;
+window.lastCompiledHash = null;
+  function hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+    return hash.toString(36);
+  }
 (async function() {
   try {
     await cheerpjInit({ status: 'none' });
@@ -85,7 +91,8 @@ window.lastCompiledCode = null;
     }
 
     try {
-      if (window.lastCompiledCode !== d.code) {
+      var currentHash = hashString(d.code);
+      if (window.lastCompiledHash !== currentHash) {
         window.parent.postMessage({ type: 'status', id: id, status: 'Mengompilasi' }, '*');
         var cx = await cheerpjRunMain(
         'com.sun.tools.javac.Main', '${toolsPath}',
@@ -93,7 +100,7 @@ window.lastCompiledCode = null;
         '/str/Main.java', '/str/Runner.java', '-d', '/files/'
       );
       if (cx !== 0) {
-          window.lastCompiledCode = null;
+          window.lastCompiledHash = null;
         var compErr = 'Gagal compile (tidak ada pesan dari javac).';
         try { 
           var errBlob = await cjFileBlob('/files/javac' + runId + '.txt');
@@ -103,10 +110,10 @@ window.lastCompiledCode = null;
         window.parent.postMessage({ id: id, stdout: '', stderr: compErr, exitCode: 1 }, '*');
           return;
         }
-        window.lastCompiledCode = d.code;
+        window.lastCompiledHash = currentHash;
       }
       window.parent.postMessage({ type: 'status', id: id, status: 'Menjalankan' }, '*');
-      var rx = await cheerpjRunMain('Runner', '${toolsPath}:/files/');
+      var rx = await cheerpjRunMain('Runner', '${toolsPath}:/files/', String(runId));
       var stdout = '', stderr = '';
       try { stdout = await (await cjFileBlob('/files/out' + runId + '.txt')).text(); } catch(_) {}
       try { stderr = await (await cjFileBlob('/files/err' + runId + '.txt')).text(); } catch(_) {}
@@ -192,7 +199,7 @@ export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: 
   runCounter++;
   const runId = runCounter;
   const msgId = `run-${runId}-${Date.now()}`;
-  const runnerSource = buildRunnerSource(runId);
+  const runnerSource = buildRunnerSource();
 
   const runPromise = sendToIframe({
     type: 'run',
