@@ -4,6 +4,7 @@ import { getLesson, getLessonsForModule } from '../lib/content';
 import type { Card } from '../types/schema';
 import { Check, ChevronRight, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useProgress } from '../context/ProgressContext';
 import { initCheerpJ } from '../lib/javaRunner';
 import { RunnableCardComponent, CodeChallengeCardComponent } from '../components/cards/InteractiveCards';
@@ -100,8 +101,19 @@ export default function LessonPage() {
               </div>
             )}
             <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
               components={{
                 pre: ({ children }: any) => <>{children}</>,
+                table: ({ children }: any) => (
+                  <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 shadow-sm">
+                    <table className="min-w-full text-sm text-left">{children}</table>
+                  </div>
+                ),
+                thead: ({ children }: any) => <thead className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200">{children}</thead>,
+                tbody: ({ children }: any) => <tbody className="divide-y divide-gray-200 bg-white">{children}</tbody>,
+                tr: ({ children }: any) => <tr className="hover:bg-gray-50 transition-colors">{children}</tr>,
+                th: ({ children }: any) => <th className="px-4 py-3 whitespace-nowrap">{children}</th>,
+                td: ({ children }: any) => <td className="px-4 py-3">{children}</td>,
                 code({ className, children, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || '');
                   if (match && match[1] === 'mermaid') {
