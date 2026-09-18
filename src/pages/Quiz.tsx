@@ -112,7 +112,14 @@ export default function QuizPage() {
         <div className="brutal-card p-8 rounded-2xl text-center space-y-6">
           {passed ? (
             <div className="flex justify-center mb-2">
-              <img src="/illustrations/undraw_done_erdp.svg" alt="" aria-hidden="true" loading="lazy" className="pointer-events-none w-full max-w-[200px]" />
+              <img 
+                src={`${import.meta.env.BASE_URL}illustrations/undraw_done_erdp.svg`} 
+                alt="" 
+                aria-hidden="true" 
+                loading="lazy" 
+                className="pointer-events-none w-full max-w-[200px]"
+                onError={(e) => (e.currentTarget.style.display = 'none')}
+              />
             </div>
           ) : (
             <div className="w-24 h-24 rounded-full flex items-center justify-center mx-auto bg-[var(--color-danger)] brutal-border text-white">

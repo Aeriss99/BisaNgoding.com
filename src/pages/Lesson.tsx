@@ -231,7 +231,14 @@ export default function LessonPage() {
         </svg>
         <div className="brutal-card p-8 rounded-2xl max-w-sm w-full space-y-6">
           <div className="flex justify-center mb-2">
-            <img src="/illustrations/undraw_done_erdp.svg" alt="" aria-hidden="true" loading="lazy" className="pointer-events-none w-full max-w-[200px]" />
+            <img 
+              src={`${import.meta.env.BASE_URL}illustrations/undraw_done_erdp.svg`} 
+              alt="" 
+              aria-hidden="true" 
+              loading="lazy" 
+              className="pointer-events-none w-full max-w-[200px]"
+              onError={(e) => (e.currentTarget.style.display = 'none')}
+            />
           </div>
           <div>
             <h2 className="text-2xl font-bold mb-2">Pelajaran Selesai!</h2>

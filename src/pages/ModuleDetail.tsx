@@ -37,14 +37,28 @@ export default function ModuleDetail() {
 
       {mod.id === 'proyek-todolist' && (
         <div className="hidden md:flex justify-center mb-6">
-          <img src="/illustrations/undraw_build_mode_aa78.svg" alt="" aria-hidden="true" loading="lazy" className="pointer-events-none w-full max-w-[220px]" />
+          <img 
+            src={`${import.meta.env.BASE_URL}illustrations/undraw_build-mode_aa78.svg`} 
+            alt="" 
+            aria-hidden="true" 
+            loading="lazy" 
+            className="pointer-events-none w-full max-w-[220px]"
+            onError={(e) => (e.currentTarget.style.display = 'none')}
+          />
         </div>
       )}
 
       <div className="grid gap-3">
         {lessons.length === 0 && (
           <div className="p-8 text-center text-gray-500 brutal-card rounded-xl flex flex-col items-center justify-center gap-4">
-            <img src="/illustrations/undraw_work_time_1ogn.svg" alt="" aria-hidden="true" loading="lazy" className="pointer-events-none w-full max-w-[200px]" />
+            <img 
+              src={`${import.meta.env.BASE_URL}illustrations/undraw_work-time_1ogn.svg`} 
+              alt="" 
+              aria-hidden="true" 
+              loading="lazy" 
+              className="pointer-events-none w-full max-w-[200px]"
+              onError={(e) => (e.currentTarget.style.display = 'none')}
+            />
             <p className="font-bold">Belum ada pelajaran yang tersedia dalam modul ini.</p>
           </div>
         )}
@@ -157,7 +171,14 @@ export default function ModuleDetail() {
 
       {lessons.length > 0 && lessons.every(l => progress.completedLessons.includes(l.id)) && (
         <div className="hidden md:flex justify-center mt-8 pt-4">
-          <img src="/illustrations/undraw_all_checked_d3u6.svg" alt="" aria-hidden="true" loading="lazy" className="pointer-events-none w-full max-w-[200px]" />
+          <img 
+            src={`${import.meta.env.BASE_URL}illustrations/undraw_all-checked_d3u6.svg`} 
+            alt="" 
+            aria-hidden="true" 
+            loading="lazy" 
+            className="pointer-events-none w-full max-w-[200px]"
+            onError={(e) => (e.currentTarget.style.display = 'none')}
+          />
         </div>
       )}
     </div>

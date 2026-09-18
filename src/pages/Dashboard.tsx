@@ -51,7 +51,14 @@ export default function Dashboard() {
           <p className="text-gray-700 font-medium">Dari pemula sampai mahir dengan interaktif.</p>
         </div>
         <div className="hidden lg:block brutal-card rounded-2xl bg-white p-4 shrink-0 w-[320px]">
-          <img src="/illustrations/undraw_teaching_58yg.svg" alt="" aria-hidden="true" loading="lazy" className="pointer-events-none w-full max-w-[320px] mx-auto h-auto" />
+          <img 
+            src={`${import.meta.env.BASE_URL}illustrations/undraw_teaching_58yg.svg`} 
+            alt="" 
+            aria-hidden="true" 
+            loading="lazy" 
+            className="pointer-events-none w-full max-w-[320px] mx-auto h-auto"
+            onError={(e) => (e.currentTarget.style.display = 'none')}
+          />
         </div>
       </header>
 

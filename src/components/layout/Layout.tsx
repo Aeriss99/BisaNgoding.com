@@ -42,7 +42,14 @@ export default function Layout() {
         </nav>
         <div className="p-4 mt-auto w-full flex justify-center">
           <div className="brutal-card rounded-xl bg-[var(--color-bg-base)] p-3 overflow-hidden w-[180px]">
-            <img src="/illustrations/undraw_programming_j1zw.svg" alt="" aria-hidden="true" loading="lazy" className="pointer-events-none w-full max-w-[180px]" />
+            <img 
+              src={`${import.meta.env.BASE_URL}illustrations/undraw_programming_j1zw.svg`} 
+              alt="" 
+              aria-hidden="true" 
+              loading="lazy" 
+              className="pointer-events-none w-full max-w-[180px]"
+              onError={(e) => (e.currentTarget.style.display = 'none')}
+            />
           </div>
         </div>
       </aside>
