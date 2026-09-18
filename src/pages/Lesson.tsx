@@ -104,22 +104,25 @@ export default function LessonPage() {
                 pre: ({ children }: any) => <>{children}</>,
                 code({ className, children, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || '');
-                  const isBlock = match || String(children).includes('\n');
                   if (match && match[1] === 'mermaid') {
                     return <Mermaid chart={String(children).replace(/\n$/, '')} />;
                   }
-                  return isBlock ? (
-                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm">
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    </pre>
-                  ) : (
+                  if (match) {
+                    return (
+                      <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm">
+                        <code className={className} {...props}>
+                          {children}
+                        </code>
+                      </pre>
+                    );
+                  }
+                  return (
                     <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-sm font-mono" {...props}>
                       {children}
                     </code>
                   );
-                }}
+                }
+              }}
             >
               {c.content}
             </ReactMarkdown>
