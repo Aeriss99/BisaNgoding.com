@@ -60,6 +60,7 @@ import * as javaRunner from '../../lib/javaRunner';
 vi.mock('../../lib/javaRunner', () => ({
   runJavaCode: vi.fn(),
   resetJavaRunner: vi.fn(),
+  initCheerpJ: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('Code Challenge Card', () => {
