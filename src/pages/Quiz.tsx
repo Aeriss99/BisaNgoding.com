@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Check, X, RotateCcw, AlertTriangle } from 'lucide-react';
+import { X, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useProgress } from '../context/ProgressContext';
 import type { QuizQuestion } from '../types/schema';
 import { prepareQuiz, calculateScore, isPassingScore, PASSING_SCORE } from '../lib/quizLogic';
