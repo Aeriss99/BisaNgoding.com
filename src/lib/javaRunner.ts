@@ -51,7 +51,7 @@ function buildRunnerSource(): string {
   ].join('\n');
 }
 
-function buildIframeSrcdoc(toolsPath: string): string {
+function buildIframeSrcdoc(): string {
   return `<!doctype html>
 <html><head>
 <script src="${CHEERPJ_CDN}"></script>
@@ -74,19 +74,19 @@ window.lastCompiledHash = null;
   window.addEventListener('message', async function(ev) {
     var d = ev.data;
     if (!d || d.type !== 'run') return;
-    var id = d.id, runId = d.runId, enc = new TextEncoder();
+    var id = d.id, runId = d.runId, toolsPath = d.toolsPath, enc = new TextEncoder();
     cheerpOSAddStringFile('/str/Main.java', enc.encode(d.code));
     cheerpOSAddStringFile('/str/Runner.java', enc.encode(d.runnerSource));
     cheerpOSAddStringFile('/str/stdin.txt', enc.encode(d.stdin || ''));
 
-    // Verify tools.jar is accessible (to catch 404s before cryptic javac failures)
+    // Verify tools.jar is accessible
     try {
-      var blob = await cjFileBlob('${toolsPath}');
+      var blob = await cjFileBlob(toolsPath);
       if (!blob || blob.size < 1000) {
-        throw new Error('Blob too small, likely 404 html');
+        throw new Error('Blob too small');
       }
     } catch(e) {
-      window.parent.postMessage({ id: id, stdout: '', stderr: 'File compiler tidak ditemukan di ${toolsPath}', exitCode: 1 }, '*');
+      window.parent.postMessage({ id: id, stdout: '', stderr: 'File compiler tidak ditemukan di ' + toolsPath, exitCode: 1 }, '*');
       return;
     }
 
@@ -95,7 +95,7 @@ window.lastCompiledHash = null;
       if (window.lastCompiledHash !== currentHash) {
         window.parent.postMessage({ type: 'status', id: id, status: 'Mengompilasi' }, '*');
         var cx = await cheerpjRunMain(
-        'com.sun.tools.javac.Main', '${toolsPath}',
+        'com.sun.tools.javac.Main', toolsPath,
         '-Xstdout', '/files/javac' + runId + '.txt',
         '/str/Main.java', '/str/Runner.java', '-d', '/files/'
       );
@@ -113,7 +113,7 @@ window.lastCompiledHash = null;
         window.lastCompiledHash = currentHash;
       }
       window.parent.postMessage({ type: 'status', id: id, status: 'Menjalankan' }, '*');
-      var rx = await cheerpjRunMain('Runner', '${toolsPath}:/files/', String(runId));
+      var rx = await cheerpjRunMain('Runner', toolsPath + ':/files/', String(runId));
       var stdout = '', stderr = '';
       try { stdout = await (await cjFileBlob('/files/out' + runId + '.txt')).text(); } catch(_) {}
       try { stderr = await (await cjFileBlob('/files/err' + runId + '.txt')).text(); } catch(_) {}
@@ -125,6 +125,11 @@ window.lastCompiledHash = null;
 })();
 </script>
 </head><body></body></html>`;
+}
+
+function getToolsPath(): string {
+  const base = import.meta.env.BASE_URL || '/';
+  return ('/app/' + base + 'tools.jar').replace(/\/{2,}/g, '/');
 }
 
 function getOrCreateIframe(): Promise<void> {
@@ -149,10 +154,9 @@ function getOrCreateIframe(): Promise<void> {
     };
     window.addEventListener('message', onMsg);
     
-    const base = import.meta.env.BASE_URL;
-    const rawPath = '/app' + base + 'tools.jar';
-    const toolsPath = rawPath.replace(/\/\//g, '/');
-    iframe.srcdoc = buildIframeSrcdoc(toolsPath);
+    const toolsPath = getToolsPath();
+    console.log(toolsPath);
+    iframe.srcdoc = buildIframeSrcdoc();
   });
   return iframeReadyPromise;
 }
@@ -210,6 +214,7 @@ export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: 
     code,
     stdin: stdinInput,
     runnerSource,
+    toolsPath: getToolsPath(),
   }, onStatus);
 
   const timeoutPromise = new Promise<RunResult>((resolve) => {
