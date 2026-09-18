@@ -38,7 +38,7 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto p-4 md:p-8">
+        <div className="w-full max-w-[100vw] mx-auto px-6 py-6 md:max-w-5xl md:px-10 md:py-8 lg:px-12">
           <Outlet />
         </div>
       </main>

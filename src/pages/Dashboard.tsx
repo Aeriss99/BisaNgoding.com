@@ -88,7 +88,7 @@ export default function Dashboard() {
         </div>
         <Link
           to={lanjutUrl}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
+          className="w-full brutal-btn bg-[var(--color-primary)] text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2"
         >
           Lanjutkan Belajar <ChevronRight className="w-5 h-5" />
         </Link>
@@ -96,7 +96,7 @@ export default function Dashboard() {
 
       <section className="space-y-4">
         <h2 className="text-lg font-bold">Daftar Modul</h2>
-        <div className="grid gap-4">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
           {moduleInfo.map(({ mod, lessons, siap, selesai, menit, quiz, adaQuiz }) => {
             const modulSelesai =
               siap && selesai === lessons.length && (!adaQuiz || quiz?.passed);
@@ -104,12 +104,12 @@ export default function Dashboard() {
             const isi = (
               <div className="flex gap-4 items-start">
                 <div
-                  className={`shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${
+                  className={`shrink-0 w-12 h-12 rounded-full brutal-border flex items-center justify-center font-bold text-lg ${
                     modulSelesai
-                      ? 'bg-green-100 text-green-600'
+                      ? 'bg-[var(--color-success)] text-black'
                       : siap
-                      ? 'bg-blue-100 text-blue-600'
-                      : 'bg-gray-200 text-gray-500'
+                      ? 'bg-[var(--color-primary)] text-white'
+                      : 'bg-gray-300 text-gray-700'
                   }`}
                 >
                   {mod.order}
@@ -121,45 +121,45 @@ export default function Dashboard() {
                       {mod.title}
                     </h3>
                     {!siap && (
-                      <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                      <span className="bg-[var(--color-accent)] brutal-border text-[10px] font-bold px-2 py-0.5 rounded uppercase">
                         Segera Hadir
                       </span>
                     )}
                   </div>
 
                   {siap ? (
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mt-1">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-700 mt-2 font-medium">
                       <span className="flex items-center gap-1">
-                        <BookOpen className="w-3 h-3" />
+                        <BookOpen className="w-4 h-4" />
                         {selesai}/{lessons.length} pelajaran
                       </span>
                       {adaQuiz && (
                         <span className="flex items-center gap-1">
                           {quiz?.passed ? (
-                            <CheckCircle className="w-3 h-3 text-green-500" />
+                            <CheckCircle className="w-4 h-4 text-[var(--color-success)]" />
                           ) : (
-                            <div className="w-3 h-3 rounded-full border border-gray-400" />
+                            <div className="w-3 h-3 rounded-full brutal-border bg-gray-100" />
                           )}
-                          Quiz: {quiz ? `${quiz.score}%` : '0%'} ({quiz?.passed ? 'Lulus' : 'Belum'})
+                          Quiz: {quiz ? `${quiz.score}%` : '0%'}
                         </span>
                       )}
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />~
+                        <Clock className="w-4 h-4" />~
                         {menit >= 60 ? `${Math.round(menit / 60)} jam` : `${menit} mnt`}
                       </span>
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-400 mt-1">Materi belum tersedia</div>
+                    <div className="text-xs text-gray-500 mt-2 font-medium">Materi belum tersedia</div>
                   )}
                 </div>
 
-                <div className="shrink-0 text-gray-400 self-center">
+                <div className="shrink-0 self-center ml-2">
                   {modulSelesai ? (
-                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <CheckCircle className="w-6 h-6 text-[var(--color-success)] drop-shadow-[1px_1px_0_#1A1A1A]" />
                   ) : siap ? (
-                    <ChevronRight className="w-5 h-5 text-blue-500" />
+                    <ChevronRight className="w-6 h-6 text-[var(--color-text-main)]" />
                   ) : (
-                    <Lock className="w-4 h-4" />
+                    <Lock className="w-5 h-5 text-gray-400" />
                   )}
                 </div>
               </div>
@@ -169,7 +169,7 @@ export default function Dashboard() {
               <Link
                 key={mod.id}
                 to={`/module/${mod.id}`}
-                className="block p-4 rounded-xl border bg-white border-gray-200 hover:border-blue-300 hover:shadow-md transition-all"
+                className="block p-5 rounded-xl brutal-card flex flex-col h-full"
               >
                 {isi}
               </Link>
@@ -177,7 +177,7 @@ export default function Dashboard() {
               <div
                 key={mod.id}
                 aria-disabled="true"
-                className="block p-4 rounded-xl border bg-gray-50 border-gray-100 opacity-70 cursor-not-allowed select-none"
+                className="block p-5 rounded-xl brutal-card-locked opacity-75 cursor-not-allowed select-none flex flex-col h-full"
               >
                 {isi}
               </div>

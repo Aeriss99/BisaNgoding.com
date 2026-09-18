@@ -26,18 +26,18 @@ export default function ModuleDetail() {
   return (
     <div className="space-y-6">
       <header className="flex items-center gap-4 mb-6">
-        <Link to="/" className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+        <Link to="/" className="p-2 brutal-btn bg-white rounded-full flex items-center justify-center">
           <ArrowLeft className="w-6 h-6" />
         </Link>
         <div>
-          <div className="text-sm text-blue-600 font-medium">Modul {mod.order}</div>
-          <h1 className="text-xl font-bold">{mod.title}</h1>
+          <div className="text-sm text-[var(--color-primary)] font-bold">Modul {mod.order}</div>
+          <h1 className="text-2xl font-extrabold">{mod.title}</h1>
         </div>
       </header>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="grid gap-3">
         {lessons.length === 0 && (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-gray-500 brutal-card rounded-xl">
             Belum ada pelajaran yang tersedia dalam modul ini.
           </div>
         )}
@@ -60,15 +60,15 @@ export default function ModuleDetail() {
               <Link
                 key={lesson.id}
                 to={`/lesson/${lesson.id}`}
-                className="flex items-center p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                className="flex items-center p-4 rounded-xl brutal-card cursor-pointer"
               >
-                <div className="w-8 flex-shrink-0 text-center font-bold text-gray-400">{i + 1}</div>
-                <div className="flex-1 px-4 font-medium text-gray-900">{lesson.title}</div>
+                <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-[var(--color-text-main)] brutal-border bg-[var(--color-accent)]">{i + 1}</div>
+                <div className="flex-1 px-4 font-bold text-gray-900">{lesson.title}</div>
                 <div className="flex-shrink-0 text-gray-400">
                   {isCompleted ? (
-                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <CheckCircle className="w-6 h-6 text-[var(--color-success)] drop-shadow-[1px_1px_0_#1A1A1A]" />
                   ) : (
-                    <BookOpen className="w-5 h-5 text-blue-500" />
+                    <BookOpen className="w-6 h-6 text-[var(--color-primary)]" />
                   )}
                 </div>
               </Link>
@@ -78,10 +78,10 @@ export default function ModuleDetail() {
               <div
                 key={lesson.id}
                 title="Selesaikan pelajaran sebelumnya dulu"
-                className="flex items-center p-4 border-b border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed select-none"
+                className="flex items-center p-4 rounded-xl brutal-card-locked opacity-75 cursor-not-allowed select-none"
               >
-                <div className="w-8 flex-shrink-0 text-center font-bold text-gray-400">{i + 1}</div>
-                <div className="flex-1 px-4 font-medium text-gray-500">{lesson.title}</div>
+                <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-gray-500 brutal-border bg-gray-200">{i + 1}</div>
+                <div className="flex-1 px-4 font-bold text-gray-500">{lesson.title}</div>
                 <div className="flex-shrink-0 text-gray-400">
                   <Lock className="w-5 h-5" />
                 </div>
@@ -98,28 +98,28 @@ export default function ModuleDetail() {
             return (
               <Link
                 to={`/quiz/${mod.id}`}
-                className="flex items-center p-4 border-t-2 border-gray-100 hover:bg-blue-50 cursor-pointer bg-blue-50/50"
+                className="flex items-center p-4 rounded-xl brutal-card !bg-[var(--color-primary)] cursor-pointer mt-4"
               >
-                <div className="w-8 flex-shrink-0 text-center font-bold text-blue-400">
-                  <Trophy className="w-5 h-5 mx-auto" />
+                <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-[var(--color-accent)] brutal-border">
+                  <Trophy className="w-6 h-6 text-black" />
                 </div>
-                <div className="flex-1 px-4 font-bold text-blue-900">
+                <div className="flex-1 px-4 font-bold text-white">
                   Quiz Akhir Modul
                   {quizScore && (
                     <span
-                      className={`ml-3 text-xs px-2 py-1 rounded-full ${
-                        quizScore.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      className={`ml-3 text-xs px-2 py-1 rounded-full brutal-border text-black ${
+                        quizScore.passed ? 'bg-[var(--color-success)]' : 'bg-[var(--color-danger)]'
                       }`}
                     >
                       Skor: {quizScore.score}%
                     </span>
                   )}
                 </div>
-                <div className="flex-shrink-0 text-gray-400">
+                <div className="flex-shrink-0 text-white">
                   {quizScore?.passed ? (
-                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <CheckCircle className="w-6 h-6 text-[var(--color-success)] drop-shadow-[1px_1px_0_#1A1A1A]" />
                   ) : (
-                    <BookOpen className="w-5 h-5 text-blue-500" />
+                    <BookOpen className="w-6 h-6 text-white" />
                   )}
                 </div>
               </Link>
@@ -128,19 +128,19 @@ export default function ModuleDetail() {
             return (
               <div
                 title="Selesaikan semua pelajaran dulu"
-                className="flex items-center p-4 border-t-2 border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed select-none"
+                className="flex items-center p-4 rounded-xl brutal-card-locked opacity-75 cursor-not-allowed select-none mt-4"
               >
-                <div className="w-8 flex-shrink-0 text-center font-bold text-gray-400">
-                  <Trophy className="w-5 h-5 mx-auto" />
+                <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-300 brutal-border">
+                  <Trophy className="w-6 h-6 text-gray-500" />
                 </div>
                 <div className="flex-1 px-4 font-bold text-gray-500">
                   Quiz Akhir Modul
-                  <span className="ml-3 text-xs font-normal text-gray-400">
+                  <span className="block sm:inline sm:ml-3 text-xs font-normal text-gray-500 mt-1 sm:mt-0">
                     (Selesaikan semua pelajaran dulu)
                   </span>
                 </div>
                 <div className="flex-shrink-0 text-gray-400">
-                  <Lock className="w-5 h-5" />
+                  <Lock className="w-6 h-6" />
                 </div>
               </div>
             );
