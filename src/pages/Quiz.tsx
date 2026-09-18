@@ -105,21 +105,30 @@ export default function QuizPage() {
     const passed = isPassingScore(score);
 
     return (
-      <div className="max-w-2xl mx-auto p-4 py-8 space-y-8">
-        <div className="bg-white p-8 rounded-2xl shadow-xl text-center space-y-6">
-          <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto ${passed ? 'bg-green-100 text-green-500' : 'bg-red-100 text-red-500'}`}>
-            {passed ? <Check className="w-12 h-12" /> : <X className="w-12 h-12" />}
-          </div>
+      <div className="max-w-2xl mx-auto p-4 py-8 space-y-8 relative z-0">
+        <svg className="fixed inset-0 w-full h-full pointer-events-none z-[-1] opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50vw" cy="50vh" r="40vw" fill="var(--color-primary)" />
+        </svg>
+        <div className="brutal-card p-8 rounded-2xl text-center space-y-6">
+          {passed ? (
+            <div className="flex justify-center mb-2">
+              <img src="/illustrations/undraw_done_erdp.svg" alt="" aria-hidden="true" loading="lazy" className="pointer-events-none w-full max-w-[200px]" />
+            </div>
+          ) : (
+            <div className="w-24 h-24 rounded-full flex items-center justify-center mx-auto bg-[var(--color-danger)] brutal-border text-white">
+              <X className="w-12 h-12" />
+            </div>
+          )}
           <div>
-            <h2 className="text-3xl font-bold mb-2">{passed ? 'Lulus!' : 'Belum Lulus'}</h2>
-            <p className="text-gray-600">Skor Anda: <span className="font-bold text-black">{score}%</span></p>
-            <p className="text-sm text-gray-500 mt-1">Syarat lulus: {PASSING_SCORE}%</p>
+            <h2 className="text-3xl font-extrabold mb-2">{passed ? 'Lulus!' : 'Belum Lulus'}</h2>
+            <p className="text-gray-700 font-bold">Skor Anda: <span className="text-black text-xl">{score}%</span></p>
+            <p className="text-sm text-gray-500 mt-1 font-bold">Syarat lulus: {PASSING_SCORE}%</p>
           </div>
           <div className="flex gap-4">
-            <button onClick={() => window.location.reload()} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2">
+            <button onClick={() => window.location.reload()} className="flex-1 brutal-btn bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2">
               <RotateCcw className="w-5 h-5" /> Ulangi
             </button>
-            <Link to={`/module/${moduleId}`} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center">
+            <Link to={`/module/${moduleId}`} className="flex-1 brutal-btn bg-[var(--color-primary)] text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center">
               Selesai
             </Link>
           </div>
@@ -171,10 +180,13 @@ export default function QuizPage() {
   const hasAnswered = answers[currentIndex] !== undefined;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 items-center">
-      <div className="w-full max-w-2xl h-full bg-white flex flex-col shadow-xl">
-        <header className="p-4 border-b flex items-center gap-4 bg-white">
-          <Link to={`/module/${moduleId}`} className="text-gray-500 hover:text-gray-900">
+    <div className="flex flex-col h-screen bg-[var(--color-bg-base)] items-center md:py-6 relative z-0">
+      <svg className="fixed inset-0 w-full h-full pointer-events-none z-[-1] opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50vw" cy="50vh" r="40vw" fill="var(--color-accent)" />
+      </svg>
+      <div className="w-full h-full max-w-[100vw] sm:max-w-xl md:max-w-3xl md:h-[95vh] md:rounded-2xl bg-white flex flex-col brutal-border relative overflow-hidden">
+        <header className="p-4 border-b-[2px] border-[var(--color-text-main)] flex items-center gap-4 bg-[var(--color-accent)]">
+          <Link to={`/module/${moduleId}`} className="text-[var(--color-text-main)] hover:scale-110 transition-transform">
             <X className="w-6 h-6" />
           </Link>
           <div className="flex-1 font-bold text-center">

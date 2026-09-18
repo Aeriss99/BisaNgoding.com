@@ -10,9 +10,15 @@ export default function Layout() {
   ];
 
   return (
-    <div className="flex flex-col min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-main)] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-64">
+    <div className="flex flex-col min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-main)] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-64 relative z-0">
+      {/* Background Blob */}
+      <svg className="fixed inset-0 w-full h-full pointer-events-none z-[-1] opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="15vw" cy="20vh" r="30vw" fill="var(--color-primary)" />
+        <circle cx="85vw" cy="80vh" r="25vw" fill="var(--color-accent)" />
+      </svg>
+      
       {/* Sidebar for Desktop */}
-      <aside className="hidden md:flex flex-col w-64 fixed inset-y-0 left-0 bg-white brutal-border border-l-0 border-y-0">
+      <aside className="hidden md:flex flex-col w-64 fixed inset-y-0 left-0 bg-white brutal-border border-l-0 border-y-0 z-10">
         <div className="p-4 border-b border-gray-200">
           <h1 className="text-2xl font-extrabold text-[var(--color-primary)] drop-shadow-[2px_2px_0_#1A1A1A]">BisaNgoding.com</h1>
         </div>
@@ -34,10 +40,15 @@ export default function Layout() {
             );
           })}
         </nav>
+        <div className="p-4 mt-auto w-full flex justify-center">
+          <div className="brutal-card rounded-xl bg-[var(--color-bg-base)] p-3 overflow-hidden w-[180px]">
+            <img src="/illustrations/undraw_programming_j1zw.svg" alt="" aria-hidden="true" loading="lazy" className="pointer-events-none w-full max-w-[180px]" />
+          </div>
+        </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto z-10">
         <div className="w-full max-w-[100vw] mx-auto px-6 py-6 md:max-w-5xl md:px-10 md:py-8 lg:px-12">
           <Outlet />
         </div>

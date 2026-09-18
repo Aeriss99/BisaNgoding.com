@@ -225,14 +225,17 @@ export default function LessonPage() {
     const nextLesson = currentIndex >= 0 && currentIndex < allModuleLessons.length - 1 ? allModuleLessons[currentIndex + 1] : null;
 
     return (
-      <div className="flex flex-col h-screen bg-[var(--color-bg-base)] items-center justify-center p-4 text-center">
+      <div className="flex flex-col h-screen bg-[var(--color-bg-base)] items-center justify-center p-4 text-center relative z-0">
+        <svg className="fixed inset-0 w-full h-full pointer-events-none z-[-1] opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50vw" cy="50vh" r="40vw" fill="var(--color-success)" />
+        </svg>
         <div className="brutal-card p-8 rounded-2xl max-w-sm w-full space-y-6">
-          <div className="w-20 h-20 bg-[var(--color-success)] text-white rounded-full flex items-center justify-center mx-auto brutal-border">
-            <Check className="w-10 h-10" />
+          <div className="flex justify-center mb-2">
+            <img src="/illustrations/undraw_done_erdp.svg" alt="" aria-hidden="true" loading="lazy" className="pointer-events-none w-full max-w-[200px]" />
           </div>
           <div>
             <h2 className="text-2xl font-bold mb-2">Pelajaran Selesai!</h2>
-            <p className="text-gray-600">+10 XP</p>
+            <p className="text-gray-600 font-bold">+10 XP</p>
           </div>
           <div className="space-y-3">
             {nextLesson && (
