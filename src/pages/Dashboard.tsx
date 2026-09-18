@@ -46,7 +46,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold mb-2">Belajar Java</h1>
+        <h1 className="text-2xl font-extrabold mb-2">Belajar Java</h1>
         <p className="text-gray-600">Dari pemula sampai mahir dengan interaktif.</p>
       </header>
 
@@ -70,15 +70,15 @@ export default function Dashboard() {
         </div>
       )}
 
-      <section className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
+      <section className="brutal-card p-4 space-y-4">
         <div>
           <div className="flex justify-between text-sm font-medium mb-2">
             <span>Progres Total</span>
-            <span className="text-blue-600">{progressPercent}%</span>
+            <span className="text-[var(--color-primary)]">{progressPercent}%</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-3">
+          <div className="w-full bg-gray-200 rounded-full h-4 brutal-border overflow-hidden">
             <div
-              className="bg-blue-600 h-3 rounded-full transition-all"
+              className="bg-[var(--color-primary)] h-full transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
             />
           </div>

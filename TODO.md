@@ -1,72 +1,77 @@
-# TODO — Java Dasar Siap Pakai (Lokal)
+# TODO — Tampilan Soft Neo-Brutalism & Mobile
 
 ## Aturan Agent (WAJIB DIBACA)
-1. Kerjakan dari atas ke bawah. Centang `[x]` hanya jika sudah dites dan berhasil.
-2. Maksimal **3 percobaan** per masalah. Jika masih gagal, catat di LAPORAN.md lalu lanjut ke tugas berikutnya.
-3. **JANGAN** mengubah isi materi di `content/module-01-dasar/lesson-*.json`.
-4. **JANGAN** git push atau deploy.
-5. **JANGAN** membuat mock/simulasi, dan jangan menghapus atau melewati tes.
-6. Jalankan **hanya tes yang terkait** dengan bagian yang sedang dikerjakan. Tes lengkap hanya di Bagian 6.
-7. Setiap bagian selesai: tambahkan 1 baris di `LAPORAN.md` (kolom Tes wajib berisi angka, contoh `LULUS 12/12`).
+1. Kerjakan **satu bagian per sesi**, berurutan dari atas.
+2. Maksimal **3 percobaan** per masalah. Gagal? Catat di LAPORAN.md, lanjut tugas berikutnya.
+3. **JANGAN** ubah isi file di `content/` (materi pelajaran, quiz, achievements).
+4. **JANGAN** ubah logika progres, penguncian modul, atau `javaRunner.ts` di TODO ini. Ini murni tampilan.
+5. **JANGAN** menambah library animasi (framer-motion, gsap, dll). Cukup CSS transition/keyframes.
+6. Jangan jalankan tes pengukuran performa. Cukup `npm run build` dan tes unit yang sudah ada.
+7. Setiap bagian selesai: tambah 1 baris di `LAPORAN.md`.
 8. Balas ke user **singkat**, tanpa menampilkan kode.
 
 ---
 
-## Bagian 1 — Semua Pelajaran Java Dasar Tampil & Terbuka
-- [x] Pastikan 32 pelajaran (`lesson-01` s/d `lesson-32`) tampil di halaman Modul 1. Jika ada yang tidak tampil, cari penyebabnya (glob loader, validasi runtime, filter skeleton/draft, id dobel) dan tampilkan error di console, jangan dibuang diam-diam
-- [x] Saklar `VITE_UNLOCK_ALL`: jika `true`, semua pelajaran java-dasar terbuka tanpa urutan; jika `false`/kosong, penguncian berurutan biasa
-- [x] Buat `.env.local` berisi `VITE_UNLOCK_ALL=true` dan tambahkan `.env.local` ke `.gitignore`
-- [x] Modul selain java-dasar tampil "Segera Hadir" dan tidak bisa dibuka
-- [x] Hapus folder sisa `java-dasar-6-32/` di root project jika masih ada
-- [x] Tes: unit test saklar unlock (true → semua terbuka, false → berurutan)
+## Bagian 1 — Token Desain
+Buat di `src/index.css`, lalu dipakai di seluruh komponen. Jangan tulis warna mentah di tiap file.
 
-## Bagian 2 — Cek Kartu yang Dipakai Java Dasar
-Java Dasar hanya memakai kartu: `theory`, `runnable`, `multiple_choice`, `code_challenge`, `summary`.
-- [x] Pilihan ganda: jawaban salah → penjelasan + tombol **Coba Lagi** (tidak boleh macet)
-- [x] Code challenge: dijalankan sekali per test case dengan `input` masing-masing (pelajaran 30 memakai input Scanner)
-- [x] Code challenge: tombol **Lihat Solusi** setelah 3x gagal (field `solution` sudah ada di JSON)
-- [x] Markdown teori tampil rapi: tabel, list, blok kode (`@tailwindcss/typography` aktif)
-- [x] Error Boundary: jika satu kartu rusak, tampilkan pesan, bukan layar putih
-- [x] Tes: unit test pilihan ganda salah → Coba Lagi; challenge dengan 2 test input
+- [ ] Warna: latar `#FAF7F0` (krem hangat), kartu `#FFFFFF`, teks `#1A1A1A`
+- [ ] Aksen: biru `#2B4EFF`, kuning `#FFD84D`, hijau `#4ADE80`, merah lembut `#FF6B6B`
+- [ ] Border standar: `2px solid #1A1A1A` untuk kartu, tombol, input
+- [ ] Shadow keras tanpa blur: kartu `4px 4px 0 #1A1A1A`, tombol `3px 3px 0 #1A1A1A`
+- [ ] Sudut: `rounded-xl` (lembut, bukan kotak tajam)
+- [ ] Font: judul `font-extrabold`, isi normal, kode tetap monospace
+- [ ] Simpan sebagai CSS variable agar mudah diubah nanti
 
-## Bagian 3 — Quiz Akhir Modul
-- [ ] File `content/module-01-dasar/quiz.json` berupa array soal:
-  `{ "id", "question", "code" (opsional), "options", "answer", "explanation" }`
-  (belum dibuat — menunggu soal disediakan oleh user, sesuai aturan "jangan menulis soal sendiri")
-- [x] Jika `quiz.json` belum ada atau kosong, tampilkan "Quiz belum tersedia". **Jangan menulis soal sendiri**, soal akan disediakan user
-- [x] Tombol **Quiz Akhir** di halaman modul: terbuka setelah semua pelajaran selesai, atau selalu terbuka jika `VITE_UNLOCK_ALL=true`
-- [x] Ambil **20 soal acak** dari bank soal, acak juga urutan opsinya, tampilkan satu per satu
-- [x] Hasil akhir: skor, status lulus (≥ 70%), pembahasan soal yang salah, tombol Ulangi
-- [x] Simpan skor terbaik & status lulus di progres (ikut Export/Import)
-- [x] Modul dianggap selesai 100% hanya jika semua pelajaran selesai **dan** quiz lulus
-- [x] Tes: unit test pengacakan 20 soal, hitung skor, lulus/tidak lulus, quiz kosong
+## Bagian 2 — Terapkan ke Komponen
+- [ ] Dashboard: kartu modul pakai border + shadow keras
+- [ ] Kartu modul terkunci: latar abu, shadow lebih tipis, tidak ada efek hover
+- [ ] Halaman modul: daftar pelajaran, item selesai diberi aksen hijau
+- [ ] Halaman pelajaran: kartu teori, kuis, dan challenge memakai gaya yang sama
+- [ ] Tombol: primer biru, sekunder putih, sukses hijau, bahaya merah, semua ber-border hitam
+- [ ] Progress bar: ber-border hitam, isi warna aksen
+- [ ] Badge "Segera Hadir" dan skor quiz: latar kuning, border hitam
+- [ ] Panel output kode: tetap gelap, tapi ber-border hitam dan shadow keras
+- [ ] Blok kode inline: latar kuning muda, border tipis, tidak memakan satu baris penuh
 
-## Bagian 4 — Progres di Dashboard
-- [x] Dashboard menampilkan: `Java Dasar: x/32 pelajaran · Quiz: skor% (Lulus/Belum)`
-- [x] Progress bar per modul
-- [x] Tombol **Lanjutkan Belajar** menuju pelajaran terakhir yang belum selesai
-- [x] Tes: unit test perhitungan progres modul
+## Bagian 3 — Interaksi Tombol & Kartu
+- [ ] Tombol ditekan: bergeser 2px kanan-bawah, shadow mengecil jadi `1px 1px 0` (seperti tertekan)
+- [ ] Tombol hover: shadow membesar jadi `5px 5px 0`
+- [ ] Kartu modul hover: naik 2px, shadow jadi `6px 6px 0`
+- [ ] Semua transisi 120ms, `ease-out`
+- [ ] Tombol nonaktif: tanpa shadow, opacity 60%, kursor not-allowed
 
-## Bagian 5 — Reset Otomatis (Tegas)
-- [x] Env `VITE_INACTIVE_DAYS=7` dan `VITE_RESET_MODE=full` di `.env.local` (0 = fitur mati)
-- [x] Saat app dibuka: jika tidak aktif ≥ `VITE_INACTIVE_DAYS` hari, hapus semua progres (pelajaran, quiz, XP, streak)
-- [x] Anti-akal jam: simpan `maxSeenDate`; jika jam perangkat mundur, hitung dari `maxSeenDate`
-- [x] Import ditolak jika `lastActiveDate` di file sudah lewat batas hari. Tidak ada tombol pulihkan
-- [x] Peringatan di Dashboard 2 hari sebelum reset, dan pesan setelah reset terjadi
-- [x] `lastActiveDate` diperbarui setiap kali user menyelesaikan kartu/pelajaran
-- [x] Tes: 6 hari aman, 7 hari reset, jam dimundurkan, import file lama ditolak
+## Bagian 4 — Animasi & Sentuhan 3D
+- [ ] Pindah kartu pelajaran: kartu baru masuk slide dari kanan + fade, 200ms
+- [ ] Jawaban benar: kartu `rotate(1deg)` lalu kembali + `scale(1.02)`, 300ms
+- [ ] Jawaban salah: getar horizontal kecil 2 kali, 250ms
+- [ ] Kartu teori punya sedikit kedalaman: `perspective` + `translateZ` halus saat muncul
+- [ ] Progress bar bergerak halus, transition 300ms
+- [ ] Badge achievement terbuka: pop kecil (scale 0.8 → 1.05 → 1)
+- [ ] Hormati `prefers-reduced-motion`: semua animasi dimatikan jika aktif
+
+## Bagian 5 — Mobile (target lebar 360px)
+- [ ] Navigasi bawah: tinggi minimal 64px, tap target minimal 44px
+- [ ] Ikon menu aktif: membesar sedikit + warna aksen
+- [ ] Halaman pelajaran: padding 16px, ukuran teks isi 16px, judul 20px
+- [ ] Blok kode dan tabel: scroll horizontal sendiri, halaman tidak ikut bergeser
+- [ ] Footer tombol Lanjut/Kembali: selalu terlihat, aman dari gesture bar (`safe-area-inset-bottom`)
+- [ ] Editor kode: tinggi maksimal 40% layar di HP agar tombol tetap terlihat
+- [ ] Panel output: tinggi maksimal 30% layar, bisa di-scroll
+- [ ] Dashboard di HP: kartu modul satu kolom, info progres tidak terpotong
+- [ ] Tidak ada scroll horizontal di seluruh halaman
 
 ## Bagian 6 — Pemeriksaan Akhir
-- [ ] `npm run build` sukses tanpa error
-- [ ] `test:content` + `test:java` untuk java-dasar lulus
-- [ ] `test:e2e` untuk java-dasar: buka ke-32 pelajaran, klik semua kartu sampai selesai, tanpa error console
-- [ ] Tidak ada kata "mock", "simulate", ".skip", ".only" di `src/` dan folder tes
-- [ ] Tambahkan baris akhir di LAPORAN.md: jumlah tes, semua lulus, daftar yang diubah
+- [ ] Cek di 360px, 768px, dan desktop
+- [ ] Kontras teks cukup terbaca (jangan kuning di atas putih)
+- [ ] `npm run build` sukses
+- [ ] Tes unit yang ada tetap lulus
+- [ ] Tambah 1 baris LAPORAN.md: bagian yang selesai + yang diubah
 
 ---
 
 ## Nanti (JANGAN dikerjakan sekarang)
-- Kartu `fill_blank`, `reorder`, `predict_output`
-- Konten modul 2–30
-- Mode gelap, badge, sertifikat, pencarian, catatan pribadi
-- Deploy GitHub Pages 
+- Mode gelap
+- Narasi konten modul OOP
+- Modul OOP batch 2
+- Halaman sertifikat

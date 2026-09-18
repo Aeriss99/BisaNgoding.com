@@ -122,7 +122,7 @@ export function PredictOutputCardComponent({ card, onSuccess }: { card: PredictO
               key={i}
               disabled={showExplanation && isSuccess}
               onClick={() => handleSelect(i)}
-              className={`w-full text-left p-4 rounded-lg border-2 transition-colors font-mono text-sm ${btnClass}`}
+              className={`w-full text-left p-4 rounded-xl transition-colors font-mono text-sm brutal-btn bg-white ${btnClass}`}
             >
               {opt}
             </button>
@@ -131,14 +131,14 @@ export function PredictOutputCardComponent({ card, onSuccess }: { card: PredictO
       </div>
 
       {showExplanation && (
-        <div className={`p-4 rounded-lg mt-4 ${isSuccess ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+        <div className={`p-4 rounded-xl mt-4 brutal-border ${isSuccess ? 'bg-[var(--color-success)] text-[var(--color-text-main)]' : 'bg-[var(--color-danger)] text-white'}`}>
           <div className="font-bold flex items-center gap-2 mb-1">
             {isSuccess ? <Check className="w-5 h-5"/> : <X className="w-5 h-5" />}
             {isSuccess ? 'Benar!' : 'Kurang Tepat!'}
           </div>
           <p>{card.explanation}</p>
           {!isSuccess && (
-            <button onClick={() => { setSelected(null); setShowExplanation(false); }} className="mt-3 bg-white px-4 py-2 rounded shadow-sm text-sm font-bold w-full">
+            <button onClick={() => { setSelected(null); setShowExplanation(false); }} className="mt-3 bg-white px-4 py-2 rounded-xl text-[var(--color-text-main)] text-sm font-extrabold w-full brutal-btn">
               Coba Lagi
             </button>
           )}

@@ -39,7 +39,7 @@ export function RunnableCardComponent({ card }: { card: RunnableCard }) {
       <div className="flex justify-between items-center">
         <p className="font-bold text-gray-700">Kode Playground</p>
       </div>
-      <div className="border rounded-lg overflow-hidden border-gray-300">
+      <div className="brutal-border rounded-xl overflow-hidden">
         <CodeMirror
           value={code}
           extensions={[java()]}
@@ -52,7 +52,7 @@ export function RunnableCardComponent({ card }: { card: RunnableCard }) {
         <button 
           onClick={handleRun}
           disabled={isRunning}
-          className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
+          className="flex-1 brutal-btn bg-[var(--color-success)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"
         >
           {isRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
           {isRunning ? statusText : 'Jalankan Kode'}
@@ -60,7 +60,7 @@ export function RunnableCardComponent({ card }: { card: RunnableCard }) {
         {timedOut && (
           <button
             onClick={() => window.location.reload()}
-            className="px-4 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
+            className="px-4 brutal-btn bg-[var(--color-accent)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"
           >
             <RefreshCw className="w-4 h-4" /> Muat Ulang
           </button>
@@ -68,7 +68,7 @@ export function RunnableCardComponent({ card }: { card: RunnableCard }) {
       </div>
       
       {output && (
-        <div className="mt-4 p-4 bg-gray-900 text-green-400 font-mono text-sm rounded-xl whitespace-pre-wrap shadow-inner overflow-x-auto">
+        <div className="mt-4 p-4 bg-gray-900 text-green-400 font-mono text-sm rounded-xl whitespace-pre-wrap brutal-border brutal-card overflow-x-auto">
           {output}
         </div>
       )}
@@ -147,7 +147,7 @@ export function CodeChallengeCardComponent({
   return (
     <div className="space-y-4">
       <h3 className="font-bold text-lg">{card.prompt}</h3>
-      <div className="border rounded-lg overflow-hidden border-blue-200">
+      <div className="brutal-border rounded-xl overflow-hidden">
         <CodeMirror
           value={code}
           extensions={[java()]}
@@ -161,10 +161,10 @@ export function CodeChallengeCardComponent({
         <button 
           onClick={handleCheck}
           disabled={isRunning || isSuccess}
-          className={`flex-1 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${
+          className={`flex-1 font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 brutal-btn ${
             isSuccess 
-              ? 'bg-green-100 text-green-700' 
-              : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white'
+              ? 'bg-[var(--color-success)] text-[var(--color-text-main)]' 
+              : 'bg-[var(--color-primary)] text-white'
           }`}
         >
           {isRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : 
@@ -200,7 +200,7 @@ export function CodeChallengeCardComponent({
       )}
 
       {showHint && !isSuccess && (
-        <div className="p-4 bg-yellow-50 text-yellow-800 rounded-xl text-sm border border-yellow-200">
+        <div className="p-4 bg-[var(--color-accent)] text-[var(--color-text-main)] rounded-xl text-sm brutal-border brutal-card">
           <p className="font-bold mb-1">Petunjuk:</p>
           <ul className="list-disc pl-4 space-y-1">
             {card.hints.map((h: string, i: number) => <li key={i}>{h}</li>)}
@@ -209,9 +209,9 @@ export function CodeChallengeCardComponent({
       )}
 
       {showSolution && !isSuccess && (
-        <div className="p-4 bg-red-50 text-red-800 rounded-xl text-sm border border-red-200">
+        <div className="p-4 bg-[var(--color-danger)] text-white rounded-xl text-sm brutal-border brutal-card">
           <p className="font-bold mb-1">Solusi:</p>
-          <pre className="font-mono bg-white p-2 rounded mt-1 border border-red-100 overflow-x-auto">
+          <pre className="font-mono bg-white text-[var(--color-text-main)] p-2 rounded mt-1 brutal-border overflow-x-auto">
             {/* The prompt says to add a solution field to CodeChallengeCard, fallback if missing */}
             {(card as any).solution || 'Solusi belum tersedia untuk tantangan ini.'}
           </pre>
@@ -219,8 +219,8 @@ export function CodeChallengeCardComponent({
       )}
 
       {output && (
-        <div className={`mt-4 p-4 font-mono text-sm rounded-xl whitespace-pre-wrap shadow-inner overflow-x-auto ${
-          isSuccess ? 'bg-green-900 text-green-400' : 'bg-gray-900 text-gray-200'
+        <div className={`mt-4 p-4 font-mono text-sm rounded-xl whitespace-pre-wrap brutal-border brutal-card overflow-x-auto ${
+          isSuccess ? 'bg-[var(--color-success)] text-[var(--color-text-main)]' : 'bg-gray-900 text-green-400'
         }`}>
           {output}
         </div>
