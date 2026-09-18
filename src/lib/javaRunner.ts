@@ -149,7 +149,9 @@ function getOrCreateIframe(): Promise<void> {
     };
     window.addEventListener('message', onMsg);
     
-    const toolsPath = '/app/tools.jar';
+    const base = import.meta.env.BASE_URL;
+    const rawPath = '/app' + base + 'tools.jar';
+    const toolsPath = rawPath.replace(/\/\//g, '/');
     iframe.srcdoc = buildIframeSrcdoc(toolsPath);
   });
   return iframeReadyPromise;
