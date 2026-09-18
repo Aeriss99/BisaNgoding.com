@@ -101,12 +101,14 @@ export default function LessonPage() {
             )}
             <ReactMarkdown
               components={{
-                code({ node, inline, className, children, ...props }: any) {
+                pre: ({ children }: any) => <>{children}</>,
+                code({ className, children, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || '');
-                  if (!inline && match && match[1] === 'mermaid') {
+                  const isBlock = match || String(children).includes('\n');
+                  if (match && match[1] === 'mermaid') {
                     return <Mermaid chart={String(children).replace(/\n$/, '')} />;
                   }
-                  return !inline ? (
+                  return isBlock ? (
                     <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm">
                       <code className={className} {...props}>
                         {children}
@@ -117,8 +119,7 @@ export default function LessonPage() {
                       {children}
                     </code>
                   );
-                }
-              }}
+                }}
             >
               {c.content}
             </ReactMarkdown>

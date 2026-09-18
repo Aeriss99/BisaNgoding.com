@@ -58,7 +58,7 @@ async function run() {
     const folderPath = path.join(contentDir, folder);
     const files = fs.readdirSync(folderPath).filter(f => f.endsWith('.json'));
 
-    const mod = modulesData.find(m => folder.endsWith(`-${m.id}`) || folder.endsWith(`-${m.id.replace(/-/g, '')}`) || (folder === 'module-01c-todolist' && m.id === 'java-dasar-todolist'));
+    const mod = modulesData.find(m => folder.endsWith(`-${m.id}`) || folder.endsWith(`-${m.id.replace(/-/g, '')}`) || (folder === 'module-01c-todolist' && m.id === 'java-dasar-todolist') || (folder === 'module-02-oop' && m.id === 'java-oop'));
     if (!mod) {
       console.error(`Folder ${folder} tidak punya modul terdaftar`);
       errors++;

@@ -69,4 +69,4 @@ Java Dasar hanya memakai kartu: `theory`, `runnable`, `multiple_choice`, `code_c
 - Kartu `fill_blank`, `reorder`, `predict_output`
 - Konten modul 2–30
 - Mode gelap, badge, sertifikat, pencarian, catatan pribadi
-- Deploy GitHub Pages
+- Deploy GitHub Pages 
