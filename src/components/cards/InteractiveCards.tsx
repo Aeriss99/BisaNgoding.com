@@ -10,13 +10,15 @@ export function RunnableCardComponent({ card }: { card: RunnableCard }) {
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const [statusText, setStatusText] = useState("");
 
   const handleRun = async () => {
     setIsRunning(true);
     setTimedOut(false);
-    setOutput('Memuat Java... (pertama kali agak lama)\n');
+    setOutput('\n');
+    setStatusText("Memuat Java (sekali saja)");
     try {
-      const res = await runJavaCode(code);
+      const res = await runJavaCode(code, "", (s) => setStatusText(s));
       if (res.timedOut) {
         setTimedOut(true);
         setOutput('Program terlalu lama berjalan.');
@@ -53,7 +55,7 @@ export function RunnableCardComponent({ card }: { card: RunnableCard }) {
           className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
         >
           {isRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
-          {isRunning ? 'Menjalankan...' : 'Jalankan Kode'}
+          {isRunning ? statusText : 'Jalankan Kode'}
         </button>
         {timedOut && (
           <button
@@ -89,18 +91,20 @@ export function CodeChallengeCardComponent({
   const [showHint, setShowHint] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const [statusText, setStatusText] = useState("");
 
   const handleCheck = async () => {
     setIsRunning(true);
     setTimedOut(false);
     setOutput('Memeriksa jawaban...\n');
+    setStatusText("Memuat Java (sekali saja)");
     try {
       let allPassed = true;
       let finalOutput = '';
 
       for (let i = 0; i < card.tests.length; i++) {
         const test = card.tests[i];
-        const res = await runJavaCode(code, test.input);
+        const res = await runJavaCode(code, test.input, (s) => setStatusText(s));
 
         if (res.timedOut) {
           setTimedOut(true);
@@ -166,7 +170,7 @@ export function CodeChallengeCardComponent({
           {isRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : 
            isSuccess ? <CheckCircle className="w-5 h-5" /> : 
            <Play className="w-5 h-5" />}
-          {isRunning ? 'Memeriksa...' : isSuccess ? 'Berhasil!' : 'Cek Jawaban'}
+          {isRunning ? statusText : isSuccess ? 'Berhasil!' : 'Cek Jawaban'}
         </button>
         {timedOut && (
           <button

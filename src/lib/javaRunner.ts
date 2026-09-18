@@ -15,6 +15,7 @@ let runCounter = 0;
 interface PendingCallback {
   resolve: (r: RunResult) => void;
   reject: (e: Error) => void;
+  onStatus?: (s: string) => void;
 }
 const pendingCallbacks = new Map<string, PendingCallback>();
 
@@ -54,6 +55,7 @@ function buildIframeSrcdoc(toolsPath: string): string {
 <html><head>
 <script src="${CHEERPJ_CDN}"></script>
 <script>
+window.lastCompiledCode = null;
 (async function() {
   try {
     await cheerpjInit({ status: 'none' });
@@ -83,12 +85,15 @@ function buildIframeSrcdoc(toolsPath: string): string {
     }
 
     try {
-      var cx = await cheerpjRunMain(
+      if (window.lastCompiledCode !== d.code) {
+        window.parent.postMessage({ type: 'status', id: id, status: 'Mengompilasi' }, '*');
+        var cx = await cheerpjRunMain(
         'com.sun.tools.javac.Main', '${toolsPath}',
         '-Xstdout', '/files/javac' + runId + '.txt',
         '/str/Main.java', '/str/Runner.java', '-d', '/files/'
       );
       if (cx !== 0) {
+          window.lastCompiledCode = null;
         var compErr = 'Gagal compile (tidak ada pesan dari javac).';
         try { 
           var errBlob = await cjFileBlob('/files/javac' + runId + '.txt');
@@ -96,8 +101,11 @@ function buildIframeSrcdoc(toolsPath: string): string {
           if (errText && errText.trim().length > 0) compErr = errText;
         } catch(_) {}
         window.parent.postMessage({ id: id, stdout: '', stderr: compErr, exitCode: 1 }, '*');
-        return;
+          return;
+        }
+        window.lastCompiledCode = d.code;
       }
+      window.parent.postMessage({ type: 'status', id: id, status: 'Menjalankan' }, '*');
       var rx = await cheerpjRunMain('Runner', '${toolsPath}:/files/');
       var stdout = '', stderr = '';
       try { stdout = await (await cjFileBlob('/files/out' + runId + '.txt')).text(); } catch(_) {}
@@ -142,16 +150,21 @@ function getOrCreateIframe(): Promise<void> {
   return iframeReadyPromise;
 }
 
-function sendToIframe(message: Record<string, unknown>): Promise<RunResult> {
+function sendToIframe(message: Record<string, unknown>, onStatus?: (s: string) => void): Promise<RunResult> {
   return new Promise<RunResult>((resolve, reject) => {
     const id = message.id as string;
-    pendingCallbacks.set(id, { resolve, reject });
+    pendingCallbacks.set(id, { resolve, reject, onStatus });
 
     const capturedIframe = hiddenIframe;
     const onMsg = (e: MessageEvent) => {
       if (e.source !== capturedIframe?.contentWindow) return;
       const data = e.data;
       if (!data || data.id !== id) return;
+      if (data.type === 'status') {
+        const cb = pendingCallbacks.get(id);
+        if (cb?.onStatus) cb.onStatus(data.status);
+        return;
+      }
       window.removeEventListener('message', onMsg);
       pendingCallbacks.delete(id);
       resolve({ stdout: data.stdout ?? '', stderr: data.stderr ?? '', exitCode: data.exitCode ?? -1 });
@@ -175,7 +188,7 @@ export function resetJavaRunner(): void {
   // no-op: we no longer kill iframe on stop
 }
 
-export async function runJavaCode(code: string, stdinInput = ''): Promise<RunResult> {
+export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: string) => void): Promise<RunResult> {
   await getOrCreateIframe();
 
   runCounter++;
@@ -190,7 +203,7 @@ export async function runJavaCode(code: string, stdinInput = ''): Promise<RunRes
     code,
     stdin: stdinInput,
     runnerSource,
-  });
+  }, onStatus);
 
   const timeoutPromise = new Promise<RunResult>((resolve) => {
     setTimeout(() => {

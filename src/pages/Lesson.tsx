@@ -5,6 +5,7 @@ import type { Card } from '../types/schema';
 import { Check, ChevronRight, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useProgress } from '../context/ProgressContext';
+import { initCheerpJ } from '../lib/javaRunner';
 import { RunnableCardComponent, CodeChallengeCardComponent } from '../components/cards/InteractiveCards';
 import { FillBlankCardComponent, PredictOutputCardComponent, ReorderCardComponent } from '../components/cards/QuizCards';
 
@@ -12,6 +13,10 @@ import { Mermaid } from '../components/ui/Mermaid';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
 export default function LessonPage() {
+  useEffect(() => {
+    initCheerpJ().catch(console.error);
+  }, []);
+
   const { lessonId } = useParams();
   const lesson = getLesson(lessonId || '');
   const { markLessonCompleted, addXP, touchActivity } = useProgress();
