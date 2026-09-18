@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { RunnableCard, CodeChallengeCard } from '../../types/schema';
 import CodeMirror from '@uiw/react-codemirror';
 import { java } from '@codemirror/lang-java';
+import { EditorView } from '@codemirror/view';
 import { Play, Loader2, CheckCircle, Lightbulb, RefreshCw } from 'lucide-react';
 import { runJavaCode } from '../../lib/javaRunner';
 
@@ -35,20 +36,24 @@ export function RunnableCardComponent({ card }: { card: RunnableCard }) {
   };
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-2 lg:gap-4 space-y-4 lg:space-y-0 h-full w-full">
+    <div className="flex flex-col lg:grid lg:grid-cols-[3fr_2fr] lg:gap-4 space-y-4 lg:space-y-0 w-full">
       <div className="flex flex-col space-y-4 w-full min-w-0">
         <div className="flex justify-between items-center shrink-0">
           <p className="font-bold text-gray-700">Kode Playground</p>
         </div>
-        <div className="brutal-border rounded-xl overflow-hidden flex-1 lg:min-h-[320px]">
+        <div className="brutal-border rounded-xl overflow-hidden bg-white">
           <CodeMirror
             value={code}
-            extensions={[java()]}
+            extensions={[
+              java(), 
+              EditorView.lineWrapping, 
+              EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
+            ]}
             theme="light"
             onChange={(val) => setCode(val)}
             basicSetup={{ lineNumbers: true }}
-            className="h-full"
-            height="100%"
+            minHeight="240px"
+            maxHeight="70vh"
           />
         </div>
         <div className="flex gap-2">
@@ -75,7 +80,7 @@ export function RunnableCardComponent({ card }: { card: RunnableCard }) {
         <div className="justify-between items-center hidden lg:flex shrink-0">
           <p className="font-bold text-gray-700">Output</p>
         </div>
-        <div className={`p-4 font-mono text-sm rounded-xl whitespace-pre-wrap brutal-border overflow-x-auto flex-1 max-h-[30vh] lg:max-h-none ${
+        <div className={`p-4 font-mono text-sm rounded-xl whitespace-pre-wrap brutal-border overflow-x-auto overflow-y-auto flex-1 max-h-[40vh] lg:max-h-none ${
           output ? 'bg-gray-900 text-green-400 brutal-card' : 'bg-gray-100 text-gray-400 border-dashed border-gray-300'
         }`}>
           {output || 'Output akan tampil di sini'}
@@ -154,18 +159,22 @@ export function CodeChallengeCardComponent({
   };
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-2 lg:gap-4 space-y-4 lg:space-y-0 h-full w-full">
+    <div className="flex flex-col lg:grid lg:grid-cols-[3fr_2fr] lg:gap-4 space-y-4 lg:space-y-0 w-full">
       <div className="flex flex-col space-y-4 w-full min-w-0">
         <h3 className="font-bold text-lg">{card.prompt}</h3>
-        <div className="brutal-border rounded-xl overflow-hidden flex-1 lg:min-h-[320px]">
+        <div className="brutal-border rounded-xl overflow-hidden bg-white">
           <CodeMirror
             value={code}
-            extensions={[java()]}
+            extensions={[
+              java(), 
+              EditorView.lineWrapping, 
+              EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
+            ]}
             theme="light"
             onChange={(val) => setCode(val)}
             basicSetup={{ lineNumbers: true }}
-            className="h-full"
-            height="100%"
+            minHeight="240px"
+            maxHeight="70vh"
           />
         </div>
         
@@ -200,7 +209,7 @@ export function CodeChallengeCardComponent({
           <p className="font-bold text-gray-700">Hasil Pengecekan</p>
         </div>
         
-        <div className={`p-4 font-mono text-sm rounded-xl whitespace-pre-wrap brutal-border overflow-x-auto flex-1 max-h-[30vh] lg:max-h-none ${
+        <div className={`p-4 font-mono text-sm rounded-xl whitespace-pre-wrap brutal-border overflow-x-auto overflow-y-auto flex-1 max-h-[40vh] lg:max-h-none ${
           output ? 'bg-gray-900 text-green-400 brutal-card' : 'bg-gray-100 text-gray-400 border-dashed border-gray-300'
         }`}>
           {output || 'Output akan tampil di sini'}
