@@ -36,56 +36,52 @@ export function RunnableCardComponent({ card }: { card: RunnableCard }) {
   };
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-[3fr_2fr] lg:gap-4 space-y-4 lg:space-y-0 w-full">
-      <div className="flex flex-col space-y-4 w-full min-w-0">
-        <div className="flex justify-between items-center shrink-0">
-          <p className="font-bold text-gray-700">Kode Playground</p>
-        </div>
-        <div className="brutal-border rounded-xl overflow-hidden bg-white">
-          <CodeMirror
-            value={code}
-            extensions={[
-              java(), 
-              EditorView.lineWrapping, 
-              EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
-            ]}
-            theme="light"
-            onChange={(val) => setCode(val)}
-            basicSetup={{ lineNumbers: true }}
-            minHeight="240px"
-            maxHeight="70vh"
-          />
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={handleRun}
-            disabled={isRunning}
-            className="flex-1 brutal-btn bg-[var(--color-success)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"
+    <div className="flex flex-col space-y-4 w-full">
+      <div className="flex justify-between items-center shrink-0">
+        <p className="font-bold text-gray-700">Kode Playground</p>
+      </div>
+      <div className="brutal-border rounded-xl overflow-hidden bg-white">
+        <CodeMirror
+          value={code}
+          extensions={[
+            java(), 
+            EditorView.lineWrapping, 
+            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
+          ]}
+          theme="light"
+          onChange={(val) => setCode(val)}
+          basicSetup={{ lineNumbers: true }}
+          minHeight="240px"
+          maxHeight="70vh"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button 
+          onClick={handleRun}
+          disabled={isRunning}
+          className="flex-1 brutal-btn bg-[var(--color-success)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"
+        >
+          {isRunning ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : <Play className="w-5 h-5 shrink-0" />}
+          {isRunning ? statusText : 'Jalankan Kode'}
+        </button>
+        {timedOut && (
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 brutal-btn bg-[var(--color-accent)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 shrink-0"
           >
-            {isRunning ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : <Play className="w-5 h-5 shrink-0" />}
-            {isRunning ? statusText : 'Jalankan Kode'}
+            <RefreshCw className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Muat Ulang</span>
           </button>
-          {timedOut && (
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 brutal-btn bg-[var(--color-accent)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 shrink-0"
-            >
-              <RefreshCw className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Muat Ulang</span>
-            </button>
-          )}
-        </div>
+        )}
       </div>
       
-      <div className="flex flex-col space-y-4 w-full min-w-0">
-        <div className="justify-between items-center hidden lg:flex shrink-0">
+      {output && (
+        <div className="flex flex-col space-y-2 w-full min-w-0">
           <p className="font-bold text-gray-700">Output</p>
+          <div className="p-4 font-mono text-sm rounded-xl whitespace-pre-wrap break-words brutal-border overflow-y-auto max-h-[300px] bg-gray-900 text-green-400 brutal-card">
+            {output}
+          </div>
         </div>
-        <div className={`p-4 font-mono text-sm rounded-xl whitespace-pre-wrap brutal-border overflow-x-auto overflow-y-auto flex-1 max-h-[40vh] lg:max-h-none ${
-          output ? 'bg-gray-900 text-green-400 brutal-card' : 'bg-gray-100 text-gray-400 border-dashed border-gray-300'
-        }`}>
-          {output || 'Output akan tampil di sini'}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -159,97 +155,92 @@ export function CodeChallengeCardComponent({
   };
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-[3fr_2fr] lg:gap-4 space-y-4 lg:space-y-0 w-full">
-      <div className="flex flex-col space-y-4 w-full min-w-0">
-        <h3 className="font-bold text-lg">{card.prompt}</h3>
-        <div className="brutal-border rounded-xl overflow-hidden bg-white">
-          <CodeMirror
-            value={code}
-            extensions={[
-              java(), 
-              EditorView.lineWrapping, 
-              EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
-            ]}
-            theme="light"
-            onChange={(val) => setCode(val)}
-            basicSetup={{ lineNumbers: true }}
-            minHeight="240px"
-            maxHeight="70vh"
-          />
-        </div>
-        
-        <div className="flex gap-2">
-          <button 
-            onClick={handleCheck}
-            disabled={isRunning || isSuccess}
-            className={`flex-1 font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 brutal-btn ${
-              isSuccess 
-                ? 'bg-[var(--color-success)] text-[var(--color-text-main)]' 
-                : 'bg-[var(--color-primary)] text-white'
-            }`}
+    <div className="flex flex-col space-y-4 w-full">
+      <h3 className="font-bold text-lg">{card.prompt}</h3>
+      <div className="brutal-border rounded-xl overflow-hidden bg-white">
+        <CodeMirror
+          value={code}
+          extensions={[
+            java(), 
+            EditorView.lineWrapping, 
+            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
+          ]}
+          theme="light"
+          onChange={(val) => setCode(val)}
+          basicSetup={{ lineNumbers: true }}
+          minHeight="240px"
+          maxHeight="70vh"
+        />
+      </div>
+      
+      <div className="flex gap-2">
+        <button 
+          onClick={handleCheck}
+          disabled={isRunning || isSuccess}
+          className={`flex-1 font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 brutal-btn ${
+            isSuccess 
+              ? 'bg-[var(--color-success)] text-[var(--color-text-main)]' 
+              : 'bg-[var(--color-primary)] text-white'
+          }`}
+        >
+          {isRunning ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : 
+           isSuccess ? <CheckCircle className="w-5 h-5 shrink-0" /> : 
+           <Play className="w-5 h-5 shrink-0" />}
+          {isRunning ? statusText : isSuccess ? 'Berhasil!' : 'Cek Jawaban'}
+        </button>
+        {timedOut && (
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 brutal-btn bg-[var(--color-accent)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 shrink-0"
           >
-            {isRunning ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : 
-             isSuccess ? <CheckCircle className="w-5 h-5 shrink-0" /> : 
-             <Play className="w-5 h-5 shrink-0" />}
-            {isRunning ? statusText : isSuccess ? 'Berhasil!' : 'Cek Jawaban'}
+            <RefreshCw className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Muat Ulang</span>
           </button>
-          {timedOut && (
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 brutal-btn bg-[var(--color-accent)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 shrink-0"
-            >
-              <RefreshCw className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Muat Ulang</span>
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
-      <div className="flex flex-col space-y-4 w-full min-w-0">
-        <div className="justify-between items-center hidden lg:flex shrink-0">
+      {output && (
+        <div className="flex flex-col space-y-2 w-full min-w-0">
           <p className="font-bold text-gray-700">Hasil Pengecekan</p>
+          <div className="p-4 font-mono text-sm rounded-xl whitespace-pre-wrap break-words brutal-border overflow-y-auto max-h-[300px] bg-gray-900 text-green-400 brutal-card">
+            {output}
+          </div>
         </div>
-        
-        <div className={`p-4 font-mono text-sm rounded-xl whitespace-pre-wrap brutal-border overflow-x-auto overflow-y-auto flex-1 max-h-[40vh] lg:max-h-none ${
-          output ? 'bg-gray-900 text-green-400 brutal-card' : 'bg-gray-100 text-gray-400 border-dashed border-gray-300'
-        }`}>
-          {output || 'Output akan tampil di sini'}
+      )}
+
+      {attempts >= 3 && !isSuccess && (
+        <div className="flex justify-between mt-2">
+          <button 
+            onClick={() => setShowHint(true)}
+            className="text-sm text-blue-600 underline flex items-center gap-1"
+          >
+            <Lightbulb className="w-4 h-4"/> Petunjuk
+          </button>
+          <button 
+            onClick={() => setShowSolution(true)}
+            className="text-sm text-red-600 underline"
+          >
+            Lihat Solusi
+          </button>
         </div>
+      )}
 
-        {attempts >= 3 && !isSuccess && (
-          <div className="flex justify-between mt-2">
-            <button 
-              onClick={() => setShowHint(true)}
-              className="text-sm text-blue-600 underline flex items-center gap-1"
-            >
-              <Lightbulb className="w-4 h-4"/> Petunjuk
-            </button>
-            <button 
-              onClick={() => setShowSolution(true)}
-              className="text-sm text-red-600 underline"
-            >
-              Lihat Solusi
-            </button>
-          </div>
-        )}
+      {showHint && !isSuccess && (
+        <div className="p-4 bg-[var(--color-accent)] text-[var(--color-text-main)] rounded-xl text-sm brutal-border brutal-card">
+          <p className="font-bold mb-1">Petunjuk:</p>
+          <ul className="list-disc pl-4 space-y-1">
+            {card.hints.map((h: string, i: number) => <li key={i}>{h}</li>)}
+          </ul>
+        </div>
+      )}
 
-        {showHint && !isSuccess && (
-          <div className="p-4 bg-[var(--color-accent)] text-[var(--color-text-main)] rounded-xl text-sm brutal-border brutal-card">
-            <p className="font-bold mb-1">Petunjuk:</p>
-            <ul className="list-disc pl-4 space-y-1">
-              {card.hints.map((h: string, i: number) => <li key={i}>{h}</li>)}
-            </ul>
-          </div>
-        )}
-
-        {showSolution && !isSuccess && (
-          <div className="p-4 bg-[var(--color-danger)] text-white rounded-xl text-sm brutal-border brutal-card">
-            <p className="font-bold mb-1">Solusi:</p>
-            <pre className="font-mono bg-white text-[var(--color-text-main)] p-2 rounded mt-1 brutal-border overflow-x-auto">
-              {(card as any).solution || 'Solusi belum tersedia untuk tantangan ini.'}
-            </pre>
-          </div>
-        )}
-      </div>
+      {showSolution && !isSuccess && (
+        <div className="p-4 bg-[var(--color-danger)] text-white rounded-xl text-sm brutal-border brutal-card">
+          <p className="font-bold mb-1">Solusi:</p>
+          <pre className="font-mono bg-white text-[var(--color-text-main)] p-2 rounded mt-1 brutal-border overflow-x-auto">
+            {(card as any).solution || 'Solusi belum tersedia untuk tantangan ini.'}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
