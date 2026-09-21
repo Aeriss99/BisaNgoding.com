@@ -22,12 +22,13 @@ export default function Dashboard() {
 
   const moduleInfo = modulesData.map((mod) => {
     const lessons = getVisibleLessons(mod.id);
-    const siap = mod.status !== 'draft' && lessons.length > 0;
+    const isReady = mod.status !== 'draft' && lessons.length > 0;
+    const siap = isReady || progress.unlockAll;
     const selesai = lessons.filter((l) => progress.completedLessons.includes(l.id)).length;
     const menit = lessons.reduce((sum, l) => sum + (l.estimatedMinutes || 5), 0);
     const quiz = progress.quizScores?.[mod.id];
     const adaQuiz = !!getQuizQuestions(mod.id);
-    return { mod, lessons, siap, selesai, menit, quiz, adaQuiz };
+    return { mod, lessons, siap, isReady, selesai, menit, quiz, adaQuiz };
   });
 
   const totalLessons = moduleInfo.reduce(
