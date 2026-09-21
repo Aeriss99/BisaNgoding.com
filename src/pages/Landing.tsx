@@ -28,7 +28,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-landing-bg)] font-sans text-[var(--color-landing-black)] overflow-x-hidden selection:bg-[var(--color-landing-cyan)]">
+    <div className="min-h-screen bg-[var(--color-landing-bg)] font-sans text-[var(--color-landing-black)] overflow-clip selection:bg-[var(--color-landing-cyan)]">
       {/* 1. Navbar */}
       <nav className="sticky top-0 z-50 bg-[var(--color-landing-bg)] border-b-[6px] border-[var(--color-landing-cyan)] px-4 py-3 sm:px-8 brutal-border-bottom">
         <div className="max-w-7xl mx-auto flex items-center justify-between">

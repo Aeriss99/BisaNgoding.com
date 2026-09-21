@@ -19,11 +19,11 @@ export function ComingSoon({ children, inline = false, text = "SEGERA" }: Coming
   if (inline) {
     return (
       <div 
-        className="inline-flex items-center gap-2 cursor-not-allowed group relative w-full"
+        className="inline-flex items-center gap-2 cursor-not-allowed group relative"
         onClick={handleClick}
         onTouchEnd={handleClick}
       >
-        <div className="opacity-60 pointer-events-none flex items-center w-full">
+        <div className="opacity-60 pointer-events-none flex items-center">
           {children}
         </div>
         <div className="bg-[var(--color-primary-light)] border border-[var(--color-text-main)] px-1.5 py-0.5 text-[10px] font-mono font-bold shadow-[2px_2px_0_var(--color-text-main)] pointer-events-none whitespace-nowrap">

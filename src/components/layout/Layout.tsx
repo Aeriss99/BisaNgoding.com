@@ -45,18 +45,22 @@ export default function Layout() {
           })}
           
           <div className="pt-2 space-y-3">
-            <ComingSoon inline text="SOON">
-              <div className="flex items-center gap-3 p-3 font-bold text-[var(--color-text-secondary)] w-full">
-                <Award className="w-5 h-5" />
-                <span>Sertifikat</span>
-              </div>
-            </ComingSoon>
-            <ComingSoon inline text="SOON">
-              <div className="flex items-center gap-3 p-3 font-bold text-[var(--color-text-secondary)] w-full">
-                <Users className="w-5 h-5" />
-                <span>Komunitas</span>
-              </div>
-            </ComingSoon>
+            <div className="w-full flex">
+              <ComingSoon inline text="SOON">
+                <div className="flex items-center gap-3 p-3 font-bold text-[var(--color-text-secondary)]">
+                  <Award className="w-5 h-5" />
+                  <span>Sertifikat</span>
+                </div>
+              </ComingSoon>
+            </div>
+            <div className="w-full flex">
+              <ComingSoon inline text="SOON">
+                <div className="flex items-center gap-3 p-3 font-bold text-[var(--color-text-secondary)]">
+                  <Users className="w-5 h-5" />
+                  <span>Komunitas</span>
+                </div>
+              </ComingSoon>
+            </div>
           </div>
         </nav>
         
