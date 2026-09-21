@@ -87,7 +87,7 @@ export default function Landing() {
               </a>
             </div>
           </div>
-          <div className="flex-1 w-full max-w-md lg:max-w-full relative h-[300px] sm:h-[400px] flex items-center justify-center">
+          <div className="w-full lg:w-1/2 lg:flex-1 max-w-md lg:max-w-full relative h-[300px] sm:h-[400px] flex items-center justify-center shrink-0">
             <div className="w-full h-full relative">
               {/* Stacked Cards */}
               <div className="absolute inset-0 bg-white border-[3px] border-[var(--color-landing-black)] rotate-[-3deg] shadow-[4px_4px_0_#111111]"></div>

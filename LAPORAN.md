@@ -31,3 +31,4 @@
 | 17 | 2026-09-21 20:46 | Buat Landing Page & Fitur Segera Hadir | LULUS 37/37 | 62/610 | 3/30 | Landing page Neo-Brutalism & ComingSoon component |
 | 18 | 2026-09-21 21:50 | Perbaiki rute Landing dan bypass DEV | LULUS 37/37 | 62/610 | 3/30 | Rute Landing diperbaiki, PWA skipWaiting diaktifkan |
 | 19 | 2026-09-21 22:15 | Sesuaikan Landing Page dengan Mockup | LULUS 37/37 | 62/610 | 3/30 | Blok ungu dihapus, hero digabung, badge navbar inline |
+| 20 | 2026-09-22 00:05 | Fix bug ilustrasi mobile Landing | LULUS 37/37 | 62/610 | 3/30 | Hapus flex-1 dari parent ilustrasi hero agar tinggi tak collapse jadi 0 |
