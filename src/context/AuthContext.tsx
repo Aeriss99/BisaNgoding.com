@@ -5,6 +5,7 @@ import { bersihkanProgresLokal } from '../lib/cloudProgress'; // We'll implement
 
 interface AuthContextType {
   user: User | null;
+  isAdmin: boolean;
   loading: boolean;
   masukGoogle: () => Promise<void>;
   keluar: () => Promise<void>;
@@ -13,6 +14,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  isAdmin: false,
   loading: true,
   masukGoogle: async () => {},
   keluar: async () => {},
@@ -21,7 +23,21 @@ const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const checkAdmin = async (userId: string | undefined) => {
+    if (!supabase || !userId) {
+      setIsAdmin(false);
+      return;
+    }
+    try {
+      const { data } = await supabase.rpc('is_admin');
+      setIsAdmin(!!data);
+    } catch (e) {
+      setIsAdmin(false);
+    }
+  };
 
   useEffect(() => {
     if (!supabase) {
@@ -31,6 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      if (session?.user) checkAdmin(session.user.id);
       setLoading(false);
       
       // Clean ?code= from URL without reloading
@@ -42,6 +59,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        checkAdmin(session.user.id);
+      } else {
+        setIsAdmin(false);
+      }
       setLoading(false);
     });
 
@@ -67,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={{
       user,
+      isAdmin,
       loading,
       masukGoogle,
       keluar,

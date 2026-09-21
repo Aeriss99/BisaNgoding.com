@@ -50,7 +50,7 @@ export function makeDefaultProgress(): UserProgress {
 }
 
 export function ProgressProvider({ children }: { children: React.ReactNode }) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const [daysUntilReset, setDaysUntilReset] = useState<number | null>(null);
   const inactiveDaysConfig = getInactiveDaysConfig();
   const [syncStatus, setSyncStatus] = useState<'Tersimpan' | 'Menyimpan...' | 'Offline, tersimpan di perangkat ini'>('Offline, tersimpan di perangkat ini');
@@ -277,8 +277,10 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const activeUnlockAll = isAdmin ? progress.unlockAll : false;
+
   return (
-    <ProgressContext.Provider value={{ progress, markLessonCompleted, importProgress, toggleUnlockAll, addXP, saveQuizScore, touchActivity, inactiveDaysConfig, daysUntilReset, syncStatus }}>
+    <ProgressContext.Provider value={{ progress: { ...progress, unlockAll: activeUnlockAll }, markLessonCompleted, importProgress, toggleUnlockAll, addXP, saveQuizScore, touchActivity, inactiveDaysConfig, daysUntilReset, syncStatus }}>
       {children}
     </ProgressContext.Provider>
   );

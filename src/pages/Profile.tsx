@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Profile() {
   const { progress, importProgress, toggleUnlockAll, syncStatus } = useProgress();
-  const { user, masukGoogle, keluar, isSupabaseConfigured } = useAuth();
+  const { user, isAdmin, masukGoogle, keluar, isSupabaseConfigured } = useAuth();
   const [message, setMessage] = useState('');
 
   const tampilkanPesan = (teks: string, ms = 3000) => {
@@ -133,17 +133,19 @@ export default function Profile() {
       <section className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
         <h2 className="font-bold border-b pb-2">Manajemen Progres</h2>
         <div className="space-y-3">
-          <label className="w-full flex items-center justify-between bg-yellow-50 text-yellow-800 p-3 rounded-lg border border-yellow-200 cursor-pointer">
-            <div className="flex items-center gap-2 font-medium">
-              <Unlock className="w-5 h-5" /> Buka Semua Modul
-            </div>
-            <input 
-              type="checkbox" 
-              checked={progress.unlockAll}
-              onChange={(e) => toggleUnlockAll(e.target.checked)}
-              className="w-5 h-5 accent-[var(--color-primary)]"
-            />
-          </label>
+          {isAdmin && (
+            <label className="w-full flex items-center justify-between bg-yellow-50 text-yellow-800 p-3 rounded-lg border border-yellow-200 cursor-pointer">
+              <div className="flex items-center gap-2 font-medium">
+                <Unlock className="w-5 h-5" /> Buka Semua Modul
+              </div>
+              <input 
+                type="checkbox" 
+                checked={progress.unlockAll}
+                onChange={(e) => toggleUnlockAll(e.target.checked)}
+                className="w-5 h-5 accent-[var(--color-primary)]"
+              />
+            </label>
+          )}
 
           <button
             onClick={handleExport}
