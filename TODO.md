@@ -1,119 +1,87 @@
-# TODO — Login Google + Simpan Progres di Supabase
+# TODO: Redesign Dashboard Belajar (BisaNgoding)
 
-## Tujuan
-Login dengan akun Google. Progres belajar tersimpan di Supabase, jadi dibuka dari laptop atau HP hasilnya sama. Tanpa login, aplikasi tetap bisa dipakai seperti sekarang (progres disimpan lokal).
+## Konteks
+Halaman dashboard "Belajar" (setelah login Google) perlu dirapikan. Gaya visual tetap **neo-brutalism** seperti sekarang: border hitam tebal, bayangan keras (tanpa blur), kuning dan biru sebagai warna utama.
 
-> Rencana "kode sinkronisasi" sebelumnya DIBATALKAN. Jangan dikerjakan.
+**Batasan (WAJIB):**
+- Hanya ubah halaman dashboard dan komponen sidebar/navigasi. Jangan ubah halaman materi, runtime Java (CheerpJ tetap Java 8), auth Google, atau logika sinkronisasi Supabase.
+- Semua angka harus diambil dari data asli (progress user dan daftar modul/pelajaran). **Jangan hardcode angka** seperti 26, 72, dan 605.
+- Setelah setiap task, jalankan build, lint, dan test, lalu perbaiki sendiri kalau ada error. Centang checkbox di file ini kalau task sudah selesai.
+- Kalau ada task yang ambigu, pilih solusi paling sederhana dan tulis catatan singkat di bagian "Catatan agent" di bawah. Jangan berhenti untuk bertanya, dan jangan mengulang pendekatan yang sama kalau sudah gagal 2x.
 
-## Aturan Agent (WAJIB DIBACA)
-1. Kerjakan berurutan dari Bagian 3 sampai 8, langsung sampai selesai. Bagian 1–2 dikerjakan user.
-2. Maksimal 3 percobaan per masalah. Gagal? Catat di LAPORAN.md, lanjut.
-3. **JANGAN** ubah isi `content/`, `javaRunner.ts`, atau logika pelajaran/quiz.
-4. **JANGAN** menulis URL/key Supabase di kode. Semua lewat env.
-5. Aplikasi **wajib tetap jalan** tanpa login dan tanpa env Supabase.
-6. **JANGAN** mengubah HashRouter menjadi BrowserRouter.
-7. Tes unit untuk logika penggabungan progres wajib ada.
-8. Balas singkat, tanpa menampilkan kode.
+## Design tokens
+- Background halaman: `#FBF7EE`
+- Hitam (border, teks, bayangan): `#111111`
+- Kuning: `#FFD93D`, kuning muda: `#FFF3B8`
+- Biru aksen: `#2447F5`, biru muda: `#C9D3FF`
+- Merah peringatan: teks/ikon `#B42318`, latar `#FFE3E0`
+- Hijau sukses: `#1B7A3E`
+- Teks sekunder: `#444444` (jangan lebih terang dari `#555555` supaya kontras tetap terbaca)
+- Font: **Space Grotesk** (700) untuk judul dan angka besar, **Noto Sans** untuk body, **JetBrains Mono** untuk label kecil bergaya kode. Semua dari Google Fonts.
+- Kartu besar: `border: 3px solid #111`, `border-radius: 14–16px`, `box-shadow: 6px 6px 0 #111`
+- Kartu kecil: `border: 2px solid #111`, `border-radius: 10–12px`, `box-shadow: 4px 4px 0 #111`
+- Progress bar: border 2px hitam, rounded penuh, isi biru aksen
+- Target sentuh minimal 44px. Pakai ikon SVG garis (stroke), jangan emoji.
 
----
+## Task
 
-## Bagian 1 — Setup Google (dikerjakan user)
-- [ ] Buka Google Cloud Console → buat project → APIs & Services → OAuth consent screen (External), isi nama aplikasi dan email
-- [ ] Credentials → Create OAuth Client ID → tipe **Web application**
-- [ ] Authorized redirect URI: isi dengan callback URL dari Supabase (lihat Bagian 2, formatnya `https://<project>.supabase.co/auth/v1/callback`)
-- [ ] Salin **Client ID** dan **Client Secret**
+### 1. Sidebar (desktop)
+- [x] Logo: kotak biru kecil berisi `{ }` (font mono), lalu teks "BisaNgoding".
+- [x] Menu aktif ("Belajar"): latar kuning, border 2px, bayangan 4px.
+- [x] "Sertifikat" dan "Komunitas": teks abu, tidak bisa diklik, dengan badge kecil **"SOON"** di sisi kanan item. Badge **tidak boleh menutupi label** (bug di versi sekarang).
+- [x] Hapus ilustrasi di bagian bawah sidebar.
+- [x] Kartu akun di bawah sidebar:
+  - Avatar dari foto Google (fallback: inisial), nama, dan email. Email satu baris dengan ellipsis, dan email lengkap muncul di atribut `title`.
+  - Ganti teks "Tersimpan" menjadi ikon centang hijau + "Progres tersinkron ke akun Google". Kalau sinkronisasi gagal atau sedang berjalan, tampilkan status yang sesuai.
+  - Tombol "Keluar" bergaya outline (latar putih, teks merah `#B42318`), bukan tombol merah penuh.
 
-## Bagian 2 — Setup Supabase (dikerjakan user)
-- [ ] Buat project di supabase.com (gratis)
-- [ ] Authentication → Providers → **Google** → aktifkan, tempel Client ID dan Client Secret
-- [ ] Authentication → URL Configuration:
-      - Site URL: `https://aeriss99.github.io/BisaNgoding.com/`
-      - Redirect URLs, tambahkan dua:
-        `https://aeriss99.github.io/BisaNgoding.com/`
-        `http://localhost:5173/`
-- [ ] SQL Editor → jalankan SQL berikut:
+### 2. Header / sapaan
+- [x] Label kecil mono `// dashboard`, judul "Halo, {namaDepan}. Lanjut ngoding?", dan subjudul "Dari pemula sampai mahir, satu pelajaran setiap hari."
+- [x] Hapus ilustrasi besar di kanan atas.
+- [x] Di kanan header, tampilkan **chip peringatan reset** (latar `#FFE3E0`, ikon jam merah): "Progres direset jika tidak aktif {N} hari. Terakhir belajar: {tanggal}." Nilai N diambil dari konfigurasi reset yang sudah ada. Kalau sisa waktu ≤ 2 hari, ubah teksnya menjadi lebih mendesak, misalnya "Sisa {x} hari sebelum progres direset".
 
-```sql
-create table if not exists progres (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  data jsonb not null,
-  diperbarui timestamptz not null default now()
-);
+### 3. Kartu "Lanjutkan Belajar" (lebar 3/5)
+- [x] Kartu kuning besar yang menampilkan:
+  - Badge hitam "LANJUTKAN" dan "Modul {n} · {namaModul}"
+  - "Pelajaran {x} dari {total}" (font mono), diikuti **judul pelajaran berikutnya** yang diambil dari data
+  - Progress bar modul, "{selesai}/{total} selesai · {persen}%", dan "Tinggal {sisa} pelajaran lagi + kuis akhir"
+  - Tombol biru utama "Lanjutkan Belajar →" yang langsung membuka pelajaran berikutnya
+  - Tombol sekunder outline "Lihat daftar pelajaran"
+- [x] Kalau user belum pernah belajar, ganti isinya menjadi "Mulai dari Modul 1: Java Dasar".
 
-alter table progres enable row level security;
+### 4. Kartu "Progres Total" (lebar 2/5)
+- [x] Ring/donut SVG dengan persentase **berdasarkan pelajaran yang sudah tersedia** (modul yang bukan "segera hadir"). Contoh saat ini: 26/72 = 36%.
+- [x] Teks besar "{selesai} / {tersedia}" dengan keterangan "pelajaran dari materi yang sudah tersedia".
+- [x] Di bawahnya, setelah garis putus-putus: bar tipis hitam "Seluruh kurikulum: {selesai} / {totalKurikulum} · {persen}%".
 
-create policy "baca progres sendiri" on progres
-  for select using (auth.uid() = user_id);
+### 5. Baris statistik (4 kartu kecil)
+- [x] Pelajaran selesai
+- [x] Modul tuntas: "{x} / {modulTersedia} tersedia"
+- [x] Kuis akhir modul: tampilkan **"Belum dikerjakan"** kalau kuis belum pernah diambil. Jangan tampilkan "0%". Kalau sudah dikerjakan, tampilkan nilai terakhir.
+- [x] Estimasi sisa waktu: jumlah estimasi jam dari pelajaran yang belum selesai di modul tersedia.
 
-create policy "tambah progres sendiri" on progres
-  for insert with check (auth.uid() = user_id);
+### 6. Seksi "Modul tersedia"
+- [x] Judul "Modul tersedia" dan di kanannya "{n} modul · {n} pelajaran".
+- [x] Grid 3 kolom. Setiap kartu berisi: nomor dalam lingkaran, nama modul, badge status, progress bar, lalu baris info "{x}/{y} pelajaran · ~{jam} jam · Kuis: {status}".
+- [x] Badge status: `SEDANG` (biru muda) kalau progres > 0 dan < 100%, `SELESAI` (hijau) kalau 100%, `BELUM MULAI` (putih) kalau 0, dan `PROYEK` (kuning muda) untuk modul proyek.
+- [x] Seluruh kartu bisa diklik (pakai elemen `<a>`).
 
-create policy "ubah progres sendiri" on progres
-  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
-```
+### 7. Seksi "Segera hadir"
+- [x] Ganti kartu besar abu-abu menjadi **baris ringkas** setinggi 56px: border 2px dashed `#8A8578`, nomor mono ("04"), nama modul, dan ikon gembok. Susun dalam grid 3 kolom.
+- [x] Hapus teks "Materi belum tersedia" dan badge besar "SEGERA HADIR" di setiap kartu, karena judul seksi sudah menjelaskannya.
 
-- [ ] Settings → API → salin **Project URL** dan **anon public key** ke `.env.local`:
-      `VITE_SUPABASE_URL=...`
-      `VITE_SUPABASE_ANON_KEY=...`
-- [ ] Tambahkan dua nilai itu sebagai **GitHub Secrets** di repo (Settings → Secrets → Actions)
+### 8. Mobile (< 768px)
+- [x] Sidebar diganti **header atas** (logo di kiri, avatar di kanan) dan **bottom navigation** 4 item (Belajar aktif berlatar kuning; Sertifikat dan Komunitas abu).
+- [x] Urutan konten: sapaan → kartu Lanjutkan → chip reset → progres materi (bar, bukan ring) → daftar modul 1 kolom → "Segera hadir" sebagai chip yang wrap.
+- [x] Tidak boleh ada scroll horizontal. Pastikan konten terakhir tidak tertutup bottom nav (tambahkan padding bawah).
 
-## Bagian 3 — Client Supabase
-- [ ] Install `@supabase/supabase-js`
-- [ ] Buat `src/lib/supabase.ts`: buat client dari env. Jika env kosong, ekspor `null`
-- [ ] Wajib pakai `auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true }`
-      (PKCE mengembalikan `?code=` di query, bukan `#access_token` di hash, sehingga tidak bentrok dengan HashRouter)
-- [ ] Pastikan `.env.local` ada di `.gitignore`
-- [ ] Workflow deploy membaca `VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY` dari GitHub Secrets saat build
+### 9. Verifikasi
+- [x] Build, lint, dan test lolos.
+- [x] Tambahkan test untuk fungsi hitung progres: persen tersedia, persen kurikulum, status badge, dan teks kuis "Belum dikerjakan".
+- [x] Cek di lebar 390px, 768px, dan 1440px: tidak ada teks yang saling menimpa dan tidak ada overflow.
 
-## Bagian 4 — Auth
-- [ ] Buat `src/context/AuthContext.tsx`: menyimpan `user` dan `loading`, mendengarkan `onAuthStateChange`
-- [ ] Fungsi `masukGoogle()`: `signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + import.meta.env.BASE_URL } })`
-- [ ] Fungsi `keluar()`: `signOut()`
-- [ ] Setelah kembali dari Google, bersihkan `?code=` dari URL tanpa me-reload halaman
-- [ ] Jika Supabase `null`, semua fungsi auth tidak melakukan apa-apa dan tombol login disembunyikan
-
-## Bagian 5 — Simpan & Ambil Progres
-- [ ] Buat `src/lib/cloudProgress.ts`: `ambilProgres(userId)` dan `simpanProgres(userId, data)` (upsert ke tabel `progres`)
-- [ ] Saat progres berubah: simpan ke localStorage **dulu**, lalu kirim ke Supabase jika login (debounce 3 detik)
-- [ ] Saat login atau aplikasi dibuka dalam keadaan login: ambil data cloud, **gabungkan** dengan data lokal, simpan hasilnya ke keduanya
-- [ ] Aturan penggabungan (bukan saling menimpa):
-      - `completedLessons`: gabungkan, buang duplikat
-      - `xp`, `streak`: ambil nilai terbesar
-      - `quizScores`: ambil skor tertinggi per modul, `passed` true jika salah satu true
-      - `unlockedAchievements` dan penghitung achievement: gabungkan / ambil terbesar
-      - `lastActiveDate`, `maxSeenDate`: ambil tanggal terbaru
-- [ ] Semua panggilan jaringan pakai try/catch dan timeout 8 detik. Gagal = tetap jalan dengan data lokal
-- [ ] Saat keluar: berhenti sinkron, progres lokal tetap ada
-- [ ] Simpan pemilik data lokal (`ownerId`: null untuk tamu, atau id user). Saat login: gabungkan data lokal HANYA jika ownerId null (tamu) atau sama dengan user yang login. Jika milik user lain, abaikan data lokal dan pakai data cloud.
-- [ ] Saat keluar: kosongkan progres lokal, lalu mulai sebagai tamu yang baru. Data tetap aman di cloud.
-
-## Bagian 6 — Reset Otomatis Tidak Aktif
-- [ ] Jika fitur reset 7 hari aktif, reset juga harus menulis ulang data di cloud, agar tidak "hidup lagi" dari server
-- [ ] Penggabungan tidak boleh mengembalikan progres yang sudah direset (pakai tanggal reset sebagai penanda)
-
-## Bagian 7 — Tampilan
-- [ ] Sidebar desktop & halaman Profil: tombol **Masuk dengan Google** (gaya neo-brutalism yang sama)
-- [ ] Jika login: tampilkan foto profil, nama, email, tombol **Keluar**
-- [ ] Status sinkron kecil: "Tersimpan", "Menyimpan...", atau "Offline, tersimpan di perangkat ini"
-- [ ] Banner lembut di Dashboard untuk yang belum login: "Masuk agar progresmu tersimpan di semua perangkat" (bisa ditutup, tidak muncul lagi setelah ditutup)
-- [ ] Export/Import lama tetap ada sebagai cadangan
-
-## Bagian 8 — Tes & Pemeriksaan
-- [ ] Unit test penggabungan progres untuk semua aturan di Bagian 5
-- [ ] Unit test: env kosong → aplikasi jalan normal tanpa tombol login
-- [ ] Unit test: gagal jaringan → data lokal tetap dipakai
-- [ ] `npm run build` sukses
-- [ ] Tambah 1 baris LAPORAN.md
-
-## Uji Manual (dikerjakan user)
-- [ ] Login di desktop, selesaikan 1 pelajaran
-- [ ] Login di HP dengan akun Google yang sama → pelajaran tadi tercentang
-- [ ] Selesaikan pelajaran lain di HP → refresh desktop, ikut tercentang
-- [ ] Coba di GitHub Pages, bukan hanya localhost
-
----
-
-## Nanti (JANGAN sekarang)
-- Fitur Pro dan pembayaran
-- Iklan
-- Upgrade CheerpJ ke Java 17 (dikerjakan terpisah)
+## Catatan agent
+(isi di sini kalau ada keputusan atau asumsi yang diambil)
+- Asumsi: Badge "SOON" pada menu ditaruh menggunakan komponen `ComingSoon` dengan parameter `inline` agar tidak menutupi label, sementara kartu "Sertifikat" dan "Komunitas" tetap redup dan kursor *not-allowed*.
+- Asumsi: Di perangkat mobile, kartu `Progres Total` tidak perlu menampilkan donut chart besar untuk menghemat ruang, melainkan hanya baris *progress bar* dan statistik saja sesuai permintaan ("progres materi (bar, bukan ring)").
+- Asumsi: Untuk menyembunyikan "Chip peringatan reset" di mobile dari *header* dan menampilkannya kembali di bawah "kartu Lanjutkan", dibuat dua div dengan *class* utilitas responsif (`hidden md:flex` dan `flex md:hidden`).

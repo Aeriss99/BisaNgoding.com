@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Dashboard from './Dashboard';
 import { ProgressProvider } from '../context/ProgressContext';
+import { AuthProvider } from '../context/AuthContext';
 
 vi.mock('../lib/content', () => ({
   modulesData: [
@@ -24,17 +25,33 @@ vi.mock('../../content/modules.json', () => ({
   ]
 }));
 
+// Mock supabase rpc for testing
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    rpc: vi.fn(),
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+    }
+  }
+}));
+
 describe('Dashboard', () => {
   it('calculates module progress correctly', () => {
     render(
-      <ProgressProvider>
-        <MemoryRouter>
-          <Dashboard />
-        </MemoryRouter>
-      </ProgressProvider>
+      <AuthProvider>
+        <ProgressProvider>
+          <MemoryRouter>
+            <Dashboard />
+          </MemoryRouter>
+        </ProgressProvider>
+      </AuthProvider>
     );
-    expect(screen.getByText(/Java Dasar/)).toBeDefined();
-    expect(screen.getByText(/0\/1 pelajaran/)).toBeDefined();
-    expect(screen.getByText(/Quiz: 0%/)).toBeDefined();
+    expect(screen.getAllByText(/Java Dasar/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/0\/1/)).toBeDefined();
+    expect(screen.getByText(/Kuis: Blm/)).toBeDefined();
+    expect(screen.getByText(/Belum dikerjakan/i)).toBeDefined();
+    expect(screen.getByText(/BELUM MULAI/)).toBeDefined();
+    expect(screen.getAllByText(/0%/).length).toBeGreaterThan(0);
   });
 });
