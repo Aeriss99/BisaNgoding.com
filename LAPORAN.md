@@ -25,4 +25,4 @@
 | 11 | 2026-09-17 21:00 | Bagian 3 & 4 — Quiz & Progres | LULUS 1/1 | 32/610 | 1/30 | Fitur quiz akhir modul, navigasi next lesson selesai |
 | 12 | 2026-09-17 21:15 | Bagian 3, 4, 5 — Quiz Akhir Modul, Progres Dashboard, Reset Otomatis | LULUS 31/31 | 32/610 | 1/30 | quiz.json belum ada (soal disediakan user) |
 
-| 14 | 2026-09-18 21:00 | Implement Neo-Brutalism & Mobile (Bagian 1-6) | LULUS | 54/610 | 3/30 | Tampilan diubah, animasi & CSS var ditambahkan |
+| 14 | 2026-09-18 21:00 | Implement Neo-Brutalism & Mobile (Bagian 1-6) | LULUS | 54/610 | 3/30 | Tampilan diubah, animasi & CSS var ditambahkan |- Selesai Bagian 3-8: Client Supabase, AuthContext, cloudProgress, UI Profile & Dashboard, unit tests

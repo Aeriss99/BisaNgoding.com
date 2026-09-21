@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useProgress } from '../context/ProgressContext';
-import { Download, Upload, Trash2, Award } from 'lucide-react';
+import { Download, Upload, Trash2, Award, LogIn, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function Profile() {
-  const { progress, importProgress } = useProgress();
+  const { progress, importProgress, syncStatus } = useProgress();
+  const { user, masukGoogle, keluar, isSupabaseConfigured } = useAuth();
   const [message, setMessage] = useState('');
 
   const tampilkanPesan = (teks: string, ms = 3000) => {
@@ -75,6 +77,40 @@ export default function Profile() {
 
       {message && (
         <div className="p-3 bg-blue-100 text-blue-800 rounded-lg text-sm text-center">{message}</div>
+      )}
+
+      {isSupabaseConfigured && (
+        <section className="bg-white rounded-xl border p-4 shadow-sm space-y-4 brutal-card">
+          <h2 className="font-bold border-b pb-2">Akun</h2>
+          {user ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-12 h-12 rounded-full brutal-border" />
+                <div>
+                  <div className="font-bold text-lg">{user.user_metadata.full_name}</div>
+                  <div className="text-gray-500 text-sm">{user.email}</div>
+                  <div className="text-xs font-medium text-[var(--color-primary)] mt-1">{syncStatus}</div>
+                </div>
+              </div>
+              <button
+                onClick={keluar}
+                className="w-full flex items-center justify-center gap-2 brutal-btn !bg-red-400 !text-white !p-3"
+              >
+                <LogOut className="w-5 h-5" /> Keluar
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">Masuk untuk menyinkronkan progres di semua perangkat secara otomatis.</p>
+              <button
+                onClick={masukGoogle}
+                className="w-full flex items-center justify-center gap-2 brutal-btn !bg-[var(--color-primary)] !text-white !p-3"
+              >
+                <LogIn className="w-5 h-5" /> Masuk dengan Google
+              </button>
+            </div>
+          )}
+        </section>
       )}
 
       <section className="bg-white rounded-xl border p-4 shadow-sm space-y-4">

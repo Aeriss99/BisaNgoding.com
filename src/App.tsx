@@ -8,25 +8,28 @@ import QuizPage from './pages/Quiz';
 import NotFound from './pages/NotFound';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
+import { AuthProvider } from './context/AuthContext';
 import { ProgressProvider } from './context/ProgressContext';
 
 function App() {
   return (
     <ErrorBoundary>
-      <ProgressProvider>
-        <HashRouter>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="profile" element={<Profile />} />
-              <Route path="module/:moduleId" element={<ModuleDetail />} />
-              <Route path="*" element={<NotFound />} />
-            </Route>
-            <Route path="/lesson/:lessonId" element={<LessonPage />} />
-            <Route path="/quiz/:moduleId" element={<QuizPage />} />
-          </Routes>
-        </HashRouter>
-      </ProgressProvider>
+      <AuthProvider>
+        <ProgressProvider>
+          <HashRouter>
+            <Routes>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<Dashboard />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="module/:moduleId" element={<ModuleDetail />} />
+                <Route path="*" element={<NotFound />} />
+              </Route>
+              <Route path="/lesson/:lessonId" element={<LessonPage />} />
+              <Route path="/quiz/:moduleId" element={<QuizPage />} />
+            </Routes>
+          </HashRouter>
+        </ProgressProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

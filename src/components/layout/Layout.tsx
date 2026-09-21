@@ -1,8 +1,12 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { BookOpen, User } from 'lucide-react';
+import { BookOpen, User, LogIn, LogOut } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useProgress } from '../../context/ProgressContext';
 
 export default function Layout() {
   const location = useLocation();
+  const { user, masukGoogle, keluar, isSupabaseConfigured } = useAuth();
+  const { syncStatus } = useProgress();
 
   const navItems = [
     { path: '/', label: 'Belajar', icon: BookOpen },
@@ -40,8 +44,29 @@ export default function Layout() {
             );
           })}
         </nav>
-        <div className="p-4 mt-auto w-full flex justify-center">
-          <div className="brutal-card rounded-xl bg-[var(--color-bg-base)] p-3 overflow-hidden w-[180px]">
+        <div className="p-4 mt-auto w-full flex flex-col items-center gap-4">
+          {isSupabaseConfigured && (
+            <div className="w-full">
+              {user ? (
+                <div className="flex flex-col gap-2 p-3 brutal-card rounded-xl bg-green-100 text-sm w-full">
+                  <div className="flex items-center gap-2">
+                    <img src={user.user_metadata.avatar_url} alt="Profile" className="w-8 h-8 rounded-full brutal-border" />
+                    <div className="truncate font-bold" title={user.email}>{user.email}</div>
+                  </div>
+                  <div className="text-xs text-gray-600">{syncStatus}</div>
+                  <button onClick={keluar} className="flex items-center justify-center gap-2 mt-2 w-full brutal-btn !bg-red-400 !text-white !p-2 !text-sm">
+                    <LogOut className="w-4 h-4" /> Keluar
+                  </button>
+                </div>
+              ) : (
+                <button onClick={masukGoogle} className="flex items-center justify-center gap-2 w-full brutal-btn !bg-[var(--color-primary)] !text-white !p-3">
+                  <LogIn className="w-5 h-5" /> Masuk Google
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="brutal-card rounded-xl bg-[var(--color-bg-base)] p-3 overflow-hidden w-full max-w-[180px]">
             <img 
               src={`${import.meta.env.BASE_URL}illustrations/undraw_programming_j1zw.svg`} 
               alt="" 

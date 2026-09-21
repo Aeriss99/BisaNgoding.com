@@ -1,12 +1,25 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, CheckCircle, ChevronRight, Clock, AlertTriangle, RefreshCw, Lock } from 'lucide-react';
+import { BookOpen, CheckCircle, ChevronRight, Clock, AlertTriangle, RefreshCw, Lock, X } from 'lucide-react';
 import { useProgress } from '../context/ProgressContext';
 import { modulesData, getVisibleLessons, getQuizQuestions } from '../lib/content';
+import { useAuth } from '../context/AuthContext';
+import { useState, useEffect } from 'react';
 
 export default function Dashboard() {
   const { progress, daysUntilReset } = useProgress();
+  const { user, isSupabaseConfigured } = useAuth();
+  const [showBanner, setShowBanner] = useState(true);
 
-  // Modul dianggap siap hanya jika BUKAN draft DAN benar-benar punya pelajaran
+  useEffect(() => {
+    const hidden = localStorage.getItem('hide_login_banner');
+    if (hidden === 'true') setShowBanner(false);
+  }, []);
+
+  const hideBanner = () => {
+    localStorage.setItem('hide_login_banner', 'true');
+    setShowBanner(false);
+  };
+
   const moduleInfo = modulesData.map((mod) => {
     const lessons = getVisibleLessons(mod.id);
     const siap = mod.status !== 'draft' && lessons.length > 0;
@@ -24,7 +37,6 @@ export default function Dashboard() {
   const completedLessons = moduleInfo.reduce((sum, m) => sum + m.selesai, 0);
   const progressPercent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
-  // Tombol "Lanjutkan Belajar": pelajaran pertama yang belum selesai di modul siap pertama
   let lanjutUrl = '/';
   for (const info of moduleInfo) {
     if (!info.siap) continue;
@@ -45,6 +57,17 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {isSupabaseConfigured && !user && showBanner && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 flex items-start gap-3 relative brutal-border">
+          <div className="text-sm font-medium pr-6">
+            Masuk agar progresmu tersimpan di semua perangkat.
+          </div>
+          <button onClick={hideBanner} className="absolute top-2 right-2 p-1 hover:bg-blue-100 rounded">
+            <X className="w-4 h-4 text-blue-800" />
+          </button>
+        </div>
+      )}
+
       <header className="flex justify-between items-center gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold mb-2">Belajar Java</h1>
