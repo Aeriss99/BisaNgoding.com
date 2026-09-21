@@ -151,12 +151,12 @@ describe('ProgressContext', () => {
   
   it('allows unlockAll toggle for admins', async () => {
     // Mock user session and is_admin
-    vi.mocked(supabase.auth.getSession).mockResolvedValueOnce({
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
       data: { session: { user: { id: 'admin-id' } } }
     } as any);
-    vi.mocked(supabase.rpc).mockResolvedValueOnce({ data: true, error: null } as any);
+    vi.mocked(supabase!.rpc).mockResolvedValueOnce({ data: true, error: null } as any);
     
-    const { result, waitForNextUpdate } = renderHook(() => useProgress(), { wrapper });
+    const { result } = renderHook(() => useProgress(), { wrapper });
     
     // Wait for auth to resolve
     await act(async () => {
