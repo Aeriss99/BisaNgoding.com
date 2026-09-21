@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { ProgressProvider, useProgress } from './ProgressContext';
+import { AuthProvider } from './AuthContext';
 import React from 'react';
 
 // Setup localStorage mock
@@ -14,6 +15,19 @@ const localStorageMock = (() => {
 })();
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
+// Mock supabase rpc for testing
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    rpc: vi.fn(),
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+    }
+  }
+}));
+
+import { supabase } from '../lib/supabase';
+
 describe('ProgressContext', () => {
   beforeEach(() => {
     localStorageMock.clear();
@@ -21,7 +35,9 @@ describe('ProgressContext', () => {
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <ProgressProvider>{children}</ProgressProvider>
+    <AuthProvider>
+      <ProgressProvider>{children}</ProgressProvider>
+    </AuthProvider>
   );
 
   it('initializes with default progress if localStorage is empty', () => {
@@ -122,27 +138,36 @@ describe('ProgressContext', () => {
     vi.unstubAllEnvs();
   });
 
-  it('handles toggleUnlockAll correctly', () => {
-    // If it's already true from .env, let's toggle it to false, then back to true
+  it('ignores unlockAll toggle for guests and non-admins', async () => {
     const { result } = renderHook(() => useProgress(), { wrapper });
-    
-    act(() => {
-      result.current.toggleUnlockAll(false);
-    });
-    expect(result.current.progress.unlockAll).toBe(false);
     
     act(() => {
       result.current.toggleUnlockAll(true);
     });
     
-    expect(result.current.progress.unlockAll).toBe(true);
+    // User is null by default, so isAdmin is false, thus unlockAll must be false
+    expect(result.current.progress.unlockAll).toBe(false);
   });
   
-  it('reads VITE_UNLOCK_ALL from environment variables if true', () => {
-    vi.stubEnv('VITE_UNLOCK_ALL', 'true');
-    const { result } = renderHook(() => useProgress(), { wrapper });
+  it('allows unlockAll toggle for admins', async () => {
+    // Mock user session and is_admin
+    vi.mocked(supabase.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'admin-id' } } }
+    } as any);
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({ data: true, error: null } as any);
+    
+    const { result, waitForNextUpdate } = renderHook(() => useProgress(), { wrapper });
+    
+    // Wait for auth to resolve
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 100)); // wait for getSession and checkAdmin to complete
+    });
+
+    act(() => {
+      result.current.toggleUnlockAll(true);
+    });
+    
     expect(result.current.progress.unlockAll).toBe(true);
-    vi.unstubAllEnvs();
   });
 
   it('resets progress automatically on app open if inactive >= VITE_INACTIVE_DAYS', () => {
