@@ -1,7 +1,8 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { BookOpen, User, LogIn, LogOut } from 'lucide-react';
+import { BookOpen, User, LogIn, LogOut, Award, Users } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useProgress } from '../../context/ProgressContext';
+import { ComingSoon } from '../ComingSoon';
 
 export default function Layout() {
   const location = useLocation();
@@ -43,6 +44,20 @@ export default function Layout() {
               </Link>
             );
           })}
+          
+          <ComingSoon>
+            <div className="flex items-center gap-3 p-3 rounded-xl font-bold transition-all text-gray-400">
+              <Award className="w-5 h-5" />
+              Sertifikat
+            </div>
+          </ComingSoon>
+          <ComingSoon>
+            <div className="flex items-center gap-3 p-3 rounded-xl font-bold transition-all text-gray-400">
+              <Users className="w-5 h-5" />
+              Komunitas
+            </div>
+          </ComingSoon>
+
         </nav>
         <div className="p-4 mt-auto w-full flex flex-col items-center gap-4">
           {isSupabaseConfigured && (

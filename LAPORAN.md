@@ -28,3 +28,4 @@
 | 14 | 2026-09-18 21:00 | Implement Neo-Brutalism & Mobile (Bagian 1-6) | LULUS | 54/610 | 3/30 | Tampilan diubah, animasi & CSS var ditambahkan |
 | 15 | 2026-09-21 14:35 | Setup Supabase, Auth Google, Sinkronisasi Progres | LULUS 37/37 | 62/610 | 3/30 | Selesai Bagian 3-8: Client Supabase, AuthContext, cloudProgress, UI Profile & Dashboard |
 | 16 | 2026-09-21 15:55 | Upgrade CheerpJ 4 Java 17 | LULUS 37/37 | 62/610 | 3/30 | Gagal upgrade: Error: Could not find or load main class com.sun.tools.javac.Main |
+| 17 | 2026-09-21 20:46 | Buat Landing Page & Fitur Segera Hadir | LULUS 37/37 | 62/610 | 3/30 | Landing page Neo-Brutalism & ComingSoon component |
