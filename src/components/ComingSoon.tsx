@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 
 interface ComingSoonProps {
   children: React.ReactNode;
+  inline?: boolean;
 }
 
-export function ComingSoon({ children }: ComingSoonProps) {
+export function ComingSoon({ children, inline = false }: ComingSoonProps) {
   const [showToast, setShowToast] = useState(false);
 
   const handleClick = (e: React.MouseEvent | React.TouchEvent) => {
@@ -14,9 +15,31 @@ export function ComingSoon({ children }: ComingSoonProps) {
     setTimeout(() => setShowToast(false), 2000);
   };
 
+  if (inline) {
+    return (
+      <div 
+        className="inline-flex items-center gap-1 cursor-not-allowed group relative"
+        onClick={handleClick}
+        onTouchEnd={handleClick}
+      >
+        <div className="opacity-60 pointer-events-none flex items-center">
+          {children}
+        </div>
+        <div className="bg-yellow-200 border border-black px-1.5 py-0.5 text-[10px] font-bold shadow-[1px_1px_0_#111] pointer-events-none whitespace-nowrap mb-3 -ml-1">
+          SEGERA
+        </div>
+        {showToast && (
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-black text-white px-4 py-2 rounded-lg font-medium text-sm animate-in fade-in slide-in-from-bottom-5">
+            Fitur ini segera hadir
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div 
-      className="relative group cursor-not-allowed"
+      className="relative group cursor-not-allowed h-full"
       onClick={handleClick}
       onTouchEnd={handleClick}
     >
@@ -24,7 +47,7 @@ export function ComingSoon({ children }: ComingSoonProps) {
         Segera Hadir
       </div>
       
-      <div className="opacity-60 pointer-events-none">
+      <div className="opacity-60 pointer-events-none h-full">
         {children}
       </div>
 

@@ -39,10 +39,10 @@ export default function Landing() {
           <div className="hidden lg:flex items-center gap-6 font-barlow font-bold text-lg">
             <Link to="/" className="hover:text-[var(--color-landing-cyan)] transition-colors">Beranda</Link>
             <a href="#modul" onClick={scrollToModul} className="hover:text-[var(--color-landing-cyan)] transition-colors">Modul</a>
-            <ComingSoon>
+            <ComingSoon inline>
               <span className="hover:text-[var(--color-landing-cyan)] transition-colors cursor-not-allowed">Bootcamp</span>
             </ComingSoon>
-            <ComingSoon>
+            <ComingSoon inline>
               <span className="hover:text-[var(--color-landing-cyan)] transition-colors cursor-not-allowed">Komunitas</span>
             </ComingSoon>
             <a href="#faq" onClick={scrollToFAQ} className="hover:text-[var(--color-landing-cyan)] transition-colors">FAQ</a>
@@ -57,40 +57,43 @@ export default function Landing() {
       </nav>
 
       {/* 2. Hero */}
-      <section className="px-4 py-12 sm:px-8 lg:py-20 max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-12">
-        <div className="flex-1 space-y-6">
-          <h1 className="font-bungee text-4xl sm:text-5xl lg:text-6xl leading-[1.1]">
-            BISANGODING: TEMPAT BELAJAR JAVA DARI NOL, LANGSUNG PRAKTIK{' '}
-            <span className="text-[var(--color-landing-cyan)] inline-block" style={{ textShadow: '-2px -2px 0 #111, 2px -2px 0 #111, -2px 2px 0 #111, 2px 2px 0 #111' }}>
-              GRATIS
-            </span>
-          </h1>
-          <p className="font-barlow font-medium text-xl sm:text-2xl text-gray-800 max-w-2xl">
-            Belajar lewat cerita, tulis kodenya langsung di browser, dan bangun proyek nyata dari nol.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 pt-4">
-            {isSupabaseConfigured ? (
-              <button onClick={masukGoogle} className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-6 py-4 font-bungee text-lg shadow-[4px_4px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-center">
-                MASUK DENGAN GOOGLE (GRATIS)
-              </button>
-            ) : (
-              <a href="#modul" onClick={scrollToModul} className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-6 py-4 font-bungee text-lg shadow-[4px_4px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-center inline-block">
-                MULAI BELAJAR
+      <section className="px-4 py-12 sm:px-8 lg:py-20 max-w-7xl mx-auto">
+        <div 
+          className="bg-[var(--color-landing-hero)] border-[3px] border-[var(--color-landing-black)] shadow-[8px_8px_0_#111111] p-8 md:p-12 lg:p-16 flex flex-col lg:flex-row items-center gap-12"
+          style={{ clipPath: 'polygon(28px 0, 100% 0, 100% calc(100% - 28px), calc(100% - 28px) 100%, 0 100%, 0 28px)' }}
+        >
+          <div className="flex-1 space-y-6">
+            <h1 className="font-bungee text-4xl sm:text-5xl lg:text-6xl leading-[1.1]">
+              BISANGODING: TEMPAT BELAJAR JAVA DARI NOL, LANGSUNG PRAKTIK{' '}
+              <span className="text-[var(--color-landing-cyan)] inline-block" style={{ textShadow: '-2px -2px 0 #111, 2px -2px 0 #111, -2px 2px 0 #111, 2px 2px 0 #111' }}>
+                GRATIS
+              </span>
+            </h1>
+            <p className="font-barlow font-medium text-xl sm:text-2xl text-gray-800 max-w-2xl">
+              Belajar lewat cerita, tulis kodenya langsung di browser, dan bangun proyek nyata dari nol.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              {isSupabaseConfigured ? (
+                <button onClick={masukGoogle} className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-6 py-4 font-bungee text-lg shadow-[4px_4px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-center">
+                  MASUK DENGAN GOOGLE (GRATIS)
+                </button>
+              ) : (
+                <a href="#modul" onClick={scrollToModul} className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-6 py-4 font-bungee text-lg shadow-[4px_4px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-center inline-block">
+                  MULAI BELAJAR
+                </a>
+              )}
+              <a href="#modul" onClick={scrollToModul} className="bg-[var(--color-landing-black)] text-white border-[3px] border-[var(--color-landing-black)] px-6 py-4 font-bungee text-lg shadow-[4px_4px_0_var(--color-landing-cyan)] hover:shadow-[2px_2px_0_var(--color-landing-cyan)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-center inline-block">
+                LIHAT MODUL
               </a>
-            )}
-            <a href="#modul" onClick={scrollToModul} className="bg-[var(--color-landing-black)] text-white border-[3px] border-[var(--color-landing-black)] px-6 py-4 font-bungee text-lg shadow-[4px_4px_0_var(--color-landing-cyan)] hover:shadow-[2px_2px_0_var(--color-landing-cyan)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-center inline-block">
-              LIHAT MODUL
-            </a>
+            </div>
           </div>
-        </div>
-        <div className="flex-1 w-full max-w-md lg:max-w-full relative h-[400px] flex items-center justify-center">
-          <div className="absolute inset-0 bg-[var(--color-landing-hero)] border-[3px] border-[var(--color-landing-black)] shadow-[8px_8px_0_#111111]" style={{ clipPath: 'polygon(28px 0, 100% 0, 100% calc(100% - 28px), calc(100% - 28px) 100%, 0 100%, 0 28px)' }}>
-            <div className="w-full h-full p-8 flex items-center justify-center relative">
+          <div className="flex-1 w-full max-w-md lg:max-w-full relative h-[300px] sm:h-[400px] flex items-center justify-center">
+            <div className="w-full h-full relative">
               {/* Stacked Cards */}
-              <div className="absolute w-[80%] h-[80%] bg-white border-[3px] border-[var(--color-landing-black)] rotate-[-3deg] shadow-[4px_4px_0_#111111]"></div>
-              <div className="absolute w-[80%] h-[80%] bg-[var(--color-landing-card)] border-[3px] border-[var(--color-landing-black)] rotate-[2deg] shadow-[4px_4px_0_#111111]"></div>
-              <div className="absolute w-[80%] h-[80%] bg-white border-[3px] border-[var(--color-landing-black)] shadow-[4px_4px_0_#111111] flex items-center justify-center overflow-hidden">
-                <img src={`${import.meta.env.BASE_URL}illustrations/hero.webp`} alt="Ilustrasi Belajar" loading="lazy" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = `${import.meta.env.BASE_URL}illustrations/undraw_programming_j1zw.svg`; e.currentTarget.style.objectFit = 'contain'; e.currentTarget.style.padding = '1rem'; }} />
+              <div className="absolute inset-0 bg-white border-[3px] border-[var(--color-landing-black)] rotate-[-3deg] shadow-[4px_4px_0_#111111]"></div>
+              <div className="absolute inset-0 bg-[var(--color-landing-card)] border-[3px] border-[var(--color-landing-black)] rotate-[2deg] shadow-[4px_4px_0_#111111]"></div>
+              <div className="absolute inset-0 bg-white border-[3px] border-[var(--color-landing-black)] shadow-[4px_4px_0_#111111] flex items-center justify-center overflow-hidden">
+                <img src={`${import.meta.env.BASE_URL}illustrations/hero.webp`} alt="Ilustrasi Belajar" loading="lazy" className="w-full h-full object-cover" />
               </div>
             </div>
           </div>
@@ -99,10 +102,11 @@ export default function Landing() {
 
       {/* 3. Mengapa BisaNgoding? */}
       <section className="px-4 py-16 sm:px-8 max-w-7xl mx-auto">
-        <div className="mb-12 inline-block">
-          <h2 className="font-bungee text-3xl sm:text-4xl relative z-10">MENGAPA BISANGODING?</h2>
-          <div className="h-[40%] w-[105%] bg-[var(--color-landing-purple)] absolute bottom-1 -left-2 z-0 -rotate-1"></div>
-        </div>
+        <h2 className="font-bungee text-3xl sm:text-4xl mb-12">
+          <span className="inline" style={{ backgroundImage: 'linear-gradient(transparent 60%, var(--color-landing-purple) 60%)' }}>
+            MENGAPA BISANGODING?
+          </span>
+        </h2>
         <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-8">
           <div className="bg-[var(--color-landing-card)] border-[3px] border-[var(--color-landing-black)] shadow-[8px_8px_0_#111111] p-6 flex flex-col gap-4" style={{ clipPath: 'polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 0 100%)' }}>
             <div className="flex items-center gap-3">
@@ -139,10 +143,11 @@ export default function Landing() {
 
       {/* 4. Modul Tersedia */}
       <section id="modul" className="px-4 py-16 sm:px-8 max-w-7xl mx-auto">
-        <div className="mb-12 inline-block relative">
-          <h2 className="font-bungee text-3xl sm:text-4xl relative z-10">MODUL TERSEDIA</h2>
-          <div className="h-[40%] w-[105%] bg-[var(--color-landing-cyan)] absolute bottom-1 -left-2 z-0 rotate-1"></div>
-        </div>
+        <h2 className="font-bungee text-3xl sm:text-4xl mb-12">
+          <span className="inline" style={{ backgroundImage: 'linear-gradient(transparent 60%, var(--color-landing-cyan) 60%)' }}>
+            MODUL TERSEDIA
+          </span>
+        </h2>
         
         <div className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] shadow-[8px_8px_0_#111111] p-6 sm:p-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -200,10 +205,11 @@ export default function Landing() {
 
       {/* 5. Cara Belajar */}
       <section id="cara-belajar" className="px-4 py-16 sm:px-8 max-w-7xl mx-auto relative">
-        <div className="mb-12 inline-block relative">
-          <h2 className="font-bungee text-3xl sm:text-4xl relative z-10">CARA BELAJAR</h2>
-          <div className="h-[40%] w-[105%] bg-[var(--color-landing-magenta)] absolute bottom-1 -left-2 z-0 -rotate-1"></div>
-        </div>
+        <h2 className="font-bungee text-3xl sm:text-4xl mb-12">
+          <span className="inline" style={{ backgroundImage: 'linear-gradient(transparent 60%, var(--color-landing-magenta) 60%)' }}>
+            CARA BELAJAR
+          </span>
+        </h2>
 
         <div className="grid md:grid-cols-3 gap-12 pt-8">
           {[
@@ -229,9 +235,9 @@ export default function Landing() {
 
       {/* Segera Hadir: Testimoni (Satu Kartu) */}
       <section className="px-4 py-16 sm:px-8 max-w-7xl mx-auto bg-[var(--color-landing-magenta)] border-y-[6px] border-[var(--color-landing-black)]">
-        <div className="mb-12 inline-block relative">
-          <h2 className="font-bungee text-3xl sm:text-4xl text-white relative z-10" style={{ textShadow: '2px 2px 0 #111' }}>KATA MEREKA</h2>
-        </div>
+        <h2 className="font-bungee text-3xl sm:text-4xl text-white mb-12" style={{ textShadow: '2px 2px 0 #111' }}>
+          KATA MEREKA
+        </h2>
         <div className="max-w-md mx-auto">
           <ComingSoon>
             <div className="bg-[var(--color-landing-card)] border-[3px] border-[var(--color-landing-black)] shadow-[8px_8px_0_#111111] p-8 relative">
@@ -247,9 +253,12 @@ export default function Landing() {
 
       {/* 6. FAQ */}
       <section id="faq" className="px-4 py-16 sm:px-8 max-w-3xl mx-auto">
-        <div className="mb-12 inline-block relative text-center w-full">
-          <h2 className="font-bungee text-3xl sm:text-4xl relative z-10 inline-block">FAQ</h2>
-          <div className="h-[40%] w-[80%] max-w-[120px] bg-[var(--color-landing-hero)] absolute bottom-1 left-1/2 -translate-x-1/2 z-0 -rotate-2"></div>
+        <div className="text-center mb-12">
+          <h2 className="font-bungee text-3xl sm:text-4xl">
+            <span className="inline" style={{ backgroundImage: 'linear-gradient(transparent 60%, var(--color-landing-hero) 60%)' }}>
+              FAQ
+            </span>
+          </h2>
         </div>
 
         <div className="space-y-6">
