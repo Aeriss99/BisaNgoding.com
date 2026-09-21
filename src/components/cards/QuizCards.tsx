@@ -1,8 +1,162 @@
 import { useState, useEffect } from 'react';
-import type { FillBlankCard, ReorderCard, PredictOutputCard } from '../../types/schema';
-import { Play, CheckCircle, Check, X } from 'lucide-react';
+import type { FillBlankCard, ReorderCard, PredictOutputCard, UnderstandingCheckCard } from '../../types/schema';
+import { Play, CheckCircle, Check, X, AlertTriangle } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { java } from '@codemirror/lang-java';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+export function UnderstandingCheckCardComponent({ 
+  card, 
+  onSuccess,
+  onNavigateToTheory
+}: { 
+  card: UnderstandingCheckCard; 
+  onSuccess: (attempts: number) => void;
+  onNavigateToTheory: () => void;
+}) {
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [isPassed, setIsPassed] = useState(false);
+
+  // Shuffle logic
+  const shuffleQuestions = () => {
+    const arr = [...card.questions];
+    arr.sort(() => Math.random() - 0.5);
+    setQuestions(arr);
+    setCurrentIdx(0);
+  };
+
+  useEffect(() => {
+    shuffleQuestions();
+  }, [card]);
+
+  const q = questions[currentIdx];
+
+  const handleSelect = (idx: number) => {
+    setSelected(idx);
+    setShowResult(true);
+    if (idx === q.answer) {
+      const newCount = correctCount + 1;
+      if (newCount >= card.minCorrect) {
+        setIsPassed(true);
+        onSuccess(1);
+      } else {
+        setCorrectCount(newCount);
+      }
+    } else {
+      setCorrectCount(0);
+    }
+  };
+
+  const nextQuestion = () => {
+    setSelected(null);
+    setShowResult(false);
+    if (currentIdx < questions.length - 1) {
+      setCurrentIdx(currentIdx + 1);
+    } else {
+      shuffleQuestions();
+    }
+  };
+
+  if (!q) return null;
+
+  return (
+    <div className="space-y-6">
+      <div className="border-b-2 border-[var(--color-text-main)] pb-4">
+        <h2 className="font-space text-2xl flex items-center gap-2">
+          Cek Pemahaman
+        </h2>
+        <p className="text-gray-600 font-medium">Jawab dulu pertanyaan ini sebelum lanjut ke tantangan.</p>
+        
+        <div className="mt-4 flex gap-1 items-center">
+          {Array.from({ length: card.minCorrect }).map((_, i) => (
+            <div key={i} className={`w-8 h-2 rounded-full border border-[var(--color-text-main)] ${i < correctCount ? 'bg-[var(--color-success)]' : 'bg-gray-200'}`} />
+          ))}
+          <span className="text-xs font-mono font-bold text-gray-500 ml-2">{correctCount} dari {card.minCorrect} benar</span>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="font-bold text-lg">{q.question}</h3>
+        {q.code && (
+          <div className="border-2 border-[var(--color-text-main)] rounded-xl overflow-hidden">
+            <CodeMirror
+              value={q.code}
+              extensions={[java()]}
+              theme="light"
+              readOnly={true}
+              basicSetup={{ lineNumbers: true }}
+            />
+          </div>
+        )}
+
+        <div className="space-y-2 mt-4">
+          {q.options.map((opt: string, i: number) => {
+            const isSelected = selected === i;
+            const isCorrectOption = i === q.answer;
+            let btnClass = 'border-gray-200 hover:border-blue-300';
+            
+            if (showResult) {
+              if (isCorrectOption) btnClass = 'border-green-500 bg-green-50 shadow-[2px_2px_0_#111] translate-y-[-2px]';
+              else if (isSelected) btnClass = 'border-red-500 bg-red-50 opacity-50 shadow-[0_0_0_#111] translate-y-0';
+              else btnClass = 'border-gray-200 opacity-50 shadow-[0_0_0_#111] translate-y-0';
+            }
+
+            return (
+              <button
+                key={i}
+                disabled={showResult}
+                onClick={() => handleSelect(i)}
+                className={`w-full text-left p-4 rounded-xl transition-all font-sans font-medium text-base brutal-btn bg-white ${btnClass}`}
+              >
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+
+        {showResult && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 mt-6">
+            {selected === q.answer ? (
+              <div className="brutal-card bg-[var(--color-success)] text-white p-5 space-y-4">
+                <div className="font-space text-lg flex items-center gap-2">
+                  <CheckCircle className="w-6 h-6" /> Benar!
+                </div>
+                <p className="font-medium">{q.explanation}</p>
+                {!isPassed && (
+                  <button onClick={nextQuestion} className="w-full bg-white text-[var(--color-text-main)] font-bold py-3 rounded-xl brutal-btn">
+                    Soal Berikutnya
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="brutal-card bg-[#FFE838] text-[var(--color-text-main)] p-5 space-y-4">
+                <div className="font-space text-lg flex items-center gap-2">
+                  <AlertTriangle className="w-6 h-6" /> Coba kita lihat dari sisi lain
+                </div>
+                <div className="prose prose-sm prose-black max-w-none font-medium">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{q.remedial}</ReactMarkdown>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button onClick={onNavigateToTheory} className="flex-1 bg-white border-2 border-[var(--color-text-main)] font-bold py-3 rounded-xl brutal-btn">
+                    Baca Lagi Teorinya
+                  </button>
+                  <button onClick={nextQuestion} className="flex-1 bg-[var(--color-text-main)] text-white font-bold py-3 rounded-xl brutal-btn shadow-[3px_3px_0_var(--color-primary)]">
+                    Coba Soal Lain
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function FillBlankCardComponent({ card, onSuccess }: { card: FillBlankCard, onSuccess: (attempts: number) => void }) {
   const parts = card.code.split('___');

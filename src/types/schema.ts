@@ -17,6 +17,19 @@ export interface Lesson {
   cards: Card[];
 }
 
+export interface UnderstandingCheckCard {
+  type: 'understanding_check';
+  minCorrect: number;
+  questions: {
+    question: string;
+    code?: string;
+    options: string[];
+    answer: number;
+    explanation: string;
+    remedial: string;
+  }[];
+}
+
 export type Card = 
   | TheoryCard 
   | RunnableCard 
@@ -25,7 +38,8 @@ export type Card =
   | CodeChallengeCard 
   | SummaryCard
   | ReorderCard
-  | PredictOutputCard;
+  | PredictOutputCard
+  | UnderstandingCheckCard;
 
 export interface TheoryCard {
   type: 'theory';
@@ -36,6 +50,14 @@ export interface TheoryCard {
 export interface RunnableCard {
   type: 'runnable';
   code: string;
+  predict?: {
+    question: string;
+    options: string[];
+    answer: number;
+  };
+  annotations?: { line: number; note: string }[];
+  explanation?: string;
+  tryThis?: { task: string; hint?: string }[];
 }
 
 export interface MultipleChoiceCard {
@@ -56,6 +78,8 @@ export interface CodeChallengeCard {
   type: 'code_challenge';
   prompt: string;
   starterCode: string;
+  steps?: string[];
+  skeleton?: string;
   tests: {
     input: string;
     expectedOutput: string;
