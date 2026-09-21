@@ -45,7 +45,7 @@ export function makeDefaultProgress(): UserProgress {
     lastActiveDate: today,
     maxSeenDate: today,
     version: 1,
-    unlockAll: import.meta.env.VITE_UNLOCK_ALL === 'true'
+    unlockAll: import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true'
   };
 }
 
@@ -60,7 +60,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       const data = localStorage.getItem(STORAGE_KEY);
       if (data) {
         const parsed = JSON.parse(data);
-        if (import.meta.env.VITE_UNLOCK_ALL === 'true') {
+        if (import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true') {
           parsed.unlockAll = true;
         }
         if (!parsed.quizScores) parsed.quizScores = {};
@@ -230,13 +230,13 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         lastActiveDate: data.lastActiveDate,
         maxSeenDate: data.maxSeenDate && data.maxSeenDate > today ? data.maxSeenDate : today,
         version: data.version || 1,
-        unlockAll: !!data.unlockAll || import.meta.env.VITE_UNLOCK_ALL === 'true',
+        unlockAll: !!data.unlockAll || (import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true'),
         justReset: false
       });
       return true;
     }
     
-    if (import.meta.env.VITE_UNLOCK_ALL === 'true') {
+    if (import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true') {
       setProgress(prev => ({ ...prev, unlockAll: true }));
     }
     

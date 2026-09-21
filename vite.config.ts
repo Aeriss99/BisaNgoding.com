@@ -11,6 +11,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true
+      },
       manifest: {
         name: 'BisaNgoding Belajar Java',
         short_name: 'BisaNgoding',
