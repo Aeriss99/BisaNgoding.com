@@ -34,3 +34,4 @@
 | 20 | 2026-09-22 00:05 | Fix bug ilustrasi mobile Landing | LULUS 37/37 | 62/610 | 3/30 | Hapus flex-1 dari parent ilustrasi hero agar tinggi tak collapse jadi 0 |
 | 21 | 2026-09-22 00:58 | Impl UnderstandingCheckCard | LULUS 37/37 | 62/610 | 3/30 | Added UnderstandingCheckCard implementation and types |
 | 22 | 2026-09-22 12:10 | Impl Gerbang Pemahaman & Playground UI | LULUS 47/47 | 32/610 | 1/30 | Fitur cek pemahaman, IntelliJ panel, tes 47 lolos |
+| 23 | 2026-09-22 12:35 | Perbaiki tampilan Landing Page & Dashboard UI | LULUS 49/49 | 32/610 | 1/30 | Tampilan responsif diperbaiki sesuai instruksi |
