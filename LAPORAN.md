@@ -36,3 +36,4 @@
 | 22 | 2026-09-22 12:10 | Impl Gerbang Pemahaman & Playground UI | LULUS 47/47 | 32/610 | 1/30 | Fitur cek pemahaman, IntelliJ panel, tes 47 lolos |
 | 23 | 2026-09-22 12:35 | Perbaiki tampilan Landing Page & Dashboard UI | LULUS 49/49 | 32/610 | 1/30 | Tampilan responsif diperbaiki sesuai instruksi |
 | 24 | 2026-09-22 13:02 | Fix ilustrasi hero mobile aspect-ratio | LULUS 49/49 | 32/610 | 1/30 | Wadah ilustrasi 16/9, hapus lazy load hero |
+| 25 | 2026-09-22 13:35 | Pasang konten Todolist & OOP | LULUS 49/49 | 72/610 | 1/30 | Konten dipasang, unit & content test lolos |
