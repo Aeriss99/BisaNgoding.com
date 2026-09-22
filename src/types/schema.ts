@@ -110,6 +110,7 @@ export interface SummaryCard {
 
 export interface UserProgress {
   completedLessons: string[];
+  passedChecks?: string[];
   moduleStatus: Record<string, 'locked' | 'unlocked' | 'completed'>;
   quizScores: Record<string, { score: number; passed: boolean }>;
   xp: number;

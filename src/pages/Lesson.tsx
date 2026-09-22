@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getLesson, getLessonsForModule } from '../lib/content';
 import type { Card } from '../types/schema';
-import { Check, ChevronRight, X } from 'lucide-react';
+import { Check, ChevronRight, X, Lock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useProgress } from '../context/ProgressContext';
 import { initCheerpJ } from '../lib/javaRunner';
 import { RunnableCardComponent, CodeChallengeCardComponent } from '../components/cards/InteractiveCards';
-import { FillBlankCardComponent, PredictOutputCardComponent, ReorderCardComponent } from '../components/cards/QuizCards';
+import { FillBlankCardComponent, PredictOutputCardComponent, ReorderCardComponent, UnderstandingCheckCardComponent } from '../components/cards/QuizCards';
 
 import { Mermaid } from '../components/ui/Mermaid';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -20,7 +20,7 @@ export default function LessonPage() {
 
   const { lessonId } = useParams();
   const lesson = getLesson(lessonId || '');
-  const { markLessonCompleted, addXP, touchActivity } = useProgress();
+  const { progress, markLessonCompleted, markCheckPassed, addXP, touchActivity } = useProgress();
   
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [showExplanation, setShowExplanation] = useState(false);
@@ -90,6 +90,25 @@ export default function LessonPage() {
     if (attempts === 1) addXP(5); // XP bonus for first try
   };
 
+  const handleCheckSuccess = (attempts: number) => {
+    setChallengePassed(true);
+    markCheckPassed(lesson.id);
+    if (attempts === 1) addXP(5);
+  };
+
+  const handleRequireRecheck = () => {
+    // Cari index kartu understanding_check di pelajaran ini
+    const checkIdx = lesson.cards.findIndex(c => c.type === 'understanding_check');
+    if (checkIdx !== -1) {
+      setCurrentCardIndex(checkIdx);
+      setChallengePassed(false);
+    } else {
+      // Jika tidak ada cek pemahaman, kembali ke teori awal
+      setCurrentCardIndex(0);
+      setChallengePassed(false);
+    }
+  };
+
   const renderCardContent = (c: Card) => {
     switch (c.type) {
       case 'theory':
@@ -114,10 +133,15 @@ export default function LessonPage() {
                 tr: ({ children }: any) => <tr className="hover:bg-gray-50 transition-colors">{children}</tr>,
                 th: ({ children }: any) => <th className="px-4 py-3 whitespace-nowrap">{children}</th>,
                 td: ({ children }: any) => <td className="px-4 py-3">{children}</td>,
-                code({ className, children, ...props }: any) {
+                code({ className, children, node, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || '');
+                  const isRun = node?.data?.meta?.includes('run') || props.node?.data?.meta?.includes('run') || (typeof props.children === 'string' ? false : props.node?.meta?.includes('run'));
+
                   if (match && match[1] === 'mermaid') {
                     return <Mermaid chart={String(children).replace(/\n$/, '')} />;
+                  }
+                  if (match && isRun) {
+                    return <RunnableCardComponent card={{ type: 'runnable', code: String(children).replace(/\n$/, '') }} mini={true} />;
                   }
                   if (match) {
                     return (
@@ -143,6 +167,15 @@ export default function LessonPage() {
       
       case 'runnable':
         return <RunnableCardComponent card={c} />;
+
+      case 'understanding_check':
+        return (
+          <UnderstandingCheckCardComponent 
+            card={c} 
+            onSuccess={handleCheckSuccess}
+            onNavigateToTheory={() => setCurrentCardIndex(0)} 
+          />
+        );
 
       case 'multiple_choice':
         return (
@@ -199,8 +232,39 @@ export default function LessonPage() {
       case 'reorder':
         return <ReorderCardComponent card={c} onSuccess={handleChallengeSuccess} />;
         
-      case 'code_challenge':
-        return <CodeChallengeCardComponent card={c} onSuccess={handleChallengeSuccess} />;
+      case 'code_challenge': {
+        const hasCheck = lesson.cards.some(c => c.type === 'understanding_check');
+        const passedCheck = progress.passedChecks?.includes(lesson.id) || progress.completedLessons.includes(lesson.id);
+        
+        if (hasCheck && !passedCheck && !progress.unlockAll) {
+          return (
+            <div className="flex flex-col items-center justify-center text-center p-8 h-full">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                <Lock className="w-8 h-8 text-gray-500" />
+              </div>
+              <h3 className="font-space text-2xl mb-2">Tantangan Terkunci</h3>
+              <p className="font-sans text-gray-600 font-medium">
+                Selesaikan Cek Pemahaman dulu, supaya kamu siap menulis kodenya sendiri.
+              </p>
+              <button 
+                onClick={handleRequireRecheck}
+                className="mt-6 brutal-btn bg-[var(--color-primary)] text-white font-bold py-3 px-6 rounded-xl"
+              >
+                Ke Cek Pemahaman
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <CodeChallengeCardComponent 
+            card={c} 
+            onSuccess={handleChallengeSuccess} 
+            onNavigateToTheory={() => setCurrentCardIndex(0)}
+            onRequireRecheck={handleRequireRecheck}
+          />
+        );
+      }
 
       case 'summary':
         return (
@@ -272,7 +336,7 @@ export default function LessonPage() {
   }
 
   const card = lesson.cards[currentCardIndex];
-  const isQuizCard = card.type === 'multiple_choice' || card.type === 'fill_blank' || card.type === 'code_challenge' || card.type === 'predict_output' || card.type === 'reorder';
+  const isQuizCard = card.type === 'multiple_choice' || card.type === 'fill_blank' || card.type === 'code_challenge' || card.type === 'predict_output' || card.type === 'reorder' || card.type === 'understanding_check';
   
   // Multiple choice shows its own 'next' button when correct, but code challenge / fill blank can use the footer one if passed
   const showFooterNextButton = !isQuizCard || challengePassed;

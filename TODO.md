@@ -6,9 +6,9 @@ Paksa user benar-benar paham dan berpikir sendiri, bukan mengandalkan petunjuk a
 User tidak boleh langsung disuruh mengerjakan code challenge sebelum benar-benar paham materinya. Kalau belum paham, jelaskan ulang dengan cara lain, bukan cuma "salah, coba lagi". Berlaku untuk SEMUA modul.
 
 ## Aturan Agent (WAJIB DIBACA)
-1. Ikuti AGENTS.md. Kerjakan Bagian 1–8 langsung sampai selesai.
+1. Ikuti AGENTS.md. Kerjakan Bagian 1–9 langsung sampai selesai, dalam satu sesi.
 2. Maksimal 3 percobaan per masalah.
-3. **JANGAN** ubah isi `content/` kecuali menambahkan contoh di Bagian 6. Soal pemahaman untuk semua pelajaran disediakan user.
+3. **JANGAN** menulis atau mengubah materi sendiri. Konten baru sudah disediakan di folder `content-baru/` dan dipasang di Bagian 9.
 4. **JANGAN** ubah `javaRunner.ts`.
 5. Pelajaran yang BELUM punya kartu `understanding_check` harus tetap berjalan seperti sekarang (kompatibel mundur).
 6. Cukup `npm run build` dan `npm run test:unit`. Balas singkat.
@@ -127,10 +127,7 @@ Perilaku:
 - [ ] JVM dipanaskan saat pelajaran dibuka, jadi mini editor pertama tidak menunggu lama
 
 ### 7c. Contoh
-Tambahkan contoh di `content/module-01-dasar/lesson-11.json`:
-- Satu blok ```java run di kartu teori kedua
-- Field `predict`, `annotations`, `explanation`, dan `tryThis` di kartu runnable
-Isi contohnya bebas mengikuti materi pelajaran 11. Isi untuk semua pelajaran lain akan disediakan user.
+Konten lengkap sudah disediakan di Bagian 9. Jangan membuat konten sendiri.
 
 ### 7d. Tes
 - [ ] Unit test: Jalankan terkunci sebelum tebakan dipilih; tebakan salah tetap bisa lanjut
@@ -215,12 +212,30 @@ Jika tidak ada pola yang cocok, jangan tampilkan kotak ini.
 - [ ] Unit test: kamus errorHints mencocokkan pola dengan benar, termasuk kasus tidak cocok
 - [ ] Unit test: exit code 0 dan 1 tampil dengan benar
 
+## Bagian 9 — Pasang Konten Baru Java Dasar
+Folder `content-baru/module-01-dasar/` berisi 32 pelajaran yang sudah dilengkapi:
+- kartu `understanding_check` (4 soal + penjelasan ulang per soal), diletakkan setelah kartu runnable
+- `predict`, `annotations`, `explanation`, `tryThis` di kartu runnable
+- satu blok ```java run di kartu teori kedua
+- `steps` dan `skeleton` di kartu code_challenge
+- tabel jejak eksekusi di pelajaran perulangan (16–20) dan rekursif (28)
+
+Semua kode, kunci jawaban, dan solusi sudah dijalankan dan diverifikasi.
+
+- [ ] Kerjakan bagian ini SETELAH Bagian 1–8 selesai dan `npm run build` lulus
+- [ ] Salin: timpa `content/module-01-dasar/lesson-01.json` s/d `lesson-32.json` dengan file dari `content-baru/module-01-dasar/`. JANGAN sentuh `quiz.json`
+- [ ] Jangan ubah isi file sama sekali. Jika validator (test:content) menolak field baru, perbarui SCHEMA/VALIDATOR, bukan kontennya
+- [ ] Hapus folder `content-baru/` setelah tersalin
+- [ ] Jalankan `npm run test:content`, `npm run test:java`, `npm run build`, `npm run test:unit`
+- [ ] Buka pelajaran 16 (Perulangan for) di `npm run dev`, pastikan: tabel markdown tampil rapi, mini playground bisa dijalankan, kartu Cek Pemahaman muncul sebelum challenge, dan challenge terkunci sampai lulus
+- [ ] Commit, push, tambah 1 baris LAPORAN.md dengan jumlah tes asli
+
 ## Bagian 5 — Urutan Kartu yang Disarankan
 Urutan standar tiap pelajaran (tidak perlu dipaksakan di kode, cukup didukung):
 teori → teori → teori → runnable → **understanding_check** → multiple_choice → code_challenge → summary
 
 ## Bagian 6 — Contoh & Tes
-- [ ] Tambahkan contoh `understanding_check` di SATU pelajaran saja: `content/module-01-dasar/lesson-11.json`, diletakkan sebelum kartu code_challenge. Pakai contoh di bawah.
+- [ ] (Contoh lesson-11 TIDAK perlu dibuat manual. Semua konten sudah disediakan di Bagian 9.)
 - [ ] Unit test: salah → remedial tampil; salah → soal berganti; 2 benar berturut → lulus; challenge terkunci sebelum lulus
 - [ ] Unit test: pelajaran tanpa understanding_check tetap bisa langsung ke challenge
 - [ ] Unit test: bantuan muncul sesuai jumlah gagal (1: arahkan ke materi, 2: wajib isi refleksi, 3–4: petunjuk, 5: kerangka, 7: cek ulang lalu solusi)

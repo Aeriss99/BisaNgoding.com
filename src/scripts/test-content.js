@@ -10,13 +10,41 @@ const contentDir = path.join(__dirname, '../../content');
 // Minimal validation based on schema requirements
 const CardSchema = z.union([
   z.object({ type: z.literal('theory'), content: z.string(), image: z.object({ src: z.string(), alt: z.string() }).optional() }),
-  z.object({ type: z.literal('runnable'), code: z.string() }),
+  z.object({ 
+    type: z.literal('runnable'), 
+    code: z.string(),
+    predict: z.object({ question: z.string(), options: z.array(z.string()), answer: z.number() }).optional(),
+    annotations: z.array(z.object({ line: z.number(), note: z.string() })).optional(),
+    explanation: z.string().optional(),
+    tryThis: z.array(z.object({ task: z.string(), hint: z.string().nullable().optional() })).optional()
+  }),
   z.object({ type: z.literal('multiple_choice'), question: z.string(), options: z.array(z.string()), answer: z.number(), explanation: z.string() }),
   z.object({ type: z.literal('fill_blank'), code: z.string(), answers: z.array(z.string()) }),
-  z.object({ type: z.literal('code_challenge'), prompt: z.string(), starterCode: z.string(), tests: z.array(z.object({ input: z.string(), expectedOutput: z.string() })), hints: z.array(z.string()), solution: z.string().optional() }),
+  z.object({ 
+    type: z.literal('code_challenge'), 
+    prompt: z.string(), 
+    starterCode: z.string(), 
+    steps: z.array(z.string()).optional(),
+    skeleton: z.string().optional(),
+    tests: z.array(z.object({ input: z.string(), expectedOutput: z.string() })), 
+    hints: z.array(z.string()), 
+    solution: z.string().optional() 
+  }),
   z.object({ type: z.literal('summary'), points: z.array(z.string()) }),
   z.object({ type: z.literal('reorder'), prompt: z.string(), lines: z.array(z.string()), correctOrder: z.array(z.number()) }),
-  z.object({ type: z.literal('predict_output'), code: z.string(), options: z.array(z.string()), answer: z.number(), explanation: z.string() })
+  z.object({ type: z.literal('predict_output'), code: z.string(), options: z.array(z.string()), answer: z.number(), explanation: z.string() }),
+  z.object({
+    type: z.literal('understanding_check'),
+    minCorrect: z.number(),
+    questions: z.array(z.object({
+      question: z.string(),
+      code: z.string().optional(),
+      options: z.array(z.string()),
+      answer: z.number(),
+      explanation: z.string(),
+      remedial: z.string()
+    }))
+  })
 ]);
 
 const LessonSchema = z.object({

@@ -14,6 +14,7 @@ import {
 interface ProgressContextType {
   progress: UserProgress;
   markLessonCompleted: (lessonId: string) => void;
+  markCheckPassed: (lessonId: string) => void;
   importProgress: (data: any) => boolean;
   toggleUnlockAll: (enabled: boolean) => void;
   addXP: (amount: number) => void;
@@ -38,6 +39,7 @@ export function makeDefaultProgress(): UserProgress {
   const today = new Date().toISOString().split('T')[0];
   return {
     completedLessons: [],
+    passedChecks: [],
     moduleStatus: { 'dasar': 'unlocked' },
     quizScores: {},
     xp: 0,
@@ -64,6 +66,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
           parsed.unlockAll = true;
         }
         if (!parsed.quizScores) parsed.quizScores = {};
+        if (!parsed.passedChecks) parsed.passedChecks = [];
         if (!parsed.lastActiveDate) parsed.lastActiveDate = toISODate(new Date());
         if (!parsed.maxSeenDate) parsed.maxSeenDate = parsed.lastActiveDate;
 
@@ -176,6 +179,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       const nextProgress = {
         ...prev,
         completedLessons: [...prev.completedLessons, lessonId],
+        passedChecks: Array.from(new Set([...(prev.passedChecks || []), lessonId])), // Auto pass if completed
         xp: prev.xp + 10,
         streak: newStreak,
         lastActiveDate: today,
@@ -187,6 +191,18 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProgress));
       } catch (e) {}
 
+      return nextProgress;
+    });
+  };
+
+  const markCheckPassed = (lessonId: string) => {
+    setProgress((prev) => {
+      if (prev.passedChecks?.includes(lessonId)) return prev;
+      const nextProgress = {
+        ...prev,
+        passedChecks: [...(prev.passedChecks || []), lessonId]
+      };
+      saveProgressState(nextProgress);
       return nextProgress;
     });
   };
@@ -280,7 +296,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const activeUnlockAll = isAdmin ? progress.unlockAll : false;
 
   return (
-    <ProgressContext.Provider value={{ progress: { ...progress, unlockAll: activeUnlockAll }, markLessonCompleted, importProgress, toggleUnlockAll, addXP, saveQuizScore, touchActivity, inactiveDaysConfig, daysUntilReset, syncStatus }}>
+    <ProgressContext.Provider value={{ progress: { ...progress, unlockAll: activeUnlockAll }, markLessonCompleted, markCheckPassed, importProgress, toggleUnlockAll, addXP, saveQuizScore, touchActivity, inactiveDaysConfig, daysUntilReset, syncStatus }}>
       {children}
     </ProgressContext.Provider>
   );
