@@ -24,7 +24,7 @@ const lessonFiles = import.meta.glob('../../content/**/*.json', { eager: true })
 const lessonsCache: Record<string, Lesson> = {};
 
 Object.keys(lessonFiles).forEach((path) => {
-  if (path.endsWith('modules.json') || path.endsWith('quiz.json') || path.endsWith('outline.json')) return;
+  if (path.endsWith('modules.json') || path.endsWith('quiz.json') || path.endsWith('outline.json') || path.endsWith('achievements.json')) return;
   const mod = lessonFiles[path] as any;
   const data = mod?.default || mod;
   if (!data || !data.id) {

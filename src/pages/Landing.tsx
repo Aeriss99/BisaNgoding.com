@@ -36,19 +36,21 @@ export default function Landing() {
             BisaNgoding.com
           </Link>
           
-          <div className="hidden lg:flex items-center gap-6 font-barlow font-bold text-lg">
-            <Link to="/" className="hover:text-[var(--color-landing-cyan)] transition-colors">Beranda</Link>
-            <a href="#modul" onClick={scrollToModul} className="hover:text-[var(--color-landing-cyan)] transition-colors">Modul</a>
-            <ComingSoon inline>
-              <span className="hover:text-[var(--color-landing-cyan)] transition-colors cursor-not-allowed">Bootcamp</span>
-            </ComingSoon>
-            <ComingSoon inline>
-              <span className="hover:text-[var(--color-landing-cyan)] transition-colors cursor-not-allowed">Komunitas</span>
-            </ComingSoon>
-            <a href="#faq" onClick={scrollToFAQ} className="hover:text-[var(--color-landing-cyan)] transition-colors">FAQ</a>
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-6 font-barlow font-bold text-lg mr-4">
+              <Link to="/" className="hover:text-[var(--color-landing-cyan)] transition-colors">Beranda</Link>
+              <a href="#modul" onClick={scrollToModul} className="hover:text-[var(--color-landing-cyan)] transition-colors">Modul</a>
+              <ComingSoon inline>
+                <span className="hover:text-[var(--color-landing-cyan)] transition-colors cursor-not-allowed">Bootcamp</span>
+              </ComingSoon>
+              <ComingSoon inline>
+                <span className="hover:text-[var(--color-landing-cyan)] transition-colors cursor-not-allowed">Komunitas</span>
+              </ComingSoon>
+              <a href="#faq" onClick={scrollToFAQ} className="hover:text-[var(--color-landing-cyan)] transition-colors">FAQ</a>
+            </div>
             
             {isSupabaseConfigured && (
-              <button onClick={masukGoogle} className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-5 py-2 font-bungee shadow-[4px_4px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] transition-all">
+              <button onClick={masukGoogle} className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-3 py-1.5 md:px-5 md:py-2 font-bungee text-sm md:text-base shadow-[2px_2px_0_#111111] md:shadow-[4px_4px_0_#111111] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all">
                 MASUK
               </button>
             )}
@@ -59,8 +61,7 @@ export default function Landing() {
       {/* 2. Hero */}
       <section className="px-4 py-12 sm:px-8 lg:py-20 max-w-7xl mx-auto">
         <div 
-          className="bg-[var(--color-landing-hero)] border-[3px] border-[var(--color-landing-black)] shadow-[8px_8px_0_#111111] p-8 md:p-12 lg:p-16 flex flex-col lg:flex-row items-center gap-12"
-          style={{ clipPath: 'polygon(28px 0, 100% 0, 100% calc(100% - 28px), calc(100% - 28px) 100%, 0 100%, 0 28px)' }}
+          className="bg-[var(--color-landing-hero)] border-[3px] border-[var(--color-landing-black)] shadow-[8px_8px_0_#111111] p-6 md:p-12 lg:p-16 flex flex-col lg:flex-row items-center gap-8 md:gap-12"
         >
           <div className="flex-1 space-y-6">
             <h1 className="font-bungee text-4xl sm:text-5xl lg:text-6xl leading-[1.1]">
@@ -87,11 +88,11 @@ export default function Landing() {
               </a>
             </div>
           </div>
-          <div className="w-full lg:w-1/2 lg:flex-1 max-w-md lg:max-w-full relative h-[300px] sm:h-[400px] flex items-center justify-center shrink-0">
+          <div className="w-full lg:w-1/2 lg:flex-1 max-w-full relative aspect-video md:aspect-auto md:h-[400px] flex items-center justify-center shrink-0 mt-4 md:mt-0">
             <div className="w-full h-full relative">
               {/* Stacked Cards */}
-              <div className="absolute inset-0 bg-white border-[3px] border-[var(--color-landing-black)] rotate-[-3deg] shadow-[4px_4px_0_#111111]"></div>
-              <div className="absolute inset-0 bg-[var(--color-landing-card)] border-[3px] border-[var(--color-landing-black)] rotate-[2deg] shadow-[4px_4px_0_#111111]"></div>
+              <div className="hidden md:block absolute inset-0 bg-white border-[3px] border-[var(--color-landing-black)] rotate-[-3deg] shadow-[4px_4px_0_#111111]"></div>
+              <div className="hidden md:block absolute inset-0 bg-[var(--color-landing-card)] border-[3px] border-[var(--color-landing-black)] rotate-[2deg] shadow-[4px_4px_0_#111111]"></div>
               <div className="absolute inset-0 bg-white border-[3px] border-[var(--color-landing-black)] shadow-[4px_4px_0_#111111] flex items-center justify-center overflow-hidden">
                 <img src={`${import.meta.env.BASE_URL}illustrations/hero.webp`} alt="Ilustrasi Belajar" loading="lazy" className="w-full h-full object-cover" />
               </div>

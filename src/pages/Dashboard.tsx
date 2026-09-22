@@ -31,17 +31,12 @@ export default function Dashboard() {
     return { mod, lessons, siap, isReady, selesai, menit, quiz, adaQuiz };
   });
 
-  const totalLessons = moduleInfo.reduce(
-    (sum, m) => sum + m.mod.lessonCount,
-    0
-  );
   const totalAvailableLessons = moduleInfo.reduce(
     (sum, m) => sum + (m.isReady ? m.lessons.length : 0),
     0
   );
   const completedLessons = moduleInfo.reduce((sum, m) => sum + m.selesai, 0);
   const progressAvailablePercent = totalAvailableLessons > 0 ? Math.round((completedLessons / totalAvailableLessons) * 100) : 0;
-  const progressTotalPercent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
   // Tombol "Lanjutkan Belajar": pelajaran pertama yang belum selesai di modul siap pertama
   let lanjutUrl = '';
@@ -107,7 +102,7 @@ export default function Dashboard() {
   const estimasiSisaJam = Math.round(totalEstimasiSisaMenit / 60);
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-[1200px] mx-auto px-4 md:px-6 lg:px-10 py-4 md:py-6 lg:py-10 space-y-8 md:space-y-12">
       {isSupabaseConfigured && !user && showBanner && (
         <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 flex items-start gap-3 relative brutal-border">
           <div className="text-sm font-medium pr-6">
@@ -119,9 +114,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      <header className="flex justify-between items-start gap-4 mb-8">
+      <header className="flex justify-between items-start gap-4 mb-8 pt-2">
         <div>
-          <div className="font-mono text-sm font-bold text-[var(--color-accent)] mb-1">// dashboard</div>
+          <div className="font-mono text-sm font-bold text-[var(--color-accent)] mb-1 pt-1">// dashboard</div>
           <h1 className="text-3xl md:text-4xl font-space mb-2">Halo, {user?.user_metadata?.full_name?.split(' ')[0] || 'Pelajar'}. Lanjut ngoding?</h1>
           <p className="font-sans text-[var(--color-text-secondary)] font-medium text-lg">Dari pemula sampai mahir, satu pelajaran setiap hari.</p>
         </div>
@@ -141,7 +136,7 @@ export default function Dashboard() {
       </header>
 
       {/* Bagian Progres Atas (3/5 dan 2/5) */}
-      <div className="flex flex-col md:flex-row gap-6">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6">
         {/* Kartu "Lanjutkan Belajar" */}
         <section className="brutal-card-big bg-[var(--color-primary)] p-6 md:p-8 flex flex-col justify-between md:w-3/5 order-1">
           {completedLessons === 0 ? (
@@ -152,7 +147,7 @@ export default function Dashboard() {
               </p>
               <Link
                 to={lanjutUrl}
-                className="brutal-btn bg-[var(--color-accent)] text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 text-lg"
+                className="w-full md:w-auto brutal-btn bg-[var(--color-accent)] text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 text-lg"
               >
                 Mulai Belajar <ChevronRight className="w-5 h-5" />
               </Link>
@@ -192,16 +187,16 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-4 mt-auto">
+              <div className="flex flex-col md:flex-row gap-4 mt-auto">
                 <Link
                   to={lanjutUrl}
-                  className="brutal-btn bg-[var(--color-accent)] text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2"
+                  className="w-full md:w-auto brutal-btn bg-[var(--color-accent)] text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2"
                 >
                   Lanjutkan Belajar <ChevronRight className="w-5 h-5" />
                 </Link>
                 <Link
                   to={`/module/${activeModule?.mod.id}`}
-                  className="brutal-btn bg-white text-[var(--color-text-main)] font-bold py-3 px-6 rounded-xl flex items-center justify-center"
+                  className="w-full md:w-auto brutal-btn bg-white text-[var(--color-text-main)] font-bold py-3 px-6 rounded-xl flex items-center justify-center"
                 >
                   Lihat daftar pelajaran
                 </Link>
@@ -226,7 +221,7 @@ export default function Dashboard() {
 
         {/* Kartu "Progres Total" */}
         <section className="brutal-card-big p-6 md:p-8 flex flex-col justify-center items-center md:w-2/5 order-3 md:order-2 bg-white">
-          <div className="relative w-40 h-40 mb-6 hidden md:flex items-center justify-center">
+          <div className="relative w-32 h-32 md:w-40 md:h-40 mb-6 flex items-center justify-center">
             {/* SVG Donut Chart */}
             <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
               <circle
@@ -254,60 +249,34 @@ export default function Dashboard() {
               <circle cx="50" cy="50" r="46" fill="none" stroke="#111111" strokeWidth="2" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="font-space text-3xl">{progressAvailablePercent}%</span>
+              <span className="font-space text-2xl md:text-3xl">{progressAvailablePercent}%</span>
             </div>
           </div>
           
           <div className="text-center mb-6">
-            {/* Tampilan Bar Khusus Mobile */}
-            <div className="md:hidden w-full mb-4">
-              <div className="flex justify-between items-end mb-2">
-                <span className="font-space text-2xl">{progressAvailablePercent}%</span>
-                <span className="text-sm font-medium text-[var(--color-text-secondary)]">{completedLessons} / {totalAvailableLessons} selesai</span>
-              </div>
-              <div className="w-full bg-[var(--color-primary-light)] rounded-full h-4 border-2 border-[var(--color-text-main)] overflow-hidden">
-                <div
-                  className="bg-[var(--color-accent)] h-full border-r-2 border-[var(--color-text-main)]"
-                  style={{ width: `${progressAvailablePercent}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="hidden md:block font-space text-2xl">{completedLessons} / {totalAvailableLessons}</div>
+            <div className="font-space text-2xl">{completedLessons} / {totalAvailableLessons}</div>
             <div className="text-sm font-medium text-[var(--color-text-secondary)]">pelajaran dari materi yang sudah tersedia</div>
-          </div>
-
-          <div className="w-full border-t-2 border-dashed border-gray-300 pt-5 mt-auto">
-            <div className="w-full bg-[var(--color-bg-base)] rounded-full h-2 border-2 border-[var(--color-text-main)] overflow-hidden">
-              <div
-                className="bg-[var(--color-text-main)] h-full"
-                style={{ width: `${progressTotalPercent}%` }}
-              />
-            </div>
-            <div className="text-xs font-mono font-bold text-gray-500 mt-2 text-center">
-              Seluruh kurikulum: {completedLessons} / {totalLessons} · {progressTotalPercent}%
-            </div>
           </div>
         </section>
       </div>
 
       {/* 4 Kartu Statistik */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="brutal-card p-4 flex flex-col justify-between h-full bg-white">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="brutal-card p-5 md:p-7 flex flex-col justify-between h-full bg-white">
           <div className="text-xs font-mono font-bold text-[var(--color-text-secondary)] mb-2 uppercase">Pelajaran Selesai</div>
           <div className="text-3xl font-space">{completedLessons}</div>
         </div>
-        <div className="brutal-card p-4 flex flex-col justify-between h-full bg-white">
+        <div className="brutal-card p-5 md:p-7 flex flex-col justify-between h-full bg-white">
           <div className="text-xs font-mono font-bold text-[var(--color-text-secondary)] mb-2 uppercase">Modul Tuntas</div>
           <div className="text-3xl font-space">{modulTuntas} <span className="text-base font-sans text-gray-500 font-medium">/ {totalModulTersedia} tersedia</span></div>
         </div>
-        <div className="brutal-card p-4 flex flex-col justify-between h-full bg-white">
+        <div className="brutal-card p-5 md:p-7 flex flex-col justify-between h-full bg-white">
           <div className="text-xs font-mono font-bold text-[var(--color-text-secondary)] mb-2 uppercase">Kuis Akhir Modul</div>
           <div className="text-3xl font-space">
             {quizTaken ? `${avgQuiz}%` : <span className="text-lg font-sans text-gray-500 font-medium">Belum dikerjakan</span>}
           </div>
         </div>
-        <div className="brutal-card p-4 flex flex-col justify-between h-full bg-white">
+        <div className="brutal-card p-5 md:p-7 flex flex-col justify-between h-full bg-white">
           <div className="text-xs font-mono font-bold text-[var(--color-text-secondary)] mb-2 uppercase">Estimasi Sisa Waktu</div>
           <div className="text-3xl font-space">{estimasiSisaJam > 0 ? `~${estimasiSisaJam} jam` : '< 1 jam'}</div>
         </div>
@@ -322,7 +291,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {moduleInfo.filter(m => m.siap).map(({ mod, lessons, selesai, menit, quiz, adaQuiz }) => {
             const isProject = mod.id.includes('todolist');
             const percent = lessons.length > 0 ? Math.round((selesai / lessons.length) * 100) : 0;
@@ -340,7 +309,7 @@ export default function Dashboard() {
               <Link
                 key={mod.id}
                 to={`/module/${mod.id}`}
-                className="brutal-card-big p-5 flex flex-col h-full bg-white group"
+                className="brutal-card-big p-5 md:p-7 flex flex-col h-full bg-white group"
               >
                 <div className="flex items-start gap-4 mb-6">
                   <div className="w-12 h-12 rounded-full border-[3px] border-[var(--color-text-main)] flex items-center justify-center font-space text-xl bg-[var(--color-primary)] shrink-0 shadow-[2px_2px_0_var(--color-text-main)] group-hover:scale-110 transition-transform">
@@ -390,7 +359,7 @@ export default function Dashboard() {
           {moduleInfo.filter(m => !m.siap).map(({ mod }) => (
             <div
               key={mod.id}
-              className="flex items-center gap-3 h-[56px] px-4 bg-[var(--color-bg-base)] border-2 border-dashed border-[#8A8578] rounded-xl opacity-70 w-full md:w-[calc(50%-0.5rem)] xl:w-[calc(33.333%-0.67rem)]"
+              className="flex items-center gap-3 h-[56px] px-4 bg-[var(--color-bg-base)] border-2 border-dashed border-[#8A8578] rounded-xl opacity-70 w-full md:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.67rem)]"
             >
               <div className="font-mono font-bold text-gray-500">
                 {String(mod.order).padStart(2, '0')}
