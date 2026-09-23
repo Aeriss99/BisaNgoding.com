@@ -22,6 +22,7 @@ export function getModule(idOrAlias: string): Module | undefined {
 
 const lessonFiles = import.meta.glob('../../content/**/*.json', { eager: true });
 const lessonsCache: Record<string, Lesson> = {};
+const folderToModuleId: Record<string, string> = {};
 
 Object.keys(lessonFiles).forEach((path) => {
   if (path.endsWith('modules.json') || path.endsWith('quiz.json') || path.endsWith('outline.json') || path.endsWith('achievements.json')) return;
@@ -35,6 +36,11 @@ Object.keys(lessonFiles).forEach((path) => {
     console.error(`ID pelajaran dobel: '${data.id}' di ${path}`);
   }
   lessonsCache[data.id] = data as Lesson;
+
+  const folder = path.split('/').slice(-2)[0];
+  if (folder && data.moduleId) {
+    folderToModuleId[folder] = data.moduleId;
+  }
 });
 
 export function isSkeletonLesson(lesson: Lesson): boolean {
@@ -68,7 +74,15 @@ export function getQuizQuestions(idOrAlias: string): QuizQuestion[] | null {
 
   for (const path of Object.keys(quizFiles)) {
     const folder = path.split('/').slice(-2)[0] || '';
-    const cocok = candidates.some((id) => folder === id || folder.endsWith('-' + id) || id.endsWith('-' + folder) || folder.includes(id));
+    const folderModuleId = folderToModuleId[folder];
+    
+    let cocok = false;
+    if (folderModuleId && candidates.some((id) => sameModule(id, folderModuleId))) {
+      cocok = true;
+    } else {
+      cocok = candidates.some((id) => folder === id || folder.endsWith('-' + id) || id.endsWith('-' + folder) || folder.includes(id));
+    }
+    
     if (!cocok) continue;
     const raw = quizFiles[path] as any;
     const data = raw?.default || raw;
