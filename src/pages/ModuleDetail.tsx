@@ -13,10 +13,10 @@ export default function ModuleDetail() {
       <div className="p-8 text-center space-y-4">
         <p className="text-red-500">Modul tidak ditemukan.</p>
         <Link
-          to="/"
+          to="/kelas/java"
           className="inline-block bg-blue-600 text-white font-bold py-2 px-6 rounded-xl"
         >
-          Kembali ke Beranda
+          Kembali ke Kelas
         </Link>
       </div>
     );
@@ -31,7 +31,7 @@ export default function ModuleDetail() {
     <div className="space-y-6">
       <header className="flex items-center gap-4 mb-6">
         <Link
-          to="/"
+          to={`/kelas/${mod.courseId || 'java'}`}
           className="p-2 brutal-btn bg-white rounded-full flex items-center justify-center"
         >
           <ArrowLeft className="w-6 h-6" />
