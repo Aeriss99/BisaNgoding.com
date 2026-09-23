@@ -11,7 +11,9 @@ import * as javaRunner from '../../lib/javaRunner';
 vi.mock('../../lib/content', () => ({
   getLesson: vi.fn(),
   getLessonsForModule: vi.fn(() => []),
-  modulesData: []
+  getModule: vi.fn(() => ({ id: 'dasar', courseId: 'java' })),
+  coursesData: [{ id: 'java', title: 'Java', language: 'java' }],
+  modulesData: [],
 }));
 
 vi.mock('../../lib/javaRunner', () => ({
@@ -20,14 +22,18 @@ vi.mock('../../lib/javaRunner', () => ({
   initCheerpJ: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../lib/jsRunner', () => ({
+  runJsCode: vi.fn(),
+}));
+
 vi.mock('@uiw/react-codemirror', () => ({
   default: ({ onChange, value }: any) => (
-    <textarea 
-      data-testid="codemirror-mock" 
-      value={value} 
-      onChange={(e) => onChange && onChange(e.target.value)} 
+    <textarea
+      data-testid="codemirror-mock"
+      value={value}
+      onChange={(e) => onChange && onChange(e.target.value)}
     />
-  )
+  ),
 }));
 
 describe('Bagian 6 - Cek Pemahaman & Challenge Flow', () => {
@@ -40,36 +46,66 @@ describe('Bagian 6 - Cek Pemahaman & Challenge Flow', () => {
       type: 'understanding_check' as const,
       minCorrect: 2,
       questions: [
-        { question: 'Q1', options: ['A', 'B'], answer: 0, explanation: 'Exp1', remedial: 'Rem1' },
-        { question: 'Q2', options: ['A', 'B'], answer: 0, explanation: 'Exp2', remedial: 'Rem2' },
-        { question: 'Q3', options: ['A', 'B'], answer: 0, explanation: 'Exp3', remedial: 'Rem3' }
-      ]
+        {
+          question: 'Q1',
+          options: ['A', 'B'],
+          answer: 0,
+          explanation: 'Exp1',
+          remedial: 'Rem1',
+        },
+        {
+          question: 'Q2',
+          options: ['A', 'B'],
+          answer: 0,
+          explanation: 'Exp2',
+          remedial: 'Rem2',
+        },
+        {
+          question: 'Q3',
+          options: ['A', 'B'],
+          answer: 0,
+          explanation: 'Exp3',
+          remedial: 'Rem3',
+        },
+      ],
     };
-    
+
     const onSuccess = vi.fn();
-    render(<UnderstandingCheckCardComponent card={card} onSuccess={onSuccess} onNavigateToTheory={vi.fn()} />);
-    
+    render(
+      <UnderstandingCheckCardComponent
+        card={card}
+        onSuccess={onSuccess}
+        onNavigateToTheory={vi.fn()}
+      />
+    );
+
     // Asumsikan Q pertama dirender (karena acak, kita harus cari berdasarkan elemen yang ada di screen)
     // Cari tombol pilihan
-    const btns = screen.getAllByRole('button').filter(b => b.textContent === 'B'); // Ini jawaban salah
+    const btns = screen
+      .getAllByRole('button')
+      .filter((b) => b.textContent === 'B'); // Ini jawaban salah
     fireEvent.click(btns[0]);
-    
+
     // Remedial tampil
     await screen.findByText('Coba kita lihat dari sisi lain');
     expect(screen.getByText('Coba Soal Lain')).toBeDefined();
-    
+
     // Coba soal lain
     fireEvent.click(screen.getByText('Coba Soal Lain'));
-    
+
     // Jawab benar 2 kali
-    const btnA1 = screen.getAllByRole('button').filter(b => b.textContent === 'A')[0];
+    const btnA1 = screen
+      .getAllByRole('button')
+      .filter((b) => b.textContent === 'A')[0];
     fireEvent.click(btnA1);
     await screen.findByText('Soal Berikutnya');
     fireEvent.click(screen.getByText('Soal Berikutnya'));
-    
-    const btnA2 = screen.getAllByRole('button').filter(b => b.textContent === 'A')[0];
+
+    const btnA2 = screen
+      .getAllByRole('button')
+      .filter((b) => b.textContent === 'A')[0];
     fireEvent.click(btnA2);
-    
+
     // Lulus!
     expect(onSuccess).toHaveBeenCalled();
   });
@@ -87,9 +123,9 @@ describe('Bagian 6 - Cek Pemahaman & Challenge Flow', () => {
           prompt: 'Do something',
           starterCode: 'code',
           tests: [],
-          hints: []
-        }
-      ]
+          hints: [],
+        },
+      ],
     });
 
     render(
@@ -114,50 +150,73 @@ describe('Bagian 6 - Cek Pemahaman & Challenge Flow', () => {
       prompt: 'Do something',
       starterCode: 'code',
       tests: [{ input: '', expectedOutput: '' }],
-      hints: []
+      hints: [],
     };
-    render(<CodeChallengeCardComponent card={card} onSuccess={vi.fn()} onNavigateToTheory={vi.fn()} />);
-    
+    render(
+      <CodeChallengeCardComponent
+        card={card}
+        onSuccess={vi.fn()}
+        onNavigateToTheory={vi.fn()}
+      />
+    );
+
     const btn = screen.getByText('Cek Jawaban');
     fireEvent.click(btn); // click with starterCode
-    
-    await screen.findByText(/Kodenya belum berubah dari percobaan tadi. Coba ubah sesuatu dulu./i);
+
+    await screen.findByText(
+      /Kodenya belum berubah dari percobaan tadi. Coba ubah sesuatu dulu./i
+    );
     expect(javaRunner.runJavaCode).not.toHaveBeenCalled();
   });
 
   it('pesan semangat tidak sama dua kali berturut-turut', async () => {
-    vi.mocked(javaRunner.runJavaCode).mockResolvedValue({ stdout: 'wrong', stderr: '', exitCode: 0 });
-    
+    vi.mocked(javaRunner.runJavaCode).mockResolvedValue({
+      stdout: 'wrong',
+      stderr: '',
+      exitCode: 0,
+    });
+
     const card = {
       type: 'code_challenge' as const,
       prompt: 'Do something',
       starterCode: 'code',
       tests: [{ input: '', expectedOutput: 'a' }],
-      hints: []
+      hints: [],
     };
-    render(<CodeChallengeCardComponent card={card} onSuccess={vi.fn()} onNavigateToTheory={vi.fn()} />);
-    
+    render(
+      <CodeChallengeCardComponent
+        card={card}
+        onSuccess={vi.fn()}
+        onNavigateToTheory={vi.fn()}
+      />
+    );
+
     const textarea = screen.getByTestId('codemirror-mock');
-    
+
     fireEvent.change(textarea, { target: { value: 'att1' } });
     fireEvent.click(screen.getByText('Cek Jawaban'));
     await waitFor(() => expect(screen.getByText(/💡/)).toBeDefined());
     const enc1 = screen.getByText(/💡/).textContent;
-    
+
     fireEvent.change(textarea, { target: { value: 'att2' } });
     fireEvent.click(screen.getByText('Cek Jawaban'));
-    await waitFor(() => expect(screen.queryByText('Jelaskan dengan kata-katamu')).toBeDefined());
-    
+    await waitFor(() =>
+      expect(screen.queryByText('Jelaskan dengan kata-katamu')).toBeDefined()
+    );
+
     // isi refleksi
-    fireEvent.change(screen.getByPlaceholderText(/Ketik minimal 20 karakter.../), { target: { value: '12345678901234567890' } });
-    
+    fireEvent.change(
+      screen.getByPlaceholderText(/Ketik minimal 20 karakter.../),
+      { target: { value: '12345678901234567890' } }
+    );
+
     fireEvent.change(textarea, { target: { value: 'att3' } });
     fireEvent.click(screen.getByText('Cek Jawaban'));
-    
+
     // We expect the encouragement in the dom
     const encElements = screen.getAllByText(/💡/);
     const enc3 = encElements[encElements.length - 1].textContent;
-    
+
     // It shouldn't be the same if it was updated, but the component keeps one state
     // Just verifying it doesn't crash and changes
   });
