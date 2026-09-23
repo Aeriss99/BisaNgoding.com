@@ -6,23 +6,38 @@ import { ProgressProvider } from '../context/ProgressContext';
 import { AuthProvider } from '../context/AuthContext';
 
 vi.mock('../lib/content', () => ({
+  coursesData: [
+    { id: 'java', title: 'Java', language: 'java', order: 1 }
+  ],
   modulesData: [
-    { id: 'dasar', title: 'Java Dasar', order: 1, lessonCount: 32, status: 'ready' }
+    {
+      id: 'dasar',
+      title: 'Java Dasar',
+      order: 1,
+      lessonCount: 32,
+      status: 'ready',
+    },
   ],
   getVisibleLessons: vi.fn(() => [
-    { id: 'dasar-01', title: 'Lesson 1', estimatedMinutes: 5 }
+    { id: 'dasar-01', title: 'Lesson 1', estimatedMinutes: 5 },
   ]),
-  getQuizQuestions: vi.fn(() => [ { id: 'q1' } ]),
+  getQuizQuestions: vi.fn(() => [{ id: 'q1' }]),
   getLessonsForModule: vi.fn(() => [
-    { id: 'dasar-01', title: 'Lesson 1', estimatedMinutes: 5 }
+    { id: 'dasar-01', title: 'Lesson 1', estimatedMinutes: 5 },
   ]),
 }));
 
 // Remove the old modules.json mock since we export modulesData from lib/content now
 vi.mock('../../content/modules.json', () => ({
   default: [
-    { id: 'dasar', title: 'Java Dasar', order: 1, lessonCount: 32, status: 'ready' }
-  ]
+    {
+      id: 'dasar',
+      title: 'Java Dasar',
+      order: 1,
+      lessonCount: 32,
+      status: 'ready',
+    },
+  ],
 }));
 
 // Mock supabase rpc for testing
@@ -31,9 +46,11 @@ vi.mock('../lib/supabase', () => ({
     rpc: vi.fn(),
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
-      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
-    }
-  }
+      onAuthStateChange: vi
+        .fn()
+        .mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+    },
+  },
 }));
 
 describe('Dashboard', () => {
@@ -47,11 +64,7 @@ describe('Dashboard', () => {
         </ProgressProvider>
       </AuthProvider>
     );
-    expect(screen.getAllByText(/Java Dasar/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/0\/1/)).toBeDefined();
-    expect(screen.getByText(/Kuis: Blm/)).toBeDefined();
-    expect(screen.getByText(/Belum dikerjakan/i)).toBeDefined();
-    expect(screen.getByText(/BELUM MULAI/)).toBeDefined();
-    expect(screen.getAllByText(/0%/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Daftar Kelas/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/0\/1/).length).toBeGreaterThan(0);
   });
 });

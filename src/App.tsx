@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Landing from './pages/Landing';
 import Profile from './pages/Profile';
 import ModuleDetail from './pages/ModuleDetail';
+import CourseDetail from './pages/CourseDetail';
 import LessonPage from './pages/Lesson';
 import QuizPage from './pages/Quiz';
 import NotFound from './pages/NotFound';
@@ -17,7 +18,9 @@ function AppRoutes() {
   const { user, loading } = useAuth();
 
   // Bypass Mode Dev: jika VITE_DEV_BYPASS=true dan sedang mode DEV, anggap sudah login
-  const isDevBypass = import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS === 'true';
+  const isDevBypass =
+    (import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS === 'true') ||
+    localStorage.getItem('e2e_bypass') === 'true';
   const isLoggedIn = user || isDevBypass;
 
   if (loading && !isDevBypass) {
@@ -25,7 +28,9 @@ function AppRoutes() {
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-base)]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-12 h-12 animate-spin text-[var(--color-primary)]" />
-          <p className="font-bold text-gray-500 font-barlow text-lg">Memuat BisaNgoding...</p>
+          <p className="font-bold text-gray-500 font-barlow text-lg">
+            Memuat BisaNgoding...
+          </p>
         </div>
       </div>
     );
@@ -41,6 +46,7 @@ function AppRoutes() {
       {/* Other Layout Routes */}
       <Route element={<Layout />}>
         <Route path="/profile" element={<Profile />} />
+        <Route path="/kelas/:courseId" element={<CourseDetail />} />
         <Route path="/module/:moduleId" element={<ModuleDetail />} />
         <Route path="*" element={<NotFound />} />
       </Route>

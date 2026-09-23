@@ -2,12 +2,14 @@ import { useState } from 'react';
 import type { RunnableCard, CodeChallengeCard } from '../../types/schema';
 import CodeMirror from '@uiw/react-codemirror';
 import { java } from '@codemirror/lang-java';
+import { javascript } from '@codemirror/lang-javascript';
 import { EditorView } from '@codemirror/view';
 import { Play, Loader2, CheckCircle, RefreshCw } from 'lucide-react';
 import { getErrorHint } from '../../lib/errorHints';
 import { runJavaCode } from '../../lib/javaRunner';
+import { runJsCode } from '../../lib/jsRunner';
 
-export function RunnableCardComponent({ card, mini = false }: { card: RunnableCard, mini?: boolean }) {
+export function RunnableCardComponent({ card, mini = false, language = 'java', lessonRunnable = true }: { card: RunnableCard, mini?: boolean, language?: string, lessonRunnable?: boolean }) {
   const [code, setCode] = useState(card.code);
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
@@ -65,9 +67,12 @@ export function RunnableCardComponent({ card, mini = false }: { card: RunnableCa
     setIsRunning(true);
     setTimedOut(false);
     setOutput('\n');
-    setStatusText("Memuat Java (sekali saja)");
+    setStatusText(language === 'javascript' ? "Menjalankan JavaScript" : "Memuat Java (sekali saja)");
     try {
-      const res = await runJavaCode(code, "", (s) => setStatusText(s));
+      const res = language === 'javascript' 
+        ? await runJsCode(code, card.html, (s) => setStatusText(s))
+        : await runJavaCode(code, "", (s) => setStatusText(s));
+        
       if (res.timedOut) {
         setTimedOut(true);
         setOutput('Program terlalu lama berjalan.');
@@ -110,7 +115,7 @@ export function RunnableCardComponent({ card, mini = false }: { card: RunnableCa
         <CodeMirror
           value={code}
           extensions={[
-            java(), 
+            language === 'javascript' ? javascript() : java(), 
             EditorView.lineWrapping, 
             EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
           ]}
@@ -121,6 +126,11 @@ export function RunnableCardComponent({ card, mini = false }: { card: RunnableCa
           maxHeight="70vh"
         />
       </div>
+
+      {card.html && language === 'javascript' && (
+        <div id="js-dom-output-container" className="mt-4 brutal-border bg-white rounded-xl overflow-hidden min-h-[200px]" style={{ width: '100%', height: '300px' }}>
+        </div>
+      )}
 
       {/* Tampilkan anotasinya di bawah (khususnya untuk HP) jika belum sempat bikin gutter */}
       {card.annotations && card.annotations.length > 0 && (
@@ -156,34 +166,36 @@ export function RunnableCardComponent({ card, mini = false }: { card: RunnableCa
         </div>
       )}
 
-      <div className="flex gap-2">
-        <button 
-          onClick={handleRun}
-          disabled={isRunning || (card.predict && !hasRun && predictSelected === null)}
-          className="flex-1 brutal-btn bg-[var(--color-success)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"
-        >
-          {isRunning ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : <Play className="w-5 h-5 shrink-0" />}
-          {isRunning ? statusText : 'Jalankan Kode'}
-        </button>
-        {timedOut && (
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 brutal-btn bg-[var(--color-accent)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 shrink-0"
+      {lessonRunnable && (
+        <div className="flex gap-2">
+          <button 
+            onClick={handleRun}
+            disabled={isRunning || (card.predict && !hasRun && predictSelected === null)}
+            className="flex-1 brutal-btn bg-[var(--color-success)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"
           >
-            <RefreshCw className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Muat Ulang</span>
+            {isRunning ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : <Play className="w-5 h-5 shrink-0" />}
+            {isRunning ? statusText : 'Jalankan Kode'}
           </button>
-        )}
-      </div>
+          {timedOut && (
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 brutal-btn bg-[var(--color-accent)] text-[var(--color-text-main)] font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 shrink-0"
+            >
+              <RefreshCw className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Muat Ulang</span>
+            </button>
+          )}
+        </div>
+      )}
       
-      {output && (
+      {lessonRunnable && output && (
         <div className="flex flex-col space-y-4 w-full min-w-0 animate-in fade-in slide-in-from-bottom-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 bg-[#1E1F22] rounded-xl border-2 border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)] overflow-hidden flex flex-col">
               <div className="bg-[#2B2D30] px-4 py-2 flex items-center gap-2 text-[#DFE1E5] text-xs font-mono border-b border-[#111]">
-                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: Main
+                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {language === 'javascript' ? 'Script' : 'Main'}
               </div>
               <div className="p-4 font-mono text-[14px] leading-[1.6] whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] text-[#DFE1E5]">
-                <div className="text-[#6F737A] mb-2">java Main</div>
+                <div className="text-[#6F737A] mb-2">{language === 'javascript' ? 'node script.js' : 'java Main'}</div>
                 {formatOutput(output)}
                 <div className="text-[#6F737A] mt-2 flex items-center gap-1.5">
                   <div className={`w-2 h-2 rounded-full ${output.includes('Error:') || output.includes('Gagal:') || output.includes('Exception') ? 'bg-[#F75464]' : 'bg-[#6F737A]'}`} />
@@ -252,12 +264,14 @@ export function CodeChallengeCardComponent({
   card, 
   onSuccess,
   onNavigateToTheory,
-  onRequireRecheck
+  onRequireRecheck,
+  language = 'java'
 }: { 
   card: CodeChallengeCard,
   onSuccess: (attempts: number) => void,
   onNavigateToTheory?: () => void,
-  onRequireRecheck?: () => void
+  onRequireRecheck?: () => void,
+  language?: string
 }) {
   const [code, setCode] = useState(card.starterCode);
   const [output, setOutput] = useState('');
@@ -341,14 +355,16 @@ export function CodeChallengeCardComponent({
     setIsRunning(true);
     setTimedOut(false);
     setOutput('Memeriksa jawaban...\n');
-    setStatusText("Memuat Java (sekali saja)");
+    setStatusText(language === 'javascript' ? "Menjalankan JavaScript" : "Memuat Java (sekali saja)");
     try {
       let allPassed = true;
       let finalOutput = '';
 
       for (let i = 0; i < card.tests.length; i++) {
         const test = card.tests[i];
-        const res = await runJavaCode(code, test.input, (s) => setStatusText(s));
+        const res = language === 'javascript'
+          ? await runJsCode(code, card.html, (s) => setStatusText(s))
+          : await runJavaCode(code, test.input, (s) => setStatusText(s));
 
         if (res.timedOut) {
           setTimedOut(true);
@@ -438,7 +454,7 @@ export function CodeChallengeCardComponent({
         <CodeMirror
           value={code}
           extensions={[
-            java(), 
+            language === 'javascript' ? javascript() : java(), 
             EditorView.lineWrapping, 
             EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
           ]}
@@ -449,6 +465,11 @@ export function CodeChallengeCardComponent({
           maxHeight="70vh"
         />
       </div>
+
+      {card.html && language === 'javascript' && (
+        <div id="js-dom-output-container" className="mt-4 brutal-border bg-white rounded-xl overflow-hidden min-h-[200px]" style={{ width: '100%', height: '300px' }}>
+        </div>
+      )}
       
       <div className="flex gap-2">
         <button 
@@ -488,10 +509,10 @@ export function CodeChallengeCardComponent({
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 bg-[#1E1F22] rounded-xl border-2 border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)] overflow-hidden flex flex-col">
               <div className="bg-[#2B2D30] px-4 py-2 flex items-center gap-2 text-[#DFE1E5] text-xs font-mono border-b border-[#111]">
-                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: Main
+                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {language === 'javascript' ? 'Script' : 'Main'}
               </div>
               <div className="p-4 font-mono text-[14px] leading-[1.6] whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] text-[#DFE1E5]">
-                <div className="text-[#6F737A] mb-2">java Main</div>
+                <div className="text-[#6F737A] mb-2">{language === 'javascript' ? 'node script.js' : 'java Main'}</div>
                 {formatOutput(output)}
                 <div className="text-[#6F737A] mt-2 flex items-center gap-1.5">
                   <div className={`w-2 h-2 rounded-full ${output.includes('Error:') || output.includes('Gagal:') || output.includes('Exception') ? 'bg-[#F75464]' : 'bg-[#6F737A]'}`} />

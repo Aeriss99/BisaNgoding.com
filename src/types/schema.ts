@@ -1,5 +1,15 @@
+export interface Course {
+  id: string;
+  title: string;
+  language: string;
+  order: number;
+  description?: string;
+  status?: 'ready' | 'soon';
+}
+
 export interface Module {
   id: string;
+  courseId?: string;
   title: string;
   order: number;
   lessonCount: number;
@@ -14,6 +24,8 @@ export interface Lesson {
   order: number;
   title: string;
   estimatedMinutes: number;
+  runnable?: boolean;
+  javaVersion?: number;
   cards: Card[];
 }
 
@@ -30,12 +42,12 @@ export interface UnderstandingCheckCard {
   }[];
 }
 
-export type Card = 
-  | TheoryCard 
-  | RunnableCard 
-  | MultipleChoiceCard 
-  | FillBlankCard 
-  | CodeChallengeCard 
+export type Card =
+  | TheoryCard
+  | RunnableCard
+  | MultipleChoiceCard
+  | FillBlankCard
+  | CodeChallengeCard
   | SummaryCard
   | ReorderCard
   | PredictOutputCard
@@ -49,6 +61,7 @@ export interface TheoryCard {
 
 export interface RunnableCard {
   type: 'runnable';
+  html?: string;
   code: string;
   predict?: {
     question: string;
@@ -76,6 +89,7 @@ export interface FillBlankCard {
 
 export interface CodeChallengeCard {
   type: 'code_challenge';
+  html?: string;
   prompt: string;
   starterCode: string;
   steps?: string[];
