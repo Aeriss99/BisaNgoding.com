@@ -1,4 +1,5 @@
 cat > AGENTS.md <<'EOF'
+
 # Aturan Hemat Waktu & Token
 
 1. JANGAN jalankan test:e2e / Playwright kecuali diminta secara eksplisit.
@@ -11,4 +12,4 @@ cat > AGENTS.md <<'EOF'
 8. JANGAN ubah src/lib/javaRunner.ts kecuali diminta.
 9. Setiap selesai tugas: commit, push, dan tambah 1 baris LAPORAN.md dengan angka tes asli.
 10. Balas singkat, tanpa menampilkan kode.
-EOF
+    EOF

@@ -9,8 +9,12 @@ const localStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
     getItem: vi.fn((key) => store[key] || null),
-    setItem: vi.fn((key, value) => { store[key] = value.toString(); }),
-    clear: vi.fn(() => { store = {}; }),
+    setItem: vi.fn((key, value) => {
+      store[key] = value.toString();
+    }),
+    clear: vi.fn(() => {
+      store = {};
+    }),
   };
 })();
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
@@ -21,9 +25,11 @@ vi.mock('../lib/supabase', () => ({
     rpc: vi.fn(),
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
-      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
-    }
-  }
+      onAuthStateChange: vi
+        .fn()
+        .mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+    },
+  },
 }));
 
 import { supabase } from '../lib/supabase';
@@ -48,14 +54,14 @@ describe('ProgressContext', () => {
 
   it('marks lesson as completed and adds XP exactly once', () => {
     const { result } = renderHook(() => useProgress(), { wrapper });
-    
+
     act(() => {
       result.current.markLessonCompleted('dasar-01');
     });
-    
+
     expect(result.current.progress.completedLessons).toContain('dasar-01');
     expect(result.current.progress.xp).toBe(10); // Assume 10 XP
-    
+
     // Marking again should not add XP
     act(() => {
       result.current.markLessonCompleted('dasar-01');
@@ -67,42 +73,48 @@ describe('ProgressContext', () => {
     // Set last active to yesterday
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    
-    localStorageMock.setItem('bisangoding_progress', JSON.stringify({
-      completedLessons: [],
-      xp: 0,
-      streak: 1,
-      lastActiveDate: yesterday.toISOString().split('T')[0],
-      version: 1
-    }));
+
+    localStorageMock.setItem(
+      'bisangoding_progress',
+      JSON.stringify({
+        completedLessons: [],
+        xp: 0,
+        streak: 1,
+        lastActiveDate: yesterday.toISOString().split('T')[0],
+        version: 1,
+      })
+    );
 
     const { result } = renderHook(() => useProgress(), { wrapper });
-    
+
     act(() => {
       result.current.markLessonCompleted('dasar-01'); // triggers activity
     });
-    
+
     expect(result.current.progress.streak).toBe(2);
   });
 
   it('handles streak logic: missing a day resets streak', () => {
     const twoDaysAgo = new Date();
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-    
-    localStorageMock.setItem('bisangoding_progress', JSON.stringify({
-      completedLessons: [],
-      xp: 0,
-      streak: 5,
-      lastActiveDate: twoDaysAgo.toISOString().split('T')[0],
-      version: 1
-    }));
+
+    localStorageMock.setItem(
+      'bisangoding_progress',
+      JSON.stringify({
+        completedLessons: [],
+        xp: 0,
+        streak: 5,
+        lastActiveDate: twoDaysAgo.toISOString().split('T')[0],
+        version: 1,
+      })
+    );
 
     const { result } = renderHook(() => useProgress(), { wrapper });
-    
+
     act(() => {
       result.current.markLessonCompleted('dasar-01');
     });
-    
+
     expect(result.current.progress.streak).toBe(1);
   });
 
@@ -110,21 +122,21 @@ describe('ProgressContext', () => {
     // Nonaktifkan fitur reset-otomatis untuk tes ini agar lastActiveDate lama tidak ditolak
     vi.stubEnv('VITE_INACTIVE_DAYS', '0');
     const { result } = renderHook(() => useProgress(), { wrapper });
-    
+
     const validData = {
       completedLessons: ['dasar-01'],
       xp: 100,
       streak: 2,
       lastActiveDate: '2023-01-01',
       version: 1,
-      moduleStatus: { 'dasar': 'unlocked' }
+      moduleStatus: { dasar: 'unlocked' },
     };
-    
+
     let success = false;
     act(() => {
       success = result.current.importProgress(validData);
     });
-    
+
     expect(success).toBe(true);
     expect(result.current.progress.xp).toBe(100);
 
@@ -132,7 +144,7 @@ describe('ProgressContext', () => {
     act(() => {
       success = result.current.importProgress(invalidData);
     });
-    
+
     expect(success).toBe(false);
     expect(result.current.progress.xp).toBe(100); // Should not change
     vi.unstubAllEnvs();
@@ -140,33 +152,36 @@ describe('ProgressContext', () => {
 
   it('ignores unlockAll toggle for guests and non-admins', async () => {
     const { result } = renderHook(() => useProgress(), { wrapper });
-    
+
     act(() => {
       result.current.toggleUnlockAll(true);
     });
-    
+
     // User is null by default, so isAdmin is false, thus unlockAll must be false
     expect(result.current.progress.unlockAll).toBe(false);
   });
-  
+
   it('allows unlockAll toggle for admins', async () => {
     // Mock user session and is_admin
     vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
-      data: { session: { user: { id: 'admin-id' } } }
+      data: { session: { user: { id: 'admin-id' } } },
     } as any);
-    vi.mocked(supabase!.rpc).mockResolvedValueOnce({ data: true, error: null } as any);
-    
+    vi.mocked(supabase!.rpc).mockResolvedValueOnce({
+      data: true,
+      error: null,
+    } as any);
+
     const { result } = renderHook(() => useProgress(), { wrapper });
-    
+
     // Wait for auth to resolve
     await act(async () => {
-      await new Promise(r => setTimeout(r, 100)); // wait for getSession and checkAdmin to complete
+      await new Promise((r) => setTimeout(r, 100)); // wait for getSession and checkAdmin to complete
     });
 
     act(() => {
       result.current.toggleUnlockAll(true);
     });
-    
+
     expect(result.current.progress.unlockAll).toBe(true);
   });
 
@@ -176,16 +191,19 @@ describe('ProgressContext', () => {
     eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
     const oldDateStr = eightDaysAgo.toISOString().split('T')[0];
 
-    localStorageMock.setItem('bisangoding_progress', JSON.stringify({
-      completedLessons: ['dasar-01', 'dasar-02'],
-      xp: 500,
-      streak: 10,
-      lastActiveDate: oldDateStr,
-      maxSeenDate: oldDateStr,
-      version: 1,
-      moduleStatus: { dasar: 'unlocked' },
-      quizScores: {}
-    }));
+    localStorageMock.setItem(
+      'bisangoding_progress',
+      JSON.stringify({
+        completedLessons: ['dasar-01', 'dasar-02'],
+        xp: 500,
+        streak: 10,
+        lastActiveDate: oldDateStr,
+        maxSeenDate: oldDateStr,
+        version: 1,
+        moduleStatus: { dasar: 'unlocked' },
+        quizScores: {},
+      })
+    );
 
     const { result } = renderHook(() => useProgress(), { wrapper });
 
@@ -202,16 +220,19 @@ describe('ProgressContext', () => {
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
     const recentDateStr = threeDaysAgo.toISOString().split('T')[0];
 
-    localStorageMock.setItem('bisangoding_progress', JSON.stringify({
-      completedLessons: ['dasar-01'],
-      xp: 200,
-      streak: 3,
-      lastActiveDate: recentDateStr,
-      maxSeenDate: recentDateStr,
-      version: 1,
-      moduleStatus: { dasar: 'unlocked' },
-      quizScores: {}
-    }));
+    localStorageMock.setItem(
+      'bisangoding_progress',
+      JSON.stringify({
+        completedLessons: ['dasar-01'],
+        xp: 200,
+        streak: 3,
+        lastActiveDate: recentDateStr,
+        maxSeenDate: recentDateStr,
+        version: 1,
+        moduleStatus: { dasar: 'unlocked' },
+        quizScores: {},
+      })
+    );
 
     const { result } = renderHook(() => useProgress(), { wrapper });
 
@@ -224,16 +245,19 @@ describe('ProgressContext', () => {
     vi.stubEnv('VITE_INACTIVE_DAYS', '0');
     const veryOld = '2000-01-01';
 
-    localStorageMock.setItem('bisangoding_progress', JSON.stringify({
-      completedLessons: ['dasar-01'],
-      xp: 999,
-      streak: 5,
-      lastActiveDate: veryOld,
-      maxSeenDate: veryOld,
-      version: 1,
-      moduleStatus: { dasar: 'unlocked' },
-      quizScores: {}
-    }));
+    localStorageMock.setItem(
+      'bisangoding_progress',
+      JSON.stringify({
+        completedLessons: ['dasar-01'],
+        xp: 999,
+        streak: 5,
+        lastActiveDate: veryOld,
+        maxSeenDate: veryOld,
+        version: 1,
+        moduleStatus: { dasar: 'unlocked' },
+        quizScores: {},
+      })
+    );
 
     const { result } = renderHook(() => useProgress(), { wrapper });
 
@@ -256,7 +280,7 @@ describe('ProgressContext', () => {
         xp: 999,
         streak: 5,
         lastActiveDate: oldDateStr,
-        moduleStatus: { dasar: 'unlocked' }
+        moduleStatus: { dasar: 'unlocked' },
       });
     });
 

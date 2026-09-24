@@ -24,9 +24,11 @@ function generateSkeleton() {
     for (let i = 1; i <= mod.lessonCount; i++) {
       const paddedLesson = String(i).padStart(2, '0');
       const lessonId = `${mod.id}-${paddedLesson}`;
-      
+
       const filesInDir = fs.readdirSync(folderPath);
-      const existingFile = filesInDir.find(f => f.includes(lessonId) || f.includes(`lesson-${paddedLesson}`));
+      const existingFile = filesInDir.find(
+        (f) => f.includes(lessonId) || f.includes(`lesson-${paddedLesson}`)
+      );
       if (existingFile) continue;
 
       const fileName = `lesson-${paddedLesson}.json`;
@@ -40,10 +42,10 @@ function generateSkeleton() {
         estimatedMinutes: 5,
         cards: [
           {
-            type: "theory",
-            content: "Materi untuk pelajaran ini belum tersedia."
-          }
-        ]
+            type: 'theory',
+            content: 'Materi untuk pelajaran ini belum tersedia.',
+          },
+        ],
       };
 
       fs.writeFileSync(filePath, JSON.stringify(lessonSkeleton, null, 2));

@@ -13,14 +13,23 @@ export const Mermaid = ({ chart }: { chart: string }) => {
 
   useEffect(() => {
     if (ref.current) {
-      mermaid.render(`mermaid-${Math.random().toString(36).substring(2)}`, chart).then((res) => {
-        setSvg(res.svg);
-      }).catch(e => {
-        console.error('Mermaid render error', e);
-        setSvg('<div class="text-red-500">Error rendering diagram</div>');
-      });
+      mermaid
+        .render(`mermaid-${Math.random().toString(36).substring(2)}`, chart)
+        .then((res) => {
+          setSvg(res.svg);
+        })
+        .catch((e) => {
+          console.error('Mermaid render error', e);
+          setSvg('<div class="text-red-500">Error rendering diagram</div>');
+        });
     }
   }, [chart]);
 
-  return <div ref={ref} dangerouslySetInnerHTML={{ __html: svg }} className="flex justify-center my-4 overflow-x-auto" />;
+  return (
+    <div
+      ref={ref}
+      dangerouslySetInnerHTML={{ __html: svg }}
+      className="flex justify-center my-4 overflow-x-auto"
+    />
+  );
 };

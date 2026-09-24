@@ -1,6 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from 'react';
 import type { UserProgress } from '../types/schema';
-import { checkInactivityReset, isImportTooOld, toISODate } from '../lib/resetLogic';
+import {
+  checkInactivityReset,
+  isImportTooOld,
+  toISODate,
+} from '../lib/resetLogic';
 import { useAuth } from './AuthContext';
 import {
   getLocalOwner,
@@ -8,7 +18,7 @@ import {
   saveLocalProgress,
   mergeProgress,
   fetchCloudProgress,
-  saveCloudProgress
+  saveCloudProgress,
 } from '../lib/cloudProgress';
 
 interface ProgressContextType {
@@ -22,7 +32,8 @@ interface ProgressContextType {
   touchActivity: () => void;
   inactiveDaysConfig: number;
   daysUntilReset: number | null;
-  syncStatus: 'Tersimpan' | 'Menyimpan...' | 'Offline, tersimpan di perangkat ini';
+  syncStatus:
+    'Tersimpan' | 'Menyimpan...' | 'Offline, tersimpan di perangkat ini';
 }
 
 const ProgressContext = createContext<ProgressContextType | null>(null);
@@ -40,14 +51,15 @@ export function makeDefaultProgress(): UserProgress {
   return {
     completedLessons: [],
     passedChecks: [],
-    moduleStatus: { 'dasar': 'unlocked' },
+    moduleStatus: { dasar: 'unlocked' },
     quizScores: {},
     xp: 0,
     streak: 0,
     lastActiveDate: today,
     maxSeenDate: today,
     version: 1,
-    unlockAll: import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true'
+    unlockAll:
+      import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true',
   };
 }
 
@@ -55,7 +67,9 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, loading: authLoading } = useAuth();
   const [daysUntilReset, setDaysUntilReset] = useState<number | null>(null);
   const inactiveDaysConfig = getInactiveDaysConfig();
-  const [syncStatus, setSyncStatus] = useState<'Tersimpan' | 'Menyimpan...' | 'Offline, tersimpan di perangkat ini'>('Offline, tersimpan di perangkat ini');
+  const [syncStatus, setSyncStatus] = useState<
+    'Tersimpan' | 'Menyimpan...' | 'Offline, tersimpan di perangkat ini'
+  >('Offline, tersimpan di perangkat ini');
 
   const [progress, setProgress] = useState<UserProgress>(() => {
     try {
@@ -67,16 +81,26 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         }
         if (!parsed.quizScores) parsed.quizScores = {};
         if (!parsed.passedChecks) parsed.passedChecks = [];
-        if (!parsed.lastActiveDate) parsed.lastActiveDate = toISODate(new Date());
+        if (!parsed.lastActiveDate)
+          parsed.lastActiveDate = toISODate(new Date());
         if (!parsed.maxSeenDate) parsed.maxSeenDate = parsed.lastActiveDate;
 
-        const result = checkInactivityReset(parsed, new Date(), inactiveDaysConfig, makeDefaultProgress);
+        const result = checkInactivityReset(
+          parsed,
+          new Date(),
+          inactiveDaysConfig,
+          makeDefaultProgress
+        );
         if (result.wasReset) {
           const resetProgress = { ...result.progress, justReset: true };
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(resetProgress)); } catch (e) {}
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(resetProgress));
+          } catch (e) {}
           return resetProgress;
         }
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(result.progress)); } catch (e) {}
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(result.progress));
+        } catch (e) {}
         return result.progress;
       }
     } catch (e) {}
@@ -128,7 +152,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user || !initializedRef.current) return;
     if (timerRef.current) clearTimeout(timerRef.current);
-    
+
     setSyncStatus('Menyimpan...');
     timerRef.current = setTimeout(async () => {
       await saveCloudProgress(user.id, progressRef.current);
@@ -143,7 +167,12 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       setDaysUntilReset(null);
       return;
     }
-    const result = checkInactivityReset(progress, new Date(), inactiveDaysConfig, makeDefaultProgress);
+    const result = checkInactivityReset(
+      progress,
+      new Date(),
+      inactiveDaysConfig,
+      makeDefaultProgress
+    );
     setDaysUntilReset(result.daysUntilReset);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -161,12 +190,14 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
       let newStreak = prev.streak;
       const today = new Date().toISOString().split('T')[0];
-      
+
       if (prev.lastActiveDate !== today) {
         const lastActive = new Date(prev.lastActiveDate);
         const todayDate = new Date(today);
-        const diffDays = Math.floor((todayDate.getTime() - lastActive.getTime()) / (1000 * 3600 * 24));
-        
+        const diffDays = Math.floor(
+          (todayDate.getTime() - lastActive.getTime()) / (1000 * 3600 * 24)
+        );
+
         if (diffDays === 1) {
           newStreak += 1; // Consecutive day
         } else if (diffDays > 1) {
@@ -179,12 +210,17 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       const nextProgress = {
         ...prev,
         completedLessons: [...prev.completedLessons, lessonId],
-        passedChecks: Array.from(new Set([...(prev.passedChecks || []), lessonId])), // Auto pass if completed
+        passedChecks: Array.from(
+          new Set([...(prev.passedChecks || []), lessonId])
+        ), // Auto pass if completed
         xp: prev.xp + 10,
         streak: newStreak,
         lastActiveDate: today,
-        maxSeenDate: prev.maxSeenDate && prev.maxSeenDate > today ? prev.maxSeenDate : today,
-        justReset: false
+        maxSeenDate:
+          prev.maxSeenDate && prev.maxSeenDate > today
+            ? prev.maxSeenDate
+            : today,
+        justReset: false,
       };
 
       try {
@@ -200,7 +236,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       if (prev.passedChecks?.includes(lessonId)) return prev;
       const nextProgress = {
         ...prev,
-        passedChecks: [...(prev.passedChecks || []), lessonId]
+        passedChecks: [...(prev.passedChecks || []), lessonId],
       };
       saveProgressState(nextProgress);
       return nextProgress;
@@ -210,13 +246,23 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const touchActivity = () => {
     setProgress((prev) => {
       const today = new Date().toISOString().split('T')[0];
-      if (prev.lastActiveDate === today && prev.maxSeenDate && prev.maxSeenDate >= today) return prev;
+      if (
+        prev.lastActiveDate === today &&
+        prev.maxSeenDate &&
+        prev.maxSeenDate >= today
+      )
+        return prev;
       const nextProgress = {
         ...prev,
         lastActiveDate: today,
-        maxSeenDate: prev.maxSeenDate && prev.maxSeenDate > today ? prev.maxSeenDate : today,
+        maxSeenDate:
+          prev.maxSeenDate && prev.maxSeenDate > today
+            ? prev.maxSeenDate
+            : today,
       };
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProgress)); } catch (e) {}
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProgress));
+      } catch (e) {}
       return nextProgress;
     });
   };
@@ -232,7 +278,14 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       data.moduleStatus &&
       typeof data.moduleStatus === 'object'
     ) {
-      if (isImportTooOld(data.lastActiveDate, new Date(), progress.maxSeenDate, inactiveDaysConfig)) {
+      if (
+        isImportTooOld(
+          data.lastActiveDate,
+          new Date(),
+          progress.maxSeenDate,
+          inactiveDaysConfig
+        )
+      ) {
         return false;
       }
 
@@ -244,18 +297,23 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         xp: data.xp,
         streak: data.streak,
         lastActiveDate: data.lastActiveDate,
-        maxSeenDate: data.maxSeenDate && data.maxSeenDate > today ? data.maxSeenDate : today,
+        maxSeenDate:
+          data.maxSeenDate && data.maxSeenDate > today
+            ? data.maxSeenDate
+            : today,
         version: data.version || 1,
-        unlockAll: !!data.unlockAll || (import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true'),
-        justReset: false
+        unlockAll:
+          !!data.unlockAll ||
+          (import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true'),
+        justReset: false,
       });
       return true;
     }
-    
+
     if (import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true') {
-      setProgress(prev => ({ ...prev, unlockAll: true }));
+      setProgress((prev) => ({ ...prev, unlockAll: true }));
     }
-    
+
     return false;
   };
 
@@ -283,8 +341,8 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           quizScores: {
             ...prev.quizScores,
-            [moduleId]: { score, passed }
-          }
+            [moduleId]: { score, passed },
+          },
         };
         saveProgressState(nextProgress);
         return nextProgress;
@@ -296,7 +354,21 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const activeUnlockAll = isAdmin ? progress.unlockAll : false;
 
   return (
-    <ProgressContext.Provider value={{ progress: { ...progress, unlockAll: activeUnlockAll }, markLessonCompleted, markCheckPassed, importProgress, toggleUnlockAll, addXP, saveQuizScore, touchActivity, inactiveDaysConfig, daysUntilReset, syncStatus }}>
+    <ProgressContext.Provider
+      value={{
+        progress: { ...progress, unlockAll: activeUnlockAll },
+        markLessonCompleted,
+        markCheckPassed,
+        importProgress,
+        toggleUnlockAll,
+        addXP,
+        saveQuizScore,
+        touchActivity,
+        inactiveDaysConfig,
+        daysUntilReset,
+        syncStatus,
+      }}
+    >
       {children}
     </ProgressContext.Provider>
   );

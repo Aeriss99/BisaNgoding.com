@@ -19,13 +19,24 @@ describe('mergeProgress', () => {
   });
 
   it('takes the highest quiz scores', () => {
-    const local = { quizScores: { m1: { score: 80, passed: true }, m2: { score: 50, passed: false } } } as unknown as UserProgress;
-    const cloud = { quizScores: { m1: { score: 60, passed: false }, m2: { score: 90, passed: true }, m3: { score: 100, passed: true } } } as unknown as UserProgress;
+    const local = {
+      quizScores: {
+        m1: { score: 80, passed: true },
+        m2: { score: 50, passed: false },
+      },
+    } as unknown as UserProgress;
+    const cloud = {
+      quizScores: {
+        m1: { score: 60, passed: false },
+        m2: { score: 90, passed: true },
+        m3: { score: 100, passed: true },
+      },
+    } as unknown as UserProgress;
     const merged = mergeProgress(local, cloud);
-    
+
     expect(merged.quizScores['m1'].score).toBe(80);
     expect(merged.quizScores['m1'].passed).toBe(true);
-    
+
     expect(merged.quizScores['m2'].score).toBe(90);
     expect(merged.quizScores['m2'].passed).toBe(true);
 
@@ -34,10 +45,16 @@ describe('mergeProgress', () => {
   });
 
   it('takes the latest dates', () => {
-    const local = { lastActiveDate: '2024-01-05', maxSeenDate: '2024-01-05' } as unknown as UserProgress;
-    const cloud = { lastActiveDate: '2024-01-10', maxSeenDate: '2024-01-08' } as unknown as UserProgress;
+    const local = {
+      lastActiveDate: '2024-01-05',
+      maxSeenDate: '2024-01-05',
+    } as unknown as UserProgress;
+    const cloud = {
+      lastActiveDate: '2024-01-10',
+      maxSeenDate: '2024-01-08',
+    } as unknown as UserProgress;
     const merged = mergeProgress(local, cloud);
-    
+
     expect(merged.lastActiveDate).toBe('2024-01-10');
     expect(merged.maxSeenDate).toBe('2024-01-08'); // wait, local maxSeenDate is 05, cloud is 08, so 08.
   });

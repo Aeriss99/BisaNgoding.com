@@ -18,29 +18,33 @@ describe('Bagian 7 - Playground Updates', () => {
   });
 
   it('Jalankan terkunci sebelum tebakan dipilih; tebakan salah tetap bisa lanjut', async () => {
-    vi.mocked(javaRunner.runJavaCode).mockResolvedValue({ stdout: 'ok', stderr: '', exitCode: 0 });
-    
+    vi.mocked(javaRunner.runJavaCode).mockResolvedValue({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+    });
+
     const card = {
       type: 'runnable' as const,
       code: 'code',
       predict: {
         question: 'Tebak?',
         options: ['A', 'B'],
-        answer: 0
-      }
+        answer: 0,
+      },
     };
 
     render(<RunnableCardComponent card={card} />);
     const runBtn = screen.getByText('Jalankan Kode');
-    
+
     expect(runBtn).toHaveProperty('disabled', true);
-    
+
     // Pilih yang salah
     fireEvent.click(screen.getByText('B'));
-    
+
     expect(runBtn).toHaveProperty('disabled', false);
     fireEvent.click(runBtn);
-    
+
     await screen.findByText('Ternyata berbeda');
     expect(screen.getByText('ok')).toBeDefined(); // output appears
   });

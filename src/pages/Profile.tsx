@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import { useProgress } from '../context/ProgressContext';
-import { Download, Upload, Trash2, Award, LogIn, LogOut, Unlock } from 'lucide-react';
+import {
+  Download,
+  Upload,
+  Trash2,
+  Award,
+  LogIn,
+  LogOut,
+  Unlock,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Profile() {
-  const { progress, importProgress, toggleUnlockAll, syncStatus } = useProgress();
-  const { user, isAdmin, masukGoogle, keluar, isSupabaseConfigured } = useAuth();
+  const { progress, importProgress, toggleUnlockAll, syncStatus } =
+    useProgress();
+  const { user, isAdmin, masukGoogle, keluar, isSupabaseConfigured } =
+    useAuth();
   const [message, setMessage] = useState('');
 
   const tampilkanPesan = (teks: string, ms = 3000) => {
@@ -15,10 +25,14 @@ export default function Profile() {
 
   const handleExport = () => {
     const dataStr =
-      'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(progress, null, 2));
+      'data:text/json;charset=utf-8,' +
+      encodeURIComponent(JSON.stringify(progress, null, 2));
     const a = document.createElement('a');
     a.setAttribute('href', dataStr);
-    a.setAttribute('download', `bisangoding-progress-${new Date().toISOString().split('T')[0]}.json`);
+    a.setAttribute(
+      'download',
+      `bisangoding-progress-${new Date().toISOString().split('T')[0]}.json`
+    );
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -29,7 +43,9 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!confirm('Mengimpor data akan menimpa progres Anda saat ini. Lanjutkan?')) {
+    if (
+      !confirm('Mengimpor data akan menimpa progres Anda saat ini. Lanjutkan?')
+    ) {
       e.target.value = '';
       return;
     }
@@ -54,7 +70,8 @@ export default function Profile() {
   };
 
   const handleReset = () => {
-    if (!confirm('Hapus semua progres? Tindakan ini tidak bisa dibatalkan.')) return;
+    if (!confirm('Hapus semua progres? Tindakan ini tidak bisa dibatalkan.'))
+      return;
     const today = new Date().toISOString().split('T')[0];
     importProgress({
       completedLessons: [],
@@ -77,7 +94,9 @@ export default function Profile() {
       </header>
 
       {message && (
-        <div className="p-3 bg-blue-100 text-blue-800 rounded-lg text-sm text-center">{message}</div>
+        <div className="p-3 bg-blue-100 text-blue-800 rounded-lg text-sm text-center">
+          {message}
+        </div>
       )}
 
       {isSupabaseConfigured && (
@@ -86,11 +105,19 @@ export default function Profile() {
           {user ? (
             <div className="space-y-4">
               <div className="flex items-center gap-4">
-                <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-12 h-12 rounded-full brutal-border" />
+                <img
+                  src={user.user_metadata.avatar_url}
+                  alt="Avatar"
+                  className="w-12 h-12 rounded-full brutal-border"
+                />
                 <div>
-                  <div className="font-bold text-lg">{user.user_metadata.full_name}</div>
+                  <div className="font-bold text-lg">
+                    {user.user_metadata.full_name}
+                  </div>
                   <div className="text-gray-500 text-sm">{user.email}</div>
-                  <div className="text-xs font-medium text-[var(--color-primary)] mt-1">{syncStatus}</div>
+                  <div className="text-xs font-medium text-[var(--color-primary)] mt-1">
+                    {syncStatus}
+                  </div>
                 </div>
               </div>
               <button
@@ -102,7 +129,10 @@ export default function Profile() {
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">Masuk untuk menyinkronkan progres di semua perangkat secara otomatis.</p>
+              <p className="text-sm text-gray-600">
+                Masuk untuk menyinkronkan progres di semua perangkat secara
+                otomatis.
+              </p>
               <button
                 onClick={masukGoogle}
                 className="w-full flex items-center justify-center gap-2 brutal-btn !bg-[var(--color-primary)] !text-white !p-3"
@@ -121,11 +151,15 @@ export default function Profile() {
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-gray-50 p-4 rounded-lg text-center">
             <div className="text-sm text-gray-500">Total XP</div>
-            <div className="text-2xl font-bold text-blue-600">{progress.xp}</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {progress.xp}
+            </div>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg text-center">
             <div className="text-sm text-gray-500">Streak Harian</div>
-            <div className="text-2xl font-bold text-orange-500">{progress.streak} ⚡</div>
+            <div className="text-2xl font-bold text-orange-500">
+              {progress.streak} ⚡
+            </div>
           </div>
         </div>
       </section>
@@ -138,8 +172,8 @@ export default function Profile() {
               <div className="flex items-center gap-2 font-medium">
                 <Unlock className="w-5 h-5" /> Buka Semua Modul
               </div>
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 checked={progress.unlockAll}
                 onChange={(e) => toggleUnlockAll(e.target.checked)}
                 className="w-5 h-5 accent-[var(--color-primary)]"
@@ -156,7 +190,12 @@ export default function Profile() {
 
           <label className="w-full flex items-center justify-center gap-2 bg-green-50 text-green-700 py-3 rounded-lg hover:bg-green-100 transition-colors font-medium cursor-pointer">
             <Upload className="w-5 h-5" /> Import Progres
-            <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+            <input
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleImport}
+            />
           </label>
 
           <button

@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { pickRandomQuestions, shuffleQuestionOptions, prepareQuiz, calculateScore, isPassingScore, PASSING_SCORE } from './quizLogic';
+import {
+  pickRandomQuestions,
+  shuffleQuestionOptions,
+  prepareQuiz,
+  calculateScore,
+  isPassingScore,
+  PASSING_SCORE,
+} from './quizLogic';
 import type { QuizQuestion } from '../types/schema';
 
 function makeBank(n: number): QuizQuestion[] {
@@ -28,7 +35,7 @@ describe('quizLogic', () => {
       const picked = pickRandomQuestions(bank, 20, seededRng(1));
       expect(picked.length).toBe(20);
       // All picked must be unique from the bank
-      const ids = new Set(picked.map(q => q.id));
+      const ids = new Set(picked.map((q) => q.id));
       expect(ids.size).toBe(20);
     });
 
@@ -66,7 +73,7 @@ describe('quizLogic', () => {
       const quiz = prepareQuiz(bank, 20, seededRng(7));
       expect(quiz.length).toBe(20);
       quiz.forEach((q) => {
-        const original = bank.find(b => b.id === q.id)!;
+        const original = bank.find((b) => b.id === q.id)!;
         const correctText = original.options[original.answer];
         expect(q.options[q.answer]).toBe(correctText);
       });
@@ -77,13 +84,20 @@ describe('quizLogic', () => {
     it('menghitung skor 100% jika semua benar', () => {
       const questions = makeBank(5);
       const answers: Record<number, number> = {};
-      questions.forEach((q, i) => { answers[i] = q.answer; });
+      questions.forEach((q, i) => {
+        answers[i] = q.answer;
+      });
       expect(calculateScore(questions, answers)).toBe(100);
     });
 
     it('menghitung skor 0% jika semua salah', () => {
       const questions = makeBank(4);
-      const answers: Record<number, number> = { 0: (questions[0].answer + 1) % 4, 1: (questions[1].answer + 1) % 4, 2: (questions[2].answer + 1) % 4, 3: (questions[3].answer + 1) % 4 };
+      const answers: Record<number, number> = {
+        0: (questions[0].answer + 1) % 4,
+        1: (questions[1].answer + 1) % 4,
+        2: (questions[2].answer + 1) % 4,
+        3: (questions[3].answer + 1) % 4,
+      };
       expect(calculateScore(questions, answers)).toBe(0);
     });
 

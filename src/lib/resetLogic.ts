@@ -9,7 +9,10 @@ export function daysBetweenISO(laterISO: string, earlierISO: string): number {
   return Math.floor(diffMs / (1000 * 3600 * 24));
 }
 
-export function computeEffectiveToday(nowISO: string, maxSeenDate?: string): string {
+export function computeEffectiveToday(
+  nowISO: string,
+  maxSeenDate?: string
+): string {
   if (!maxSeenDate) return nowISO;
   return nowISO > maxSeenDate ? nowISO : maxSeenDate;
 }
@@ -26,7 +29,9 @@ export interface ResetCheckResult<T> {
  * Uses `maxSeenDate` to defend against the device clock being turned
  * backwards to avoid a streak/inactivity reset.
  */
-export function checkInactivityReset<T extends { lastActiveDate: string; maxSeenDate?: string }>(
+export function checkInactivityReset<
+  T extends { lastActiveDate: string; maxSeenDate?: string },
+>(
   progress: T,
   now: Date,
   inactiveDays: number,
@@ -44,12 +49,19 @@ export function checkInactivityReset<T extends { lastActiveDate: string; maxSeen
     };
   }
 
-  const daysSinceActive = daysBetweenISO(effectiveToday, progress.lastActiveDate);
+  const daysSinceActive = daysBetweenISO(
+    effectiveToday,
+    progress.lastActiveDate
+  );
 
   if (daysSinceActive >= inactiveDays) {
     const fresh = makeDefault();
     return {
-      progress: { ...fresh, lastActiveDate: effectiveToday, maxSeenDate: effectiveToday },
+      progress: {
+        ...fresh,
+        lastActiveDate: effectiveToday,
+        maxSeenDate: effectiveToday,
+      },
       wasReset: true,
       daysUntilReset: inactiveDays,
       effectiveToday,

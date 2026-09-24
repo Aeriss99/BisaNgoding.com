@@ -83,12 +83,14 @@ async function clickRun(page) {
 }
 
 async function waitOutputSettled(page, timeoutMs) {
-  await page.locator('button:has-text("Jalankan Kode")').waitFor({ state: 'visible', timeout: timeoutMs });
+  await page
+    .locator('button:has-text("Jalankan Kode")')
+    .waitFor({ state: 'visible', timeout: timeoutMs });
 }
 
 async function getOutputText(page) {
   const box = page.locator('.overflow-x-auto.bg-gray-900');
-  if (await box.count() === 0) return '';
+  if ((await box.count()) === 0) return '';
   return (await box.first().innerText()).trim();
 }
 
@@ -101,8 +103,10 @@ async function main() {
   await page.goto(LESSON_URL, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('main');
 
-  const firstBtn = page.locator('button:has-text("Lanjut"), button:has-text("Selesai")').last();
-  if (await firstBtn.count() > 0) {
+  const firstBtn = page
+    .locator('button:has-text("Lanjut"), button:has-text("Selesai")')
+    .last();
+  if ((await firstBtn.count()) > 0) {
     await firstBtn.click();
   }
   await page.waitForSelector('.cm-content', { timeout: 30000 });
@@ -128,21 +132,34 @@ async function main() {
       if (sc.runTimes && sc.runTimes > 1) {
         for (let i = 0; i < sc.runTimes; i++) {
           const r = await runOnce();
-          console.log(`  run ${i + 1} (${r.ms}ms): ${JSON.stringify(r.output).slice(0, 200)}`);
-          const ok = sc.expectContains.every(s => r.output.includes(s));
-          if (!ok) { passed = false; console.log(`  >> GAGAL pada run ${i + 1}`); break; }
+          console.log(
+            `  run ${i + 1} (${r.ms}ms): ${JSON.stringify(r.output).slice(0, 200)}`
+          );
+          const ok = sc.expectContains.every((s) => r.output.includes(s));
+          if (!ok) {
+            passed = false;
+            console.log(`  >> GAGAL pada run ${i + 1}`);
+            break;
+          }
         }
       } else {
         const r1 = await runOnce();
         let r2 = null;
         if (sc.runTwice) r2 = await runOnce();
 
-        passed = sc.expectContains.every(s => r1.output.includes(s));
+        passed = sc.expectContains.every((s) => r1.output.includes(s));
         if (sc.expectError) passed = passed && r1.output.startsWith('Error');
-        if (sc.runTwice) passed = passed && sc.expectContains.every(s => r2.output.includes(s));
+        if (sc.runTwice)
+          passed =
+            passed && sc.expectContains.every((s) => r2.output.includes(s));
 
-        console.log(`output1 (${r1.ms}ms): ${JSON.stringify(r1.output).slice(0, 300)}`);
-        if (r2) console.log(`output2 (${r2.ms}ms): ${JSON.stringify(r2.output).slice(0, 300)}`);
+        console.log(
+          `output1 (${r1.ms}ms): ${JSON.stringify(r1.output).slice(0, 300)}`
+        );
+        if (r2)
+          console.log(
+            `output2 (${r2.ms}ms): ${JSON.stringify(r2.output).slice(0, 300)}`
+          );
       }
 
       console.log(passed ? '>>> LULUS' : '>>> GAGAL');
@@ -166,7 +183,7 @@ async function main() {
   process.exit(passCount === results.length ? 0 : 1);
 }
 
-main().catch(e => {
+main().catch((e) => {
   console.error('FATAL:', e);
   process.exit(1);
 });

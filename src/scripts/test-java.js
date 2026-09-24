@@ -14,11 +14,18 @@ if (!fs.existsSync(tmpDir)) {
 
 const JDK17_JAVAC = 'javac';
 const JDK17_JAVA = 'java';
-const JDK21_JAVAC = fs.existsSync('/usr/lib/jvm/java-21-openjdk-amd64/bin/javac') ? '/usr/lib/jvm/java-21-openjdk-amd64/bin/javac' : 'javac';
-const JDK21_JAVA = fs.existsSync('/usr/lib/jvm/java-21-openjdk-amd64/bin/java') ? '/usr/lib/jvm/java-21-openjdk-amd64/bin/java' : 'java';
+const JDK21_JAVAC = fs.existsSync(
+  '/usr/lib/jvm/java-21-openjdk-amd64/bin/javac'
+)
+  ? '/usr/lib/jvm/java-21-openjdk-amd64/bin/javac'
+  : 'javac';
+const JDK21_JAVA = fs.existsSync('/usr/lib/jvm/java-21-openjdk-amd64/bin/java')
+  ? '/usr/lib/jvm/java-21-openjdk-amd64/bin/java'
+  : 'java';
 
 let errors = 0;
-let report = '# Laporan Test Java\n\n| File | Kartu | Pesan Error |\n|---|---|---|\n';
+let report =
+  '# Laporan Test Java\n\n| File | Kartu | Pesan Error |\n|---|---|---|\n';
 
 function runJava(code, stdin, javaVersion) {
   const is21 = javaVersion === 21;
@@ -50,7 +57,7 @@ function runJava(code, stdin, javaVersion) {
     out = spawnSync(javaCmd, ['-cp', runDir, className], {
       input: stdin,
       timeout: 15000,
-      encoding: 'utf-8'
+      encoding: 'utf-8',
     });
   } catch (e) {
     return { success: false, error: e.message };
@@ -68,7 +75,7 @@ function runJava(code, stdin, javaVersion) {
 }
 
 function processLesson(lessonFile) {
-  const data = JSON.parse(fs.readFileSync(lessonFile, 'utf8'));
+  console.log("Testing:", lessonFile); const data = JSON.parse(fs.readFileSync(lessonFile, "utf8"));
   if (data.runnable === false) return; // Skip non-runnable lessons completely if marked
 
   const v = data.javaVersion || 17;
@@ -90,10 +97,10 @@ function processLesson(lessonFile) {
         const res = runJava(c.solution, t.input, v);
         if (!res.success) {
           errors++;
-          report += `| ${data.id} | ${index} (challenge) | Eksekusi test ${i+1} gagal: ${res.error.replace(/\n/g, '<br>')} |\n`;
+          report += `| ${data.id} | ${index} (challenge) | Eksekusi test ${i + 1} gagal: ${res.error.replace(/\n/g, '<br>')} |\n`;
         } else if (res.output.trim() !== t.expectedOutput.trim()) {
           errors++;
-          report += `| ${data.id} | ${index} (challenge) | Test ${i+1} output beda. Harapan: ${t.expectedOutput.trim()} Aktual: ${res.output.trim()} |\n`;
+          report += `| ${data.id} | ${index} (challenge) | Test ${i + 1} output beda. Harapan: ${t.expectedOutput.trim()} Aktual: ${res.output.trim()} |\n`;
         }
       }
     }
@@ -115,8 +122,11 @@ function processLesson(lessonFile) {
 
     // reorder (if valid program)
     if (c.type === 'reorder' && c.lines) {
-      const orderedLines = c.correctOrder.map(i => c.lines[i]).join('\n');
-      if (orderedLines.includes('public class') && orderedLines.includes('main')) {
+      const orderedLines = c.correctOrder.map((i) => c.lines[i]).join('\n');
+      if (
+        orderedLines.includes('public class') &&
+        orderedLines.includes('main')
+      ) {
         const res = runJava(orderedLines, '', v);
         if (!res.success) {
           errors++;
@@ -128,7 +138,7 @@ function processLesson(lessonFile) {
     // fill_blank
     if (c.type === 'fill_blank' && c.code && c.answers) {
       let filled = c.code;
-      c.answers.forEach(a => {
+      c.answers.forEach((a) => {
         filled = filled.replace('___', a);
       });
       if (filled.includes('public class') && filled.includes('main')) {
@@ -139,14 +149,17 @@ function processLesson(lessonFile) {
         }
       }
     }
-
   });
 }
 
 function runAll() {
-  const folders = fs.readdirSync(contentDir).filter(f => f.startsWith('module-'));
+  const folders = fs
+    .readdirSync(contentDir)
+    .filter((f) => f.startsWith('module-'));
   for (const folder of folders) {
-    const files = fs.readdirSync(path.join(contentDir, folder)).filter(f => f.endsWith('.json'));
+    const files = fs
+      .readdirSync(path.join(contentDir, folder))
+      .filter((f) => f.endsWith('.json'));
     for (const file of files) {
       if (file.includes('quiz') || file.includes('modules')) continue;
       processLesson(path.join(contentDir, folder, file));

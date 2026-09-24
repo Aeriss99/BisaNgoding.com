@@ -21,7 +21,9 @@ const AuthContext = createContext<AuthContextType>({
   isSupabaseConfigured: false,
 });
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -49,15 +51,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       if (session?.user) checkAdmin(session.user.id);
       setLoading(false);
-      
+
       // Clean ?code= from URL without reloading
       if (window.location.search.includes('code=')) {
-        const newUrl = window.location.protocol + '//' + window.location.host + window.location.pathname + window.location.hash;
+        const newUrl =
+          window.location.protocol +
+          '//' +
+          window.location.host +
+          window.location.pathname +
+          window.location.hash;
         window.history.replaceState({}, document.title, newUrl);
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         checkAdmin(session.user.id);
@@ -87,14 +96,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      isAdmin,
-      loading,
-      masukGoogle,
-      keluar,
-      isSupabaseConfigured: !!supabase
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAdmin,
+        loading,
+        masukGoogle,
+        keluar,
+        isSupabaseConfigured: !!supabase,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

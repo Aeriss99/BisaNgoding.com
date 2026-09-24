@@ -1,8 +1,8 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
-import { runJavaCode } from './lib/javaRunner'
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import './index.css';
+import App from './App.tsx';
+import { runJavaCode } from './lib/javaRunner';
 
 // Expose for testing
 (window as any).runJavaCode = runJavaCode;
@@ -10,5 +10,5 @@ import { runJavaCode } from './lib/javaRunner'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
-  </StrictMode>,
-)
+  </StrictMode>
+);

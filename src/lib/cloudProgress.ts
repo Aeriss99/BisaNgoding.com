@@ -49,12 +49,20 @@ export function saveLocalProgress(progress: UserProgress) {
 }
 
 // Fungsi merge progres
-export function mergeProgress(local: UserProgress, cloud: UserProgress): UserProgress {
-  const completedLessons = Array.from(new Set([...(local.completedLessons || []), ...(cloud.completedLessons || [])]));
-  
+export function mergeProgress(
+  local: UserProgress,
+  cloud: UserProgress
+): UserProgress {
+  const completedLessons = Array.from(
+    new Set([
+      ...(local.completedLessons || []),
+      ...(cloud.completedLessons || []),
+    ])
+  );
+
   const xp = Math.max(local.xp || 0, cloud.xp || 0);
   const streak = Math.max(local.streak || 0, cloud.streak || 0);
-  
+
   const quizScores = { ...(cloud.quizScores || {}) };
   for (const [modId, lScore] of Object.entries(local.quizScores || {})) {
     const cScore = quizScores[modId];
@@ -72,15 +80,15 @@ export function mergeProgress(local: UserProgress, cloud: UserProgress): UserPro
   // "Penggabungan tidak boleh mengembalikan progres yang sudah direset (pakai tanggal reset sebagai penanda)"
   // Tapi di TODO Bagian 6: "Jika fitur reset 7 hari aktif, reset juga harus menulis ulang data di cloud, agar tidak hidup lagi"
   // So no need to complicate merge too much if we write to cloud on reset.
-  
+
   const lDate = local.lastActiveDate || '1970-01-01';
   const cDate = cloud.lastActiveDate || '1970-01-01';
   const lastActiveDate = lDate > cDate ? lDate : cDate;
-  
+
   const lmDate = local.maxSeenDate || lDate;
   const cmDate = cloud.maxSeenDate || cDate;
   const maxSeenDate = lmDate > cmDate ? lmDate : cmDate;
-  
+
   return {
     ...cloud,
     ...local,
@@ -93,13 +101,25 @@ export function mergeProgress(local: UserProgress, cloud: UserProgress): UserPro
   };
 }
 
-const timeoutPromise = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms));
+const timeoutPromise = (ms: number) =>
+  new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Timeout')), ms)
+  );
 
-export async function fetchCloudProgress(userId: string): Promise<UserProgress | null> {
+export async function fetchCloudProgress(
+  userId: string
+): Promise<UserProgress | null> {
   if (!supabase) return null;
   try {
-    const fetchPromise = supabase.from('progres').select('data').eq('user_id', userId).maybeSingle();
-    const result = await Promise.race([fetchPromise, timeoutPromise(8000)]) as any;
+    const fetchPromise = supabase
+      .from('progres')
+      .select('data')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const result = (await Promise.race([
+      fetchPromise,
+      timeoutPromise(8000),
+    ])) as any;
     if (result && result.data) {
       return result.data.data as UserProgress;
     }
@@ -109,10 +129,15 @@ export async function fetchCloudProgress(userId: string): Promise<UserProgress |
   return null;
 }
 
-export async function saveCloudProgress(userId: string, data: UserProgress): Promise<void> {
+export async function saveCloudProgress(
+  userId: string,
+  data: UserProgress
+): Promise<void> {
   if (!supabase) return;
   try {
-    const savePromise = supabase.from('progres').upsert({ user_id: userId, data });
+    const savePromise = supabase
+      .from('progres')
+      .upsert({ user_id: userId, data });
     await Promise.race([savePromise, timeoutPromise(8000)]);
   } catch (e) {
     console.error('Save cloud progress error', e);
