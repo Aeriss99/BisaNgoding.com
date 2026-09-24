@@ -57,6 +57,27 @@ Object.keys(lessonFiles).forEach((path) => {
   }
 });
 
+export function checkModuleUnlocked(mod: Module, progress: any): boolean {
+  if (progress.unlockAll) return true;
+  const courseModules = modulesData
+    .filter((m) => (m.courseId || 'java') === (mod.courseId || 'java') && m.status !== 'draft')
+    .sort((a, b) => a.order - b.order);
+  
+  const index = courseModules.findIndex(m => m.id === mod.id);
+  if (index <= 0) return true;
+
+  const reqId = mod.requires || courseModules[index - 1].id;
+  const reqMod = courseModules.find(m => m.id === reqId);
+  if (!reqMod) return true;
+
+  const reqLessons = getVisibleLessons(reqMod.id);
+  const reqAllLessonsCompleted = reqLessons.length > 0 && reqLessons.every((l) => progress.completedLessons.includes(l.id));
+  const reqScore = progress.quizScores?.[reqMod.id];
+  const reqQuiz = getQuizQuestions(reqMod.id);
+  
+  return reqAllLessonsCompleted && (!reqQuiz || reqQuiz.length === 0 || reqScore?.passed);
+}
+
 export function isSkeletonLesson(lesson: Lesson): boolean {
   const t = lesson.title || '';
   return (

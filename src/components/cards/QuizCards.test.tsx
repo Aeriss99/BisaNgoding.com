@@ -12,6 +12,7 @@ vi.mock('../../lib/content', () => ({
   getModule: vi.fn(() => ({ id: 'dasar', courseId: 'java' })),
   coursesData: [{ id: 'java', title: 'Java', language: 'java' }],
   modulesData: [],
+  checkModuleUnlocked: vi.fn(() => true),
 }));
 
 vi.mock('@uiw/react-codemirror', () => ({
