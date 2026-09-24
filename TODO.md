@@ -1,40 +1,35 @@
-ATURAN WAJIB (berlaku untuk seluruh tugas ini):
-1. Sebelum mulai, buat git commit checkpoint: "checkpoint sebelum fix JS".
-2. JANGAN ubah src/lib/javaRunner.ts, integrasi CheerpJ, atau konten Java yang sudah ada.
-3. JANGAN ubah id materi/modul yang sudah ada, jangan rename folder yang sudah ada.
-4. JANGAN upgrade dependency. Package baru yang BOLEH diinstal hanya @codemirror/lang-javascript.
-5. JANGAN menghapus, men-skip, atau melonggarkan test supaya lulus.
-6. Maksimal 3 kali percobaan untuk error yang sama. Kalau masih gagal, BERHENTI
-   dan laporkan ke saya. Jangan berputar-putar.
-7. Sebelum mengubah kode, tulis dulu daftar file yang akan diubah beserta alasannya.
+ATURAN WAJIB: sama seperti tugas sebelumnya (checkpoint git dulu, jangan ubah id materi,
+jangan sentuh javaRunner/CheerpJ, maksimal 3 percobaan per error lalu berhenti dan lapor,
+jangan melemahkan test, tulis daftar file yang akan diubah sebelum mengubah).
 
-TAHAP 1 — DIAGNOSIS (read-only, jangan ubah apa pun):
-- Cari konten JavaScript di SELURUH repo (bukan hanya content/): file JSON dengan
-  moduleId/id yang mengandung "js" atau "javascript", atau folder serupa.
-- Cek: apakah modul JS terdaftar di content/modules.json? status-nya 'ready' atau 'draft'?
-  field requires menunjuk ke mana? moduleId di file lesson cocok dengan id di modules.json?
-- Cek apakah ada id lesson JS yang bentrok dengan id lesson Java.
-- Laporkan: di mana kontennya, berapa modul & materi yang ditemukan, dan PENYEBAB PASTI
-  kenapa terkunci. Kalau konten JS tidak ditemukan sama sekali, BERHENTI dan laporkan saja.
+TUJUAN: progress terikat ke akun Google, bukan device. Login dengan email yang sama
+di device mana pun harus menampilkan progress yang sama untuk SEMUA modul (Java dan JS),
+termasuk materi selesai, skor & status lulus kuis, dan achievement.
+
+TAHAP 1 — DIAGNOSIS (read-only): jelaskan alur sekarang. Kapan data diambil dari Supabase,
+kapan ditulis, apakah localStorage bisa menimpa data cloud, dan apakah kunci
+localStorage dibedakan per akun. Laporkan titik yang menyebabkan progress tidak ikut pindah device.
 
 TAHAP 2 — PERBAIKAN:
-- Tambahkan field opsional `language: 'java' | 'javascript'` pada Module (default 'java'
-  sehingga modul lama tidak perlu diubah).
-- Pindahkan/daftarkan konten JS ke content/ dan modules.json dengan pola yang sama seperti Java.
-- Rantai unlock JS terpisah dari Java: modul JS pertama TIDAK butuh modul Java (tetap wajib login),
-  modul JS berikutnya hanya butuh modul JS sebelumnya.
-- Pastikan id lesson JS diawali "js-" supaya tidak bentrok dengan Java.
-- Tampilkan Java dan JS sebagai dua jalur terpisah di dashboard, termasuk hitungan durasinya.
+- Supabase (tabel progres) adalah sumber utama. localStorage hanya cache.
+- Kunci localStorage per akun: bisangoding_progress:<user_id>. Saat logout, hapus cache
+  akun tersebut. Pastikan ganti akun di device yang sama tidak mencampur progress.
+- Saat login / app dibuka dengan sesi aktif: ambil data cloud, GABUNGKAN dengan cache lokal,
+  lalu simpan hasilnya ke keduanya. Aturan gabung:
+  completedLessons = gabungan keduanya; kuis = ambil skor tertinggi, passed true jika salah satunya true;
+  lastActiveAt = yang terbaru.
+- Hormati fitur reset karena tidak aktif: kalau cloud sudah di-reset, data lokal yang lebih lama
+  dari waktu reset TIDAK boleh menghidupkan progress lama. Tambahkan field resetAt jika perlu.
+- Tulis ke Supabase setiap ada perubahan progress (debounce ~1 detik), simpan juga saat tab
+  ditutup/disembunyikan, dan coba ulang jika offline.
+- Ambil ulang data cloud saat tab kembali aktif, supaya pindah device langsung terlihat.
+- Pastikan RLS: user hanya bisa membaca/menulis baris miliknya sendiri, user_id unik.
 
-TAHAP 3 — RUNNER JAVASCRIPT:
-- Buat src/lib/jsRunner.ts terpisah. Jalankan kode di sandboxed iframe atau Web Worker,
-  tangkap console.log sebagai stdout, bandingkan dengan expectedOutput.
-- Wajib ada timeout (misal 3 detik) untuk mencegah infinite loop membekukan browser.
-- Pilih runner dan bahasa editor CodeMirror berdasarkan `language` modul.
-- Dukung blok ```javascript run seperti ```java run.
+TAHAP 3 — VERIFIKASI:
+- Unit test untuk fungsi merge (termasuk kasus reset dan ganti akun).
+- E2E dengan Supabase di-mock: dua browser context dengan akun yang sama harus melihat
+  progress yang sama; dua akun berbeda tidak boleh saling melihat.
+- Jalankan semua test, lint, dan build.
 
-TAHAP 4 — VERIFIKASI:
-- Jalankan unit test, lint, dan build. Tambahkan test untuk jsRunner dan logika unlock.
-- Pastikan semua test Java lama tetap lulus.
-
-LAPORAN AKHIR (singkat): penyebab masalah, file yang diubah, hasil test, dan apa yang belum selesai.
+LAPORAN AKHIR (singkat): penyebab masalah, file yang diubah, perubahan database/RLS
+(jika ada, sertakan SQL-nya), hasil test, dan apa yang belum selesai.
