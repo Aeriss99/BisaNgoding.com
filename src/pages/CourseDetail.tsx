@@ -1,19 +1,17 @@
 import { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { ArrowLeft, BookOpen, CheckCircle, ChevronRight, Clock, Search } from 'lucide-react';
-import { coursesData, modulesData, getVisibleLessons } from '../lib/content';
+import { coursesData, modulesData, getVisibleLessons, checkModuleUnlocked } from '../lib/content';
 import { useProgress } from '../context/ProgressContext';
 
 export default function CourseDetail() {
   const { courseId } = useParams();
-  const navigate = useNavigate();
   const course = coursesData.find((c) => c.id === courseId);
   const { progress } = useProgress();
   const [searchQuery, setSearchQuery] = useState('');
 
   if (!course) {
-    navigate('/');
-    return null;
+    return <Navigate to="/" replace />;
   }
 
   const courseModules = modulesData
@@ -42,6 +40,10 @@ export default function CourseDetail() {
 
     return { mod, modTotal, modCompleted, modMinutes, lessons };
   });
+
+  if (course.status === 'soon' || totalLessons === 0) {
+    return <Navigate to="/" replace />;
+  }
 
   if (!nextLessonUrl && modulesWithInfo.length > 0) {
     const first = modulesWithInfo[0];
@@ -144,9 +146,11 @@ export default function CourseDetail() {
           </div>
         )}
 
-        {filteredModules.map(({ mod, modTotal, modCompleted, modMinutes }) => {
+        {filteredModules.map(({ mod, modTotal, modCompleted, modMinutes }, index) => {
           const isProject = mod.id.includes('todolist');
           const modPercent = modTotal > 0 ? Math.round((modCompleted / modTotal) * 100) : 0;
+
+          const isModuleUnlocked = checkModuleUnlocked(mod, progress);
 
           let statusBadge = { label: 'BELUM MULAI', bg: 'bg-white text-[var(--color-text-main)]' };
           if (modPercent === 100) {
@@ -155,6 +159,47 @@ export default function CourseDetail() {
             statusBadge = { label: 'SEDANG', bg: 'bg-[var(--color-accent-light)] text-[var(--color-text-main)]' };
           } else if (isProject) {
             statusBadge = { label: 'PROYEK', bg: 'bg-[var(--color-primary-light)] text-[var(--color-text-main)]' };
+          }
+
+          if (!isModuleUnlocked) {
+            const reqTitle = mod.requires 
+              ? courseModules.find(m => m.id === mod.requires)?.title 
+              : courseModules[index - 1]?.title;
+            return (
+              <div
+                key={mod.id}
+                title={`Selesaikan ${reqTitle || 'modul sebelumnya'} dulu`}
+                className="flex flex-col md:flex-row md:items-center gap-4 p-5 rounded-xl border-[3px] border-[var(--color-landing-black)] bg-gray-100 opacity-75 cursor-not-allowed select-none"
+              >
+                <div className="w-14 h-14 rounded-xl flex-shrink-0 flex items-center justify-center font-space text-2xl border-[3px] border-gray-400 bg-gray-300 text-gray-500">
+                  {mod.order}
+                </div>
+
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-space text-xl text-gray-500 line-through">
+                      {mod.title}
+                    </h3>
+                    <div className="bg-gray-300 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded border border-gray-400">
+                      TERKUNCI
+                    </div>
+                  </div>
+                  <p className="text-xs font-medium text-red-500 mt-1">Selesaikan {reqTitle || 'modul sebelumnya'} dulu</p>
+                  <div className="flex flex-wrap items-center gap-3 text-sm font-mono font-bold text-gray-400 mt-2">
+                    <div className="flex items-center gap-1">
+                      <BookOpen className="w-4 h-4" /> {modTotal} materi
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" /> ~{Math.round(modMinutes / 60)}j
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 hidden md:block">
+                  <Lock className="w-8 h-8 text-gray-400" />
+                </div>
+              </div>
+            );
           }
 
           return (

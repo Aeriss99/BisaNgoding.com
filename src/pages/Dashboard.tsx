@@ -51,7 +51,7 @@ export default function Dashboard() {
       completedLessons += lessons.filter(l => progress.completedLessons.includes(l.id)).length;
     });
 
-    const isReady = course.status !== 'soon';
+    const isReady = course.status !== 'soon' && totalLessons > 0;
     const percent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
     const hours = Math.round(totalMinutes / 60);
 
