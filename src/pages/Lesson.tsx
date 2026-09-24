@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import {
   getLesson,
   getLessonsForModule,
   getModule,
   coursesData,
+  checkModuleUnlocked,
 } from '../lib/content';
 import type { Card } from '../types/schema';
 import { Check, ChevronRight, X, Lock, Copy } from 'lucide-react';
@@ -94,6 +95,10 @@ export default function LessonPage() {
   }
 
   const mod = getModule(lesson.moduleId);
+  if (mod && !checkModuleUnlocked(mod, progress)) {
+    return <Navigate to={`/kelas/${mod.courseId || 'java'}`} replace />;
+  }
+
   const course = coursesData.find((c) => c.id === (mod?.courseId || 'java'));
   const language = course?.language || 'java';
 

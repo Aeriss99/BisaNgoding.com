@@ -1,6 +1,6 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { ArrowLeft, BookOpen, CheckCircle, Trophy, Lock } from 'lucide-react';
-import { getModule, getVisibleLessons, getQuizQuestions } from '../lib/content';
+import { getModule, getVisibleLessons, getQuizQuestions, checkModuleUnlocked } from '../lib/content';
 import { useProgress } from '../context/ProgressContext';
 
 export default function ModuleDetail() {
@@ -20,6 +20,10 @@ export default function ModuleDetail() {
         </Link>
       </div>
     );
+  }
+
+  if (!checkModuleUnlocked(mod, progress)) {
+    return <Navigate to={`/kelas/${mod.courseId || 'java'}`} replace />;
   }
 
   const lessons = getVisibleLessons(mod.id);

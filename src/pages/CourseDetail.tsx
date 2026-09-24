@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, CheckCircle, ChevronRight, Clock, Search } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle, ChevronRight, Clock, Search, Lock } from 'lucide-react';
 import { coursesData, modulesData, getVisibleLessons, checkModuleUnlocked } from '../lib/content';
 import { useProgress } from '../context/ProgressContext';
 
