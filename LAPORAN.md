@@ -40,3 +40,4 @@
 | 25 | 2026-09-22 13:35 | Pasang konten Todolist & OOP | LULUS 49/49 | 72/610 | 1/30 | Konten dipasang, unit & content test lolos |
 | 2026-09-24 | Tambah Modul Java 17 (Record & Sealed Class) | 57 | Lulus |
 | 26 | 2026-09-24 11:15 | Masukkan JS Dasar & Todolist | LULUS 124/124 | 147/610 | 6/30 | Bundle konten JS divalidasi, jsRunner diperbaiki untuk node |
+| 27 | 2026-09-24 11:30 | Fix modul JS terkunci & update Runner JS | LULUS 124/124 | 147/610 | 6/30 | Buka lock course, tambah language CodeMirror |

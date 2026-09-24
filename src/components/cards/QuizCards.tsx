@@ -8,6 +8,7 @@ import type {
 import { Play, CheckCircle, Check, X, AlertTriangle } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { java } from '@codemirror/lang-java';
+import { javascript } from '@codemirror/lang-javascript';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -15,10 +16,12 @@ export function UnderstandingCheckCardComponent({
   card,
   onSuccess,
   onNavigateToTheory,
+  language = 'java',
 }: {
   card: UnderstandingCheckCard;
   onSuccess: (attempts: number) => void;
   onNavigateToTheory: () => void;
+  language?: string;
 }) {
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -98,7 +101,7 @@ export function UnderstandingCheckCardComponent({
           <div className="border-2 border-[var(--color-text-main)] rounded-xl overflow-hidden">
             <CodeMirror
               value={q.code}
-              extensions={[java()]}
+              extensions={[language === 'javascript' ? javascript() : java()]}
               theme="light"
               readOnly={true}
               basicSetup={{ lineNumbers: true }}
@@ -278,9 +281,11 @@ export function FillBlankCardComponent({
 export function PredictOutputCardComponent({
   card,
   onSuccess,
+  language = 'java',
 }: {
   card: PredictOutputCard;
   onSuccess: (attempts: number) => void;
+  language?: string;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -304,7 +309,7 @@ export function PredictOutputCardComponent({
       <div className="border rounded-lg overflow-hidden border-gray-300">
         <CodeMirror
           value={card.code}
-          extensions={[java()]}
+          extensions={[language === 'javascript' ? javascript() : java()]}
           theme="light"
           readOnly={true}
           basicSetup={{ lineNumbers: true }}

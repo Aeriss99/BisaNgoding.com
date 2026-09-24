@@ -16,6 +16,7 @@ export interface Module {
   status?: 'ready' | 'draft';
   requires?: string;
   estimatedHours?: number;
+  language?: 'java' | 'javascript';
 }
 
 export interface Lesson {

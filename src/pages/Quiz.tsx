@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { X, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useProgress } from '../context/ProgressContext';
+import { coursesData, getModule } from '../lib/content';
 import type { QuizQuestion } from '../types/schema';
 import {
   prepareQuiz,
@@ -11,9 +12,14 @@ import {
 } from '../lib/quizLogic';
 import CodeMirror from '@uiw/react-codemirror';
 import { java } from '@codemirror/lang-java';
+import { javascript } from '@codemirror/lang-javascript';
 
 export default function QuizPage() {
   const { moduleId } = useParams();
+  const mod = getModule(moduleId || '');
+  const course = coursesData.find((c) => c.id === (mod?.courseId || 'java'));
+  const language = course?.language || 'java';
+  
   const { saveQuizScore, addXP, touchActivity } = useProgress();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,7 +195,7 @@ export default function QuizPage() {
                   <div className="border rounded-lg overflow-hidden border-gray-300">
                     <CodeMirror
                       value={q.code}
-                      extensions={[java()]}
+                      extensions={[language === 'javascript' ? javascript() : java()]}
                       theme="light"
                       readOnly={true}
                     />

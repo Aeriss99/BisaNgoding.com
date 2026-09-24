@@ -239,6 +239,8 @@ export default function LessonPage() {
                     );
                   }
                   if (match && isRun) {
+                    const matchedLang = match[1];
+                    const explicitLang = (matchedLang === 'js' || matchedLang === 'javascript') ? 'javascript' : (matchedLang === 'java' ? 'java' : language);
                     return (
                       <RunnableCardComponent
                         card={{
@@ -246,7 +248,7 @@ export default function LessonPage() {
                           code: String(children).replace(/\n$/, ''),
                         }}
                         mini={true}
-                        language={language}
+                        language={explicitLang}
                         lessonRunnable={lesson.runnable !== false}
                       />
                     );
@@ -283,6 +285,7 @@ export default function LessonPage() {
             card={c}
             onSuccess={handleCheckSuccess}
             onNavigateToTheory={() => setCurrentCardIndex(0)}
+            language={language}
           />
         );
 
@@ -354,6 +357,7 @@ export default function LessonPage() {
           <PredictOutputCardComponent
             card={c}
             onSuccess={handleChallengeSuccess}
+            language={language}
           />
         );
 
