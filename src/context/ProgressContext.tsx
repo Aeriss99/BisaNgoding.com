@@ -13,12 +13,13 @@ import {
 } from '../lib/resetLogic';
 import { useAuth } from './AuthContext';
 import {
-  getLocalOwner,
-  setLocalOwner,
+  getLocalProgress,
   saveLocalProgress,
   mergeProgress,
   fetchCloudProgress,
   saveCloudProgress,
+  getCurrentUserId,
+  setCurrentUserId,
 } from '../lib/cloudProgress';
 
 interface ProgressContextType {
@@ -37,8 +38,6 @@ interface ProgressContextType {
 }
 
 const ProgressContext = createContext<ProgressContextType | null>(null);
-
-const STORAGE_KEY = 'bisangoding_progress';
 
 function getInactiveDaysConfig(): number {
   const raw = import.meta.env.VITE_INACTIVE_DAYS;
@@ -73,34 +72,30 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   const [progress, setProgress] = useState<UserProgress>(() => {
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
+      const currentUserId = getCurrentUserId();
+      const data = getLocalProgress(currentUserId);
       if (data) {
-        const parsed = JSON.parse(data);
         if (import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true') {
-          parsed.unlockAll = true;
+          data.unlockAll = true;
         }
-        if (!parsed.quizScores) parsed.quizScores = {};
-        if (!parsed.passedChecks) parsed.passedChecks = [];
-        if (!parsed.lastActiveDate)
-          parsed.lastActiveDate = toISODate(new Date());
-        if (!parsed.maxSeenDate) parsed.maxSeenDate = parsed.lastActiveDate;
+        if (!data.quizScores) data.quizScores = {};
+        if (!data.passedChecks) data.passedChecks = [];
+        if (!data.lastActiveDate)
+          data.lastActiveDate = toISODate(new Date());
+        if (!data.maxSeenDate) data.maxSeenDate = data.lastActiveDate;
 
         const result = checkInactivityReset(
-          parsed,
+          data,
           new Date(),
           inactiveDaysConfig,
           makeDefaultProgress
         );
         if (result.wasReset) {
           const resetProgress = { ...result.progress, justReset: true };
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(resetProgress));
-          } catch (e) {}
+          saveLocalProgress(resetProgress, currentUserId);
           return resetProgress;
         }
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(result.progress));
-        } catch (e) {}
+        saveLocalProgress(result.progress, currentUserId);
         return result.progress;
       }
     } catch (e) {}
@@ -122,45 +117,79 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
     const initSync = async () => {
       setSyncStatus('Menyimpan...');
-      const owner = getLocalOwner();
-      const isOwner = owner === null || owner === user.id;
 
       const cloudProgress = await fetchCloudProgress(user.id);
-      let newProgress = { ...progressRef.current };
+      const localProgress = getLocalProgress(user.id) || makeDefaultProgress();
+      
+      let newProgress = localProgress;
 
       if (cloudProgress) {
-        if (isOwner) {
-          newProgress = mergeProgress(progressRef.current, cloudProgress);
-        } else {
-          newProgress = cloudProgress;
-        }
+        newProgress = mergeProgress(localProgress, cloudProgress);
       }
 
-      setLocalOwner(user.id);
+      setCurrentUserId(user.id);
       setProgress(newProgress);
-      saveLocalProgress(newProgress);
+      saveLocalProgress(newProgress, user.id);
 
-      await saveCloudProgress(user.id, newProgress);
-      setSyncStatus('Tersimpan');
+      try {
+        await saveCloudProgress(user.id, newProgress);
+        setSyncStatus('Tersimpan');
+      } catch (e) {
+        setSyncStatus('Offline, tersimpan di perangkat ini');
+      }
       initializedRef.current = true;
     };
 
     initSync();
   }, [user, authLoading]);
 
-  // Debounce save
+  // Debounce save (1s)
   useEffect(() => {
     if (!user || !initializedRef.current) return;
     if (timerRef.current) clearTimeout(timerRef.current);
 
     setSyncStatus('Menyimpan...');
     timerRef.current = setTimeout(async () => {
-      await saveCloudProgress(user.id, progressRef.current);
-      setSyncStatus('Tersimpan');
-    }, 3000);
+      try {
+        await saveCloudProgress(user.id, progressRef.current);
+        setSyncStatus('Tersimpan');
+      } catch (e) {
+        setSyncStatus('Offline, tersimpan di perangkat ini');
+      }
+    }, 1000);
 
     return () => clearTimeout(timerRef.current);
   }, [progress, user]);
+
+  // Handle visibility & focus
+  useEffect(() => {
+    if (!user || !initializedRef.current) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveCloudProgress(user.id, progressRef.current).catch(() => {});
+      }
+    };
+    
+    const handleFocus = async () => {
+      try {
+        const cloudProgress = await fetchCloudProgress(user.id);
+        if (cloudProgress) {
+          const merged = mergeProgress(progressRef.current, cloudProgress);
+          setProgress(merged);
+          saveLocalProgress(merged, user.id);
+        }
+      } catch (e) {}
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!inactiveDaysConfig) {
@@ -180,7 +209,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const saveProgressState = (newProgress: UserProgress) => {
     try {
       setProgress(newProgress);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newProgress));
+      saveLocalProgress(newProgress, user?.id);
     } catch (e) {}
   };
 
@@ -223,10 +252,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         justReset: false,
       };
 
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProgress));
-      } catch (e) {}
-
+      saveProgressState(nextProgress);
       return nextProgress;
     });
   };
@@ -260,9 +286,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
             ? prev.maxSeenDate
             : today,
       };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProgress));
-      } catch (e) {}
+      saveProgressState(nextProgress);
       return nextProgress;
     });
   };
@@ -311,7 +335,11 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true') {
-      setProgress((prev) => ({ ...prev, unlockAll: true }));
+      setProgress((prev) => {
+        const next = { ...prev, unlockAll: true };
+        saveProgressState(next);
+        return next;
+      });
     }
 
     return false;

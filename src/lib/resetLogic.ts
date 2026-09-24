@@ -61,6 +61,7 @@ export function checkInactivityReset<
         ...fresh,
         lastActiveDate: effectiveToday,
         maxSeenDate: effectiveToday,
+        resetAt: new Date().toISOString(),
       },
       wasReset: true,
       daysUntilReset: inactiveDays,

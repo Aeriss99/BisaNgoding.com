@@ -91,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const keluar = async () => {
     if (!supabase) return;
-    bersihkanProgresLokal();
+    bersihkanProgresLokal(user?.id);
     await supabase.auth.signOut();
   };
 

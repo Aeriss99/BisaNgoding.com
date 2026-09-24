@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeProgress } from '../lib/cloudProgress';
+import { mergeProgress, saveLocalProgress, getLocalProgress, bersihkanProgresLokal } from '../lib/cloudProgress';
 import type { UserProgress } from '../types/schema';
 
 describe('mergeProgress', () => {
@@ -57,5 +57,59 @@ describe('mergeProgress', () => {
 
     expect(merged.lastActiveDate).toBe('2024-01-10');
     expect(merged.maxSeenDate).toBe('2024-01-08'); // wait, local maxSeenDate is 05, cloud is 08, so 08.
+  });
+
+  it('respects resetAt from cloud overriding older local data', () => {
+    const local = {
+      completedLessons: ['l1', 'l2'],
+      xp: 100,
+      lastActiveDate: '2024-01-05',
+    } as unknown as UserProgress;
+    const cloud = {
+      completedLessons: [],
+      xp: 0,
+      lastActiveDate: '2024-01-10',
+      resetAt: '2024-01-10T00:00:00.000Z',
+    } as unknown as UserProgress;
+    
+    const merged = mergeProgress(local, cloud);
+    expect(merged.completedLessons).toEqual([]);
+    expect(merged.xp).toBe(0);
+  });
+
+  it('respects resetAt from local overriding older cloud data', () => {
+    const cloud = {
+      completedLessons: ['l1', 'l2'],
+      xp: 100,
+      lastActiveDate: '2024-01-05',
+    } as unknown as UserProgress;
+    const local = {
+      completedLessons: [],
+      xp: 0,
+      lastActiveDate: '2024-01-10',
+      resetAt: '2024-01-10T00:00:00.000Z',
+    } as unknown as UserProgress;
+    
+    const merged = mergeProgress(local, cloud);
+    expect(merged.completedLessons).toEqual([]);
+    expect(merged.xp).toBe(0);
+  });
+});
+
+describe('local storage isolation', () => {
+  it('isolates progress per account', () => {
+    bersihkanProgresLokal(); // clean up
+    const progA = { xp: 100 } as unknown as UserProgress;
+    const progB = { xp: 200 } as unknown as UserProgress;
+    
+    saveLocalProgress(progA, 'userA');
+    saveLocalProgress(progB, 'userB');
+    
+    expect(getLocalProgress('userA')?.xp).toBe(100);
+    expect(getLocalProgress('userB')?.xp).toBe(200);
+    
+    bersihkanProgresLokal('userA');
+    expect(getLocalProgress('userA')).toBeNull();
+    expect(getLocalProgress('userB')?.xp).toBe(200);
   });
 });

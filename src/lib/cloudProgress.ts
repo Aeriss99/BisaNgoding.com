@@ -1,13 +1,35 @@
 import { supabase } from './supabase';
 import type { UserProgress } from '../types/schema';
 
-const STORAGE_KEY = 'bisangoding_progress';
-const OWNER_KEY = 'bisangoding_owner';
+const BASE_STORAGE_KEY = 'bisangoding_progress';
+const CURRENT_USER_KEY = 'bisangoding_current_user';
 
-// Ambil data dari lokal
-export function getLocalProgress(): UserProgress | null {
+function getStorageKey(userId?: string | null): string {
+  return userId ? `${BASE_STORAGE_KEY}:${userId}` : BASE_STORAGE_KEY;
+}
+
+export function getCurrentUserId(): string | null {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
+    return localStorage.getItem(CURRENT_USER_KEY);
+  } catch (e) {
+    return null;
+  }
+}
+
+export function setCurrentUserId(userId: string | null) {
+  try {
+    if (userId) {
+      localStorage.setItem(CURRENT_USER_KEY, userId);
+    } else {
+      localStorage.removeItem(CURRENT_USER_KEY);
+    }
+  } catch (e) {}
+}
+
+export function getLocalProgress(userId?: string | null): UserProgress | null {
+  try {
+    const key = getStorageKey(userId);
+    const data = localStorage.getItem(key);
     if (data) return JSON.parse(data);
   } catch (e) {
     console.error('Failed to get local progress', e);
@@ -15,48 +37,59 @@ export function getLocalProgress(): UserProgress | null {
   return null;
 }
 
-export function getLocalOwner(): string | null {
+export function saveLocalProgress(progress: UserProgress, userId?: string | null) {
   try {
-    return localStorage.getItem(OWNER_KEY);
-  } catch (e) {
-    return null;
-  }
-}
-
-export function setLocalOwner(userId: string | null) {
-  try {
-    if (userId === null) {
-      localStorage.removeItem(OWNER_KEY);
-    } else {
-      localStorage.setItem(OWNER_KEY, userId);
-    }
-  } catch (e) {}
-}
-
-export function bersihkanProgresLokal() {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(OWNER_KEY);
-  } catch (e) {}
-}
-
-export function saveLocalProgress(progress: UserProgress) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    const key = getStorageKey(userId);
+    localStorage.setItem(key, JSON.stringify(progress));
   } catch (e) {
     console.error('Failed to save local progress', e);
   }
 }
 
-// Fungsi merge progres
+export function bersihkanProgresLokal(userId?: string | null) {
+  try {
+    const key = getStorageKey(userId);
+    localStorage.removeItem(key);
+    if (userId && getCurrentUserId() === userId) {
+      localStorage.removeItem(CURRENT_USER_KEY);
+    } else if (!userId) {
+      localStorage.removeItem(CURRENT_USER_KEY);
+      localStorage.removeItem(BASE_STORAGE_KEY);
+    }
+  } catch (e) {}
+}
+
 export function mergeProgress(
   local: UserProgress,
   cloud: UserProgress
 ): UserProgress {
+  // Respect resetAt: if cloud was reset and local data is older than the reset time, cloud wins.
+  // We use lastActiveDate (or maxSeenDate) to determine age.
+  const cloudResetAt = cloud.resetAt || '';
+  const localLastActive = local.lastActiveDate || '';
+  
+  if (cloudResetAt && localLastActive < cloudResetAt) {
+    return cloud;
+  }
+  
+  const localResetAt = local.resetAt || '';
+  const cloudLastActive = cloud.lastActiveDate || '';
+  
+  if (localResetAt && cloudLastActive < localResetAt) {
+    return local;
+  }
+
   const completedLessons = Array.from(
     new Set([
       ...(local.completedLessons || []),
       ...(cloud.completedLessons || []),
+    ])
+  );
+  
+  const passedChecks = Array.from(
+    new Set([
+      ...(local.passedChecks || []),
+      ...(cloud.passedChecks || []),
     ])
   );
 
@@ -76,11 +109,6 @@ export function mergeProgress(
     }
   }
 
-  // Jika reset, cloudProgress is old? The requirement:
-  // "Penggabungan tidak boleh mengembalikan progres yang sudah direset (pakai tanggal reset sebagai penanda)"
-  // Tapi di TODO Bagian 6: "Jika fitur reset 7 hari aktif, reset juga harus menulis ulang data di cloud, agar tidak hidup lagi"
-  // So no need to complicate merge too much if we write to cloud on reset.
-
   const lDate = local.lastActiveDate || '1970-01-01';
   const cDate = cloud.lastActiveDate || '1970-01-01';
   const lastActiveDate = lDate > cDate ? lDate : cDate;
@@ -88,16 +116,29 @@ export function mergeProgress(
   const lmDate = local.maxSeenDate || lDate;
   const cmDate = cloud.maxSeenDate || cDate;
   const maxSeenDate = lmDate > cmDate ? lmDate : cmDate;
+  
+  const resetAt = cloudResetAt > localResetAt ? cloudResetAt : localResetAt;
+
+  // We should merge moduleStatus properly too
+  const moduleStatus = { ...(cloud.moduleStatus || {}) };
+  for (const [modId, lStatus] of Object.entries(local.moduleStatus || {})) {
+    if (!moduleStatus[modId] || lStatus === 'completed' || (lStatus === 'unlocked' && moduleStatus[modId] === 'locked')) {
+      moduleStatus[modId] = lStatus;
+    }
+  }
 
   return {
     ...cloud,
-    ...local,
+    ...local, // spread local first? NO. Spread cloud first, but then we explicitly overwrite the fields below
+    moduleStatus,
     completedLessons,
+    passedChecks,
     xp,
     streak,
     quizScores,
     lastActiveDate,
     maxSeenDate,
+    resetAt
   };
 }
 
@@ -141,5 +182,6 @@ export async function saveCloudProgress(
     await Promise.race([savePromise, timeoutPromise(8000)]);
   } catch (e) {
     console.error('Save cloud progress error', e);
+    throw e;
   }
 }

@@ -135,6 +135,7 @@ export interface UserProgress {
   version?: number;
   unlockAll?: boolean;
   justReset?: boolean;
+  resetAt?: string;
 }
 
 export interface QuizQuestion {
