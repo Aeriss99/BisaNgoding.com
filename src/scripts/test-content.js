@@ -108,9 +108,13 @@ const QuizQuestionSchema = z.object({
 const QuizSchema = z.array(QuizQuestionSchema);
 
 async function run() {
-  const modulesData = JSON.parse(
-    fs.readFileSync(path.join(contentDir, 'modules.json'), 'utf8')
+  const javaModules = JSON.parse(
+    fs.readFileSync(path.join(contentDir, 'java/modules.json'), 'utf8')
   );
+  const jsModules = JSON.parse(
+    fs.readFileSync(path.join(contentDir, 'javascript/modules.json'), 'utf8')
+  );
+  const modulesData = [...javaModules, ...jsModules];
   const moduleIds = new Set(modulesData.map((m) => m.id));
   let errors = 0;
   let skeletonCount = 0;
@@ -121,12 +125,19 @@ async function run() {
   const allLessonIds = new Set();
   const allTitlesPerModule = {};
 
-  const moduleFolders = fs
-    .readdirSync(contentDir)
-    .filter((f) => f.startsWith('module-'));
+  const getModuleFolders = (dir) => {
+    return fs.readdirSync(dir)
+      .filter((f) => fs.statSync(path.join(dir, f)).isDirectory() && (f.startsWith('module-') || f.startsWith('js-module-')))
+      .map(f => path.join(dir, f));
+  };
 
-  for (const folder of moduleFolders) {
-    const folderPath = path.join(contentDir, folder);
+  const moduleFolders = [
+    ...getModuleFolders(path.join(contentDir, 'java')),
+    ...getModuleFolders(path.join(contentDir, 'javascript'))
+  ];
+
+  for (const folderPath of moduleFolders) {
+    const folder = path.basename(folderPath);
     const files = fs.readdirSync(folderPath).filter((f) => f.endsWith('.json'));
 
     const mod = modulesData.find(

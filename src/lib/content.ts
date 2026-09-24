@@ -1,8 +1,9 @@
 import type { Lesson, Module, QuizQuestion, Course } from '../types/schema';
-import modulesJson from '../../content/modules.json';
 import coursesJson from '../../content/courses.json';
+import javaModules from '../../content/java/modules.json';
+import jsModules from '../../content/javascript/modules.json';
 
-export const modulesData = modulesJson as Module[];
+export const modulesData = [...javaModules, ...jsModules] as Module[];
 export const coursesData = coursesJson as Course[];
 
 /** Dua id dianggap modul yang sama: 'dasar' == 'java-dasar' == 'module-01-dasar' */

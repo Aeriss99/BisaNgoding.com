@@ -153,16 +153,19 @@ function processLesson(lessonFile) {
 }
 
 function runAll() {
-  const folders = fs
-    .readdirSync(contentDir)
-    .filter((f) => f.startsWith('module-'));
-  for (const folder of folders) {
+  const getModuleFolders = (dir) => {
+    return fs.readdirSync(dir)
+      .filter((f) => fs.statSync(path.join(dir, f)).isDirectory() && f.startsWith('module-'))
+      .map(f => path.join(dir, f));
+  };
+  const folders = getModuleFolders(path.join(contentDir, 'java'));
+  for (const folderPath of folders) {
     const files = fs
-      .readdirSync(path.join(contentDir, folder))
+      .readdirSync(folderPath)
       .filter((f) => f.endsWith('.json'));
     for (const file of files) {
       if (file.includes('quiz') || file.includes('modules')) continue;
-      processLesson(path.join(contentDir, folder, file));
+      processLesson(path.join(folderPath, file));
     }
   }
 

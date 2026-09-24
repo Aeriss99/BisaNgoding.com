@@ -6,10 +6,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const modulesData = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '../../content/modules.json'), 'utf8')
+  fs.readFileSync(path.join(__dirname, '../../content/java/modules.json'), 'utf8')
 );
 
-const baseContentDir = path.join(__dirname, '../../content');
+const baseContentDir = path.join(__dirname, '../../content/java');
 
 function generateSkeleton() {
   modulesData.forEach((mod) => {

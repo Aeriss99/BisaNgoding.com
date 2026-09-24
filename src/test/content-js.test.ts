@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 describe('content-js', () => {
-  const dirs = ['content/js-module-01-dasar', 'content/js-module-01c-todolist'];
+  const dirs = ['content/javascript/js-module-01-dasar', 'content/javascript/js-module-01c-todolist'];
   
   for (const d of dirs) {
     const dirPath = path.resolve(process.cwd(), d);
