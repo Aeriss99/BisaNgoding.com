@@ -6,11 +6,25 @@ import jsModules from '../../content/javascript/modules.json';
 export const modulesData = [...javaModules, ...jsModules] as Module[];
 export const coursesData = coursesJson as Course[];
 
-/** Dua id dianggap modul yang sama: 'dasar' == 'java-dasar' == 'module-01-dasar' */
+/**
+ * Alias resmi: moduleId yang dipakai di file pelajaran -> id modul di modules.json.
+ * JANGAN pakai pencocokan longgar (endsWith/includes). Dulu 'js-dasar' ikut cocok
+ * dengan modul Java 'dasar' sehingga pelajaran JavaScript bocor ke modul Java Dasar.
+ * Tambah baris baru di sini kalau ada modul yang id-nya beda dengan moduleId pelajarannya.
+ */
+const MODULE_ALIAS: Record<string, string> = {
+  'java-dasar': 'dasar',
+};
+
+/** Samakan id apa pun ke id resmi modules.json. Pencocokan selalu persis. */
+function canonicalModuleId(id: string): string {
+  if (!id) return '';
+  return MODULE_ALIAS[id] ?? id;
+}
+
 function sameModule(a: string, b: string): boolean {
   if (!a || !b) return false;
-  if (a === b) return true;
-  return a.endsWith('-' + b) || b.endsWith('-' + a);
+  return canonicalModuleId(a) === canonicalModuleId(b);
 }
 
 /** Kembalikan id modul resmi dari modules.json (dipakai untuk semua URL) */
@@ -56,6 +70,21 @@ Object.keys(lessonFiles).forEach((path) => {
     folderToModuleId[folder] = data.moduleId;
   }
 });
+
+// Peringatan dini kalau ada pelajaran yang moduleId-nya tidak terdaftar di modules.json
+{
+  const idResmi = new Set(modulesData.map((m) => m.id));
+  const yatim = new Set<string>();
+  Object.values(lessonsCache).forEach((l) => {
+    if (!idResmi.has(canonicalModuleId(l.moduleId))) yatim.add(l.moduleId);
+  });
+  if (yatim.size > 0) {
+    console.error(
+      `moduleId tidak dikenal (pelajaran tidak akan muncul): ${[...yatim].join(', ')}. ` +
+        `Daftarkan di modules.json atau tambahkan ke MODULE_ALIAS di src/lib/content.ts`
+    );
+  }
+}
 
 export function checkModuleUnlocked(mod: Module, progress: any): boolean {
   if (progress.unlockAll) return true;
@@ -109,34 +138,16 @@ const quizFiles = import.meta.glob('../../content/**/quiz.json', {
 
 /** Ambil bank soal quiz sebuah modul, null jika belum ada */
 export function getQuizQuestions(idOrAlias: string): QuizQuestion[] | null {
-  const mod = getModule(idOrAlias);
-  const candidates = [
-    idOrAlias,
-    mod?.id,
-    ...getLessonsForModule(idOrAlias).map((l) => l.moduleId),
-  ].filter(Boolean) as string[];
+  const target = canonicalModuleId(idOrAlias);
+  if (!target) return null;
 
   for (const path of Object.keys(quizFiles)) {
     const folder = path.split('/').slice(-2)[0] || '';
+    // Folder quiz dikenali HANYA lewat moduleId pelajaran di folder yang sama.
     const folderModuleId = folderToModuleId[folder];
+    if (!folderModuleId) continue;
+    if (canonicalModuleId(folderModuleId) !== target) continue;
 
-    let cocok = false;
-    if (
-      folderModuleId &&
-      candidates.some((id) => sameModule(id, folderModuleId))
-    ) {
-      cocok = true;
-    } else {
-      cocok = candidates.some(
-        (id) =>
-          folder === id ||
-          folder.endsWith('-' + id) ||
-          id.endsWith('-' + folder) ||
-          folder.includes(id)
-      );
-    }
-
-    if (!cocok) continue;
     const raw = quizFiles[path] as any;
     const data = raw?.default || raw;
     if (Array.isArray(data) && data.length > 0) return data as QuizQuestion[];

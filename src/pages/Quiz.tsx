@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { X, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useProgress } from '../context/ProgressContext';
-import { coursesData, getModule } from '../lib/content';
+import { coursesData, getModule, getQuizQuestions } from '../lib/content';
 import type { QuizQuestion } from '../types/schema';
 import {
   prepareQuiz,
@@ -34,35 +34,19 @@ export default function QuizPage() {
     // Load quiz from content
     const loadQuiz = async () => {
       try {
-        const mods = await import.meta.glob('../../content/**/quiz.json');
-        let foundUrl = null;
-        for (const path in mods) {
-          if (
-            path.includes(`-${moduleId}/quiz.json`) ||
-            path.includes(`/${moduleId}/quiz.json`)
-          ) {
-            foundUrl = path;
-            break;
-          }
-        }
+        // Pakai satu sumber pencocokan modul (content.ts) supaya quiz modul lain
+        // tidak pernah terpilih. Dulu '-dasar/quiz.json' cocok dengan folder
+        // js-module-01-dasar sehingga Quiz Java Dasar memuat soal JavaScript.
+        const quizData = getQuizQuestions(moduleId || '');
 
-        if (!foundUrl) {
-          setError('Quiz belum tersedia.');
-          setLoading(false);
-          return;
-        }
-
-        const mod: any = await mods[foundUrl]();
-        const quizData = mod.default || mod;
-
-        if (!quizData || !Array.isArray(quizData) || quizData.length === 0) {
+        if (!quizData || quizData.length === 0) {
           setError('Quiz belum tersedia.');
           setLoading(false);
           return;
         }
 
         setQuestions(prepareQuiz(quizData, 20));
-      } catch (err) {
+      } catch {
         setError('Quiz belum tersedia.');
       }
       setLoading(false);
