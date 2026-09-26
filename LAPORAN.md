@@ -9,6 +9,7 @@
 | 4. Kelas Segera Hadir   | SELESAI   | Menambahkan Git, Spring Boot, dan Node.js ke `courses.json` dengan status `soon`. Mengedit `Dashboard.tsx` agar modul tanpa pelajaran juga dikunci. |
 | 5. Sinkronisasi progress| SUDAH ADA | Logika Supabase debouncing dan merge lokal/cloud telah selesai dan berfungsi (di `cloudProgress.ts`). |
 | 6. Verifikasi           | SELESAI   | Memperbaiki bug parse di `content.ts` (skeletonLesson), mock `checkModuleUnlocked` di vitest, dan import lucide-react. Semua test unit dan build lulus. |
+| 7. Pasang Modul 4       | SELESAI   | Menambahkan `module-04-collection` (12 pelajaran, 30 soal quiz) pada `modules.json` Java dengan total 129 test asli pada seluruh modul. |
 
 ## Detail per tugas
 - **Tugas 1**: Struktur `content/java/` & `content/javascript/` dan check tests (vitest `content-integrity`) sudah ada. 

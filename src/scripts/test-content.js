@@ -140,14 +140,20 @@ async function run() {
     const folder = path.basename(folderPath);
     const files = fs.readdirSync(folderPath).filter((f) => f.endsWith('.json'));
 
-    const mod = modulesData.find(
-      (m) =>
-        folder.endsWith(`-${m.id}`) ||
-        folder.endsWith(`-${m.id.replace(/-/g, '')}`) ||
-        (folder === 'module-01c-todolist' && m.id === 'java-dasar-todolist') ||
-        (folder === 'module-02-oop' && m.id === 'java-oop') ||
-        (folder === 'module-03-record-sealed' && m.id === 'java-modern')
-    );
+    // Ambil moduleId dari file json pertama di folder
+    const firstLessonFile = files.find(f => f.startsWith('lesson-'));
+    let explicitModuleId = null;
+    if (firstLessonFile) {
+      try {
+        const json = JSON.parse(fs.readFileSync(path.join(folderPath, firstLessonFile), 'utf8'));
+        explicitModuleId = json.moduleId;
+      } catch (e) {}
+    }
+    let mod = explicitModuleId ? modulesData.find(m => m.id === explicitModuleId) : null;
+    
+    // Fallback mapping untuk modul lama yang moduleId di file beda dengan id di modules.json
+    if (!mod && explicitModuleId === 'java-dasar') mod = modulesData.find(m => m.id === 'dasar');
+    
     if (!mod) {
       console.error(`Folder ${folder} tidak punya modul terdaftar`);
       errors++;

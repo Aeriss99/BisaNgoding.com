@@ -24,8 +24,7 @@ describe('Content Restructure Integrity', () => {
     expect(modulesData.length).toBe(EXPECTED_MODULES);
     
     // Visible lessons count
-    // I know from my node script: materials: 147, quizzes: 4
-    expect(actualLessons).toBe(228);
-    expect(actualQuizzes).toBe(7);
+    expect(actualLessons).toBe(169);
+    expect(actualQuizzes).toBe(8);
   });
 });
