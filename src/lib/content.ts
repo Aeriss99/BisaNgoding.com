@@ -15,12 +15,12 @@ function sameModule(a: string, b: string): boolean {
 
 /** Kembalikan id modul resmi dari modules.json (dipakai untuk semua URL) */
 export function resolveModuleId(idOrAlias: string): string {
-  const found = modulesData.find((m) => sameModule(m.id, idOrAlias));
+  const found = modulesData.find((m) => m.id === idOrAlias);
   return found ? found.id : idOrAlias;
 }
 
 export function getModule(idOrAlias: string): Module | undefined {
-  return modulesData.find((m) => sameModule(m.id, idOrAlias));
+  return modulesData.find((m) => m.id === idOrAlias);
 }
 
 const lessonFiles = import.meta.glob('../../content/**/*.json', {

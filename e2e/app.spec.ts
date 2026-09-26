@@ -3,9 +3,9 @@ import fs from 'fs';
 import path from 'path';
 
 const contentDir = path.join(process.cwd(), 'content');
-const modulesData = JSON.parse(
-  fs.readFileSync(path.join(contentDir, 'modules.json'), 'utf8')
-);
+const javaModules = JSON.parse(fs.readFileSync(path.join(contentDir, 'java/modules.json'), 'utf8'));
+const jsModules = JSON.parse(fs.readFileSync(path.join(contentDir, 'javascript/modules.json'), 'utf8'));
+const modulesData = [...javaModules, ...jsModules];
 
 const readyModules = modulesData.filter((m) => m.status === 'ready');
 
