@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
 import {
   getLesson,
@@ -24,7 +24,9 @@ import {
   UnderstandingCheckCardComponent,
 } from '../components/cards/QuizCards';
 
-import { Mermaid } from '../components/ui/Mermaid';
+const Mermaid = lazy(() =>
+  import('../components/ui/Mermaid').then((m) => ({ default: m.Mermaid }))
+);
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
 function CodeBlockWithCopy({ children, className, ...props }: any) {
@@ -240,7 +242,9 @@ export default function LessonPage() {
 
                   if (match && match[1] === 'mermaid') {
                     return (
-                      <Mermaid chart={String(children).replace(/\n$/, '')} />
+                      <Suspense fallback={<div className="text-sm text-gray-400">Memuat diagram...</div>}>
+                        <Mermaid chart={String(children).replace(/\n$/, '')} />
+                      </Suspense>
                     );
                   }
                   if (match && isRun) {
@@ -525,7 +529,7 @@ export default function LessonPage() {
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-10 pb-32 lg:pb-10 text-base md:text-lg flex flex-col">
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full lg:my-auto">
             <ErrorBoundary>{renderCardContent(card)}</ErrorBoundary>
           </div>
         </main>

@@ -35,7 +35,7 @@ export default function Landing() {
           <Link
             to="/"
             className="text-2xl font-bungee tracking-wide"
-            style={{ textShadow: '2px 2px 0 var(--color-landing-cyan)' }}
+            style={{ textShadow: '3px 3px 0 var(--color-landing-hero)' }}
           >
             BisaNgoding.com
           </Link>
@@ -55,11 +55,6 @@ export default function Landing() {
               >
                 Kelas
               </a>
-              <ComingSoon inline>
-                <span className="hover:text-[var(--color-landing-cyan)] transition-colors cursor-not-allowed">
-                  Bootcamp
-                </span>
-              </ComingSoon>
               <ComingSoon inline>
                 <span className="hover:text-[var(--color-landing-cyan)] transition-colors cursor-not-allowed">
                   Komunitas
@@ -91,7 +86,7 @@ export default function Landing() {
         <div className="bg-[var(--color-landing-hero)] border-[3px] border-[var(--color-landing-black)] shadow-[8px_8px_0_#111111] p-6 md:p-12 lg:p-16 flex flex-col lg:flex-row items-center gap-8 md:gap-12">
           <div className="flex-1 space-y-6">
             <h1 className="font-bungee text-4xl sm:text-5xl lg:text-6xl leading-[1.1]">
-              BISANGODING: TEMPAT BELAJAR CODING DARI NOL, LANGSUNG PRAKTIK{' '}
+              BisaNgoding: Tempat Belajar Coding, Langsung Praktik{' '}
               <span
                 className="text-[var(--color-landing-cyan)] inline-block"
                 style={{
@@ -521,7 +516,7 @@ export default function Landing() {
       {/* 8. Footer */}
       <footer className="bg-[var(--color-landing-black)] text-white px-4 py-12 sm:px-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center md:items-start gap-8 border-b border-gray-800 pb-8 mb-8">
-          <div className="text-3xl font-bungee text-[var(--color-landing-cyan)] text-center md:text-left">
+          <div className="text-3xl font-bungee text-[var(--color-landing-hero)] text-center md:text-left">
             BisaNgoding.com
           </div>
           <div className="flex flex-wrap justify-center md:justify-end gap-x-8 gap-y-4 font-barlow font-bold text-lg">
