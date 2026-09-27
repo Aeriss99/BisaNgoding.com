@@ -326,14 +326,22 @@ export default function Dashboard() {
                   </div>
 
                   <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs font-mono font-bold text-[var(--color-text-secondary)]">
-                    <div className="flex items-center gap-1.5">
-                      <BookOpen className="w-3.5 h-3.5" /> {completedLessons}/
-                      {totalLessons}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" /> ~
-                      {hours}j
-                    </div>
+                    {course.language === 'english' ? (
+                      <div className="flex items-center gap-1.5 bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded border-2 border-black">
+                        Latihan 5 menit
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5" /> {completedLessons}/
+                          {totalLessons}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" /> ~
+                          {hours}j
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </Link>

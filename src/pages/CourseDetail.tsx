@@ -186,12 +186,20 @@ export default function CourseDetail() {
                   </div>
                   <p className="text-xs font-medium text-red-500 mt-1">Selesaikan {reqTitle || 'modul sebelumnya'} dulu</p>
                   <div className="flex flex-wrap items-center gap-3 text-sm font-mono font-bold text-gray-400 mt-2">
-                    <div className="flex items-center gap-1">
-                      <BookOpen className="w-4 h-4" /> {modTotal} materi
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" /> ~{Math.round(modMinutes / 60)}j
-                    </div>
+                    {course.language === 'english' ? (
+                      <div className="flex items-center gap-1 bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded border border-gray-400">
+                        Latihan 5 menit
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1">
+                          <BookOpen className="w-4 h-4" /> {modTotal} materi
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" /> ~{Math.round(modMinutes / 60)}j
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -220,12 +228,20 @@ export default function CourseDetail() {
                   <div className={`px-2 py-0.5 rounded border-2 border-[var(--color-text-main)] ${statusBadge.bg} text-[10px]`}>
                     {statusBadge.label}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <BookOpen className="w-4 h-4" /> {modCompleted}/{modTotal} materi
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" /> ~{Math.round(modMinutes / 60)}j
-                  </div>
+                  {course.language === 'english' ? (
+                    <div className="flex items-center gap-1 bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded border border-gray-400">
+                      Latihan 5 menit
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <BookOpen className="w-4 h-4" /> {modCompleted}/{modTotal} materi
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" /> ~{Math.round(modMinutes / 60)}j
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 

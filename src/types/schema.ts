@@ -28,6 +28,10 @@ export interface Lesson {
   estimatedMinutes: number;
   runnable?: boolean;
   javaVersion?: number;
+  mode?: 'latihan';
+  tips?: string;
+  newWords?: { word: string; meaning: string }[];
+  glossary?: Record<string, string>;
   cards: Card[];
 }
 
@@ -44,6 +48,36 @@ export interface UnderstandingCheckCard {
   }[];
 }
 
+export interface TranslateTilesCard {
+  type: 'translate_tiles';
+  direction: 'en-id' | 'id-en';
+  prompt: string;          // kalimat sumber
+  tiles: string[];         // ubin jawaban + pengecoh
+  answers: string[][];     // urutan ubin yang diterima; answers[0] = jawaban utama
+  explanation?: string;
+}
+
+export interface ListenTilesCard {
+  type: 'listen_tiles';
+  text: string;            // kalimat Inggris yang dibacakan
+  tiles: string[];
+  answers: string[][];
+  explanation?: string;
+}
+
+export interface MatchPairsCard {
+  type: 'match_pairs';
+  pairs: { en: string; id: string }[];   // 4-5 pasang
+}
+
+export interface TypeTranslationCard {
+  type: 'type_translation';
+  direction: 'en-id' | 'id-en';
+  prompt: string;
+  answers: string[];       // sudah huruf kecil, tanpa tanda baca akhir; answers[0] = jawaban utama
+  explanation?: string;
+}
+
 export type Card =
   | TheoryCard
   | RunnableCard
@@ -53,7 +87,11 @@ export type Card =
   | SummaryCard
   | ReorderCard
   | PredictOutputCard
-  | UnderstandingCheckCard;
+  | UnderstandingCheckCard
+  | TranslateTilesCard
+  | ListenTilesCard
+  | MatchPairsCard
+  | TypeTranslationCard;
 
 export interface TheoryCard {
   type: 'theory';

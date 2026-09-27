@@ -2,8 +2,9 @@ import type { Lesson, Module, QuizQuestion, Course } from '../types/schema';
 import coursesJson from '../../content/courses.json';
 import javaModules from '../../content/java/modules.json';
 import jsModules from '../../content/javascript/modules.json';
+import englishModules from '../../content/english/modules.json';
 
-export const modulesData = [...javaModules, ...jsModules] as Module[];
+export const modulesData = [...javaModules, ...jsModules, ...englishModules] as Module[];
 export const coursesData = coursesJson as Course[];
 
 /**

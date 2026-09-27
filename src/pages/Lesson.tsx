@@ -28,6 +28,7 @@ const Mermaid = lazy(() =>
   import('../components/ui/Mermaid').then((m) => ({ default: m.Mermaid }))
 );
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { PemutarLatihan } from '../components/latihan/PemutarLatihan';
 
 function CodeBlockWithCopy({ children, className, ...props }: any) {
   const [copied, setCopied] = useState(false);
@@ -94,6 +95,10 @@ export default function LessonPage() {
         Pelajaran tidak ditemukan
       </div>
     );
+  }
+
+  if (lesson.mode === 'latihan') {
+    return <PemutarLatihan lesson={lesson} />;
   }
 
   const mod = getModule(lesson.moduleId);
