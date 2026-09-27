@@ -9,7 +9,7 @@ export function bisaBersuara(): Promise<boolean> {
     }
     
     if (voicesLoaded) {
-      resolve(voices.some(v => v.lang.startsWith('en')));
+      resolve(voices.length > 0);
       return;
     }
     
@@ -17,7 +17,7 @@ export function bisaBersuara(): Promise<boolean> {
       voices = window.speechSynthesis.getVoices();
       if (voices.length > 0) {
         voicesLoaded = true;
-        resolve(voices.some(v => v.lang.startsWith('en')));
+        resolve(true);
         return true;
       }
       return false;
@@ -46,6 +46,11 @@ export function ucapkan(teks: string, lambat = false): void {
     let voice = voices.find(v => v.lang === 'en-US');
     if (!voice) voice = voices.find(v => v.lang === 'en-GB');
     if (!voice) voice = voices.find(v => v.lang.startsWith('en'));
+    
+    // Fallback if no English voice is found but voices exist
+    if (!voice && voices.length > 0) {
+      voice = voices[0];
+    }
     
     if (voice) {
       utterance.voice = voice;
