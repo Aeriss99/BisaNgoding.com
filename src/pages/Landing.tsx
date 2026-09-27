@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Code, Hammer, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -7,13 +7,18 @@ import { ComingSoon } from '../components/ComingSoon';
 
 export default function Landing() {
   const { masukGoogle, isSupabaseConfigured } = useAuth();
+  const [sedangMasuk, setSedangMasuk] = useState(false);
 
   const handleLoginClick = async (e: React.MouseEvent) => {
     if (isSupabaseConfigured) {
       e.preventDefault();
-      await masukGoogle();
-    } else {
-      // If no Supabase, fallback to navigating to modules
+      setSedangMasuk(true);
+      try {
+        await masukGoogle();
+      } catch (e) {
+        alert('Gagal masuk. Silakan coba lagi.');
+        setSedangMasuk(false);
+      }
     }
   };
 
@@ -71,10 +76,11 @@ export default function Landing() {
 
             {isSupabaseConfigured && (
               <button
-                onClick={masukGoogle}
-                className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-3 py-1.5 md:px-5 md:py-2 font-bungee text-sm md:text-base shadow-[2px_2px_0_#111111] md:shadow-[4px_4px_0_#111111] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                onClick={handleLoginClick}
+                disabled={sedangMasuk}
+                className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-3 py-1.5 md:px-5 md:py-2 font-bungee text-sm md:text-base shadow-[2px_2px_0_#111111] md:shadow-[4px_4px_0_#111111] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-75 disabled:cursor-wait"
               >
-                MASUK
+                {sedangMasuk ? 'MEMBUKA GOOGLE...' : 'MASUK'}
               </button>
             )}
           </div>
@@ -104,10 +110,11 @@ export default function Landing() {
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               {isSupabaseConfigured ? (
                 <button
-                  onClick={masukGoogle}
-                  className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-6 py-4 font-bungee text-lg shadow-[4px_4px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-center"
+                  onClick={handleLoginClick}
+                  disabled={sedangMasuk}
+                  className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-6 py-4 font-bungee text-lg shadow-[4px_4px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-center disabled:opacity-75 disabled:cursor-wait"
                 >
-                  MASUK DENGAN GOOGLE (GRATIS)
+                  {sedangMasuk ? 'MEMBUKA GOOGLE...' : 'MASUK DENGAN GOOGLE (GRATIS)'}
                 </button>
               ) : (
                 <a
@@ -329,9 +336,10 @@ export default function Landing() {
                     {isSupabaseConfigured ? (
                       <button
                         onClick={handleLoginClick}
-                        className="w-full bg-[var(--color-landing-black)] text-white border-[3px] border-[var(--color-landing-black)] py-3 font-bungee text-base shadow-[4px_4px_0_var(--color-landing-cyan)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_var(--color-landing-cyan)] transition-all mt-4"
+                        disabled={sedangMasuk}
+                        className="w-full bg-[var(--color-landing-black)] text-white border-[3px] border-[var(--color-landing-black)] py-3 font-bungee text-base shadow-[4px_4px_0_var(--color-landing-cyan)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_var(--color-landing-cyan)] transition-all mt-4 disabled:opacity-75 disabled:cursor-wait"
                       >
-                        MULAI BELAJAR
+                        {sedangMasuk ? 'MEMBUKA GOOGLE...' : 'MULAI BELAJAR'}
                       </button>
                     ) : (
                       <Link
@@ -497,9 +505,10 @@ export default function Landing() {
           {isSupabaseConfigured ? (
             <button
               onClick={handleLoginClick}
-              className="w-full md:w-auto bg-white text-[var(--color-landing-black)] border-[3px] border-[var(--color-landing-black)] px-8 py-5 font-bungee text-xl shadow-[6px_6px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[4px] hover:translate-y-[4px] transition-all whitespace-nowrap"
+              disabled={sedangMasuk}
+              className="w-full md:w-auto bg-white text-[var(--color-landing-black)] border-[3px] border-[var(--color-landing-black)] px-8 py-5 font-bungee text-xl shadow-[6px_6px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[4px] hover:translate-y-[4px] transition-all whitespace-nowrap disabled:opacity-75 disabled:cursor-wait"
             >
-              MASUK DENGAN GOOGLE
+              {sedangMasuk ? 'MEMBUKA GOOGLE...' : 'MASUK DENGAN GOOGLE'}
             </button>
           ) : (
             <a

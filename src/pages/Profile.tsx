@@ -10,13 +10,19 @@ import {
   Unlock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { bersihkanProgresLokal } from '../lib/cloudProgress';
+import { useNavigate } from 'react-router-dom';
 
 export default function Profile() {
-  const { progress, importProgress, toggleUnlockAll, syncStatus } =
+  const { progress, importProgress, toggleUnlockAll, syncStatus, flushKeCloud } =
     useProgress();
   const { user, isAdmin, masukGoogle, keluar, isSupabaseConfigured } =
     useAuth();
   const [message, setMessage] = useState('');
+  const [sedangKeluar, setSedangKeluar] = useState(false);
+  const [tampilDialogBelumTersimpan, setTampilDialogBelumTersimpan] = useState(false);
+  const [sedangMasuk, setSedangMasuk] = useState(false);
+  const navigate = useNavigate();
 
   const tampilkanPesan = (teks: string, ms = 3000) => {
     setMessage(teks);
@@ -86,6 +92,36 @@ export default function Profile() {
     tampilkanPesan('Progres berhasil direset!');
   };
 
+  const handleMasuk = async () => {
+    setSedangMasuk(true);
+    try {
+      await masukGoogle();
+    } catch (e) {
+      tampilkanPesan('Gagal masuk. Silakan coba lagi.');
+      setSedangMasuk(false);
+    }
+  };
+
+  const handleKeluar = async () => {
+    setSedangKeluar(true);
+    const tersimpan = await flushKeCloud();
+    if (!tersimpan) {
+      setTampilDialogBelumTersimpan(true);
+      setSedangKeluar(false);
+      return;
+    }
+    bersihkanProgresLokal(user?.id);
+    await keluar();
+    navigate('/', { replace: true });
+  };
+
+  const handleKeluarSaja = async () => {
+    setTampilDialogBelumTersimpan(false);
+    setSedangKeluar(true);
+    await keluar();
+    navigate('/', { replace: true });
+  };
+
   return (
     <div className="space-y-6 max-w-lg mx-auto">
       <header>
@@ -128,10 +164,15 @@ export default function Profile() {
                 otomatis.
               </p>
               <button
-                onClick={masukGoogle}
-                className="w-full flex items-center justify-center gap-2 brutal-btn !bg-[var(--color-primary)] !text-white !p-3"
+                onClick={handleMasuk}
+                disabled={sedangMasuk}
+                className="w-full flex items-center justify-center gap-2 brutal-btn !bg-[var(--color-primary)] !text-white !p-3 disabled:opacity-75 disabled:cursor-wait"
               >
-                <LogIn className="w-5 h-5" /> Masuk dengan Google
+                {sedangMasuk ? 'Membuka Google...' : (
+                  <>
+                    <LogIn className="w-5 h-5" /> Masuk dengan Google
+                  </>
+                )}
               </button>
             </div>
           )}
@@ -203,11 +244,44 @@ export default function Profile() {
 
       {isSupabaseConfigured && user && (
         <button
-          onClick={keluar}
-          className="w-full flex items-center justify-center gap-2 brutal-btn !bg-red-400 !text-white !p-3 mt-6"
+          onClick={handleKeluar}
+          disabled={sedangKeluar}
+          className="w-full flex items-center justify-center gap-2 brutal-btn !bg-red-400 !text-white !p-3 mt-6 disabled:opacity-75 disabled:cursor-wait"
         >
-          <LogOut className="w-5 h-5" /> Keluar
+          {sedangKeluar ? 'Menyimpan...' : (
+            <>
+              <LogOut className="w-5 h-5" /> Keluar
+            </>
+          )}
         </button>
+      )}
+
+      {/* Dialog belum tersimpan */}
+      {tampilDialogBelumTersimpan && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="brutal-card-big p-6 max-w-sm w-full bg-white flex flex-col gap-4">
+            <h3 className="text-xl font-bold font-space">Progres terbaru belum tersimpan ke akun</h3>
+            <p className="text-gray-700 text-sm">
+              Sepertinya koneksi internet sedang bermasalah. Progres tetap aman di perangkat ini dan akan dikirim otomatis saat kamu masuk lagi di perangkat yang sama.
+            </p>
+            <div className="flex flex-col gap-3 mt-2">
+              <button
+                onClick={handleKeluar}
+                disabled={sedangKeluar}
+                className="brutal-btn bg-[var(--color-primary)] text-white p-3 font-bold disabled:opacity-75 disabled:cursor-wait"
+              >
+                Coba simpan lagi
+              </button>
+              <button
+                onClick={handleKeluarSaja}
+                disabled={sedangKeluar}
+                className="brutal-btn bg-white border-2 border-gray-300 text-gray-700 p-3 font-bold hover:bg-gray-50 disabled:opacity-75 disabled:cursor-wait"
+              >
+                Keluar saja
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

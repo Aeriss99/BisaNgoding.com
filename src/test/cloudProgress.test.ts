@@ -1,6 +1,57 @@
-import { describe, it, expect } from 'vitest';
-import { mergeProgress, saveLocalProgress, getLocalProgress, bersihkanProgresLokal } from '../lib/cloudProgress';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mergeProgress, saveLocalProgress, getLocalProgress, bersihkanProgresLokal, fetchCloudProgress, saveCloudProgress } from '../lib/cloudProgress';
 import type { UserProgress } from '../types/schema';
+import * as supabaseModule from '../lib/supabase';
+
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    from: vi.fn(),
+  },
+}));
+
+describe('fetchCloudProgress & saveCloudProgress', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('fetchCloudProgress returns {ok: false} when Supabase returns an error', async () => {
+    const mockMaybeSingle = vi.fn().mockResolvedValue({ error: new Error('Database error'), data: null });
+    const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+    (supabaseModule.supabase!.from as any).mockReturnValue({ select: mockSelect });
+
+    const result = await fetchCloudProgress('user1');
+    expect(result).toEqual({ ok: false });
+  });
+
+  it('fetchCloudProgress returns {ok: false} on timeout', async () => {
+    // Simulate a slow request
+    const mockMaybeSingle = vi.fn().mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 9000)));
+    const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+    (supabaseModule.supabase!.from as any).mockReturnValue({ select: mockSelect });
+
+    const result = await fetchCloudProgress('user2');
+    expect(result).toEqual({ ok: false });
+  }, 10000);
+
+  it('fetchCloudProgress returns {ok: true, data: null} when row is not found', async () => {
+    const mockMaybeSingle = vi.fn().mockResolvedValue({ error: null, data: null });
+    const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+    (supabaseModule.supabase!.from as any).mockReturnValue({ select: mockSelect });
+
+    const result = await fetchCloudProgress('user3');
+    expect(result).toEqual({ ok: true, data: null });
+  });
+
+  it('saveCloudProgress throws error when Supabase returns an error', async () => {
+    const mockUpsert = vi.fn().mockResolvedValue({ error: new Error('Save error') });
+    (supabaseModule.supabase!.from as any).mockReturnValue({ upsert: mockUpsert });
+
+    await expect(saveCloudProgress('user4', {} as UserProgress)).rejects.toThrow('Save error');
+  });
+});
 
 describe('mergeProgress', () => {
   it('merges completed lessons without duplicates', () => {

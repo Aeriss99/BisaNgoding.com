@@ -11,16 +11,28 @@ import { useProgress } from '../../context/ProgressContext';
 import { ComingSoon } from '../ComingSoon';
 import { LogoIcon } from '../ui/LogoIcon';
 import CourseOutline from './CourseOutline';
+import { useState } from 'react';
 
 export default function Layout() {
   const location = useLocation();
   const { user, masukGoogle, isSupabaseConfigured } = useAuth();
   const { syncStatus } = useProgress();
+  const [sedangMasuk, setSedangMasuk] = useState(false);
 
   const navItems = [
     { path: '/', label: 'Belajar', icon: BookOpen },
     { path: '/profile', label: 'Profil', icon: User },
   ];
+
+  const handleMasuk = async () => {
+    setSedangMasuk(true);
+    try {
+      await masukGoogle();
+    } catch (e) {
+      alert('Gagal masuk. Silakan coba lagi.');
+      setSedangMasuk(false);
+    }
+  };
 
   const showPanel = location.pathname.startsWith('/kelas/') || location.pathname.startsWith('/module/');
 
@@ -119,9 +131,10 @@ export default function Layout() {
                 </Link>
               ) : (
                 <button
-                  onClick={masukGoogle}
+                  onClick={handleMasuk}
+                  disabled={sedangMasuk}
                   title="Masuk Google"
-                  className="flex items-center justify-center w-11 h-11 bg-[var(--color-accent)] border-2 border-[var(--color-text-main)] text-white rounded-full shadow-[2px_2px_0_var(--color-text-main)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_var(--color-text-main)] transition-all"
+                  className="flex items-center justify-center w-11 h-11 bg-[var(--color-accent)] border-2 border-[var(--color-text-main)] text-white rounded-full shadow-[2px_2px_0_var(--color-text-main)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_var(--color-text-main)] transition-all disabled:opacity-75 disabled:cursor-wait"
                 >
                   <LogIn className="w-5 h-5 ml-1" />
                 </button>
@@ -159,10 +172,11 @@ export default function Layout() {
           </Link>
         ) : (
           <button
-            onClick={masukGoogle}
-            className="text-sm font-bold bg-[var(--color-accent)] text-white px-3 py-1.5 rounded-lg border-2 border-[var(--color-text-main)] shadow-[2px_2px_0_var(--color-text-main)]"
+            onClick={handleMasuk}
+            disabled={sedangMasuk}
+            className="text-sm font-bold bg-[var(--color-accent)] text-white px-3 py-1.5 rounded-lg border-2 border-[var(--color-text-main)] shadow-[2px_2px_0_var(--color-text-main)] disabled:opacity-75 disabled:cursor-wait"
           >
-            Masuk
+            {sedangMasuk ? 'Membuka...' : 'Masuk'}
           </button>
         )}
       </header>

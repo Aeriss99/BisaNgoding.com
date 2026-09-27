@@ -22,6 +22,7 @@ Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 // Mock supabase rpc for testing
 vi.mock('../lib/supabase', () => ({
   supabase: {
+    from: vi.fn(),
     rpc: vi.fn(),
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
@@ -45,6 +46,38 @@ describe('ProgressContext', () => {
       <ProgressProvider>{children}</ProgressProvider>
     </AuthProvider>
   );
+
+  it('saveCloudProgress is not called when fetchCloudProgress returns ok: false', async () => {
+    const mockMaybeSingle = vi.fn().mockResolvedValue({ error: new Error('Network error'), data: null });
+    const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+    const mockUpsert = vi.fn();
+    (supabase!.from as any).mockImplementation((table: string) => {
+      if (table === 'progres') {
+        return { select: mockSelect, upsert: mockUpsert };
+      }
+    });
+
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-id' } } },
+    } as any);
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 150)); 
+    });
+
+    act(() => {
+      result.current.markLessonCompleted('dasar-01');
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1100)); // wait for debounce
+    });
+
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
 
   it('initializes with default progress if localStorage is empty', () => {
     const { result } = renderHook(() => useProgress(), { wrapper });

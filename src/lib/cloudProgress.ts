@@ -147,10 +147,14 @@ const timeoutPromise = (ms: number) =>
     setTimeout(() => reject(new Error('Timeout')), ms)
   );
 
+export type HasilAmbil =
+  | { ok: true; data: UserProgress | null }
+  | { ok: false };
+
 export async function fetchCloudProgress(
   userId: string
-): Promise<UserProgress | null> {
-  if (!supabase) return null;
+): Promise<HasilAmbil> {
+  if (!supabase) return { ok: false };
   try {
     const fetchPromise = supabase
       .from('progres')
@@ -161,13 +165,17 @@ export async function fetchCloudProgress(
       fetchPromise,
       timeoutPromise(8000),
     ])) as any;
-    if (result && result.data) {
-      return result.data.data as UserProgress;
+    
+    if (result?.error) {
+      console.error('Fetch cloud progress error', result.error);
+      return { ok: false };
     }
+    
+    return { ok: true, data: (result?.data?.data as UserProgress) ?? null };
   } catch (e) {
     console.error('Fetch cloud progress error', e);
+    return { ok: false };
   }
-  return null;
 }
 
 export async function saveCloudProgress(
@@ -179,7 +187,8 @@ export async function saveCloudProgress(
     const savePromise = supabase
       .from('progres')
       .upsert({ user_id: userId, data });
-    await Promise.race([savePromise, timeoutPromise(8000)]);
+    const result = (await Promise.race([savePromise, timeoutPromise(8000)])) as any;
+    if (result?.error) throw result.error;
   } catch (e) {
     console.error('Save cloud progress error', e);
     throw e;

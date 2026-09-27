@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
-import { bersihkanProgresLokal } from '../lib/cloudProgress'; // We'll implement this later
 
 interface AuthContextType {
   user: User | null;
@@ -91,7 +90,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const keluar = async () => {
     if (!supabase) return;
-    bersihkanProgresLokal(user?.id);
     await supabase.auth.signOut();
   };
 

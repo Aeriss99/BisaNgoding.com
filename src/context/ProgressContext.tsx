@@ -31,6 +31,7 @@ interface ProgressContextType {
   addXP: (amount: number) => void;
   saveQuizScore: (moduleId: string, score: number, passed: boolean) => void;
   touchActivity: () => void;
+  flushKeCloud: () => Promise<boolean>;
   inactiveDaysConfig: number;
   daysUntilReset: number | null;
   syncStatus:
@@ -105,42 +106,68 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const progressRef = useRef(progress);
   progressRef.current = progress;
   const timerRef = useRef<any>(null);
+  const retryIntervalRef = useRef<any>(null);
   const initializedRef = useRef(false);
+
+  const initSync = async () => {
+    if (!user) return;
+    setSyncStatus('Menyimpan...');
+
+    const cloudFetch = await fetchCloudProgress(user.id);
+    const localProgress = getLocalProgress(user.id) || makeDefaultProgress();
+
+    if (!cloudFetch.ok) {
+      setSyncStatus('Offline, tersimpan di perangkat ini');
+      return;
+    }
+
+    let newProgress = localProgress;
+    if (cloudFetch.data) {
+      newProgress = mergeProgress(localProgress, cloudFetch.data);
+    }
+
+    setCurrentUserId(user.id);
+    setProgress(newProgress);
+    saveLocalProgress(newProgress, user.id);
+
+    try {
+      await saveCloudProgress(user.id, newProgress);
+      setSyncStatus('Tersimpan');
+      initializedRef.current = true;
+      if (retryIntervalRef.current) {
+        clearInterval(retryIntervalRef.current);
+        retryIntervalRef.current = null;
+      }
+    } catch (e) {
+      setSyncStatus('Offline, tersimpan di perangkat ini');
+    }
+  };
 
   // Sync logic on mount or user login
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
       setSyncStatus('Offline, tersimpan di perangkat ini');
+      setProgress(makeDefaultProgress());
+      initializedRef.current = false;
+      setCurrentUserId(null);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (retryIntervalRef.current) clearInterval(retryIntervalRef.current);
       return;
     }
 
-    const initSync = async () => {
-      setSyncStatus('Menyimpan...');
-
-      const cloudProgress = await fetchCloudProgress(user.id);
-      const localProgress = getLocalProgress(user.id) || makeDefaultProgress();
-      
-      let newProgress = localProgress;
-
-      if (cloudProgress) {
-        newProgress = mergeProgress(localProgress, cloudProgress);
-      }
-
-      setCurrentUserId(user.id);
-      setProgress(newProgress);
-      saveLocalProgress(newProgress, user.id);
-
-      try {
-        await saveCloudProgress(user.id, newProgress);
-        setSyncStatus('Tersimpan');
-      } catch (e) {
-        setSyncStatus('Offline, tersimpan di perangkat ini');
-      }
-      initializedRef.current = true;
-    };
-
     initSync();
+    
+    // Auto-retry fetch/sync if failed
+    retryIntervalRef.current = setInterval(() => {
+      if (!initializedRef.current && user) {
+        initSync();
+      }
+    }, 30000);
+
+    return () => {
+      if (retryIntervalRef.current) clearInterval(retryIntervalRef.current);
+    };
   }, [user, authLoading]);
 
   // Debounce save (1s)
@@ -172,22 +199,32 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     };
     
     const handleFocus = async () => {
+      if (!initializedRef.current) {
+        initSync();
+        return;
+      }
       try {
-        const cloudProgress = await fetchCloudProgress(user.id);
-        if (cloudProgress) {
-          const merged = mergeProgress(progressRef.current, cloudProgress);
+        const cloudFetch = await fetchCloudProgress(user.id);
+        if (cloudFetch.ok && cloudFetch.data) {
+          const merged = mergeProgress(progressRef.current, cloudFetch.data);
           setProgress(merged);
           saveLocalProgress(merged, user.id);
         }
       } catch (e) {}
     };
 
+    const handleOnline = () => {
+      if (!initializedRef.current) initSync();
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleOnline);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
     };
   }, [user]);
 
@@ -379,6 +416,19 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const flushKeCloud = async (): Promise<boolean> => {
+    if (!user || !initializedRef.current) return false;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    try {
+      await saveCloudProgress(user.id, progressRef.current);
+      setSyncStatus('Tersimpan');
+      return true;
+    } catch (e) {
+      setSyncStatus('Offline, tersimpan di perangkat ini');
+      return false;
+    }
+  };
+
   const activeUnlockAll = isAdmin ? progress.unlockAll : false;
 
   return (
@@ -392,6 +442,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         addXP,
         saveQuizScore,
         touchActivity,
+        flushKeCloud,
         inactiveDaysConfig,
         daysUntilReset,
         syncStatus,
