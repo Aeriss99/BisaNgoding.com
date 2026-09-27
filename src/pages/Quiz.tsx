@@ -247,7 +247,7 @@ export default function QuizPage() {
             <div className="border rounded-lg overflow-hidden border-gray-300">
               <CodeMirror
                 value={q.code}
-                extensions={[java()]}
+                extensions={ekstensiBahasa(language)}
                 theme="light"
                 readOnly={true}
                 basicSetup={{ lineNumbers: true }}

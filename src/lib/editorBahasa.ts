@@ -1,6 +1,6 @@
 import { javascript } from '@codemirror/lang-javascript';
 import { java } from '@codemirror/lang-java';
-import { Extension } from '@codemirror/state';
+import type { Extension } from '@codemirror/state';
 
 export function ekstensiBahasa(language: string): Extension[] {
   if (language === 'javascript') return [javascript()];
