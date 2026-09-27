@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import type { RunnableCard, CodeChallengeCard } from '../../types/schema';
 import CodeMirror from '@uiw/react-codemirror';
-import { java } from '@codemirror/lang-java';
-import { javascript } from '@codemirror/lang-javascript';
+import { ekstensiBahasa } from '../../lib/editorBahasa';
 import { EditorView } from '@codemirror/view';
 import { Play, Loader2, CheckCircle, RefreshCw } from 'lucide-react';
 import { getErrorHint } from '../../lib/errorHints';
@@ -115,7 +114,7 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
         <CodeMirror
           value={code}
           extensions={[
-            language === 'javascript' ? javascript() : java(), 
+            ...ekstensiBahasa(language), 
             EditorView.lineWrapping, 
             EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
           ]}
@@ -454,7 +453,7 @@ export function CodeChallengeCardComponent({
         <CodeMirror
           value={code}
           extensions={[
-            language === 'javascript' ? javascript() : java(), 
+            ...ekstensiBahasa(language), 
             EditorView.lineWrapping, 
             EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
           ]}

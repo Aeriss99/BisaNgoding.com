@@ -327,8 +327,12 @@ export default function Dashboard() {
 
                   <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs font-mono font-bold text-[var(--color-text-secondary)]">
                     {course.language === 'english' ? (
-                      <div className="flex items-center gap-1.5 bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded border-2 border-black">
+                      <div className="flex items-center gap-1.5 bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded border-2 border-[var(--color-text-main)]">
                         Latihan 5 menit
+                      </div>
+                    ) : course.language === 'git' ? (
+                      <div className="flex items-center gap-1.5 bg-[var(--color-primary-light)] text-[var(--color-text-main)] px-2 py-0.5 rounded border-2 border-[var(--color-text-main)]">
+                        Praktik di terminal komputermu
                       </div>
                     ) : (
                       <>

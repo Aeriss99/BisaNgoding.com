@@ -7,8 +7,7 @@ import type {
 } from '../../types/schema';
 import { Play, CheckCircle, Check, X, AlertTriangle } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
-import { java } from '@codemirror/lang-java';
-import { javascript } from '@codemirror/lang-javascript';
+import { ekstensiBahasa } from '../../lib/editorBahasa';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -101,7 +100,7 @@ export function UnderstandingCheckCardComponent({
           <div className="border-2 border-[var(--color-text-main)] rounded-xl overflow-hidden">
             <CodeMirror
               value={q.code}
-              extensions={[language === 'javascript' ? javascript() : java()]}
+              extensions={ekstensiBahasa(language)}
               theme="light"
               readOnly={true}
               basicSetup={{ lineNumbers: true }}
@@ -305,11 +304,11 @@ export function PredictOutputCardComponent({
 
   return (
     <div className="space-y-4">
-      <h3 className="font-bold text-lg">Apa output dari program ini?</h3>
+      <h3 className="font-bold text-lg">{card.question ?? 'Apa output dari program ini?'}</h3>
       <div className="border rounded-lg overflow-hidden border-gray-300">
         <CodeMirror
           value={card.code}
-          extensions={[language === 'javascript' ? javascript() : java()]}
+          extensions={ekstensiBahasa(language)}
           theme="light"
           readOnly={true}
           basicSetup={{ lineNumbers: true }}

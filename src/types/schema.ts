@@ -151,6 +151,7 @@ export interface ReorderCard {
 
 export interface PredictOutputCard {
   type: 'predict_output';
+  question?: string;
   code: string;
   options: string[];
   answer: number;

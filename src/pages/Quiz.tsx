@@ -11,8 +11,7 @@ import {
   PASSING_SCORE,
 } from '../lib/quizLogic';
 import CodeMirror from '@uiw/react-codemirror';
-import { java } from '@codemirror/lang-java';
-import { javascript } from '@codemirror/lang-javascript';
+import { ekstensiBahasa } from '../lib/editorBahasa';
 
 export default function QuizPage() {
   const { moduleId } = useParams();
@@ -179,7 +178,7 @@ export default function QuizPage() {
                   <div className="border rounded-lg overflow-hidden border-gray-300">
                     <CodeMirror
                       value={q.code}
-                      extensions={[language === 'javascript' ? javascript() : java()]}
+                      extensions={ekstensiBahasa(language)}
                       theme="light"
                       readOnly={true}
                     />

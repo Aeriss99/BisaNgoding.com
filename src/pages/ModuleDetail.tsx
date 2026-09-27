@@ -1,6 +1,6 @@
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { ArrowLeft, BookOpen, CheckCircle, Trophy, Lock, Menu } from 'lucide-react';
-import { getModule, getVisibleLessons, getQuizQuestions, checkModuleUnlocked } from '../lib/content';
+import { getModule, getVisibleLessons, getQuizQuestions, checkModuleUnlocked, coursesData } from '../lib/content';
 import { useProgress } from '../context/ProgressContext';
 import { useState } from 'react';
 import CourseOutline from '../components/layout/CourseOutline';
@@ -33,6 +33,7 @@ export default function ModuleDetail() {
   const quizTersedia = !!getQuizQuestions(mod.id);
   const quizScore = progress.quizScores?.[mod.id];
   const requiresJdk17 = lessons.some((l) => l.javaVersion === 17);
+  const course = coursesData.find((c) => c.id === (mod.courseId || 'java'));
 
   return (
     <div className="space-y-6">
@@ -51,6 +52,11 @@ export default function ModuleDetail() {
           {requiresJdk17 && (
             <div className="inline-block mt-2 font-mono text-[10px] font-bold px-2 py-0.5 rounded border-2 border-[var(--color-text-main)] bg-[var(--color-accent-light)] text-[var(--color-text-main)]">
               BUTUH JDK 17 DI KOMPUTER
+            </div>
+          )}
+          {course?.language === 'git' && (
+            <div className="inline-block mt-2 font-mono text-[10px] font-bold px-2 py-0.5 rounded border-2 border-[var(--color-text-main)] bg-[var(--color-primary-light)] text-[var(--color-text-main)]">
+              PRAKTIK DI TERMINAL KOMPUTERMU
             </div>
           )}
         </div>

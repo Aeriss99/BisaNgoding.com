@@ -40,8 +40,11 @@ function CodeBlockWithCopy({ children, className, ...props }: any) {
   };
 
   return (
-    <div className="relative group my-4">
-      <pre className="bg-gray-900 text-green-400 p-4 rounded-xl overflow-x-auto text-sm brutal-border shadow-[4px_4px_0_#1A1A1A] m-0">
+    <div className="relative group my-4 max-w-full">
+      <pre 
+        className="bg-gray-900 text-green-400 p-4 rounded-xl overflow-x-auto text-sm brutal-border shadow-[4px_4px_0_#1A1A1A] m-0"
+        style={{ whiteSpace: 'pre', tabSize: 4 }}
+      >
         <code className={className} {...props}>
           {children}
         </code>
@@ -248,7 +251,9 @@ export default function LessonPage() {
                   if (match && match[1] === 'mermaid') {
                     return (
                       <Suspense fallback={<div className="text-sm text-gray-400">Memuat diagram...</div>}>
-                        <Mermaid chart={String(children).replace(/\n$/, '')} />
+                        <div className="overflow-x-auto max-w-full">
+                          <Mermaid chart={String(children).replace(/\n$/, '')} />
+                        </div>
                       </Suspense>
                     );
                   }
