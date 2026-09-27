@@ -271,7 +271,7 @@ export default function LessonPage() {
                   }
                   return (
                     <code
-                      className="bg-[var(--color-accent)] text-[var(--color-text-main)] px-1.5 py-0.5 rounded-md text-sm font-mono border border-[var(--color-text-main)]"
+                      className="bg-[#f4eb6c] text-[var(--color-text-main)] px-1.5 py-0.5 rounded-md text-sm font-mono border border-[var(--color-text-main)]"
                       {...props}
                     >
                       {children}

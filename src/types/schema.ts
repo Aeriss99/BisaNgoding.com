@@ -2,6 +2,7 @@ export interface Course {
   id: string;
   title: string;
   language: string;
+  short?: string;
   order: number;
   description?: string;
   status?: 'ready' | 'soon';

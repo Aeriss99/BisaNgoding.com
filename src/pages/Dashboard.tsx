@@ -301,7 +301,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-start gap-4 mb-6">
                   <div className="w-12 h-12 rounded-full border-[3px] border-[var(--color-text-main)] flex items-center justify-center font-space text-lg bg-[var(--color-primary)] shrink-0 shadow-[2px_2px_0_var(--color-text-main)] group-hover:scale-110 transition-transform">
-                    {course.language.toUpperCase().substring(0, 2)}
+                    {course.short ?? course.language.toUpperCase().substring(0, 2)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-space text-lg leading-tight mb-2 group-hover:text-[var(--color-accent)] transition-colors">

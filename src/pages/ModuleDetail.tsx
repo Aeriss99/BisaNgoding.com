@@ -1,12 +1,15 @@
 import { useParams, Link, Navigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, CheckCircle, Trophy, Lock } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle, Trophy, Lock, Menu } from 'lucide-react';
 import { getModule, getVisibleLessons, getQuizQuestions, checkModuleUnlocked } from '../lib/content';
 import { useProgress } from '../context/ProgressContext';
+import { useState } from 'react';
+import CourseOutline from '../components/layout/CourseOutline';
 
 export default function ModuleDetail() {
   const { moduleId } = useParams();
   const mod = getModule(moduleId || '');
   const { progress } = useProgress();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (!mod) {
     return (
@@ -33,7 +36,7 @@ export default function ModuleDetail() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center gap-4 mb-6">
+      <header className="flex items-center gap-4 mb-4">
         <Link
           to={`/kelas/${mod.courseId || 'java'}`}
           className="p-2 brutal-btn bg-white rounded-full flex items-center justify-center"
@@ -52,6 +55,34 @@ export default function ModuleDetail() {
           )}
         </div>
       </header>
+
+      {/* Button Drawer - Only visible below 1024px */}
+      <button 
+        onClick={() => setDrawerOpen(true)}
+        className="lg:hidden w-full min-h-[44px] flex items-center justify-center gap-2 bg-white border-[3px] border-[var(--color-text-main)] text-[var(--color-text-main)] font-bold px-4 py-2 mb-6 shadow-[3px_3px_0_var(--color-text-main)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_var(--color-text-main)] transition-all rounded-lg"
+      >
+        <Menu className="w-5 h-5" /> 
+        Daftar modul · {lessons.filter(l => progress.completedLessons.includes(l.id)).length}/{lessons.length}
+      </button>
+
+      {/* Drawer Overlay */}
+      {drawerOpen && (
+        <div className="lg:hidden fixed inset-0 z-[60] flex">
+          <div 
+            className="absolute inset-0 bg-black/50" 
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden="true"
+          />
+          <div 
+            role="dialog" 
+            aria-modal="true" 
+            aria-label="Daftar modul"
+            className="relative w-[min(85vw,320px)] h-full transition-transform duration-200 transform translate-x-0"
+          >
+            <CourseOutline onClose={() => setDrawerOpen(false)} />
+          </div>
+        </div>
+      )}
 
       {mod.id === 'proyek-todolist' && (
         <div className="hidden md:flex justify-center mb-6">

@@ -120,12 +120,6 @@ export default function Profile() {
                   </div>
                 </div>
               </div>
-              <button
-                onClick={keluar}
-                className="w-full flex items-center justify-center gap-2 brutal-btn !bg-red-400 !text-white !p-3"
-              >
-                <LogOut className="w-5 h-5" /> Keluar
-              </button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -206,6 +200,15 @@ export default function Profile() {
           </button>
         </div>
       </section>
+
+      {isSupabaseConfigured && user && (
+        <button
+          onClick={keluar}
+          className="w-full flex items-center justify-center gap-2 brutal-btn !bg-red-400 !text-white !p-3 mt-6"
+        >
+          <LogOut className="w-5 h-5" /> Keluar
+        </button>
+      )}
     </div>
   );
 }

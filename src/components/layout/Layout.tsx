@@ -3,20 +3,18 @@ import {
   BookOpen,
   User,
   LogIn,
-  LogOut,
   Award,
   Users,
-  CheckCircle,
-  RefreshCw,
-  XCircle,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useProgress } from '../../context/ProgressContext';
 import { ComingSoon } from '../ComingSoon';
+import { LogoIcon } from '../ui/LogoIcon';
+import CourseOutline from './CourseOutline';
 
 export default function Layout() {
   const location = useLocation();
-  const { user, masukGoogle, keluar, isSupabaseConfigured } = useAuth();
+  const { user, masukGoogle, isSupabaseConfigured } = useAuth();
   const { syncStatus } = useProgress();
 
   const navItems = [
@@ -24,17 +22,24 @@ export default function Layout() {
     { path: '/profile', label: 'Profil', icon: User },
   ];
 
+  const showPanel = location.pathname.startsWith('/kelas/') || location.pathname.startsWith('/module/');
+
   return (
-    <div className="flex flex-col min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-main)] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-64 relative z-0">
-      {/* Sidebar for Desktop / Top Header for Mobile */}
-      <aside className="hidden md:flex flex-col w-64 fixed inset-y-0 left-0 bg-white brutal-border-3 border-l-0 border-y-0 z-10">
-        <div className="p-5 border-b-2 border-[var(--color-text-main)] flex items-center gap-3">
-          <div className="w-8 h-8 shrink-0 bg-[var(--color-accent)] border-2 border-[var(--color-text-main)] flex items-center justify-center text-white font-mono font-bold text-lg shadow-[2px_2px_0_var(--color-text-main)]">
-            {'{ }'}
-          </div>
-          <h1 className="text-xl font-space">BisaNgoding</h1>
+    <div className={`flex flex-col min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-main)] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 relative z-0 ${showPanel ? 'lg:pl-[352px] md:pl-[72px]' : 'md:pl-[72px]'}`}>
+      
+      {/* Permanent Panel (Desktop >= 1024px) */}
+      {showPanel && (
+        <div className="hidden lg:block fixed inset-y-0 left-[72px] w-[280px] bg-white border-r-[3px] border-[var(--color-text-main)] z-10">
+          <CourseOutline />
         </div>
-        <nav className="flex-1 p-4 space-y-3">
+      )}
+
+      {/* Sidebar (Rail) for Desktop/Tablet */}
+      <aside className="hidden md:flex flex-col w-[72px] items-center fixed inset-y-0 left-0 bg-white brutal-border-3 border-l-0 border-y-0 z-20 py-5">
+        <div className="mb-6 shrink-0">
+          <LogoIcon size={40} />
+        </div>
+        <nav className="flex-1 flex flex-col items-center w-full space-y-3 px-3">
           {navItems.map((item) => {
             const isActive =
               location.pathname === item.path ||
@@ -43,101 +48,82 @@ export default function Layout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${
+                title={item.label}
+                aria-label={item.label}
+                className={`flex items-center justify-center rounded-xl transition-all w-11 h-11 shrink-0 ${
                   isActive
-                    ? 'bg-[var(--color-primary)] border-2 border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)] text-[var(--color-text-main)]'
+                    ? 'bg-[var(--color-primary)] border-2 border-[var(--color-text-main)] shadow-[3px_3px_0_var(--color-text-main)] text-[var(--color-text-main)]'
                     : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-base)]'
                 }`}
               >
                 <item.icon
-                  className="w-5 h-5"
+                  className="w-6 h-6"
                   strokeWidth={isActive ? 2.5 : 2}
                 />
-                {item.label}
               </Link>
             );
           })}
 
-          <div className="pt-2 space-y-3">
-            <div className="w-full flex">
+          <div className="pt-2 flex flex-col items-center w-full space-y-3">
+            <div className="flex justify-center w-full">
               <ComingSoon inline text="SOON">
-                <div className="flex items-center gap-3 p-3 font-bold text-[var(--color-text-secondary)]">
-                  <Award className="w-5 h-5" />
-                  <span>Sertifikat</span>
+                <div 
+                  title="Sertifikat — segera hadir"
+                  className="flex relative items-center justify-center w-11 h-11 opacity-50 text-[var(--color-text-secondary)]"
+                >
+                  <Award className="w-6 h-6" />
+                  <div className="absolute top-1 right-1 w-2 h-2 bg-yellow-400 rounded-full border border-black"></div>
                 </div>
               </ComingSoon>
             </div>
-            <div className="w-full flex">
+            
+            <div className="flex justify-center w-full">
               <ComingSoon inline text="SOON">
-                <div className="flex items-center gap-3 p-3 font-bold text-[var(--color-text-secondary)]">
-                  <Users className="w-5 h-5" />
-                  <span>Komunitas</span>
+                <div 
+                  title="Komunitas — segera hadir"
+                  className="flex relative items-center justify-center w-11 h-11 opacity-50 text-[var(--color-text-secondary)]"
+                >
+                  <Users className="w-6 h-6" />
+                  <div className="absolute top-1 right-1 w-2 h-2 bg-yellow-400 rounded-full border border-black"></div>
                 </div>
               </ComingSoon>
             </div>
           </div>
         </nav>
 
-        <div className="p-4 mt-auto border-t-2 border-[var(--color-text-main)]">
+        <div className="mt-auto pt-4 shrink-0 px-3 w-full flex flex-col items-center">
           {isSupabaseConfigured && (
-            <div className="w-full">
+            <div className="relative">
               {user ? (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-3">
-                    {user.user_metadata?.avatar_url ? (
-                      <img
-                        src={user.user_metadata.avatar_url}
-                        alt="Profile"
-                        className="w-10 h-10 rounded-full brutal-border shrink-0"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full brutal-border bg-[var(--color-primary)] flex items-center justify-center font-space text-lg shrink-0">
-                        {user.email?.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="font-space text-sm truncate">
-                        {user.user_metadata?.full_name || 'Pelajar'}
-                      </div>
-                      <div
-                        className="text-xs text-[var(--color-text-secondary)] truncate"
-                        title={user.email}
-                      >
-                        {user.email}
-                      </div>
+                <Link to="/profile" className="block relative group" title="Profil">
+                  {user.user_metadata?.avatar_url ? (
+                    <img
+                      src={user.user_metadata.avatar_url}
+                      alt="Profile"
+                      className="w-10 h-10 rounded-full brutal-border shrink-0 object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full brutal-border bg-[var(--color-primary)] flex items-center justify-center font-space text-lg shrink-0">
+                      {user.email?.charAt(0).toUpperCase()}
                     </div>
-                  </div>
-
-                  <div className="flex items-start gap-1.5 text-xs text-[var(--color-text-secondary)] font-medium">
-                    {syncStatus === 'Tersimpan' && (
-                      <CheckCircle className="w-4 h-4 text-[var(--color-success)] shrink-0" />
-                    )}
-                    {syncStatus === 'Menyimpan...' && (
-                      <RefreshCw className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
-                    )}
-                    {syncStatus === 'Offline, tersimpan di perangkat ini' && (
-                      <XCircle className="w-4 h-4 text-[var(--color-danger)] shrink-0" />
-                    )}
-                    <span>
-                      {syncStatus === 'Tersimpan'
-                        ? 'Progres tersinkron ke akun Google'
-                        : syncStatus}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={keluar}
-                    className="flex items-center justify-center gap-2 mt-1 w-full border-2 border-[var(--color-text-main)] bg-white text-[var(--color-danger)] py-2 rounded-lg font-bold shadow-[3px_3px_0_var(--color-text-main)] hover:shadow-[1px_1px_0_var(--color-text-main)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-sm"
-                  >
-                    <LogOut className="w-4 h-4" /> Keluar
-                  </button>
-                </div>
+                  )}
+                  {/* Status sync dot */}
+                  <div 
+                    title={syncStatus === 'Tersimpan' ? 'Progres tersinkron ke akun Google' : syncStatus}
+                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                      syncStatus === 'Tersimpan' ? 'bg-[var(--color-success)]' :
+                      syncStatus === 'Menyimpan...' ? 'bg-blue-500 animate-pulse' :
+                      'bg-[var(--color-danger)]'
+                    }`}
+                  />
+                </Link>
               ) : (
                 <button
                   onClick={masukGoogle}
-                  className="flex items-center justify-center gap-2 w-full bg-[var(--color-accent)] border-2 border-[var(--color-text-main)] text-white p-3 rounded-xl font-bold shadow-[4px_4px_0_var(--color-text-main)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_var(--color-text-main)] transition-all"
+                  title="Masuk Google"
+                  className="flex items-center justify-center w-11 h-11 bg-[var(--color-accent)] border-2 border-[var(--color-text-main)] text-white rounded-full shadow-[2px_2px_0_var(--color-text-main)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_var(--color-text-main)] transition-all"
                 >
-                  <LogIn className="w-5 h-5" /> Masuk Google
+                  <LogIn className="w-5 h-5 ml-1" />
                 </button>
               )}
             </div>
@@ -146,29 +132,35 @@ export default function Layout() {
       </aside>
 
       {/* Header for Mobile */}
-      <header className="md:hidden bg-white border-b-2 border-[var(--color-text-main)] p-4 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 shrink-0 bg-[var(--color-accent)] border-2 border-[var(--color-text-main)] flex items-center justify-center text-white font-mono font-bold text-sm shadow-[2px_2px_0_var(--color-text-main)]">
-            {'{ }'}
-          </div>
-          <h1 className="text-lg font-space">BisaNgoding</h1>
-        </div>
+      <header className="md:hidden bg-white border-b-[3px] border-[var(--color-text-main)] p-3 px-4 flex items-center justify-between sticky top-0 z-40">
+        <LogoIcon size={32} />
+        
         {user ? (
-          user.user_metadata?.avatar_url ? (
-            <img
-              src={user.user_metadata.avatar_url}
-              alt="Profile"
-              className="w-8 h-8 rounded-full border-2 border-[var(--color-text-main)]"
+          <Link to="/profile" className="block relative group" title="Profil">
+            {user.user_metadata?.avatar_url ? (
+              <img
+                src={user.user_metadata.avatar_url}
+                alt="Profile"
+                className="w-9 h-9 rounded-full border-2 border-[var(--color-text-main)]"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full border-2 border-[var(--color-text-main)] bg-[var(--color-primary)] flex items-center justify-center font-space text-sm">
+                {user.email?.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div 
+              title={syncStatus === 'Tersimpan' ? 'Progres tersinkron ke akun Google' : syncStatus}
+              className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-[1.5px] border-white ${
+                syncStatus === 'Tersimpan' ? 'bg-[var(--color-success)]' :
+                syncStatus === 'Menyimpan...' ? 'bg-blue-500 animate-pulse' :
+                'bg-[var(--color-danger)]'
+              }`}
             />
-          ) : (
-            <div className="w-8 h-8 rounded-full border-2 border-[var(--color-text-main)] bg-[var(--color-primary)] flex items-center justify-center font-space text-sm">
-              {user.email?.charAt(0).toUpperCase()}
-            </div>
-          )
+          </Link>
         ) : (
           <button
             onClick={masukGoogle}
-            className="text-sm font-bold bg-[var(--color-accent)] text-white px-3 py-1 rounded border-2 border-[var(--color-text-main)]"
+            className="text-sm font-bold bg-[var(--color-accent)] text-white px-3 py-1.5 rounded-lg border-2 border-[var(--color-text-main)] shadow-[2px_2px_0_var(--color-text-main)]"
           >
             Masuk
           </button>
@@ -176,7 +168,7 @@ export default function Layout() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto z-10 w-full max-w-full">
+      <main className="flex-1 overflow-y-auto z-0 w-full max-w-full">
         <Outlet />
       </main>
 
@@ -205,11 +197,17 @@ export default function Layout() {
           );
         })}
         <div className="flex flex-col items-center justify-center p-2 rounded-lg text-[11px] font-bold text-gray-400 w-16 h-14 relative opacity-60">
-          <Award className="w-6 h-6 mb-1" />
+          <div className="relative">
+            <Award className="w-6 h-6 mb-1" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full border border-black"></div>
+          </div>
           Sertifikat
         </div>
         <div className="flex flex-col items-center justify-center p-2 rounded-lg text-[11px] font-bold text-gray-400 w-16 h-14 relative opacity-60">
-          <Users className="w-6 h-6 mb-1" />
+          <div className="relative">
+            <Users className="w-6 h-6 mb-1" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full border border-black"></div>
+          </div>
           Komunitas
         </div>
       </nav>
