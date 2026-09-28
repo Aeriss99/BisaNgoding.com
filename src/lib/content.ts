@@ -1,4 +1,5 @@
 import type { Lesson, Module, QuizQuestion, Course } from '../types/schema';
+import { acakPilihanPelajaran } from './quizLogic';
 import coursesJson from '../../content/courses.json';
 import javaModules from '../../content/java/modules.json';
 import jsModules from '../../content/javascript/modules.json';
@@ -65,7 +66,8 @@ Object.keys(lessonFiles).forEach((path) => {
   if (lessonsCache[data.id]) {
     console.error(`ID pelajaran dobel: '${data.id}' di ${path}`);
   }
-  lessonsCache[data.id] = data as Lesson;
+  // Urutan pilihan jawaban diacak sekali setiap halaman dimuat, supaya kunci tidak selalu di posisi yang sama.
+  lessonsCache[data.id] = acakPilihanPelajaran(data as Lesson);
 
   const folder = path.split('/').slice(-2)[0];
   if (folder && data.moduleId) {
