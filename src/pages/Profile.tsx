@@ -123,7 +123,7 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-6 max-w-lg mx-auto">
+    <div className="space-y-6 max-w-lg mx-auto px-4 md:px-6 py-6">
       <header>
         <h1 className="text-2xl font-bold mb-2">Profil & Pengaturan</h1>
         <p className="text-gray-600">Kelola progres belajar Anda.</p>

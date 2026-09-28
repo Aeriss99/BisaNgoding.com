@@ -111,6 +111,18 @@ export function checkModuleUnlocked(mod: Module, progress: any): boolean {
   return reqAllLessonsCompleted && (!reqQuiz || reqQuiz.length === 0 || reqScore?.passed);
 }
 
+/** Nomor urut modul di dalam kelasnya (1, 2, 3, ...), hanya menghitung modul yang tidak draft. */
+export function nomorModul(moduleId: string): { nomor: number; total: number } | null {
+  const mod = getModule(moduleId);
+  if (!mod) return null;
+  const courseId = mod.courseId || 'java';
+  const daftar = modulesData
+    .filter((m) => (m.courseId || 'java') === courseId && m.status !== 'draft')
+    .sort((a, b) => a.order - b.order);
+  const i = daftar.findIndex((m) => m.id === mod.id);
+  return i < 0 ? null : { nomor: i + 1, total: daftar.length };
+}
+
 export function isSkeletonLesson(lesson: Lesson): boolean {
   const t = lesson.title || '';
   return (

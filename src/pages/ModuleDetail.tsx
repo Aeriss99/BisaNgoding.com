@@ -1,26 +1,25 @@
 import { useParams, Link, Navigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, CheckCircle, Trophy, Lock, Menu } from 'lucide-react';
-import { getModule, getVisibleLessons, getQuizQuestions, checkModuleUnlocked, coursesData } from '../lib/content';
+import { ArrowLeft, BookOpen, CheckCircle, Trophy, Lock } from 'lucide-react';
+import { getModule, getVisibleLessons, getQuizQuestions, checkModuleUnlocked, coursesData, nomorModul } from '../lib/content';
 import { useProgress } from '../context/ProgressContext';
-import { useState } from 'react';
-import CourseOutline from '../components/layout/CourseOutline';
 
 export default function ModuleDetail() {
   const { moduleId } = useParams();
   const mod = getModule(moduleId || '');
   const { progress } = useProgress();
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (!mod) {
     return (
-      <div className="p-8 text-center space-y-4">
-        <p className="text-red-500">Modul tidak ditemukan.</p>
-        <Link
-          to="/kelas/java"
-          className="inline-block bg-blue-600 text-white font-bold py-2 px-6 rounded-xl"
-        >
-          Kembali ke Kelas
-        </Link>
+      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
+        <div className="p-8 text-center space-y-4">
+          <p className="text-red-500">Modul tidak ditemukan.</p>
+          <Link
+            to="/kelas/java"
+            className="inline-block bg-blue-600 text-white font-bold py-2 px-6 rounded-xl"
+          >
+            Kembali ke Kelas
+          </Link>
+        </div>
       </div>
     );
   }
@@ -34,61 +33,38 @@ export default function ModuleDetail() {
   const quizScore = progress.quizScores?.[mod.id];
   const requiresJdk17 = lessons.some((l) => l.javaVersion === 17);
   const course = coursesData.find((c) => c.id === (mod.courseId || 'java'));
+  const nomorInfo = nomorModul(mod.id);
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-center gap-4 mb-4">
+    <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
+      <header className="flex items-start gap-4 mb-4">
         <Link
           to={`/kelas/${mod.courseId || 'java'}`}
-          className="p-2 brutal-btn bg-white rounded-full flex items-center justify-center"
+          className="p-2 brutal-btn bg-white rounded-full flex items-center justify-center shrink-0"
         >
           <ArrowLeft className="w-6 h-6" />
         </Link>
         <div>
-          <div className="text-sm text-[var(--color-primary)] font-bold">
-            Modul {mod.order}
-          </div>
+          {nomorInfo && (
+            <div className="text-[var(--color-text-secondary)] font-mono text-xs font-bold uppercase tracking-wide">
+              Modul {nomorInfo.nomor} dari {nomorInfo.total}
+            </div>
+          )}
           <h1 className="text-2xl font-extrabold">{mod.title}</h1>
-          {requiresJdk17 && (
-            <div className="inline-block mt-2 font-mono text-[10px] font-bold px-2 py-0.5 rounded border-2 border-[var(--color-text-main)] bg-[var(--color-accent-light)] text-[var(--color-text-main)]">
-              BUTUH JDK 17 DI KOMPUTER
-            </div>
-          )}
-          {course?.language === 'git' && (
-            <div className="inline-block mt-2 font-mono text-[10px] font-bold px-2 py-0.5 rounded border-2 border-[var(--color-text-main)] bg-[var(--color-primary-light)] text-[var(--color-text-main)]">
-              PRAKTIK DI TERMINAL KOMPUTERMU
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2 mt-2">
+            {requiresJdk17 && (
+              <div className="inline-block font-mono text-[10px] font-bold px-2 py-0.5 rounded border-2 border-[var(--color-text-main)] bg-[var(--color-accent-light)] text-[var(--color-text-main)]">
+                BUTUH JDK 17 DI KOMPUTER
+              </div>
+            )}
+            {course?.language === 'git' && (
+              <div className="inline-block font-mono text-[10px] font-bold px-2 py-0.5 rounded border-2 border-[var(--color-text-main)] bg-[var(--color-primary-light)] text-[var(--color-text-main)]">
+                PRAKTIK DI TERMINAL KOMPUTERMU
+              </div>
+            )}
+          </div>
         </div>
       </header>
-
-      {/* Button Drawer - Only visible below 1024px */}
-      <button 
-        onClick={() => setDrawerOpen(true)}
-        className="lg:hidden w-full min-h-[44px] flex items-center justify-center gap-2 bg-white border-[3px] border-[var(--color-text-main)] text-[var(--color-text-main)] font-bold px-4 py-2 mb-6 shadow-[3px_3px_0_var(--color-text-main)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_var(--color-text-main)] transition-all rounded-lg"
-      >
-        <Menu className="w-5 h-5" /> 
-        Daftar modul · {lessons.filter(l => progress.completedLessons.includes(l.id)).length}/{lessons.length}
-      </button>
-
-      {/* Drawer Overlay */}
-      {drawerOpen && (
-        <div className="lg:hidden fixed inset-0 z-[60] flex">
-          <div 
-            className="absolute inset-0 bg-black/50" 
-            onClick={() => setDrawerOpen(false)}
-            aria-hidden="true"
-          />
-          <div 
-            role="dialog" 
-            aria-modal="true" 
-            aria-label="Daftar modul"
-            className="relative w-[min(85vw,320px)] h-full transition-transform duration-200 transform translate-x-0"
-          >
-            <CourseOutline onClose={() => setDrawerOpen(false)} />
-          </div>
-        </div>
-      )}
 
       {mod.id === 'proyek-todolist' && (
         <div className="hidden md:flex justify-center mb-6">
