@@ -190,6 +190,11 @@ export function UnderstandingCheckCardComponent({
   );
 }
 
+/** Semua jawaban yang diterima untuk satu kotak isian (dipisah | di data). */
+function jawabanDiterima(answer: string): string[] {
+  return answer.split('|').map((a) => a.trim());
+}
+
 export function FillBlankCardComponent({
   card,
   onSuccess,
@@ -198,54 +203,84 @@ export function FillBlankCardComponent({
   onSuccess: (attempts: number) => void;
 }) {
   const parts = card.code.split('___');
-  const [inputs, setInputs] = useState<string[]>(
-    Array(card.answers.length).fill('')
-  );
+  const [inputs, setInputs] = useState<string[]>(() => Array(card.answers.length).fill(''));
+  const [salah, setSalah] = useState<boolean[]>(() => Array(card.answers.length).fill(false));
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [attempts, setAttempts] = useState(0);
+  const [jawabanDitunjukkan, setJawabanDitunjukkan] = useState(false);
+
+  // Kartu baru = mulai bersih (komponen ini bisa dipakai ulang untuk kartu isian berikutnya).
+  useEffect(() => {
+    setInputs(Array(card.answers.length).fill(''));
+    setSalah(Array(card.answers.length).fill(false));
+    setIsSuccess(false);
+    setErrorMsg('');
+    setAttempts(0);
+    setJawabanDitunjukkan(false);
+  }, [card]);
 
   const handleCheck = () => {
+    if (isSuccess) return;
     const newAttempts = attempts + 1;
     setAttempts(newAttempts);
-    let allCorrect = true;
-    for (let i = 0; i < card.answers.length; i++) {
-      const validAnswers = card.answers[i].split('|').map((a) => a.trim());
-      if (!validAnswers.includes(inputs[i].trim())) {
-        allCorrect = false;
-        break;
-      }
-    }
-    if (allCorrect) {
+    const hasil = card.answers.map((a, i) => !jawabanDiterima(a).includes((inputs[i] ?? '').trim()));
+    setSalah(hasil);
+    if (hasil.every((x) => !x)) {
       setIsSuccess(true);
       setErrorMsg('');
       onSuccess(newAttempts);
+    } else if (inputs.some((x) => !x.trim())) {
+      setErrorMsg('Masih ada kotak yang kosong.');
     } else {
-      setErrorMsg('Masih ada yang salah. Coba periksa lagi!');
+      setErrorMsg('Masih ada yang salah. Baca lagi petunjuk di atas kodenya, lalu coba lagi!');
     }
+  };
+
+  const tunjukkanJawaban = () => {
+    setInputs(card.answers.map((a) => jawabanDiterima(a)[0]));
+    setSalah(Array(card.answers.length).fill(false));
+    setJawabanDitunjukkan(true);
+    setErrorMsg('');
   };
 
   return (
     <div className="space-y-4">
       <h3 className="font-bold text-lg">Lengkapi kode berikut:</h3>
-      <div className="p-4 bg-gray-50 border rounded-lg font-mono text-sm leading-relaxed overflow-x-auto whitespace-pre">
+      <div className="p-4 bg-gray-50 border rounded-lg font-mono text-sm leading-loose overflow-x-auto whitespace-pre">
         {parts.map((part, i) => (
           <span key={i}>
             {part}
             {i < parts.length - 1 && (
               <input
                 type="text"
-                value={inputs[i]}
-                onChange={(e) => {
+                aria-label={`Isian ${i + 1}`}
+                value={inputs[i] ?? ''}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   const newInputs = [...inputs];
                   newInputs[i] = e.target.value;
                   setInputs(newInputs);
+                  if (salah[i]) setSalah(salah.map((x, j) => (j === i ? false : x)));
+                }}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleCheck();
+                  }
                 }}
                 disabled={isSuccess}
-                className={`mx-1 px-1 border-b-2 bg-transparent outline-none w-20 text-center ${
+                // HP sering mengubah huruf pertama jadi kapital ("Init"), padahal kode peka huruf besar-kecil.
+                autoCapitalize="off"
+                autoCorrect="off"
+                autoComplete="off"
+                spellCheck={false}
+                style={{ width: `${Math.max(6, ...jawabanDiterima(card.answers[i] ?? '').map((a) => a.length)) + 2}ch` }}
+                className={`mx-1 px-1 border-b-2 bg-transparent outline-none text-center ${
                   isSuccess
                     ? 'border-green-500 text-green-700'
-                    : 'border-blue-500 focus:border-blue-700'
+                    : salah[i]
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-blue-500 focus:border-blue-700'
                 }`}
               />
             )}
@@ -253,8 +288,11 @@ export function FillBlankCardComponent({
         ))}
       </div>
 
-      {errorMsg && (
-        <p className="text-red-500 text-sm font-medium">{errorMsg}</p>
+      {errorMsg && <p className="text-red-500 text-sm font-medium">{errorMsg}</p>}
+      {jawabanDitunjukkan && !isSuccess && (
+        <p className="text-sm font-medium text-gray-700">
+          Jawabannya sudah diisikan. Perhatikan, lalu tekan Cek Jawaban untuk lanjut.
+        </p>
       )}
 
       <button
@@ -266,13 +304,19 @@ export function FillBlankCardComponent({
             : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white'
         }`}
       >
-        {isSuccess ? (
-          <CheckCircle className="w-5 h-5" />
-        ) : (
-          <Play className="w-5 h-5" />
-        )}
+        {isSuccess ? <CheckCircle className="w-5 h-5" /> : <Play className="w-5 h-5" />}
         {isSuccess ? 'Benar!' : 'Cek Jawaban'}
       </button>
+
+      {/* Supaya pelajar tidak terjebak selamanya di satu kartu. */}
+      {!isSuccess && !jawabanDitunjukkan && attempts >= 2 && (
+        <button
+          onClick={tunjukkanJawaban}
+          className="w-full text-sm font-bold py-2 rounded-xl border-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          Tunjukkan jawaban
+        </button>
+      )}
     </div>
   );
 }

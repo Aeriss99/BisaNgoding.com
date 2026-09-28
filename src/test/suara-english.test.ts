@@ -12,7 +12,7 @@ const REKAMAN = rekaman as Record<string, string>;
 
 // Kata tunggal yang sengaja tidak direkam (terlalu pendek, tidak lolos pemeriksaan pengenal suara).
 // Di dalam kalimat, kata ini tetap terdengar.
-const SENGAJA_TANPA_REKAMAN = new Set(['at', 'he']);
+const SENGAJA_TANPA_REKAMAN = new Set(["'s", "at", "bought", "he", "her", "the"]);
 
 function semuaPelajaranLatihan(): { file: string; lesson: Lesson }[] {
   const dir = path.join(ROOT, 'content/english');

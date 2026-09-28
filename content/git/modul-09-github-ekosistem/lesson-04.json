@@ -1,0 +1,110 @@
+{
+  "id": "gh-ekosistem-04",
+  "moduleId": "gh-ekosistem",
+  "order": 4,
+  "title": "API dan Webhooks",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Semua yang kamu lihat di GitHub (profil, repo, issue, PR) juga bisa diambil oleh **program**, bukan hanya oleh manusia lewat browser. Pintu masuknya disebut **API** (*Application Programming Interface*).\n\nContoh kegunaannya: halaman portofolio Budi bisa menampilkan daftar repo terbarunya secara otomatis, tanpa ia perlu memperbaruinya satu per satu.\n\nAda juga arah sebaliknya. Dengan **webhook**, bukan programmu yang bertanya ke GitHub, tapi **GitHub yang memberi tahu** programmu setiap kali terjadi sesuatu, misalnya ada push atau PR baru.\n\nAPI seperti **menelepon customer service**: kamu bertanya, lalu mendapat jawaban. Kalau terlalu sering menelepon dalam satu jam, kamu diminta menunggu. Webhook seperti **notifikasi paket dari kurir**: kamu tidak perlu menelepon setiap lima menit untuk bertanya \"paketku sudah sampai?\", karena kurir yang akan mengirim pesan begitu paketnya tiba."
+    },
+    {
+      "type": "theory",
+      "content": "**REST API: mengambil data profil**\n\nData publik bisa diambil **tanpa login**. Coba di terminal:\n\n```bash\ncurl https://api.github.com/users/budi\n```\n\nContoh jawabannya (disingkat, angka akun sungguhan pasti berbeda):\n\n```json\n{\n  \"login\": \"budi\",\n  \"id\": 1234567,\n  \"html_url\": \"https://github.com/budi\",\n  \"name\": \"Budi Santoso\",\n  \"bio\": \"Belajar coding di BisaNgoding\",\n  \"public_repos\": 12,\n  \"followers\": 30,\n  \"created_at\": \"2024-01-15T08:00:00Z\"\n}\n```\n\nJawabannya berformat **JSON**: pasangan nama dan nilai yang mudah dibaca program. GitHub menganjurkan dua header ini supaya jawabannya konsisten:\n\n```bash\ncurl -H \"Accept: application/vnd.github+json\" -H \"X-GitHub-Api-Version: 2026-03-10\" https://api.github.com/users/budi\n```\n\nKalau sudah login dengan `gh`, cara yang lebih singkat adalah `gh api users/budi`. Perintah ini otomatis memakai akunmu.\n\n**Batas permintaan (rate limit, per September 2026)**\n\n| Cara memanggil | Batas |\n|---|---|\n| tanpa login | **60 permintaan per jam** per alamat IP |\n| dengan token pribadi (atau `gh api`) | **5.000 permintaan per jam** |\n| `GITHUB_TOKEN` di dalam Actions | 1.000 permintaan per jam per repo |\n\nSisa jatahmu terlihat di header `x-ratelimit-*` (tambahkan `-i` ke `curl`) atau lewat `https://api.github.com/rate_limit`:\n\n```text\nx-ratelimit-limit: 60\nx-ratelimit-remaining: 59\n```\n\nMemakai token di `curl` (token di bawah ini palsu; token asli **jangan pernah** di-commit atau dibagikan):\n\n```bash\ncurl -H \"Authorization: Bearer ghp_contohTokenPalsu123\" https://api.github.com/rate_limit\n```\n\n**GraphQL** adalah API kedua milik GitHub. Semua permintaan dikirim ke satu alamat, `https://api.github.com/graphql`, dan kamu menentukan sendiri field apa saja yang ingin diambil. Bedanya dengan REST: GraphQL **wajib login**, dan batasnya dihitung dalam poin (5.000 poin per jam). Untuk pemula, REST sudah cukup.\n\n**Webhooks: GitHub yang memberi kabar**\n\n```mermaid\nflowchart LR\n    A[\"Budi push ke<br/>budi/portofolio\"] --> B[\"GitHub\"]\n    B -- \"kirim pemberitahuan (JSON)<br/>ke Payload URL\" --> C[\"Server milikmu<br/>contoh.com/webhook\"]\n    C -- \"balas 2XX<br/>dalam 10 detik\" --> B\n    C --> D[\"Server bertindak:<br/>kirim pesan ke grup, deploy, dll.\"]\n```\n\nCara memasang webhook: di repo, buka Settings > **Webhooks** > **Add webhook**.\n\n![Formulir Add webhook dengan Payload URL, Content type, Secret, pilihan event, Active, dan tombol Add webhook](images/github/eko-webhook-form.svg)\n\n- **1** Settings > **Webhooks**, lalu klik **Add webhook**.\n- **2** **Payload URL**: alamat server yang akan menerima pemberitahuan. Gunakan **HTTPS**.\n- **3** **Content type**: `application/json` (atau `application/x-www-form-urlencoded`).\n- **4** **Secret**: kata rahasia supaya servermu bisa memastikan pemberitahuan benar-benar dari GitHub.\n- **5** Pilih event apa saja yang memicu webhook, misalnya hanya `push`, atau juga `pull_request`.\n- **6** Pastikan **Active** tercentang, lalu klik **Add webhook**.\n\nContoh isi pemberitahuan untuk event `push` (disingkat):\n\n```json\n{\n  \"ref\": \"refs/heads/main\",\n  \"repository\": { \"full_name\": \"budi/portofolio\" },\n  \"pusher\": { \"name\": \"budi\" },\n  \"head_commit\": { \"message\": \"Perbarui foto profil\" }\n}\n```\n\nServer penerima harus membalas dengan status **2XX dalam 10 detik**. Kalau pekerjaannya lama, balas dulu, lalu kerjakan di belakang layar."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di terminal dan GitHub\n\n1. Ambil data profilmu sendiri (ganti `USERNAME`):\n\n```bash\ncurl https://api.github.com/users/USERNAME\n```\n\n2. Temukan field `login`, `public_repos`, dan `created_at` di jawabannya.\n3. Lihat sisa jatah permintaanmu tanpa login:\n\n```bash\ncurl -i https://api.github.com/users/USERNAME\n```\n\n   Cari baris `x-ratelimit-limit` dan `x-ratelimit-remaining`. Jalankan sekali lagi, lalu perhatikan angka `remaining` berkurang.\n4. Kalau sudah login dengan `gh`, bandingkan dengan:\n\n```bash\ngh api users/USERNAME\ngh api rate_limit\n```\n\n5. Buka repo `portofolio` > Settings > **Webhooks** > **Add webhook**. Perhatikan kolom-kolomnya: **Payload URL**, **Content type**, **Secret**, pilihan event, dan **Active**. Kalau kamu belum punya server yang bisa menerima pemberitahuan, cukup lihat formulirnya dulu tanpa menyimpannya.\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai alamat localhost sebagai Payload URL**\n\nSalah:\n\n```text\nPayload URL: http://localhost:3000/webhook\n```\n\nBenar:\n\n```text\nPayload URL: https://contoh.com/webhook\n```\n\nPemberitahuan dikirim dari server GitHub di internet. Server GitHub tidak bisa menjangkau localhost di laptopmu. Pakai alamat publik, sebaiknya HTTPS, dan isi Secret. Untuk mencoba di laptop, pakai layanan penerus seperti smee.io: GitHub mengirim ke alamat smee.io, lalu alat smee meneruskannya ke localhost di laptopmu.\n\n**2. Memanggil API berkali-kali tanpa login dari jaringan bersama**\n\nSalah:\n\n```bash\n# satu kelas memanggil API tanpa token dari Wi-Fi sekolah yang sama\ncurl https://api.github.com/users/budi\n```\n\nBenar:\n\n```bash\n# login dengan gh (atau pakai token pribadi) supaya batasnya 5.000 per jam\ngh api users/budi\n```\n\nBatas tanpa login dihitung per alamat IP: 60 permintaan per jam. Satu kelas di Wi-Fi yang sama bisa menghabiskannya bersama-sama dalam hitungan menit.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Berapa batas permintaan REST API GitHub **tanpa login** (per September 2026)?",
+          "options": [
+            "60 per jam per alamat IP",
+            "5.000 per jam",
+            "1.000 per menit",
+            "Tidak terbatas untuk data publik"
+          ],
+          "answer": 0,
+          "explanation": "Tanpa autentikasi, batasnya 60 permintaan per jam per IP.",
+          "remedial": "- **REST API**: `curl https://api.github.com/users/USERNAME` mengembalikan JSON (`login`, `id`, `public_repos`, ...).\n- Rate limit: tanpa login **60/jam per IP**, dengan token **5.000/jam**.\n- **GraphQL**: satu alamat `api.github.com/graphql`, **wajib login**.\n- **Webhook**: GitHub mengirim pemberitahuan ke **Payload URL** saat event terjadi (push, PR). Pasang di Settings > **Webhooks** > **Add webhook**.\n- Server penerima: HTTPS, pakai Secret, balas 2XX dalam 10 detik."
+        },
+        {
+          "question": "Budi memanggil API dengan token pribadinya. Batasnya menjadi...",
+          "options": [
+            "Tetap 60 per jam",
+            "5.000 per jam",
+            "1.000 per jam per repo",
+            "Tidak terbatas"
+          ],
+          "answer": 1,
+          "explanation": "Permintaan yang login mendapat 5.000 per jam. Angka 1.000 per jam per repo berlaku untuk GITHUB_TOKEN di Actions.",
+          "remedial": "- **REST API**: `curl https://api.github.com/users/USERNAME` mengembalikan JSON (`login`, `id`, `public_repos`, ...).\n- Rate limit: tanpa login **60/jam per IP**, dengan token **5.000/jam**.\n- **GraphQL**: satu alamat `api.github.com/graphql`, **wajib login**.\n- **Webhook**: GitHub mengirim pemberitahuan ke **Payload URL** saat event terjadi (push, PR). Pasang di Settings > **Webhooks** > **Add webhook**.\n- Server penerima: HTTPS, pakai Secret, balas 2XX dalam 10 detik."
+        },
+        {
+          "question": "Apa perbedaan penting GraphQL API dibanding REST API GitHub untuk pemula?",
+          "options": [
+            "GraphQL hanya bisa dipakai di Windows",
+            "GraphQL tidak memakai internet",
+            "GraphQL wajib login, sedangkan data publik di REST bisa diambil tanpa login",
+            "GraphQL tidak bisa mengambil data repo"
+          ],
+          "answer": 2,
+          "explanation": "Semua permintaan GraphQL butuh autentikasi. REST mengizinkan data publik tanpa login (dengan batas 60 per jam).",
+          "remedial": "- **REST API**: `curl https://api.github.com/users/USERNAME` mengembalikan JSON (`login`, `id`, `public_repos`, ...).\n- Rate limit: tanpa login **60/jam per IP**, dengan token **5.000/jam**.\n- **GraphQL**: satu alamat `api.github.com/graphql`, **wajib login**.\n- **Webhook**: GitHub mengirim pemberitahuan ke **Payload URL** saat event terjadi (push, PR). Pasang di Settings > **Webhooks** > **Add webhook**.\n- Server penerima: HTTPS, pakai Secret, balas 2XX dalam 10 detik."
+        },
+        {
+          "question": "Apa yang dilakukan sebuah webhook?",
+          "options": [
+            "Menghapus repo secara berkala",
+            "GitHub mengirim pemberitahuan ke alamat servermu setiap kali event yang dipilih terjadi",
+            "Membuat akun GitHub baru",
+            "Mengunduh semua issue ke laptop"
+          ],
+          "answer": 1,
+          "explanation": "Webhook adalah pemberitahuan dari GitHub ke Payload URL saat event terjadi, misalnya push atau pull request.",
+          "remedial": "- **REST API**: `curl https://api.github.com/users/USERNAME` mengembalikan JSON (`login`, `id`, `public_repos`, ...).\n- Rate limit: tanpa login **60/jam per IP**, dengan token **5.000/jam**.\n- **GraphQL**: satu alamat `api.github.com/graphql`, **wajib login**.\n- **Webhook**: GitHub mengirim pemberitahuan ke **Payload URL** saat event terjadi (push, PR). Pasang di Settings > **Webhooks** > **Add webhook**.\n- Server penerima: HTTPS, pakai Secret, balas 2XX dalam 10 detik."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa yang terjadi pada permintaan terakhir?",
+      "code": "# laptop Budi, tanpa login dan tanpa token, dalam satu jam yang sama\ncurl https://api.github.com/users/budi    # permintaan ke-1\n...\ncurl https://api.github.com/users/budi    # permintaan ke-61",
+      "options": [
+        "Berhasil seperti biasa",
+        "Ditolak karena melewati batas 60 permintaan per jam; harus menunggu jatahnya pulih atau memakai token",
+        "Akun Budi diblokir permanen",
+        "GitHub otomatis meminta Budi membayar"
+      ],
+      "answer": 1,
+      "explanation": "Tanpa login, jatahnya 60 permintaan per jam per IP. Permintaan ke-61 ditolak sampai jatahnya diperbarui. Dengan token, batasnya 5.000 per jam."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Ambil data publik profil budi lewat REST API GitHub (tanpa login)\ncurl https://___/users/budi",
+      "answers": [
+        "api.github.com"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "API membuat program bisa mengambil data GitHub; jawabannya berformat JSON.",
+        "curl https://api.github.com/users/USERNAME bisa tanpa login; batasnya 60 per jam per IP, dengan token 5.000 per jam.",
+        "GraphQL memakai satu alamat api.github.com/graphql dan wajib login.",
+        "Webhook: GitHub mengirim pemberitahuan ke Payload URL saat event seperti push atau PR terjadi.",
+        "Pasang webhook di Settings > Webhooks > Add webhook; server penerima sebaiknya HTTPS dan memakai Secret, serta wajib membalas 2XX dalam 10 detik."
+      ]
+    }
+  ]
+}

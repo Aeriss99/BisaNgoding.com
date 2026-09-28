@@ -1,0 +1,111 @@
+{
+  "id": "gh-otomatisasi-03",
+  "moduleId": "gh-otomatisasi",
+  "order": 3,
+  "title": "CI: Tes Otomatis Setiap Push dan Pull Request",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Budi punya aplikasi Node kecil `budi/kalkulator` yang dilengkapi tes. Di laptop, ia menjalankan tes dengan `npm test`. Masalahnya, kadang ia **lupa** menjalankannya sebelum push, dan temannya Sari juga begitu. Akibatnya kode yang rusak sempat masuk ke `main`.\n\n**CI (Continuous Integration)** artinya setiap perubahan kode **otomatis diuji** begitu dikirim ke GitHub. Tidak ada lagi \"lupa tes\". Dengan GitHub Actions, CI cukup ditulis sekali dalam satu file workflow.\n\nCI seperti **petugas pemeriksa di pintu pabrik**. Setiap barang yang mau masuk gudang (branch `main`) diperiksa dulu. Kalau lolos, diberi stempel hijau. Kalau cacat, diberi tanda merah dan dikembalikan ke pembuatnya untuk diperbaiki. Petugas ini tidak pernah lupa dan tidak pernah bosan."
+    },
+    {
+      "type": "theory",
+      "content": "**Isi proyek `kalkulator`**\n\n```text\nkalkulator/\n├── .github/workflows/ci.yml\n├── kalkulator.js\n├── kalkulator.test.js\n├── package.json         ← berisi \"test\": \"node --test\"\n└── package-lock.json    ← wajib ikut di-commit\n```\n\n**Workflow CI: `.github/workflows/ci.yml`**\n\n```yaml\nname: CI\non: [push, pull_request]\njobs:\n  tes:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v7\n      - uses: actions/setup-node@v7\n        with:\n          node-version: 24\n      - run: npm ci\n      - run: npm test\n```\n\n| Baris | Gunanya |\n|---|---|\n| `on: [push, pull_request]` | jalan setiap ada **push** dan setiap ada **pull request** (dibuka atau ditambah commit) |\n| `actions/checkout@v7` | mengambil kode repo ke runner |\n| `actions/setup-node@v7` + `node-version: 24` | memasang Node.js versi 24 di runner |\n| `npm ci` | memasang dependensi **persis** sesuai `package-lock.json` |\n| `npm test` | menjalankan tes. Kalau ada tes gagal, step ini gagal dan run diberi silang merah |\n\nKenapa Node 24? Per September 2026, Node 24 dan 22 adalah versi LTS (didukung lama); Node 20 sudah EOL (tidak lagi mendapat perbaikan keamanan), jadi jangan dipakai untuk proyek baru.\n\n**Hasilnya di pull request**\n\n```mermaid\nflowchart LR\n    A[\"Sari push ke<br/>branch fitur-kali\"] --> B[\"Buka PR ke main\"]\n    B --> C[\"Workflow CI<br/>npm ci + npm test\"]\n    C --> D{\"Tes lulus?\"}\n    D -- \"ya\" --> E[\"Centang hijau<br/>PR siap di-review dan di-merge\"]\n    D -- \"tidak\" --> F[\"Silang merah<br/>perbaiki, push lagi\"]\n    F --> C\n```\n\n![Pull request #7 dari branch coba-rusak dengan dua status check CI gagal (silang merah) dan tombol Merge pull request yang belum bisa diklik](images/github/oto-pr-checks.svg)\n\n- **1** Tab **Checks** berisi daftar check beserta log lengkapnya.\n- **2** Hasil workflow CI untuk PR ini: `CI` (nama workflow) / `tes` (nama job). Silang merah berarti ada tes yang gagal. Ada **dua** check karena workflow dipicu dua kali: sekali oleh `push` ke branch `coba-rusak`, sekali oleh `pull_request`. Ini normal untuk PR dari branch di repo yang sama saat memakai `on: [push, pull_request]`.\n- **3** Kalau rule status check aktif (lihat di bawah), PR belum bisa di-merge sampai check-nya hijau.\n\nTampilan persisnya bisa sedikit berbeda, tapi tanda centang hijau / silang merah selalu ada di PR dan di samping commit.\n\n**Mewajibkan tes lulus sebelum merge**\n\nTanpa aturan tambahan, tombol merge tetap bisa diklik walaupun tes merah. Di modul sebelumnya kamu sudah mengenal **rulesets**. Repo `kalkulator` belum punya ruleset, jadi buat ruleset baru untuk `main` seperti di modul sebelumnya (kalau belum ada), lalu tambahkan rule **Require status checks to pass before merging** dan pilih check `tes`:\n\n![Ruleset dengan rule Require status checks to pass before merging dan status check tes yang wajib lulus](images/github/oto-ruleset-status.svg)\n\n- **1** Settings > **Rulesets**, buat ruleset baru untuk branch `main` (atau buka yang sudah ada).\n- **2** Centang **Require status checks to pass before merging**.\n- **3** Tambahkan nama job CI-mu (`tes`) sebagai status check yang wajib lulus.\n\nTips: jalankan workflow CI minimal sekali sebelum mengatur rule ini, supaya kamu tahu nama check-nya dengan persis."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di GitHub\n\nButuh Node.js di laptop. Kalau belum punya proyek `kalkulator`, buat dari nol:\n\n1. Buat repo public `kalkulator` di GitHub, clone ke laptop, lalu buat tiga file ini:\n\n```json\n{\n  \"name\": \"kalkulator\",\n  \"version\": \"1.0.0\",\n  \"scripts\": {\n    \"test\": \"node --test\"\n  }\n}\n```\n\n```javascript\n// kalkulator.js\nfunction tambah(a, b) {\n  return a + b;\n}\n\nmodule.exports = { tambah };\n```\n\n```javascript\n// kalkulator.test.js\nconst test = require('node:test');\nconst assert = require('node:assert');\nconst { tambah } = require('./kalkulator');\n\ntest('tambah 2 + 3 = 5', () => {\n  assert.strictEqual(tambah(2, 3), 5);\n});\n```\n\n2. Jalankan `npm install` sekali (untuk membuat `package-lock.json`), lalu `npm test`. Pastikan tesnya lulus.\n3. Buat `.github/workflows/ci.yml` berisi workflow CI di atas.\n4. `git add .`, `git commit -m \"Tambah CI\"`, `git push`. Buka tab **Actions** dan tunggu centang hijau.\n5. Buat branch baru `git switch -c coba-rusak`, ubah `a + b` menjadi `a - b`, commit, lalu `git push -u origin coba-rusak`.\n6. Buka PR dari `coba-rusak` ke `main`. Tunggu sebentar: muncul **silang merah**. Klik tab **Checks** dan temukan tes yang gagal di log.\n7. Kembalikan menjadi `a + b`, commit, push lagi. Check berjalan ulang dan berubah hijau.\n8. Bonus: buat ruleset baru untuk `main` seperti di modul sebelumnya (kalau belum ada), lalu tambahkan rule **Require status checks to pass before merging** dengan check `tes`. Ulangi langkah 5–6. Tombol merge sekarang tertahan selama check merah.\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai versi dari tutorial lama**\n\nSalah:\n\n```yaml\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 20\n```\n\nBenar:\n\n```yaml\n      - uses: actions/checkout@v7\n      - uses: actions/setup-node@v7\n        with:\n          node-version: 24\n```\n\nSejak 23 September 2026 runner menjalankan semua action dengan Node 24. Action versi lama seperti checkout@v4 dibuat untuk Node 20, jadi pakai versi terbaru. Secara terpisah, node-version: 20 sudah EOL, jadi pakai 22 atau 24.\n\n**2. Tidak meng-commit package-lock.json**\n\nSalah:\n\n```text\n# isi .gitignore\nnode_modules/\npackage-lock.json\n```\n\nBenar:\n\n```text\n# isi .gitignore\nnode_modules/\n```\n\nnpm ci hanya mau berjalan kalau ada package-lock.json. Tanpa file itu, step npm ci gagal dan CI selalu merah. Yang diabaikan cukup folder node_modules.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dilakukan `npm ci` di workflow CI?",
+          "options": [
+            "Menjalankan semua tes",
+            "Memasang dependensi persis sesuai package-lock.json",
+            "Membuat package.json baru",
+            "Mengunggah aplikasi ke npm"
+          ],
+          "answer": 1,
+          "explanation": "npm ci memasang dependensi sesuai lock file. Tesnya dijalankan oleh npm test.",
+          "remedial": "- **CI** = setiap push dan PR otomatis diuji.\n- Workflow Node: `checkout@v7` → `setup-node@v7` (`node-version: 24`) → `npm ci` → `npm test`.\n- `on: [push, pull_request]` menjalankan CI di setiap push dan setiap PR.\n- Centang hijau = semua tes lulus, silang merah = ada yang gagal (lihat tab **Checks**).\n- Rule **Require status checks to pass before merging** menahan merge sampai check lulus."
+        },
+        {
+          "question": "Workflow dengan `on: [push, pull_request]` akan berjalan...",
+          "options": [
+            "hanya saat PR di-merge",
+            "hanya sekali sehari",
+            "setiap ada push dan setiap ada pull request",
+            "hanya kalau dijalankan manual"
+          ],
+          "answer": 2,
+          "explanation": "Dua event itu memicu workflow: push ke branch mana pun dan PR yang dibuka atau diperbarui.",
+          "remedial": "- **CI** = setiap push dan PR otomatis diuji.\n- Workflow Node: `checkout@v7` → `setup-node@v7` (`node-version: 24`) → `npm ci` → `npm test`.\n- `on: [push, pull_request]` menjalankan CI di setiap push dan setiap PR.\n- Centang hijau = semua tes lulus, silang merah = ada yang gagal (lihat tab **Checks**).\n- Rule **Require status checks to pass before merging** menahan merge sampai check lulus."
+        },
+        {
+          "question": "PR milik Sari menampilkan silang merah pada check `CI / tes`. Apa artinya?",
+          "options": [
+            "PR sudah di-merge",
+            "Ada step di workflow CI yang gagal, misalnya tes yang tidak lulus",
+            "GitHub sedang gangguan",
+            "Sari belum login"
+          ],
+          "answer": 1,
+          "explanation": "Silang merah berarti workflow gagal. Buka tab Checks untuk membaca log-nya.",
+          "remedial": "- **CI** = setiap push dan PR otomatis diuji.\n- Workflow Node: `checkout@v7` → `setup-node@v7` (`node-version: 24`) → `npm ci` → `npm test`.\n- `on: [push, pull_request]` menjalankan CI di setiap push dan setiap PR.\n- Centang hijau = semua tes lulus, silang merah = ada yang gagal (lihat tab **Checks**).\n- Rule **Require status checks to pass before merging** menahan merge sampai check lulus."
+        },
+        {
+          "question": "Rule apa di rulesets yang membuat PR tidak bisa di-merge selama tes masih gagal?",
+          "options": [
+            "Block force pushes",
+            "Restrict deletions",
+            "Require status checks to pass before merging",
+            "Require linear history"
+          ],
+          "answer": 2,
+          "explanation": "Rule ini mewajibkan status check tertentu (misalnya tes) lulus sebelum merge.",
+          "remedial": "- **CI** = setiap push dan PR otomatis diuji.\n- Workflow Node: `checkout@v7` → `setup-node@v7` (`node-version: 24`) → `npm ci` → `npm test`.\n- `on: [push, pull_request]` menjalankan CI di setiap push dan setiap PR.\n- Centang hijau = semua tes lulus, silang merah = ada yang gagal (lihat tab **Checks**).\n- Rule **Require status checks to pass before merging** menahan merge sampai check lulus."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa yang terjadi pada PR ini?",
+      "code": "Ruleset main : Require status checks to pass before merging (check: tes)\nWorkflow CI  : on: [push, pull_request]\nSari         : mengubah a + b menjadi a - b, push, lalu membuka PR ke main\nnpm test     : 1 tes gagal",
+      "options": [
+        "PR langsung di-merge otomatis",
+        "Check tes merah dan PR belum bisa di-merge sampai tesnya diperbaiki",
+        "Check tetap hijau karena kodenya bisa dijalankan",
+        "GitHub menghapus branch Sari"
+      ],
+      "answer": 1,
+      "explanation": "Tes gagal membuat check merah. Karena check tes wajib lulus, merge tertahan. Setelah Sari memperbaiki dan push lagi, CI berjalan ulang."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Jalankan tes pada setiap push DAN setiap pull request,\n# lalu jalankan skrip tes dari package.json\non: [push, ___]\n...\n      - run: npm ___",
+      "answers": [
+        "pull_request",
+        "test|run test|t"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "CI menguji setiap perubahan secara otomatis saat push dan pull request.",
+        "Workflow Node: checkout@v7, setup-node@v7 dengan Node 24 atau 22, npm ci, npm test.",
+        "package-lock.json wajib di-commit supaya npm ci bisa berjalan.",
+        "Hasil CI tampil sebagai centang hijau atau silang merah di PR dan commit.",
+        "Require status checks to pass before merging menahan merge sampai tes lulus."
+      ]
+    }
+  ]
+}

@@ -139,7 +139,7 @@ function processLesson(lessonFile) {
     if (c.type === 'fill_blank' && c.code && c.answers) {
       let filled = c.code;
       c.answers.forEach((a) => {
-        filled = filled.replace('___', a);
+        filled = filled.replace('___', a.split('|')[0]);
       });
       if (filled.includes('public class') && filled.includes('main')) {
         const res = runJava(filled, '', v);
