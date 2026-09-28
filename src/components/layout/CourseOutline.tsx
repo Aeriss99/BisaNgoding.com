@@ -47,11 +47,8 @@ export default function CourseOutline({ onClose }: CourseOutlineProps) {
     ? Math.round((completedCourseLessons / totalCourseLessons) * 100) 
     : 0;
 
-  // Handle auto-close and scroll-lock for drawer
-  useEffect(() => {
-    if (onClose) onClose();
-  }, [location.pathname]); // eslint-disable-line
-
+  // Laci ditutup oleh Layout saat pindah halaman. Jangan memanggil onClose() di useEffect:
+  // useEffect juga berjalan saat pertama tampil, sehingga laci langsung menutup dirinya sendiri.
   useEffect(() => {
     if (onClose) { // If it's used as a drawer (has onClose)
       document.body.style.overflow = 'hidden';
@@ -150,6 +147,7 @@ export default function CourseOutline({ onClose }: CourseOutlineProps) {
               {sectionHeader}
               <Link 
                 to={`/module/${mod.id}`}
+                onClick={onClose}
                 className={`${baseClass} ${
                   isActive 
                   ? 'bg-[var(--color-primary)] border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)]' 

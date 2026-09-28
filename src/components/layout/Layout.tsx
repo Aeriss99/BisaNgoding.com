@@ -11,7 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useProgress } from '../../context/ProgressContext';
 import { LogoIcon } from '../ui/LogoIcon';
 import CourseOutline from './CourseOutline';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function Layout() {
   const location = useLocation();
@@ -21,6 +21,8 @@ export default function Layout() {
   const [outlineOpen, setOutlineOpen] = useState(false);
 
   useEffect(() => setOutlineOpen(false), [location.pathname]);
+  // Fungsi tetap (tidak dibuat ulang tiap render) supaya efek kunci-scroll di CourseOutline tidak berulang.
+  const tutupOutline = useCallback(() => setOutlineOpen(false), []);
 
   const navItems = [
     { path: '/', label: 'Belajar', icon: BookOpen },
@@ -62,7 +64,7 @@ export default function Layout() {
             aria-label="Daftar modul"
             className="absolute top-0 left-0 bottom-0 w-[min(85vw,320px)] bg-white border-r-[3px] border-[var(--color-text-main)] animate-in slide-in-from-left duration-200"
           >
-            <CourseOutline onClose={() => setOutlineOpen(false)} />
+            <CourseOutline onClose={tutupOutline} />
           </div>
         </div>
       )}
