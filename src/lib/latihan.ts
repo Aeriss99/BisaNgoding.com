@@ -6,13 +6,20 @@ export function cekUbin(pilihan: string[], answers: string[][]): boolean {
   });
 }
 
+/**
+ * Menyamakan bentuk jawaban sebelum dibandingkan: huruf kecil, apostrof miring jadi lurus,
+ * semua tanda baca (termasuk koma di tengah kalimat) dibuang, spasi dirapikan.
+ * "I'm fine, thank you." dan "i'm fine thank you" dianggap sama.
+ * Apostrof dipertahankan karena bagian dari kata (I'm, don't).
+ * Skrip pembuat materi memakai aturan yang sama persis.
+ */
 export function normalisasi(s: string): string {
   return s
     .toLowerCase()
-    .replace(/’/g, "'")
+    .replace(/[‘’]/g, "'")
+    .replace(/[.,!?;:"“”()]/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/[.!?]+$/, '');
+    .trim();
 }
 
 function levenshtein(a: string, b: string): number {

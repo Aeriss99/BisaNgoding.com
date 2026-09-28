@@ -10,6 +10,7 @@ import { SoalSusunUbin } from './SoalSusunUbin';
 import { SoalPasangan } from './SoalPasangan';
 import { SoalKetik } from './SoalKetik';
 import { SoalPilihan } from './SoalPilihan';
+import { ucapkan, hentikanSuara } from '../../lib/suara';
 
 interface PemutarLatihanProps {
   lesson: Lesson;
@@ -34,6 +35,9 @@ export function PemutarLatihan({ lesson }: PemutarLatihanProps) {
 
   // Scroll to bottom helper
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Hentikan suara saat keluar dari halaman latihan.
+  useEffect(() => () => hentikanSuara(), []);
 
   // Restart if lesson changes
   useEffect(() => {
@@ -87,9 +91,14 @@ export function PemutarLatihan({ lesson }: PemutarLatihanProps) {
       return; 
     }
     
+    // Bacakan kalimat bahasa Inggris yang benar supaya pelafalannya ikut teringat.
+    if ((card.type === 'translate_tiles' || card.type === 'type_translation') && card.direction === 'id-en') {
+      void ucapkan(card.type === 'translate_tiles' ? card.answers[0].join(' ') : card.answers[0]);
+    }
+
     setHasilPeriksa(hasil);
     if (hasil === 'salah' && (card as any).explanation) {
-      setPesanHasil(pesan + '\\n\\n' + (card as any).explanation);
+      setPesanHasil(pesan + '\n\n' + (card as any).explanation);
     } else {
       setPesanHasil(pesan);
     }
@@ -101,6 +110,7 @@ export function PemutarLatihan({ lesson }: PemutarLatihanProps) {
   };
 
   const handleLanjut = () => {
+    hentikanSuara();
     const isBenar = hasilPeriksa === 'benar' || hasilPeriksa === 'hampir';
     const nextStatus = setelahJawab(status, isBenar);
     
@@ -144,7 +154,11 @@ export function PemutarLatihan({ lesson }: PemutarLatihanProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [fase, sedangDiperiksa, jawaban, card, status]);
 
-  const quit = () => navigate(`/kelas/${lesson.moduleId.split('-').slice(0,-1).join('-') || 'english'}`);
+  // Kembali ke halaman modul pelajaran ini (sama dengan tombol Lanjut di akhir pelajaran).
+  const quit = () => {
+    hentikanSuara();
+    navigate(`/module/${lesson.moduleId}`);
+  };
 
   if (fase === 'intro') {
     return (
@@ -226,12 +240,18 @@ export function PemutarLatihan({ lesson }: PemutarLatihanProps) {
 
           {lesson.newWords && lesson.newWords.length > 0 && (
             <div className="w-full bg-white border-[3px] border-black rounded-xl p-6 shadow-[4px_4px_0_#111] mt-4">
-              <h3 className="font-space font-bold mb-4">Kata Baru:</h3>
+              <h3 className="font-space font-bold mb-1">Kata Baru:</h3>
+              <p className="text-xs text-gray-600 mb-3">Ketuk kata untuk mendengar pelafalannya.</p>
               <div className="flex flex-wrap gap-2">
                 {lesson.newWords.map((nw, i) => (
-                  <div key={i} className="bg-yellow-100 border-2 border-black px-3 py-1 font-bold text-sm">
+                  <button
+                    type="button"
+                    key={i}
+                    onClick={() => void ucapkan(nw.word)}
+                    className="bg-yellow-100 border-2 border-black px-3 py-1 font-bold text-sm text-left hover:bg-yellow-200"
+                  >
                     {nw.word} = {nw.meaning}
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -276,13 +296,14 @@ export function PemutarLatihan({ lesson }: PemutarLatihanProps) {
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 pb-32">
         {card.type === 'translate_tiles' && (
-          <SoalSusunUbin type="translate_tiles" prompt={card.prompt} tiles={card.tiles} newWords={lesson.newWords} glossary={lesson.glossary} onAnswerChange={(ans) => { if(!sedangDiperiksa) setJawaban(ans.length > 0 ? ans : null) }} />
+          <SoalSusunUbin key={status.posisi} type="translate_tiles" direction={card.direction} prompt={card.prompt} tiles={card.tiles} newWords={lesson.newWords} glossary={lesson.glossary} onAnswerChange={(ans) => { if(!sedangDiperiksa) setJawaban(ans.length > 0 ? ans : null) }} />
         )}
         {card.type === 'listen_tiles' && (
-          <SoalSusunUbin type="listen_tiles" text={card.text} tiles={card.tiles} onAnswerChange={(ans) => { if(!sedangDiperiksa) setJawaban(ans.length > 0 ? ans : null) }} />
+          <SoalSusunUbin key={status.posisi} type="listen_tiles" text={card.text} tiles={card.tiles} onAnswerChange={(ans) => { if(!sedangDiperiksa) setJawaban(ans.length > 0 ? ans : null) }} />
         )}
         {card.type === 'match_pairs' && (
           <SoalPasangan 
+            key={status.posisi}
             pairs={card.pairs} 
             onCorrect={() => {
               setHasilPeriksa('benar');
@@ -316,13 +337,13 @@ export function PemutarLatihan({ lesson }: PemutarLatihanProps) {
           />
         )}
         {card.type === 'type_translation' && (
-          <SoalKetik prompt={card.prompt} newWords={lesson.newWords} glossary={lesson.glossary} onAnswerChange={(v) => { if(!sedangDiperiksa) setJawaban(v.trim() ? v : null) }} onEnter={() => {
+          <SoalKetik key={status.posisi} prompt={card.prompt} direction={card.direction} newWords={lesson.newWords} glossary={lesson.glossary} onAnswerChange={(v) => { if(!sedangDiperiksa) setJawaban(v.trim() ? v : null) }} onEnter={() => {
             if (sedangDiperiksa) handleLanjut();
             else if (jawaban !== null) handlePeriksa();
           }} />
         )}
         {card.type === 'multiple_choice' && (
-          <SoalPilihan question={card.question} options={card.options} onSelect={(idx) => { if(!sedangDiperiksa) setJawaban(idx) }} />
+          <SoalPilihan key={status.posisi} question={card.question} options={card.options} onSelect={(idx) => { if(!sedangDiperiksa) setJawaban(idx) }} />
         )}
         <div ref={bottomRef} className="h-4" />
       </div>
@@ -353,9 +374,9 @@ export function PemutarLatihan({ lesson }: PemutarLatihanProps) {
                        hasilPeriksa === 'hampir' ? 'Hampir benar' : 'Jawaban yang benar:'}
                     </h3>
                     {pesanHasil && (
-                      <div className={`text-sm md:text-base font-bold whitespace-pre-wrap leading-relaxed ${hasilPeriksa === 'salah' ? 'text-red-900' : 'text-green-900'}`}>
+                      <div className={`text-sm md:text-base font-bold leading-relaxed [&_p]:my-1 ${hasilPeriksa === 'salah' ? 'text-red-900' : 'text-green-900'}`}>
                         {hasilPeriksa === 'hampir' && <span className="font-normal opacity-80 block mb-1">Perhatikan ejaannya:</span>}
-                        {pesanHasil}
+                        <ReactMarkdown>{pesanHasil}</ReactMarkdown>
                       </div>
                     )}
                   </div>

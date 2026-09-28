@@ -14,7 +14,19 @@ export default defineConfig({
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
-        maximumFileSizeToCacheInBytes: 5000000
+        maximumFileSizeToCacheInBytes: 5000000,
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/audio/en/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'suara-en',
+              expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+              rangeRequests: true,
+            },
+          },
+        ],
       },
       manifest: {
         name: 'BisaNgoding Belajar Java',

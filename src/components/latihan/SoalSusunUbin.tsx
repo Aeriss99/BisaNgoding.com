@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Volume2 } from 'lucide-react';
 import { KalimatBerarti } from './KalimatBerarti';
-import { bisaBersuara, ucapkan } from '../../lib/suara';
+import { ucapkan, hentikanSuara, type HasilSuara } from '../../lib/suara';
 
 interface SoalSusunUbinProps {
   type: 'translate_tiles' | 'listen_tiles';
+  /** Hanya untuk translate_tiles. en-id = kalimat soal berbahasa Inggris (bisa didengar). */
+  direction?: 'en-id' | 'id-en';
   prompt?: string;
   text?: string;
   tiles: string[];
@@ -13,91 +15,131 @@ interface SoalSusunUbinProps {
   onAnswerChange: (answer: string[]) => void;
 }
 
-export function SoalSusunUbin({ type, prompt, text, tiles, newWords, glossary, onAnswerChange }: SoalSusunUbinProps) {
-  const [bank, setBank] = useState<{ id: number; text: string }[]>([]);
-  const [jawaban, setJawaban] = useState<{ id: number; text: string }[]>([]);
-  const [suaraAda, setSuaraAda] = useState(true);
+type Ubin = { id: number; text: string };
+
+function acak(tiles: string[]): Ubin[] {
+  const hasil = tiles.map((text, i) => ({ id: i, text }));
+  for (let i = hasil.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [hasil[i], hasil[j]] = [hasil[j], hasil[i]];
+  }
+  return hasil;
+}
+
+export function SoalSusunUbin({ type, direction, prompt, text, tiles, newWords, glossary, onAnswerChange }: SoalSusunUbinProps) {
+  const [bank, setBank] = useState<Ubin[]>(() => acak(tiles));
+  const [jawaban, setJawaban] = useState<Ubin[]>([]);
+  // null = belum dicoba. Pesan hanya muncul kalau suara benar-benar gagal diputar.
+  const [suara, setSuara] = useState<HasilSuara | null>(null);
+  const [tampilkanTeks, setTampilkanTeks] = useState(false);
+
+  // Teks bahasa Inggris yang dibacakan untuk soal ini (null = soal ini tidak punya suara).
+  const teksDidengar = type === 'listen_tiles' ? text ?? null : direction === 'en-id' ? prompt ?? null : null;
+
+  const putar = (lambat = false) => {
+    if (!teksDidengar) return;
+    ucapkan(teksDidengar, lambat).then(setSuara);
+  };
 
   useEffect(() => {
-    // fisher yates shuffle
-    const shuffled = [...tiles].map((text, i) => ({ id: i, text }));
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    setBank(shuffled);
+    setBank(acak(tiles));
     setJawaban([]);
+    setSuara(null);
+    setTampilkanTeks(false);
     onAnswerChange([]);
-    
     if (type === 'listen_tiles' && text) {
-      bisaBersuara().then(bisa => {
-        setSuaraAda(bisa);
-        if (bisa) ucapkan(text);
-      });
+      ucapkan(text).then(setSuara);
     }
-  }, [tiles, text, type, prompt]); // reload when question changes
+    return () => hentikanSuara();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tiles, text, type, prompt]);
 
-  const pilihUbin = (u: { id: number; text: string }) => {
-    setBank(bank.filter(x => x.id !== u.id));
-    const newJawaban = [...jawaban, u];
-    setJawaban(newJawaban);
-    onAnswerChange(newJawaban.map(x => x.text));
+  const pilihUbin = (u: Ubin) => {
+    const baru = [...jawaban, u];
+    setBank(bank.filter((x) => x.id !== u.id));
+    setJawaban(baru);
+    onAnswerChange(baru.map((x) => x.text));
   };
 
-  const batalUbin = (u: { id: number; text: string }) => {
-    setJawaban(jawaban.filter(x => x.id !== u.id));
+  const batalUbin = (u: Ubin) => {
+    const baru = jawaban.filter((x) => x.id !== u.id);
+    setJawaban(baru);
     setBank([...bank, u]);
-    onAnswerChange(jawaban.filter(x => x.id !== u.id).map(x => x.text));
-  };
-
-  const putarSuara = (lambat = false) => {
-    if (text) ucapkan(text, lambat);
-    if (prompt) ucapkan(prompt, lambat);
+    onAnswerChange(baru.map((x) => x.text));
   };
 
   return (
     <div className="flex flex-col h-full gap-6 max-w-2xl mx-auto w-full">
-      <div className="flex items-start gap-4">
-        {type === 'listen_tiles' ? (
+      {type === 'listen_tiles' ? (
+        <div className="flex flex-col gap-3">
+          <p className="font-space font-bold text-lg">Dengarkan, lalu susun kalimatnya</p>
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => putarSuara(false)} 
-              className="w-16 h-16 bg-[var(--color-primary)] border-[3px] border-black brutal-border rounded-2xl flex items-center justify-center text-black hover:bg-[var(--color-accent)] transition-colors shadow-[4px_4px_0_#111]"
+            <button
+              type="button"
+              onClick={() => putar(false)}
+              aria-label="Putar suara"
+              className="w-16 h-16 bg-[var(--color-primary)] border-[3px] border-black rounded-2xl flex items-center justify-center text-black hover:bg-[var(--color-accent)] transition-colors shadow-[4px_4px_0_#111]"
             >
               <Volume2 className="w-8 h-8" />
             </button>
-            <button 
-              onClick={() => putarSuara(true)} 
-              className="w-12 h-12 bg-white border-[3px] border-black brutal-border rounded-xl flex items-center justify-center text-black hover:bg-gray-100 transition-colors shadow-[2px_2px_0_#111]"
+            <button
+              type="button"
+              onClick={() => putar(true)}
+              aria-label="Putar suara pelan"
+              className="h-12 px-3 bg-white border-[3px] border-black rounded-xl flex items-center justify-center gap-1 text-black hover:bg-gray-100 transition-colors shadow-[2px_2px_0_#111]"
             >
-              <Volume2 className="w-6 h-6" /> 
-              <span className="text-xs font-bold ml-1">pelan</span>
+              <Volume2 className="w-5 h-5" />
+              <span className="text-xs font-bold">pelan</span>
             </button>
-            {!suaraAda && (
-              <div className="ml-4 flex flex-col">
-                <span className="font-space text-lg font-bold">{text}</span>
-                <span className="text-xs text-red-500 font-bold">Suara tidak tersedia di perangkat ini</span>
-              </div>
-            )}
           </div>
-        ) : (
-          <div className="flex items-start gap-3">
-            <button 
-              onClick={() => putarSuara(false)} 
+
+          {suara === 'diblokir' && (
+            <p className="text-sm font-bold text-gray-700">Ketuk tombol speaker untuk mendengarkan.</p>
+          )}
+          {suara === 'gagal' && (
+            <div className="flex flex-col items-start gap-2 bg-yellow-50 border-2 border-black rounded-xl p-3">
+              <span className="text-sm font-bold">
+                Suara tidak bisa diputar di perangkat ini. Periksa volume, atau baca kalimatnya saja.
+              </span>
+              {tampilkanTeks ? (
+                <span className="font-space text-lg font-bold">{text}</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setTampilkanTeks(true)}
+                  className="text-sm font-bold underline"
+                >
+                  Tampilkan kalimatnya
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+        <p className="font-space font-bold text-lg">Terjemahkan kalimat ini</p>
+        <div className="flex items-start gap-3">
+          {teksDidengar && (
+            <button
+              type="button"
+              onClick={() => putar(false)}
+              aria-label="Dengarkan kalimat"
               className="mt-1 w-10 h-10 bg-[var(--color-primary)] border-[3px] border-black rounded-xl flex items-center justify-center text-black hover:bg-[var(--color-accent)] transition-colors shrink-0 shadow-[2px_2px_0_#111]"
             >
               <Volume2 className="w-5 h-5" />
             </button>
-            {prompt && <KalimatBerarti kalimat={prompt} newWords={newWords} glossary={glossary} />}
-          </div>
-        )}
-      </div>
+          )}
+          {prompt && <KalimatBerarti kalimat={prompt} newWords={newWords} glossary={glossary} />}
+        </div>
+        </div>
+      )}
 
-      <div className="flex flex-col flex-1 gap-6 mt-4">
-        {/* Baris Jawaban */}
+      <div className="flex flex-col flex-1 gap-6 mt-2">
+        {/* Baris jawaban */}
         <div className="min-h-[60px] p-2 flex flex-wrap gap-2 border-b-[3px] border-black pb-4">
-          {jawaban.map(u => (
+          {jawaban.map((u) => (
             <button
+              type="button"
               key={u.id}
               onClick={() => batalUbin(u)}
               className="bg-white border-[3px] border-black shadow-[3px_3px_0_#111] px-4 py-2 font-bold font-space rounded-xl hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_#111] transition-all min-h-[44px]"
@@ -107,10 +149,11 @@ export function SoalSusunUbin({ type, prompt, text, tiles, newWords, glossary, o
           ))}
         </div>
 
-        {/* Bank Ubin */}
+        {/* Bank ubin */}
         <div className="flex flex-wrap gap-3">
-          {bank.map(u => (
+          {bank.map((u) => (
             <button
+              type="button"
               key={u.id}
               onClick={() => pilihUbin(u)}
               className="bg-[var(--color-primary-light)] border-[3px] border-black shadow-[3px_3px_0_#111] px-4 py-2 font-bold font-space rounded-xl hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_#111] transition-all min-h-[44px]"

@@ -160,14 +160,24 @@ export default function CourseDetail() {
           } else if (isProject) {
             statusBadge = { label: 'PROYEK', bg: 'bg-[var(--color-primary-light)] text-[var(--color-text-main)]' };
           }
+          
+          let sectionHeader = null;
+          if (course.language === 'english' && !searchQuery) {
+            if (mod.id.startsWith('en-d') && (index === 0 || !filteredModules[index-1].mod.id.startsWith('en-d'))) {
+              sectionHeader = <h2 className="font-space text-2xl font-bold mt-8 mb-4 border-b-4 border-black pb-2">English Dasar</h2>;
+            } else if (mod.id.startsWith('en-u') && (index === 0 || !filteredModules[index-1].mod.id.startsWith('en-u'))) {
+              sectionHeader = <h2 className="font-space text-2xl font-bold mt-8 mb-4 border-b-4 border-black pb-2">English untuk Dunia IT</h2>;
+            }
+          }
 
           if (!isModuleUnlocked) {
             const reqTitle = mod.requires 
               ? courseModules.find(m => m.id === mod.requires)?.title 
               : courseModules[index - 1]?.title;
             return (
+              <div key={mod.id}>
+              {sectionHeader}
               <div
-                key={mod.id}
                 title={`Selesaikan ${reqTitle || 'modul sebelumnya'} dulu`}
                 className="flex flex-col md:flex-row md:items-center gap-4 p-5 rounded-xl border-[3px] border-[var(--color-landing-black)] bg-gray-100 opacity-75 cursor-not-allowed select-none"
               >
@@ -207,12 +217,14 @@ export default function CourseDetail() {
                   <Lock className="w-8 h-8 text-gray-400" />
                 </div>
               </div>
+              </div>
             );
           }
 
           return (
+            <div key={mod.id}>
+            {sectionHeader}
             <Link
-              key={mod.id}
               to={`/module/${mod.id}`}
               className="flex flex-col md:flex-row md:items-center gap-4 p-5 rounded-xl brutal-card bg-white hover:-translate-y-1 transition-transform group"
             >
@@ -253,6 +265,7 @@ export default function CourseDetail() {
                 )}
               </div>
             </Link>
+            </div>
           );
         })}
       </div>

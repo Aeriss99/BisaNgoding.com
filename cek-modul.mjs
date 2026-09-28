@@ -1,4 +1,5 @@
 // Cek cepat: ada modul "ready" yang file pelajarannya belum ada?
+// Membaca SEMUA kelas di content/ yang punya modules.json (java, javascript, english, dst).
 // Jalankan dari root project:  node cek-modul.mjs
 import fs from 'fs';
 
@@ -6,11 +7,10 @@ const ALIAS = { 'java-dasar': 'dasar' }; // moduleId di file -> id di modules.js
 const canon = (id) => ALIAS[id] ?? id;
 let masalah = 0;
 
-for (const course of ['java', 'javascript']) {
-  const dir = `content/${course}`;
-  if (!fs.existsSync(dir)) continue;
+const kelas = fs.readdirSync('content').filter((d) => fs.existsSync(`content/${d}/modules.json`));
 
-  // petakan: id modul -> jumlah file pelajaran
+for (const course of kelas) {
+  const dir = `content/${course}`;
   const jumlah = {};
   for (const folder of fs.readdirSync(dir)) {
     const p = `${dir}/${folder}`;

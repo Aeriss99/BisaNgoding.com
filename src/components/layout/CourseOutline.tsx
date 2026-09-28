@@ -96,7 +96,7 @@ export default function CourseOutline({ onClose }: CourseOutlineProps) {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2 pb-[env(safe-area-inset-bottom)]">
-        {readyModules.map(mod => {
+        {readyModules.map((mod, index) => {
           const unlocked = checkModuleUnlocked(mod, progress);
           const lessons = getVisibleLessons(mod.id);
           const totalLessons = lessons.length;
@@ -119,40 +119,54 @@ export default function CourseOutline({ onClose }: CourseOutlineProps) {
 
           const baseClass = "flex items-start gap-3 p-3 rounded-xl border-2 transition-all w-full text-left";
           
+          let sectionHeader = null;
+          if (course?.language === 'english') {
+            if (mod.id.startsWith('en-d') && (index === 0 || !readyModules[index-1].id.startsWith('en-d'))) {
+              sectionHeader = <h3 className="font-space text-sm font-bold mt-4 mb-2 uppercase text-gray-500">English Dasar</h3>;
+            } else if (mod.id.startsWith('en-u') && (index === 0 || !readyModules[index-1].id.startsWith('en-u'))) {
+              sectionHeader = <h3 className="font-space text-sm font-bold mt-4 mb-2 uppercase text-gray-500">English untuk Dunia IT</h3>;
+            }
+          }
+
           if (!unlocked) {
             return (
-              <div key={mod.id} className={`${baseClass} border-transparent opacity-60 cursor-not-allowed`}>
-                <div className="pt-0.5">{statusIcon}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sm leading-tight text-gray-500">{mod.title}</div>
-                </div>
-                <div className="font-mono text-xs text-gray-400 shrink-0">
-                  {completedLessons}/{totalLessons}
+              <div key={mod.id}>
+                {sectionHeader}
+                <div className={`${baseClass} border-transparent opacity-60 cursor-not-allowed`}>
+                  <div className="pt-0.5">{statusIcon}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm leading-tight text-gray-500">{mod.title}</div>
+                  </div>
+                  <div className="font-mono text-xs text-gray-400 shrink-0">
+                    {completedLessons}/{totalLessons}
+                  </div>
                 </div>
               </div>
             );
           }
 
           return (
-            <Link 
-              key={mod.id}
-              to={`/module/${mod.id}`}
-              className={`${baseClass} ${
-                isActive 
-                ? 'bg-[var(--color-primary)] border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)]' 
-                : 'border-transparent hover:border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              <div className="pt-0.5">{statusIcon}</div>
-              <div className="flex-1 min-w-0">
-                <div className={`font-bold text-sm leading-tight ${isActive ? 'text-[var(--color-text-main)]' : ''}`}>
-                  {mod.title}
+            <div key={mod.id}>
+              {sectionHeader}
+              <Link 
+                to={`/module/${mod.id}`}
+                className={`${baseClass} ${
+                  isActive 
+                  ? 'bg-[var(--color-primary)] border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)]' 
+                  : 'border-transparent hover:border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <div className="pt-0.5">{statusIcon}</div>
+                <div className="flex-1 min-w-0">
+                  <div className={`font-bold text-sm leading-tight ${isActive ? 'text-[var(--color-text-main)]' : ''}`}>
+                    {mod.title}
+                  </div>
                 </div>
-              </div>
-              <div className={`font-mono text-xs shrink-0 ${isActive ? 'font-bold' : 'text-gray-500'}`}>
-                {completedLessons}/{totalLessons}
-              </div>
-            </Link>
+                <div className={`font-mono text-xs shrink-0 ${isActive ? 'font-bold' : 'text-gray-500'}`}>
+                  {completedLessons}/{totalLessons}
+                </div>
+              </Link>
+            </div>
           );
         })}
 
