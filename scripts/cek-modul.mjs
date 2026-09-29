@@ -1,6 +1,6 @@
 // Cek cepat: ada modul "ready" yang file pelajarannya belum ada?
 // Membaca SEMUA kelas di content/ yang punya modules.json (java, javascript, english, dst).
-// Jalankan dari root project:  node cek-modul.mjs
+// Jalankan dari root project:  node scripts/cek-modul.mjs
 import fs from 'fs';
 
 const ALIAS = { 'java-dasar': 'dasar' }; // moduleId di file -> id di modules.json

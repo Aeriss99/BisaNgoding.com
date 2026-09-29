@@ -5,8 +5,8 @@ import { spawnSync, execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const contentDir = path.join(__dirname, '../../content');
-const tmpDir = path.join(__dirname, '../../.tmp-java');
+const contentDir = path.join(__dirname, '../content');
+const tmpDir = path.join(__dirname, '../.tmp-java');
 
 if (!fs.existsSync(tmpDir)) {
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -169,7 +169,7 @@ function runAll() {
     }
   }
 
-  const reportPath = path.join(__dirname, '../../reports/java.md');
+  const reportPath = path.join(__dirname, '../reports/java.md');
   const reportDir = path.dirname(reportPath);
   if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
   fs.writeFileSync(reportPath, report);

@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const contentDir = path.join(__dirname, '../../content');
+const contentDir = path.join(__dirname, '../content');
 
 // Minimal validation based on schema requirements
 const CardSchema = z.union([
@@ -331,7 +331,7 @@ async function run() {
   }
 
   report += `\nTotal: ${validCount} selesai, ${skeletonCount} skeleton, ${errors} error.\n`;
-  const reportPath = path.join(__dirname, '../../reports/content.md');
+  const reportPath = path.join(__dirname, '../reports/content.md');
   const reportDir = path.dirname(reportPath);
   if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
   fs.writeFileSync(reportPath, report);
