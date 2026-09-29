@@ -1,0 +1,167 @@
+{
+  "id": "java-generics-09",
+  "moduleId": "generics",
+  "order": 9,
+  "title": "Wildcard ?: Menerima List Apa Saja",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Misalkan kita ingin membuat satu method untuk mencetak isi list, apa pun isinya: list nama, list nilai, list harga. Tebakan pertama biasanya `List<Object>`, karena semua class turunan Object.\n\nTapi dari pelajaran sebelumnya kita tahu generics bersifat invariant: `List<String>` **bukan** `List<Object>`. Jadi method dengan parameter `List<Object>` justru menolak `List<String>`.\n\nSolusinya adalah **wildcard**, ditulis dengan tanda tanya: `List<?>`. Artinya: \"list berisi tipe apa saja, saya tidak peduli tipenya\".\n\n`List<?>` itu seperti petugas yang menghitung dan membacakan isi kardus tanpa melihat labelnya. Ia bisa menangani kardus apa saja, tapi karena tidak tahu labelnya, ia tidak berani memasukkan barang baru ke dalamnya. Siapa tahu barangnya tidak cocok."
+    },
+    {
+      "type": "theory",
+      "content": "Bandingkan dua versi method ini:\n\n```java\nstatic void cetak(List<Object> daftar) { ... }\ncetak(buah);    // error: List<String> bukan List<Object>\n\nstatic void cetak(List<?> daftar) { ... }\ncetak(buah);    // boleh\ncetak(nilai);   // boleh juga\n```\n\nKarena tipe isinya tidak diketahui, setiap elemen dibaca sebagai **Object**, tipe paling umum di Java. Object tetap bisa dicetak, karena `println` memanggil `toString()` milik object aslinya.\n\n```java run\nimport java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> kota = Arrays.asList(\"Bandung\", \"Medan\");\n        List<Double> suhu = Arrays.asList(24.5, 31.0);\n        tampilkan(kota);\n        tampilkan(suhu);\n    }\n\n    static void tampilkan(List<?> daftar) {\n        Object pertama = daftar.get(0);\n        System.out.println(\"Pertama: \" + pertama + \", jumlah: \" + daftar.size());\n    }\n}\n```"
+    },
+    {
+      "type": "theory",
+      "content": "Ada harga yang dibayar untuk keluwesan ini. Karena Java tidak tahu tipe isi `List<?>`, ada dua batasan:\n\n| Operasi | Boleh? |\n|---|---|\n| Membaca: `Object x = daftar.get(0);` | Ya, sebagai Object |\n| Membaca: `String s = daftar.get(0);` | **Tidak**, error kompilasi |\n| Menambah: `daftar.add(\"baru\");` | **Tidak**, error kompilasi |\n| Menambah: `daftar.add(null);` | Ya, tapi jarang berguna |\n| `size()`, `isEmpty()`, `contains(...)` | Ya |\n\nKenapa tidak boleh menambah? Karena list yang dikirim bisa saja `List<Integer>`. Kalau `add(\"baru\")` diizinkan, list angka akan kemasukan teks. Hanya `null` yang cocok untuk tipe apa pun.\n\nJadi pakai `List<?>` untuk method yang **hanya membaca** isi list dan tidak peduli tipenya: mencetak, menghitung jumlah item, atau memeriksa apakah kosong."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> buah = new ArrayList<>();\n        buah.add(\"apel\");\n        buah.add(\"jeruk\");\n\n        List<Integer> nilai = new ArrayList<>();\n        nilai.add(90);\n        nilai.add(75);\n        nilai.add(88);\n\n        cetakSemua(buah);\n        cetakSemua(nilai);\n    }\n\n    static void cetakSemua(List<?> daftar) {\n        for (Object isi : daftar) {\n            System.out.print(isi + \" \");\n        }\n        System.out.println(\"(\" + daftar.size() + \" item)\");\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak oleh cetakSemua(nilai)?",
+        "options": [
+          "90 75 88 (3 item)",
+          "apel jeruk (2 item)",
+          "[90, 75, 88]",
+          "Error kompilasi"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 19,
+          "note": "Wildcard: menerima list dengan tipe isi apa pun."
+        },
+        {
+          "line": 20,
+          "note": "Isi list tanpa tipe pasti dibaca sebagai Object."
+        },
+        {
+          "line": 23,
+          "note": "Method yang tidak peduli tipe isi tetap boleh dipakai."
+        },
+        {
+          "line": 16,
+          "note": "List<Integer> juga diterima oleh method yang sama."
+        }
+      ],
+      "explanation": "Method `cetakSemua` menerima `List<?>`, jadi `List<String>` dan `List<Integer>` sama-sama diterima.\n\nDi dalamnya, setiap elemen dibaca sebagai `Object`. Saat dicetak, Java tetap memakai `toString()` milik object aslinya, sehingga yang muncul `apel`, `jeruk`, `90`, dan seterusnya.\n\n`size()` tidak peduli tipe isi, jadi bisa dipakai seperti biasa.",
+      "tryThis": [
+        {
+          "task": "Di dalam cetakSemua, tambahkan baris daftar.add(\"baru\"); lalu jalankan. Baca errornya.",
+          "hint": "List<?> tidak bisa ditambah isi selain null."
+        },
+        {
+          "task": "Ganti parameter List<?> menjadi List<Object>. Baris mana yang sekarang error?",
+          "hint": "Kedua pemanggilan cetakSemua error, karena List<String> dan List<Integer> bukan List<Object>."
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai List<Object> agar method menerima list apa saja**\n\nSalah:\n\n```java\nstatic void cetak(List<Object> daftar) { ... }\n\nList<String> buah = new ArrayList<>();\ncetak(buah);   // error\n```\n\nBenar:\n\n```java\nstatic void cetak(List<?> daftar) { ... }\n\nList<String> buah = new ArrayList<>();\ncetak(buah);   // boleh\n```\n\nList<String> bukan List<Object>. Untuk menerima list dengan tipe isi apa saja, pakai List<?>.\n\n**2. Menambah isi ke List<?>**\n\nSalah:\n\n```java\nstatic void tambah(List<?> daftar) {\n    daftar.add(\"baru\");   // error\n}\n```\n\nBenar:\n\n```java\nstatic void tambah(List<String> daftar) {\n    daftar.add(\"baru\");\n}\n```\n\nJava tidak tahu tipe isi List<?>, jadi tidak mengizinkan add (kecuali null). Kalau perlu menambah, tulis tipe isinya dengan jelas.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(hitung(Arrays.asList(\"a\", \"b\", \"c\")));\n        System.out.println(hitung(Arrays.asList(1, 2)));\n    }\n\n    static int hitung(List<?> daftar) {\n        return daftar.size();\n    }\n}",
+          "options": [
+            "3 2",
+            "5",
+            "2 3",
+            "a b c 1 2"
+          ],
+          "answer": 0,
+          "explanation": "Method hitung menerima list apa saja dan mengembalikan jumlah itemnya: 3 lalu 2.",
+          "remedial": "- `List<?>` artinya \"list dengan tipe isi apa saja\".\n- Method dengan parameter `List<?>` menerima `List<String>`, `List<Integer>`, dan list lainnya.\n- `List<Object>` **tidak** bisa dipakai untuk itu, karena `List<String>` bukan `List<Object>`.\n- Isi `List<?>` dibaca sebagai **Object**.\n- `List<?>` tidak bisa ditambah isi, kecuali `null`."
+        },
+        {
+          "question": "Apakah kode ini bisa dikompilasi?",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<?> daftar = new ArrayList<String>();\n        daftar.add(\"halo\");\n        System.out.println(daftar);\n    }\n}",
+          "options": [
+            "Ya, karena list aslinya ArrayList<String>",
+            "Tidak, List<?> tidak bisa ditambah isi (kecuali null)",
+            "Ya, dan mencetak [halo]",
+            "Tidak, karena ? tidak boleh dipakai untuk variabel"
+          ],
+          "answer": 1,
+          "explanation": "Lewat variabel List<?>, Java tidak tahu tipe isinya, jadi add(\"halo\") ditolak.",
+          "remedial": "- `List<?>` artinya \"list dengan tipe isi apa saja\".\n- Method dengan parameter `List<?>` menerima `List<String>`, `List<Integer>`, dan list lainnya.\n- `List<Object>` **tidak** bisa dipakai untuk itu, karena `List<String>` bukan `List<Object>`.\n- Isi `List<?>` dibaca sebagai **Object**.\n- `List<?>` tidak bisa ditambah isi, kecuali `null`."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<?> daftar = Arrays.asList(\"x\", \"y\");\n        Object o = daftar.get(1);\n        System.out.println(o);\n    }\n}",
+          "options": [
+            "x",
+            "y",
+            "null",
+            "[x, y]"
+          ],
+          "answer": 1,
+          "explanation": "get(1) mengambil elemen kedua. Dibaca sebagai Object, tapi dicetak sesuai isinya: y.",
+          "remedial": "- `List<?>` artinya \"list dengan tipe isi apa saja\".\n- Method dengan parameter `List<?>` menerima `List<String>`, `List<Integer>`, dan list lainnya.\n- `List<Object>` **tidak** bisa dipakai untuk itu, karena `List<String>` bukan `List<Object>`.\n- Isi `List<?>` dibaca sebagai **Object**.\n- `List<?>` tidak bisa ditambah isi, kecuali `null`."
+        },
+        {
+          "question": "Saat membaca isi `List<?>`, setiap elemen dianggap bertipe...",
+          "options": [
+            "String",
+            "Object",
+            "Integer",
+            "Number"
+          ],
+          "answer": 1,
+          "explanation": "Tipe isinya tidak diketahui, jadi Java memakai tipe paling umum: Object.",
+          "remedial": "- `List<?>` artinya \"list dengan tipe isi apa saja\".\n- Method dengan parameter `List<?>` menerima `List<String>`, `List<Integer>`, dan list lainnya.\n- `List<Object>` **tidak** bisa dipakai untuk itu, karena `List<String>` bukan `List<Object>`.\n- Isi `List<?>` dibaca sebagai **Object**.\n- `List<?>` tidak bisa ditambah isi, kecuali `null`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method mana yang bisa menerima `List<String>` maupun `List<Integer>`?",
+      "options": [
+        "static void f(List<Object> d)",
+        "static void f(List<?> d)",
+        "static void f(List<Number> d)",
+        "static void f(List<String> d)"
+      ],
+      "answer": 1,
+      "explanation": "Hanya List<?> yang menerima list dengan tipe isi apa saja. List<Object> menolak keduanya karena generics invariant."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi method `info(List<?> daftar)` supaya mencetak elemen pertama dan jumlah item dengan format `Pertama: <elemen>, jumlah: <n>`. Method ini dipanggil dua kali dari `main`.\n\nOutput yang diharapkan:\n```\nPertama: kopi, jumlah: 2\nPertama: 3, jumlah: 3\n```",
+      "starterCode": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        info(Arrays.asList(\"kopi\", \"teh\"));\n        info(Arrays.asList(3, 1, 2));\n    }\n\n    static void info(List<?> daftar) {\n        // Tulis kode kamu di sini\n    }\n}",
+      "solution": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        info(Arrays.asList(\"kopi\", \"teh\"));\n        info(Arrays.asList(3, 1, 2));\n    }\n\n    static void info(List<?> daftar) {\n        Object pertama = daftar.get(0);\n        System.out.println(\"Pertama: \" + pertama + \", jumlah: \" + daftar.size());\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Pertama: kopi, jumlah: 2\nPertama: 3, jumlah: 3\n"
+        }
+      ],
+      "hints": [
+        "Elemen dari List<?> disimpan ke variabel bertipe Object.",
+        "Jumlah item didapat dari size()."
+      ],
+      "steps": [
+        "Ambil elemen pertama dengan daftar.get(0) ke variabel Object.",
+        "Cetak \"Pertama: \" + pertama + \", jumlah: \" + daftar.size()."
+      ],
+      "skeleton": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        info(Arrays.asList(\"kopi\", \"teh\"));\n        info(Arrays.asList(3, 1, 2));\n    }\n\n    static void info(List<?> daftar) {\n        ___ pertama = daftar.get(___);\n        System.out.println(\"Pertama: \" + pertama + \", jumlah: \" + daftar.___());\n    }\n}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Wildcard List<?> artinya list dengan tipe isi apa saja.",
+        "List<Object> tidak bisa menggantikan List<?>, karena generics invariant.",
+        "Isi List<?> dibaca sebagai Object.",
+        "List<?> tidak bisa ditambah isi, kecuali null. Pakai untuk method yang hanya membaca."
+      ]
+    }
+  ]
+}

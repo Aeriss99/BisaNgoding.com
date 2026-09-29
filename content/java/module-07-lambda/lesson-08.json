@@ -1,0 +1,171 @@
+{
+  "id": "java-lambda-08",
+  "moduleId": "lambda",
+  "order": 8,
+  "title": "Lazy Parameter dengan Supplier",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ada satu sifat Java yang jarang disadari: saat memanggil method, **semua argumennya dihitung dulu**, baru method-nya dijalankan. Walaupun di dalam method argumen itu ternyata tidak dipakai sama sekali.\n\nUntuk nilai kecil seperti angka 5, itu tidak masalah. Tapi bagaimana kalau argumennya hasil pekerjaan berat, misalnya menyusun laporan panjang, padahal laporannya cuma dipakai kalau fitur log sedang hidup?\n\nDi sinilah `Supplier` berguna. Alih-alih mengirim **nilainya**, kita mengirim **cara membuat nilainya**. Method yang memutuskan kapan (dan apakah) cara itu dijalankan. Teknik ini disebut **lazy** (malas): nilai baru dihitung saat benar-benar dibutuhkan.\n\nBayangkan memesan kue ulang tahun. Cara biasa: kue dibuat dulu, baru kamu tanya, \"Jadi pestanya?\" Kalau batal, kuenya terbuang. Cara Supplier: kamu menitipkan **resep** ke panitia. Kue baru dibuat kalau pestanya benar-benar jadi."
+    },
+    {
+      "type": "theory",
+      "content": "Lihat urutan cetak program ini. Method `pilih` hanya memakai salah satu dari dua angka, tapi keduanya tetap dihitung:\n\n```java run\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(pilih(true, angka(\"a\", 1), angka(\"b\", 2)));\n    }\n\n    static int angka(String label, int n) {\n        System.out.println(\"menghitung \" + label);\n        return n;\n    }\n\n    static int pilih(boolean pertama, int a, int b) {\n        return pertama ? a : b;\n    }\n}\n```\n\nOutput-nya `menghitung a`, `menghitung b`, lalu `1`. Angka b ikut dihitung walaupun tidak dipakai.\n\nBandingkan dua bentuk parameter:\n\n| Parameter | Yang dikirim | Kapan dihitung |\n|---|---|---|\n| `String pesan` | nilai yang sudah jadi | **sebelum** method berjalan |\n| `Supplier<String> pesan` | lambda pembuat nilai | saat `pesan.get()` dipanggil, atau **tidak sama sekali** |"
+    },
+    {
+      "type": "theory",
+      "content": "Pola lazy lain yang sering dipakai adalah **nilai cadangan**: pakai nilai yang ada, dan buat cadangan hanya kalau nilainya kosong.\n\n```java run\nimport java.util.function.Supplier;\n\npublic class Main {\n    static int dibuat = 0;\n\n    public static void main(String[] args) {\n        System.out.println(ambilAtauDefault(\"Rina\", () -> buatCadangan()));\n        System.out.println(ambilAtauDefault(null, () -> buatCadangan()));\n        System.out.println(\"Cadangan dibuat \" + dibuat + \" kali\");\n    }\n\n    static String buatCadangan() {\n        dibuat++;\n        return \"Anonim\";\n    }\n\n    static String ambilAtauDefault(String nilai, Supplier<String> cadangan) {\n        if (nilai != null) {\n            return nilai;\n        }\n        return cadangan.get();\n    }\n}\n```\n\nCadangan hanya dibuat satu kali, yaitu saat nilainya `null`.\n\nDua hal yang perlu diingat:\n\n- Setiap `get()` menjalankan lambda-nya **lagi dari awal**. Kalau hasilnya dipakai dua kali, simpan dulu di variabel.\n- Lambda `() -> buatCadangan()` juga bisa ditulis dengan method reference `Main::buatCadangan`.\n\nDi pelajaran berikutnya kamu akan bertemu method `orElseGet` milik Optional yang bekerja dengan cara yang sama persis."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"1. Versi biasa, log mati\");\n        logBiasa(false, buatLaporan());\n\n        System.out.println(\"2. Versi Supplier, log mati\");\n        logLazy(false, () -> buatLaporan());\n\n        System.out.println(\"3. Versi Supplier, log hidup\");\n        logLazy(true, () -> buatLaporan());\n\n        System.out.println(\"Laporan disusun \" + dihitung + \" kali\");\n    }\n\n    static int dihitung = 0;\n\n    static String buatLaporan() {\n        dihitung++;\n        System.out.println(\"   (menyusun laporan...)\");\n        return \"Laporan #\" + dihitung;\n    }\n\n    static void logBiasa(boolean aktif, String pesan) {\n        if (aktif) {\n            System.out.println(\"LOG: \" + pesan);\n        }\n    }\n\n    static void logLazy(boolean aktif, Supplier<String> pesan) {\n        if (aktif) {\n            System.out.println(\"LOG: \" + pesan.get());\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa baris terakhir yang dicetak?",
+        "options": [
+          "Laporan disusun 3 kali",
+          "Laporan disusun 2 kali",
+          "Laporan disusun 1 kali",
+          "Laporan disusun 0 kali"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "buatLaporan() dijalankan dulu sebelum logBiasa, walau log mati."
+        },
+        {
+          "line": 9,
+          "note": "Yang dikirim hanya lambda. Karena log mati, get() tidak pernah dipanggil."
+        },
+        {
+          "line": 12,
+          "note": "Log hidup, jadi get() dipanggil dan laporan disusun."
+        },
+        {
+          "line": 33,
+          "note": "Di sinilah lambda benar-benar dijalankan."
+        },
+        {
+          "line": 20,
+          "note": "Penghitung: berapa kali laporan benar-benar disusun."
+        }
+      ],
+      "explanation": "Pada langkah 1, Java menghitung `buatLaporan()` dulu sebelum masuk ke `logBiasa`. Laporan disusun, lalu dibuang karena log mati. Pekerjaan sia-sia.\n\nPada langkah 2, yang dikirim hanya lambda. Log mati, jadi `get()` tidak dipanggil dan laporan **tidak** disusun. Tidak ada tulisan \"menyusun laporan\" di bawah langkah 2.\n\nPada langkah 3, log hidup. `get()` dipanggil, laporan disusun untuk kedua kalinya, lalu dicetak sebagai `Laporan #2`.\n\nJadi dari tiga panggilan, laporan hanya disusun 2 kali.",
+      "tryThis": [
+        {
+          "task": "Ganti false di langkah 1 menjadi true. Berapa kali laporan disusun sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Ganti () -> buatLaporan() di langkah 3 menjadi Main::buatLaporan. Apakah output-nya berubah?",
+          "hint": "Method reference hanya cara lain menulis lambda yang sama."
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menghitung nilainya dulu, baru dibungkus lambda**\n\nSalah:\n\n```java\nString laporan = buatLaporan();\nlogLazy(false, () -> laporan);\n```\n\nBenar:\n\n```java\nlogLazy(false, () -> buatLaporan());\n```\n\nPada versi salah, laporan sudah disusun di baris pertama. Lambda hanya membungkus hasil yang sudah jadi, jadi tidak ada yang dihemat.\n\n**2. Memanggil get() berkali-kali**\n\nSalah:\n\n```java\nif (pesan.get().length() > 0) {\n    System.out.println(pesan.get());\n}\n```\n\nBenar:\n\n```java\nString isi = pesan.get();\nif (isi.length() > 0) {\n    System.out.println(isi);\n}\n```\n\nSetiap get() menjalankan lambda dari awal. Versi salah menyusun pesan dua kali. Simpan hasilnya di variabel.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        Supplier<Integer> s = () -> hitung();\n        System.out.println(n);\n        System.out.println(s.get());\n        System.out.println(s.get());\n    }\n\n    static int n = 0;\n\n    static int hitung() {\n        n++;\n        return n;\n    }\n}",
+          "options": [
+            "0 1 2",
+            "1 1 1",
+            "0 1 1",
+            "1 2 3"
+          ],
+          "answer": 0,
+          "explanation": "Membuat lambda belum menjalankan hitung(), jadi n masih 0. Setiap get() menjalankan hitung() lagi: 1, lalu 2.",
+          "remedial": "- Argumen biasa **selalu dihitung dulu** sebelum method berjalan, walau tidak dipakai.\n- Parameter `Supplier<T>` menerima **cara membuat nilai** (lambda), bukan nilainya.\n- Lambda baru dijalankan saat `get()` dipanggil. Kalau `get()` tidak dipanggil, nilainya tidak pernah dihitung.\n- Setiap `get()` menjalankan lambda lagi. Simpan hasilnya kalau perlu dipakai berkali-kali.\n\n```java\nstatic void log(boolean aktif, Supplier<String> pesan) {\n    if (aktif) {\n        System.out.println(pesan.get());   // hanya dihitung kalau aktif\n    }\n}\n```"
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(pilih(false, () -> mahal()));\n    }\n\n    static String mahal() {\n        System.out.println(\"dihitung\");\n        return \"X\";\n    }\n\n    static String pilih(boolean pakai, Supplier<String> s) {\n        return pakai ? s.get() : \"-\";\n    }\n}",
+          "options": [
+            "-",
+            "dihitung -",
+            "X",
+            "dihitung X"
+          ],
+          "answer": 0,
+          "explanation": "pakai bernilai false, jadi s.get() tidak pernah dipanggil dan mahal() tidak dijalankan.",
+          "remedial": "- Argumen biasa **selalu dihitung dulu** sebelum method berjalan, walau tidak dipakai.\n- Parameter `Supplier<T>` menerima **cara membuat nilai** (lambda), bukan nilainya.\n- Lambda baru dijalankan saat `get()` dipanggil. Kalau `get()` tidak dipanggil, nilainya tidak pernah dihitung.\n- Setiap `get()` menjalankan lambda lagi. Simpan hasilnya kalau perlu dipakai berkali-kali.\n\n```java\nstatic void log(boolean aktif, Supplier<String> pesan) {\n    if (aktif) {\n        System.out.println(pesan.get());   // hanya dihitung kalau aktif\n    }\n}\n```"
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(pilih(false, mahal()));\n    }\n\n    static String mahal() {\n        System.out.println(\"dihitung\");\n        return \"X\";\n    }\n\n    static String pilih(boolean pakai, String s) {\n        return pakai ? s : \"-\";\n    }\n}",
+          "options": [
+            "-",
+            "dihitung -",
+            "X",
+            "dihitung X"
+          ],
+          "answer": 1,
+          "explanation": "Argumen biasa dihitung sebelum method berjalan. mahal() mencetak \"dihitung\" dulu, baru pilih mengembalikan \"-\".",
+          "remedial": "- Argumen biasa **selalu dihitung dulu** sebelum method berjalan, walau tidak dipakai.\n- Parameter `Supplier<T>` menerima **cara membuat nilai** (lambda), bukan nilainya.\n- Lambda baru dijalankan saat `get()` dipanggil. Kalau `get()` tidak dipanggil, nilainya tidak pernah dihitung.\n- Setiap `get()` menjalankan lambda lagi. Simpan hasilnya kalau perlu dipakai berkali-kali.\n\n```java\nstatic void log(boolean aktif, Supplier<String> pesan) {\n    if (aktif) {\n        System.out.println(pesan.get());   // hanya dihitung kalau aktif\n    }\n}\n```"
+        },
+        {
+          "question": "Kapan parameter Supplier (lazy) paling bermanfaat?",
+          "options": [
+            "Saat nilainya berat dihitung dan belum tentu dipakai",
+            "Saat nilainya angka kecil yang selalu dipakai",
+            "Saat ingin nilai dihitung sesering mungkin",
+            "Saat method tidak punya parameter sama sekali"
+          ],
+          "answer": 0,
+          "explanation": "Supplier menunda perhitungan. Hematnya terasa kalau nilainya mahal dan sering tidak dipakai.",
+          "remedial": "- Argumen biasa **selalu dihitung dulu** sebelum method berjalan, walau tidak dipakai.\n- Parameter `Supplier<T>` menerima **cara membuat nilai** (lambda), bukan nilainya.\n- Lambda baru dijalankan saat `get()` dipanggil. Kalau `get()` tidak dipanggil, nilainya tidak pernah dihitung.\n- Setiap `get()` menjalankan lambda lagi. Simpan hasilnya kalau perlu dipakai berkali-kali.\n\n```java\nstatic void log(boolean aktif, Supplier<String> pesan) {\n    if (aktif) {\n        System.out.println(pesan.get());   // hanya dihitung kalau aktif\n    }\n}\n```"
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pada pemanggilan biasa seperti `cetak(buatPesan())`, kapan `buatPesan()` dijalankan?",
+      "options": [
+        "Sebelum method cetak mulai berjalan",
+        "Hanya jika cetak memakainya",
+        "Setelah cetak selesai",
+        "Hanya saat get() dipanggil"
+      ],
+      "answer": 0,
+      "explanation": "Java selalu menghitung argumen dulu. Kalau ingin ditunda, kirim lambda lewat parameter Supplier."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi method `ambilAtauDefault(String nilai, Supplier<String> cadangan)`: kembalikan `nilai` kalau tidak `null`, dan kembalikan `cadangan.get()` kalau `nilai` bernilai `null`. Isi method `main` sudah disediakan. Kalau benar, nama tamu hanya dibuat satu kali.\n\nOutput yang diharapkan:\n```\nBudi\nTamu1\nNama tamu dibuat 1 kali\n```",
+      "starterCode": "import java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(ambilAtauDefault(\"Budi\", () -> buatNamaTamu()));\n        System.out.println(ambilAtauDefault(null, () -> buatNamaTamu()));\n        System.out.println(\"Nama tamu dibuat \" + dibuat + \" kali\");\n    }\n\n    static int dibuat = 0;\n\n    static String buatNamaTamu() {\n        dibuat++;\n        return \"Tamu\" + dibuat;\n    }\n\n    static String ambilAtauDefault(String nilai, Supplier<String> cadangan) {\n        // Tulis kode kamu di sini\n        return nilai;\n    }\n}",
+      "solution": "import java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(ambilAtauDefault(\"Budi\", () -> buatNamaTamu()));\n        System.out.println(ambilAtauDefault(null, () -> buatNamaTamu()));\n        System.out.println(\"Nama tamu dibuat \" + dibuat + \" kali\");\n    }\n\n    static int dibuat = 0;\n\n    static String buatNamaTamu() {\n        dibuat++;\n        return \"Tamu\" + dibuat;\n    }\n\n    static String ambilAtauDefault(String nilai, Supplier<String> cadangan) {\n        if (nilai != null) {\n            return nilai;\n        }\n        return cadangan.get();\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Budi\nTamu1\nNama tamu dibuat 1 kali\n"
+        }
+      ],
+      "hints": [
+        "Periksa dulu apakah nilai != null.",
+        "cadangan.get() hanya dipanggil di cabang saat nilai bernilai null."
+      ],
+      "steps": [
+        "Tulis if (nilai != null) yang mengembalikan nilai.",
+        "Di luar if, kembalikan cadangan.get()."
+      ],
+      "skeleton": "import java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(ambilAtauDefault(\"Budi\", () -> buatNamaTamu()));\n        System.out.println(ambilAtauDefault(null, () -> buatNamaTamu()));\n        System.out.println(\"Nama tamu dibuat \" + dibuat + \" kali\");\n    }\n\n    static int dibuat = 0;\n\n    static String buatNamaTamu() {\n        dibuat++;\n        return \"Tamu\" + dibuat;\n    }\n\n    static String ambilAtauDefault(String nilai, Supplier<String> cadangan) {\n        if (nilai ___ null) {\n            return ___;\n        }\n        return cadangan.___();\n    }\n}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Argumen biasa selalu dihitung sebelum method berjalan, walau tidak dipakai.",
+        "Parameter Supplier menerima cara membuat nilai, bukan nilainya.",
+        "Lambda di Supplier baru dijalankan saat get() dipanggil, atau tidak sama sekali.",
+        "Setiap get() menjalankan lambda lagi, jadi simpan hasilnya kalau dipakai berkali-kali."
+      ]
+    }
+  ]
+}

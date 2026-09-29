@@ -1,0 +1,168 @@
+{
+  "id": "java-generics-12",
+  "moduleId": "generics",
+  "order": 12,
+  "title": "Type Erasure: Generics Hilang Saat Program Jalan",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Selama ini generics terasa seperti label yang selalu menempel: `List<String>` berisi String, `List<Integer>` berisi Integer. Kenyataannya, label itu **hanya dipakai saat kompilasi**.\n\nSetelah compiler selesai memeriksa bahwa semua tipe cocok, informasi generic **dihapus**. Saat program berjalan, `List<String>` dan `List<Integer>` sama-sama hanya `List` biasa. Proses ini disebut **type erasure** (penghapusan tipe).\n\nBayangkan petugas gudang yang memeriksa label setiap kardus saat barang masuk. Setelah semua lolos pemeriksaan, labelnya dilepas supaya gudang lebih ringkas. Barang di dalamnya tetap benar, karena sudah diperiksa di pintu. Tapi kalau nanti ada yang bertanya \"kardus ini labelnya apa?\", tidak ada lagi yang bisa menjawab."
+    },
+    {
+      "type": "theory",
+      "content": "Kira-kira beginilah yang dilakukan compiler:\n\n```java\n// yang kamu tulis\nList<String> teks = new ArrayList<String>();\nteks.add(\"hai\");\nString s = teks.get(0);\n\n// kira-kira hasilnya setelah kompilasi\nList teks = new ArrayList();\nteks.add(\"hai\");\nString s = (String) teks.get(0);   // casting ditambahkan otomatis\n```\n\nCompiler memeriksa tipe lalu menambahkan casting untuk kita. Casting itu aman karena semua tipe sudah dicek. Type parameter `T` sendiri diganti menjadi `Object`, atau menjadi batasnya kalau ditulis `<T extends Number>` (menjadi `Number`).\n\nBuktinya, class dari dua list berikut ternyata sama persis:\n\n```java run\nimport java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> a = new ArrayList<>();\n        List<Integer> b = new ArrayList<>();\n        System.out.println(a.getClass() == b.getClass());\n        System.out.println(a.getClass().getName());\n    }\n}\n```"
+    },
+    {
+      "type": "theory",
+      "content": "Karena saat jalan tipe `T` sudah tidak diketahui, ada beberapa hal yang **tidak bisa** ditulis:\n\n| Tidak boleh | Kenapa | Gantinya |\n|---|---|---|\n| `new T()` | saat jalan, T tidak diketahui class apa | terima object yang sudah jadi lewat parameter |\n| `new T[10]` | array harus tahu tipe isinya saat jalan | pakai `List<T>` / `ArrayList<T>` |\n| `x instanceof List<String>` | saat jalan hanya ada `List` | `x instanceof List<?>` |\n| `cetak(List<String>)` dan `cetak(List<Integer>)` | setelah erasure keduanya jadi `cetak(List)` | beri nama berbeda: `cetakTeks`, `cetakAngka` |\n\nPoin terakhir sering mengejutkan. Dua method itu kelihatan berbeda, tapi setelah label dihapus keduanya sama persis, jadi compiler menolaknya dengan pesan *name clash ... have the same erasure*.\n\nKabar baiknya, semua larangan ini ketahuan saat kompilasi, bukan saat program sudah berjalan."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> teks = new ArrayList<>();\n        List<Integer> angka = new ArrayList<>();\n\n        System.out.println(teks.getClass() == angka.getClass());\n        System.out.println(teks.getClass().getSimpleName());\n\n        Kotak<String> k1 = new Kotak<>(\"halo\");\n        Kotak<Integer> k2 = new Kotak<>(5);\n        System.out.println(k1.getClass() == k2.getClass());\n        System.out.println(k1.ambil() + \" \" + k2.ambil());\n\n        Object o = angka;\n        System.out.println(o instanceof List<?>);\n    }\n}\n\nclass Kotak<T> {\n    private T isi;\n\n    Kotak(T isi) {\n        this.isi = isi;\n    }\n\n    T ambil() {\n        return isi;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak oleh teks.getClass().getSimpleName()?",
+        "options": [
+          "ArrayList",
+          "ArrayList<String>",
+          "List<String>",
+          "String"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "Saat jalan, keduanya class yang sama: ArrayList."
+        },
+        {
+          "line": 10,
+          "note": "Nama class tanpa <String>, karena tipe generic sudah dihapus."
+        },
+        {
+          "line": 14,
+          "note": "Berlaku juga untuk class generic buatan sendiri."
+        },
+        {
+          "line": 18,
+          "note": "instanceof dengan ? boleh. Dengan List<String> tidak boleh."
+        }
+      ],
+      "explanation": "`List<String>` dan `List<Integer>` saat jalan sama-sama `ArrayList`, jadi perbandingan class-nya `true`. Nama class-nya pun hanya `ArrayList`, tanpa `<String>`.\n\nHal yang sama terjadi pada `Kotak<String>` dan `Kotak<Integer>`: keduanya class `Kotak`.\n\nIsinya tetap benar (`halo 5`), karena tipe sudah diperiksa saat kompilasi.\n\n`instanceof List<?>` boleh, karena tidak menanyakan tipe isi yang sudah dihapus.",
+      "tryThis": [
+        {
+          "task": "Ganti o instanceof List<?> menjadi o instanceof List<String>. Baca errornya.",
+          "hint": "Tipe isi list tidak bisa diperiksa saat jalan."
+        },
+        {
+          "task": "Di class Kotak, tambahkan method T buatBaru() { return new T(); }. Apa kata compiler?",
+          "hint": "new T() tidak boleh, karena T tidak diketahui saat jalan."
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membuat array dari type parameter**\n\nSalah:\n\n```java\nclass Rak<T> {\n    private T[] isi = new T[10];   // error\n}\n```\n\nBenar:\n\n```java\nclass Rak<T> {\n    private List<T> isi = new ArrayList<>();\n}\n```\n\nArray harus tahu tipe isinya saat jalan, padahal T sudah dihapus. Pakai List<T> sebagai gantinya.\n\n**2. Overload yang hanya beda tipe generic**\n\nSalah:\n\n```java\nstatic void cetak(List<String> d) { ... }\nstatic void cetak(List<Integer> d) { ... }   // error\n```\n\nBenar:\n\n```java\nstatic void cetakTeks(List<String> d) { ... }\nstatic void cetakAngka(List<Integer> d) { ... }\n```\n\nSetelah type erasure keduanya menjadi cetak(List), jadi dianggap method yang sama. Beri nama berbeda.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> a = new ArrayList<>();\n        List<Double> b = new ArrayList<>();\n        System.out.println(a.getClass() == b.getClass());\n    }\n}",
+          "options": [
+            "true",
+            "false",
+            "null",
+            "ArrayList"
+          ],
+          "answer": 0,
+          "explanation": "Tipe generic dihapus saat kompilasi. Saat jalan keduanya sama-sama ArrayList.",
+          "remedial": "- **Type erasure**: informasi generic hanya dipakai saat kompilasi, lalu dihapus.\n- Saat jalan, `List<String>` dan `List<Integer>` sama-sama `ArrayList`: `getClass()` keduanya sama.\n- Karena itu **tidak boleh**: `new T()`, `new T[10]`, `x instanceof List<String>`.\n- Overload `cetak(List<String>)` dan `cetak(List<Integer>)` bentrok, karena setelah erasure keduanya `cetak(List)`.\n- Yang boleh: `x instanceof List<?>`, dan `List<T>` sebagai pengganti array."
+        },
+        {
+          "question": "Apakah kode ini bisa dikompilasi?",
+          "code": "import java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"halo\");\n    }\n\n    static void cetak(List<String> d) {\n        System.out.println(d);\n    }\n\n    static void cetak(List<Integer> d) {\n        System.out.println(d);\n    }\n}",
+          "options": [
+            "Ya, karena tipe parameternya berbeda",
+            "Tidak, setelah type erasure keduanya menjadi cetak(List)",
+            "Ya, tapi hanya method pertama yang bisa dipanggil",
+            "Tidak, karena method static tidak boleh punya parameter List"
+          ],
+          "answer": 1,
+          "explanation": "List<String> dan List<Integer> sama-sama menjadi List setelah erasure, jadi kedua method bentrok.",
+          "remedial": "- **Type erasure**: informasi generic hanya dipakai saat kompilasi, lalu dihapus.\n- Saat jalan, `List<String>` dan `List<Integer>` sama-sama `ArrayList`: `getClass()` keduanya sama.\n- Karena itu **tidak boleh**: `new T()`, `new T[10]`, `x instanceof List<String>`.\n- Overload `cetak(List<String>)` dan `cetak(List<Integer>)` bentrok, karena setelah erasure keduanya `cetak(List)`.\n- Yang boleh: `x instanceof List<?>`, dan `List<T>` sebagai pengganti array."
+        },
+        {
+          "question": "Apakah kode ini bisa dikompilasi?",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        Object o = new ArrayList<String>();\n        System.out.println(o instanceof List<String>);\n    }\n}",
+          "options": [
+            "Ya, dan mencetak true",
+            "Ya, dan mencetak false",
+            "Tidak, karena instanceof tidak bisa memeriksa tipe generic seperti List<String>",
+            "Tidak, karena Object tidak boleh diisi ArrayList"
+          ],
+          "answer": 2,
+          "explanation": "Saat jalan, informasi <String> sudah hilang, jadi tidak bisa diperiksa. Yang boleh adalah o instanceof List<?>.",
+          "remedial": "- **Type erasure**: informasi generic hanya dipakai saat kompilasi, lalu dihapus.\n- Saat jalan, `List<String>` dan `List<Integer>` sama-sama `ArrayList`: `getClass()` keduanya sama.\n- Karena itu **tidak boleh**: `new T()`, `new T[10]`, `x instanceof List<String>`.\n- Overload `cetak(List<String>)` dan `cetak(List<Integer>)` bentrok, karena setelah erasure keduanya `cetak(List)`.\n- Yang boleh: `x instanceof List<?>`, dan `List<T>` sebagai pengganti array."
+        },
+        {
+          "question": "Apa yang dimaksud dengan type erasure?",
+          "options": [
+            "Informasi tipe generic dihapus setelah kompilasi, sehingga saat jalan hanya tersisa tipe biasa seperti List",
+            "Java menghapus isi list yang tipenya salah",
+            "Java mengubah Integer menjadi int secara otomatis",
+            "Java menghapus variabel generic yang tidak dipakai"
+          ],
+          "answer": 0,
+          "explanation": "Tipe generic dipakai compiler untuk memeriksa kode, lalu dihapus. Mengubah Integer ke int disebut unboxing.",
+          "remedial": "- **Type erasure**: informasi generic hanya dipakai saat kompilasi, lalu dihapus.\n- Saat jalan, `List<String>` dan `List<Integer>` sama-sama `ArrayList`: `getClass()` keduanya sama.\n- Karena itu **tidak boleh**: `new T()`, `new T[10]`, `x instanceof List<String>`.\n- Overload `cetak(List<String>)` dan `cetak(List<Integer>)` bentrok, karena setelah erasure keduanya `cetak(List)`.\n- Yang boleh: `x instanceof List<?>`, dan `List<T>` sebagai pengganti array."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Di dalam class generic `Kotak<T>` (anggap `x` bertipe `Object`), mana yang BISA dikompilasi?",
+      "options": [
+        "T baru = new T();",
+        "T[] data = new T[10];",
+        "boolean b = x instanceof List<?>;",
+        "boolean b = x instanceof List<String>;"
+      ],
+      "answer": 2,
+      "explanation": "instanceof dengan wildcard ? boleh, karena tidak menanyakan tipe isi. Tiga lainnya membutuhkan informasi tipe yang sudah dihapus."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Class `Rak<T>` memakai `List<T>` karena `new T[10]` tidak boleh. Tambahkan dua method ke `Rak`: `T ambil(int i)` (mengembalikan isi ke-i) dan `int jumlah()` (mengembalikan banyaknya isi). Lalu di `main` cetak `rakTeks.ambil(0)`, `rakTeks.jumlah()`, dan hasil `rakTeks.getClass() == rakAngka.getClass()`.\n\nOutput yang diharapkan:\n```\nbuku\n2\ntrue\n```",
+      "starterCode": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        Rak<String> rakTeks = new Rak<>();\n        rakTeks.tambah(\"buku\");\n        rakTeks.tambah(\"pensil\");\n        Rak<Integer> rakAngka = new Rak<>();\n        // Tulis kode kamu di sini\n    }\n}\n\nclass Rak<T> {\n    private List<T> isi = new ArrayList<>();\n\n    void tambah(T x) {\n        isi.add(x);\n    }\n\n    // Tulis kode kamu di sini\n}",
+      "solution": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        Rak<String> rakTeks = new Rak<>();\n        rakTeks.tambah(\"buku\");\n        rakTeks.tambah(\"pensil\");\n        Rak<Integer> rakAngka = new Rak<>();\n        System.out.println(rakTeks.ambil(0));\n        System.out.println(rakTeks.jumlah());\n        System.out.println(rakTeks.getClass() == rakAngka.getClass());\n    }\n}\n\nclass Rak<T> {\n    private List<T> isi = new ArrayList<>();\n\n    void tambah(T x) {\n        isi.add(x);\n    }\n\n    T ambil(int i) {\n        return isi.get(i);\n    }\n\n    int jumlah() {\n        return isi.size();\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "buku\n2\ntrue\n"
+        }
+      ],
+      "hints": [
+        "ambil cukup mengembalikan isi.get(i), jumlah mengembalikan isi.size().",
+        "Rak<String> dan Rak<Integer> saat jalan sama-sama class Rak."
+      ],
+      "steps": [
+        "Tambahkan method T ambil(int i) dan int jumlah() di class Rak.",
+        "Di main, cetak rakTeks.ambil(0) dan rakTeks.jumlah().",
+        "Cetak rakTeks.getClass() == rakAngka.getClass()."
+      ],
+      "skeleton": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        Rak<String> rakTeks = new Rak<>();\n        rakTeks.tambah(\"buku\");\n        rakTeks.tambah(\"pensil\");\n        Rak<Integer> rakAngka = new Rak<>();\n        System.out.println(rakTeks.ambil(0));\n        System.out.println(rakTeks.jumlah());\n        System.out.println(rakTeks.___() == rakAngka.___());\n    }\n}\n\nclass Rak<T> {\n    private List<T> isi = new ArrayList<>();\n\n    void tambah(T x) {\n        isi.add(x);\n    }\n\n    ___ ambil(int i) {\n        return isi.get(i);\n    }\n\n    int jumlah() {\n        return isi.___();\n    }\n}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Type erasure: informasi generic dipakai saat kompilasi, lalu dihapus.",
+        "Saat jalan, List<String> dan List<Integer> sama-sama ArrayList.",
+        "new T(), new T[10], dan instanceof List<String> tidak boleh ditulis.",
+        "Overload yang hanya beda tipe generic bentrok; beri nama method berbeda."
+      ]
+    }
+  ]
+}
