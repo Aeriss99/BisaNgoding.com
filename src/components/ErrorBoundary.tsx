@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
             {this.state.error?.message}
           </pre>
           <a
-            href="/"
+            href={import.meta.env.BASE_URL}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl"
           >
             Kembali ke Beranda

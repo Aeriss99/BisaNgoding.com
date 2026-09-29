@@ -7,6 +7,8 @@ import type {
 } from '../../types/schema';
 import { Play, CheckCircle, Check, X, AlertTriangle } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
+import { EditorView } from '@codemirror/view';
+import { rapikanKetikan } from '../../lib/ketikan';
 import { ekstensiBahasa } from '../../lib/editorBahasa';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -100,7 +102,7 @@ export function UnderstandingCheckCardComponent({
           <div className="border-2 border-[var(--color-text-main)] rounded-xl overflow-hidden">
             <CodeMirror
               value={q.code}
-              extensions={ekstensiBahasa(language)}
+              extensions={[...ekstensiBahasa(language), EditorView.lineWrapping]}
               theme="light"
               readOnly={true}
               basicSetup={{ lineNumbers: true }}
@@ -224,7 +226,7 @@ export function FillBlankCardComponent({
     if (isSuccess) return;
     const newAttempts = attempts + 1;
     setAttempts(newAttempts);
-    const hasil = card.answers.map((a, i) => !jawabanDiterima(a).includes((inputs[i] ?? '').trim()));
+    const hasil = card.answers.map((a, i) => !jawabanDiterima(a).includes(rapikanKetikan(inputs[i] ?? '').trim()));
     setSalah(hasil);
     if (hasil.every((x) => !x)) {
       setIsSuccess(true);
@@ -258,7 +260,7 @@ export function FillBlankCardComponent({
                 value={inputs[i] ?? ''}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   const newInputs = [...inputs];
-                  newInputs[i] = e.target.value;
+                  newInputs[i] = rapikanKetikan(e.target.value);
                   setInputs(newInputs);
                   if (salah[i]) setSalah(salah.map((x, j) => (j === i ? false : x)));
                 }}
@@ -352,7 +354,7 @@ export function PredictOutputCardComponent({
       <div className="border rounded-lg overflow-hidden border-gray-300">
         <CodeMirror
           value={card.code}
-          extensions={ekstensiBahasa(language)}
+          extensions={[...ekstensiBahasa(language), EditorView.lineWrapping]}
           theme="light"
           readOnly={true}
           basicSetup={{ lineNumbers: true }}

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { X, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useProgress } from '../context/ProgressContext';
-import { coursesData, getModule, getQuizQuestions } from '../lib/content';
+import { coursesData, getModule, getQuizQuestions, checkModuleUnlocked, getVisibleLessons } from '../lib/content';
 import type { QuizQuestion } from '../types/schema';
 import {
   prepareQuiz,
@@ -11,6 +11,7 @@ import {
   PASSING_SCORE,
 } from '../lib/quizLogic';
 import CodeMirror from '@uiw/react-codemirror';
+import { EditorView } from '@codemirror/view';
 import { ekstensiBahasa } from '../lib/editorBahasa';
 
 export default function QuizPage() {
@@ -19,7 +20,7 @@ export default function QuizPage() {
   const course = coursesData.find((c) => c.id === (mod?.courseId || 'java'));
   const language = course?.language || 'java';
   
-  const { saveQuizScore, addXP, touchActivity } = useProgress();
+  const { progress, saveQuizScore, addXP, touchActivity } = useProgress();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -77,6 +78,21 @@ export default function QuizPage() {
       addXP(50); // Big XP bonus for passing quiz
     }
   };
+
+  // Penjaga kunci quiz: modul harus terbuka dan semua pelajarannya selesai
+  // (sama dengan syarat tombol Quiz di halaman modul). Setelah quiz selesai
+  // hasilnya tetap tampil.
+  if (mod && !isFinished) {
+    if (!checkModuleUnlocked(mod, progress)) {
+      return <Navigate to={`/kelas/${mod.courseId || 'java'}`} replace />;
+    }
+    const semuaSelesai = getVisibleLessons(mod.id).every((l) =>
+      progress.completedLessons.includes(l.id)
+    );
+    if (!progress.unlockAll && !semuaSelesai) {
+      return <Navigate to={`/module/${mod.id}`} replace />;
+    }
+  }
 
   if (loading) {
     return <div className="p-8 text-center">Memuat quiz...</div>;
@@ -178,7 +194,7 @@ export default function QuizPage() {
                   <div className="border rounded-lg overflow-hidden border-gray-300">
                     <CodeMirror
                       value={q.code}
-                      extensions={ekstensiBahasa(language)}
+                      extensions={[...ekstensiBahasa(language), EditorView.lineWrapping]}
                       theme="light"
                       readOnly={true}
                     />
@@ -247,7 +263,7 @@ export default function QuizPage() {
             <div className="border rounded-lg overflow-hidden border-gray-300">
               <CodeMirror
                 value={q.code}
-                extensions={ekstensiBahasa(language)}
+                extensions={[...ekstensiBahasa(language), EditorView.lineWrapping]}
                 theme="light"
                 readOnly={true}
                 basicSetup={{ lineNumbers: true }}

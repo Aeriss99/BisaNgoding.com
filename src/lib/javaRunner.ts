@@ -1,3 +1,5 @@
+import { rapikanKetikan } from './ketikan';
+
 export interface RunResult {
   stdout: string;
   stderr: string;
@@ -200,6 +202,7 @@ export function resetJavaRunner(): void {
 }
 
 export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: string) => void): Promise<RunResult> {
+  code = rapikanKetikan(code);
   await getOrCreateIframe();
 
   runCounter++;

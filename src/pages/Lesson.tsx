@@ -100,13 +100,14 @@ export default function LessonPage() {
     );
   }
 
-  if (lesson.mode === 'latihan') {
-    return <PemutarLatihan lesson={lesson} />;
-  }
-
   const mod = getModule(lesson.moduleId);
   if (mod && !checkModuleUnlocked(mod, progress)) {
     return <Navigate to={`/kelas/${mod.courseId || 'java'}`} replace />;
+  }
+
+  // Pengecekan kunci berlaku juga untuk pelajaran latihan (English)
+  if (lesson.mode === 'latihan') {
+    return <PemutarLatihan lesson={lesson} />;
   }
 
   const course = coursesData.find((c) => c.id === (mod?.courseId || 'java'));

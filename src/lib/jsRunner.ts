@@ -1,4 +1,5 @@
 import type { RunResult } from './javaRunner';
+import { rapikanKetikan } from './ketikan';
 
 const TIMEOUT_MS = 5000;
 
@@ -134,6 +135,7 @@ export async function runJsCode(
   html?: string,
   onStatus?: (s: string) => void
 ): Promise<RunResult> {
+  code = rapikanKetikan(code);
   runCounter++;
   const runId = runCounter;
 
