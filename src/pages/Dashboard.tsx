@@ -14,6 +14,7 @@ import {
   getVisibleLessons,
  
 } from '../lib/content';
+import JalurBelajar from '../components/JalurBelajar';
 import { useAuth } from '../context/AuthContext';
 import { useState, useEffect } from 'react';
 
@@ -232,6 +233,14 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      
+      {/* Jalur Belajar */}
+      <section className="space-y-6 mt-12 mb-12">
+        <div className="border-b-2 border-text-main pb-3">
+          <h2 className="text-2xl font-space">Jalur Belajar</h2>
+        </div>
+        <JalurBelajar tampilkanProgres={true} />
+      </section>
 
       {/* Daftar Semua Kelas */}
       <section className="space-y-6 mt-12">

@@ -4,6 +4,7 @@ import { BookOpen, Code, Hammer, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { modulesData, coursesData, getVisibleLessons } from '../lib/content';
 import { ComingSoon } from '../components/ComingSoon';
+import JalurBelajar from '../components/JalurBelajar';
 
 export default function Landing() {
   const { masukGoogle, isSupabaseConfigured } = useAuth();
@@ -244,8 +245,16 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Jalur Belajar */}
+      <section className="px-4 py-16 sm:px-8 max-w-7xl mx-auto border-t-2 border-text-main">
+        <div className="mb-12">
+          <h2 className="text-3xl md:text-4xl font-space font-bold uppercase mb-4 shadow-text">Mau jadi apa?</h2>
+        </div>
+        <JalurBelajar tampilkanProgres={false} onMulai={() => handleLoginClick({ preventDefault: () => {} } as React.MouseEvent)} />
+      </section>
+
       {/* 4. Kelas Tersedia */}
-      <section id="kelas" className="px-4 py-16 sm:px-8 max-w-7xl mx-auto">
+      <section id="kelas" className="px-4 py-16 sm:px-8 max-w-7xl mx-auto border-t-2 border-text-main">
         <h2 className="font-bungee text-3xl sm:text-4xl mb-12">
           <span
             className="inline"

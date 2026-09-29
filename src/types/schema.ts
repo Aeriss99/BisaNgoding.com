@@ -186,3 +186,27 @@ export interface QuizQuestion {
   answer: number;
   explanation: string;
 }
+
+export interface LangkahJalur {
+  judul: string;
+  deskripsi: string;
+  kelas?: string;
+  modul?: string[];
+  segera?: boolean;
+}
+
+export interface JalurBelajar {
+  id: string;
+  judul: string;
+  deskripsi: string;
+  langkah: LangkahJalur[];
+}
+
+export interface Roadmap {
+  jalur: JalurBelajar[];
+  pendamping: {
+    judul: string;
+    deskripsi: string;
+    kelas: string;
+  };
+}

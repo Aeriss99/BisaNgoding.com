@@ -9,6 +9,7 @@ vi.mock('../lib/content', () => ({
   coursesData: [
     { id: 'java', title: 'Java', language: 'java', order: 1 }
   ],
+  checkModuleUnlocked: vi.fn(() => true),
   modulesData: [
     {
       id: 'dasar',

@@ -52,7 +52,8 @@ Object.keys(lessonFiles).forEach((path) => {
     path.endsWith('courses.json') ||
     path.endsWith('quiz.json') ||
     path.endsWith('outline.json') ||
-    path.endsWith('achievements.json')
+    path.endsWith('achievements.json') ||
+    path.endsWith('roadmap.json')
   )
     return;
   const mod = lessonFiles[path] as any;

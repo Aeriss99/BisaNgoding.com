@@ -182,7 +182,7 @@ export default function CourseDetail() {
                 className="flex flex-col md:flex-row md:items-center gap-4 p-5 rounded-xl border-[3px] border-[var(--color-landing-black)] bg-gray-100 opacity-75 cursor-not-allowed select-none"
               >
                 <div className="w-14 h-14 rounded-xl flex-shrink-0 flex items-center justify-center font-space text-2xl border-[3px] border-gray-400 bg-gray-300 text-gray-500">
-                  {mod.order}
+                  {courseModules.indexOf(mod) + 1}
                 </div>
 
                 <div className="flex-1">
