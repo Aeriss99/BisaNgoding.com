@@ -28,9 +28,14 @@ describe('Pencarian menu atas', () => {
     expect(cari('java', 50).length).toBeLessThanOrEqual(50);
   });
 
+  it('hasil modul membuka halaman kelas dengan modul itu terbuka', () => {
+    const m = cari('generics').find((x) => x.jenis === 'modul');
+    expect(m?.url).toBe('/kelas/java?modul=generics');
+  });
+
   it('setiap hasil punya url yang benar', () => {
     for (const x of cari('java', 20)) {
-      const awal = { kelas: '/kelas/', modul: '/module/', materi: '/lesson/' }[x.jenis];
+      const awal = { kelas: '/kelas/', modul: '/kelas/', materi: '/lesson/' }[x.jenis];
       expect(x.url.startsWith(awal)).toBe(true);
     }
   });
@@ -58,7 +63,7 @@ describe('Notifikasi lokal', () => {
     });
     expect(n.map((x) => x.id)).toEqual(['modul-baru-b', 'modul-baru-a']);
     expect(n[0].waktu).toBe('Kemarin');
-    expect(n[0].url).toBe('/kelas/java');
+    expect(n[0].url).toBe('/kelas/java?modul=b');
   });
 
   it('kunjungan pertama tidak membanjiri notifikasi modul baru', () => {
