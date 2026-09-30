@@ -1,6 +1,6 @@
-import type { Course, Lesson, Module, UserProgress, Roadmap } from '../types/schema';
+import type { Course, Lesson, Module, UserProgress } from '../types/schema';
 import { coursesData, modulesData, getVisibleLessons, getQuizQuestions, checkModuleUnlocked } from './content';
-import roadmapRaw from '../../content/roadmap.json';
+import { pemakaianKelas } from './jalur';
 
 export type StatusModul = 'selesai' | 'sedang' | 'terbuka' | 'terkunci';
 export type StatusMateri = 'selesai' | 'sekarang' | 'belum';
@@ -67,13 +67,7 @@ export function ringkasanKelas(courseId: string, progress: UserProgress): Ringka
   return { course, modul, totalMateri, totalSelesai, persen: Math.round((totalSelesai / totalMateri) * 100), totalMenit: modul.reduce((t, m) => t + m.menit, 0), lanjut };
 }
 
+/** Jalur karier yang memakai kelas ini (untuk kartu "Dipakai di jalur"). */
 export function jalurKelas(courseId: string): { judul: string; keterangan: string }[] {
-  const r = roadmapRaw as Roadmap;
-  const hasil: { judul: string; keterangan: string }[] = [];
-  for (const j of r.jalur) {
-    const i = j.langkah.findIndex((l) => l.kelas === courseId && !l.segera);
-    if (i >= 0) hasil.push({ judul: j.judul, keterangan: `tahap ${i + 1}` });
-  }
-  if (r.pendamping?.kelas === courseId) hasil.push({ judul: 'Semua jalur', keterangan: 'sambil jalan' });
-  return hasil;
+  return pemakaianKelas(courseId);
 }
