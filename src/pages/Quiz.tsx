@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
-import { X, RotateCcw, AlertTriangle } from 'lucide-react';
+import { RotateCcw, AlertTriangle, X } from 'lucide-react';
+import MenuRamping from '../components/layout/MenuRamping';
 import { useProgress } from '../context/ProgressContext';
 import { coursesData, getModule, getQuizQuestions, checkModuleUnlocked, getVisibleLessons } from '../lib/content';
 import type { QuizQuestion } from '../types/schema';
@@ -123,7 +124,15 @@ export default function QuizPage() {
     const passed = isPassingScore(score);
 
     return (
-      <div className="max-w-2xl mx-auto p-4 py-8 space-y-8 relative z-0">
+      <>
+        <MenuRamping
+          kembaliKe={`/kelas/${course?.id ?? 'java'}?modul=${mod?.id ?? moduleId}`}
+          kembaliLabel={mod?.title ?? 'Kelas'}
+          judul={`Quiz · ${mod?.title ?? ''}`}
+          posisi={questions.length - 1}
+          total={questions.length}
+        />
+        <div className="max-w-2xl mx-auto p-4 py-8 space-y-8 relative z-0">
         <svg
           className="fixed inset-0 w-full h-full pointer-events-none z-[-1] opacity-[0.06]"
           xmlns="http://www.w3.org/2000/svg"
@@ -228,6 +237,7 @@ export default function QuizPage() {
           )}
         </div>
       </div>
+      </>
     );
   }
 
@@ -235,28 +245,23 @@ export default function QuizPage() {
   const hasAnswered = answers[currentIndex] !== undefined;
 
   return (
-    <div className="flex flex-col h-screen bg-[var(--color-bg-base)] items-center md:py-6 relative z-0">
+    <div className="flex flex-col min-h-dvh bg-[var(--color-bg-base)] relative z-0">
+      <MenuRamping
+        kembaliKe={`/kelas/${course?.id ?? 'java'}?modul=${mod?.id ?? moduleId}`}
+        kembaliLabel={mod?.title ?? 'Kelas'}
+        judul={`Quiz · ${mod?.title ?? ''}`}
+        posisi={currentIndex}
+        total={questions.length}
+      />
       <svg
         className="fixed inset-0 w-full h-full pointer-events-none z-[-1] opacity-[0.06]"
         xmlns="http://www.w3.org/2000/svg"
       >
         <circle cx="50vw" cy="50vh" r="40vw" fill="var(--color-accent)" />
       </svg>
-      <div className="w-full h-full max-w-[100vw] sm:max-w-xl md:max-w-3xl md:h-[95vh] md:rounded-2xl bg-white flex flex-col brutal-border relative overflow-hidden">
-        <header className="p-4 border-b-[2px] border-[var(--color-text-main)] flex items-center gap-4 bg-[var(--color-accent)]">
-          <Link
-            to={`/module/${moduleId}`}
-            className="text-[var(--color-text-main)] hover:scale-110 transition-transform"
-          >
-            <X className="w-6 h-6" />
-          </Link>
-          <div className="flex-1 font-bold text-center">
-            Soal {currentIndex + 1} dari {questions.length}
-          </div>
-          <div className="w-6" />
-        </header>
-
-        <main className="flex-1 overflow-y-auto p-6 pb-32 space-y-6">
+      <div className="flex-1 flex flex-col items-center md:py-6">
+        <div className="w-full h-[calc(100dvh-60px)] lg:h-[calc(100dvh-64px)] max-w-[100vw] sm:max-w-xl md:max-w-3xl md:h-[calc(100dvh-64px-48px)] md:rounded-2xl bg-white flex flex-col brutal-border relative overflow-hidden">
+          <main className="flex-1 overflow-y-auto p-6 pb-32 space-y-6">
           <h3 className="font-bold text-xl">{q.question}</h3>
 
           {q.code && (
@@ -303,6 +308,7 @@ export default function QuizPage() {
           </button>
         </footer>
       </div>
+    </div>
     </div>
   );
 }

@@ -33,7 +33,7 @@ function usePengguna() {
   return { nama, email, avatar, inisial };
 }
 
-function Avatar({ ukuran }: { ukuran: number }) {
+export function Avatar({ ukuran }: { ukuran: number }) {
   const { avatar, inisial } = usePengguna();
   const gaya = { width: ukuran, height: ukuran };
   if (avatar) {
@@ -58,7 +58,7 @@ function Avatar({ ukuran }: { ukuran: number }) {
 }
 
 /* ───────────────────────── keluar (sama dengan halaman Profil) */
-function useKeluar() {
+export function useKeluar() {
   const { user, keluar } = useAuth();
   const { flushKeCloud } = useProgress();
   const navigate = useNavigate();
@@ -166,7 +166,7 @@ function KotakCari({ lebar, otomatisFokus = false, onPilih }: { lebar: string; o
 }
 
 /* ───────────────────────── isi dropdown profil & laci */
-function KartuPengguna() {
+export function KartuPengguna() {
   const { nama, email } = usePengguna();
   return (
     <div className="flex items-center gap-3 p-4">
@@ -179,7 +179,7 @@ function KartuPengguna() {
   );
 }
 
-function KotakStreakXp({ ringkas = false }: { ringkas?: boolean }) {
+export function KotakStreakXp({ ringkas = false }: { ringkas?: boolean }) {
   const { progress } = useProgress();
   return (
     <div className={`mx-4 ${ringkas ? 'mb-3' : 'mb-2.5'} px-3 py-2.5 bg-[var(--color-primary-light)] border-2 border-[var(--color-text-main)] rounded-[10px] flex justify-between text-[14px]`}>
@@ -195,9 +195,9 @@ function KotakStreakXp({ ringkas = false }: { ringkas?: boolean }) {
   );
 }
 
-const Garis = () => <div className="h-[2px] bg-[var(--color-text-main)] my-1.5" />;
+export const Garis = () => <div className="h-[2px] bg-[var(--color-text-main)] my-1.5" />;
 
-function ItemMenu({ to, ikon, teks, segera, bahaya, onClick }: {
+export function ItemMenu({ to, ikon, teks, segera, bahaya, onClick }: {
   to?: string;
   ikon: NamaIkon;
   teks: string;
@@ -238,7 +238,7 @@ function ItemMenu({ to, ikon, teks, segera, bahaya, onClick }: {
   );
 }
 
-function MenuAkun() {
+export function MenuAkun() {
   return (
     <>
       <ItemMenu to="/profile" ikon="user" teks="Profil saya" />
