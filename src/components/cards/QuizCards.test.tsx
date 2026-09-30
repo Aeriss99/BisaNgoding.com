@@ -13,6 +13,9 @@ vi.mock('../../lib/content', () => ({
   coursesData: [{ id: 'java', title: 'Java', language: 'java' }],
   modulesData: [],
   checkModuleUnlocked: vi.fn(() => true),
+  // dipakai src/lib/materi.ts (menu ramping di halaman materi)
+  getVisibleLessons: vi.fn(() => []),
+  nomorModul: vi.fn(() => null),
 }));
 
 vi.mock('@uiw/react-codemirror', () => ({
