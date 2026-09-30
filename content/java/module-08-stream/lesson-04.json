@@ -1,0 +1,172 @@
+{
+  "id": "java-stream-04",
+  "moduleId": "stream",
+  "order": 4,
+  "title": "Operasi Perantara, Operasi Akhir, dan Lazy",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Operasi di Stream terbagi dua:\n\n| Jenis | Contoh | Hasilnya |\n|---|---|---|\n| **Perantara** | `filter`, `map`, `sorted`, `distinct`, `limit` | Stream baru (masih bisa disambung) |\n| **Akhir** | `collect`, `count`, `forEach`, `sum`, `findFirst` | hasil akhir (angka, list, atau tidak ada) |\n\nOperasi perantara hanya **menyusun rencana**. Datanya baru benar-benar mengalir saat operasi akhir dipanggil. Sifat ini disebut **lazy** (malas): Stream tidak bekerja sampai ada yang meminta hasilnya.\n\nSeperti memesan makanan lewat catatan: \"nasi goreng, pedas, tanpa kecap.\" Selama catatan belum diserahkan ke dapur, tidak ada yang memasak. Operasi perantara adalah isi catatan. Operasi akhir adalah saat catatan diserahkan dan dapur mulai bekerja."
+    },
+    {
+      "type": "theory",
+      "content": "Buktinya bisa dilihat dengan mencetak sesuatu di dalam lambda:\n\n```java run\nimport java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> angka = Arrays.asList(4, 7, 2);\n        angka.stream().filter(n -> {\n            System.out.println(\"filter \" + n);\n            return n > 3;\n        });\n        System.out.println(\"Tanpa operasi akhir, filter tidak berjalan\");\n    }\n}\n```\n\nTulisan `filter 4` tidak pernah muncul, karena tidak ada operasi akhir.\n\nIni juga menjelaskan kenapa operasi akhir wajib ada. Stream tanpa operasi akhir tidak menghasilkan apa-apa."
+    },
+    {
+      "type": "theory",
+      "content": "Aturan kedua: **satu Stream hanya bisa dipakai satu kali**. Setelah operasi akhir dijalankan, Stream itu sudah habis. Memakainya lagi membuat program berhenti dengan `IllegalStateException`.\n\n```java\nStream<String> s = nama.stream();\ns.count();   // boleh\ns.count();   // error: stream has already been operated upon or closed\n```\n\nKalau butuh dua hasil, buat Stream baru dari sumbernya:\n\n```java\nlong total = nama.stream().count();\nlong pendek = nama.stream().filter(n -> n.length() == 4).count();\n```\n\nKarena itu, Stream jarang disimpan di variabel. Biasanya langsung ditulis dari `list.stream()` sampai operasi akhir."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.stream.Stream;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> nama = Arrays.asList(\"Andi\", \"Budi\", \"Citra\");\n\n        Stream<String> alur = nama.stream()\n                .filter(n -> {\n                    System.out.println(\"cek \" + n);\n                    return n.length() == 4;\n                });\n        System.out.println(\"Stream sudah dibuat\");\n\n        long jumlah = alur.count();\n        System.out.println(\"Jumlah: \" + jumlah);\n\n        try {\n            alur.count();\n        } catch (IllegalStateException e) {\n            System.out.println(\"Error: \" + e.getClass().getSimpleName());\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak lebih dulu, \"cek Andi\" atau \"Stream sudah dibuat\"?",
+        "options": [
+          "Stream sudah dibuat",
+          "cek Andi",
+          "Jumlah: 2",
+          "cek Citra"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 10,
+          "note": "Operasi perantara: baru rencana, belum berjalan."
+        },
+        {
+          "line": 14,
+          "note": "Baris ini dicetak sebelum filter bekerja."
+        },
+        {
+          "line": 16,
+          "note": "Operasi akhir: sekarang data mengalir dan filter berjalan."
+        },
+        {
+          "line": 16,
+          "note": "Stream yang sama dipakai lagi: sudah habis."
+        },
+        {
+          "line": 21,
+          "note": "Error ditangkap supaya program tetap selesai."
+        }
+      ],
+      "explanation": "Saat `filter` ditulis, belum ada yang dicetak. Karena itu baris pertama yang muncul adalah `Stream sudah dibuat`.\n\nBarulah `count()` (operasi akhir) membuat data mengalir. Setiap nama melewati filter, sehingga muncul `cek Andi`, `cek Budi`, dan `cek Citra`. Andi dan Budi panjangnya 4, jadi `Jumlah: 2`.\n\n`count()` kedua memakai Stream yang sudah habis, sehingga Java melempar `IllegalStateException`. Kita menangkapnya dan mencetak namanya.",
+      "tryThis": [
+        {
+          "task": "Hapus baris long jumlah = alur.count(); dan baris yang mencetak Jumlah. Apakah masih ada error?",
+          "hint": "Tidak ada error, karena sekarang Stream hanya dipakai sekali di dalam try."
+        },
+        {
+          "task": "Ganti count kedua dengan nama.stream().count() dan perhatikan hasilnya.",
+          "hint": "Stream baru dari sumber yang sama boleh dipakai."
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai Stream yang sama dua kali**\n\nSalah:\n\n```java\nStream<Integer> s = angka.stream();\nlong a = s.count();\nlong b = s.count();\n```\n\nBenar:\n\n```java\nlong a = angka.stream().count();\nlong b = angka.stream().count();\n```\n\nStream habis setelah operasi akhir. Pemakaian kedua membuat program berhenti dengan IllegalStateException. Buat Stream baru dari list.\n\n**2. Mengira operasi perantara langsung berjalan**\n\nSalah:\n\n```java\nangka.stream().map(n -> {\n    System.out.println(n);\n    return n;\n});\n```\n\nBenar:\n\n```java\nangka.stream().forEach(n -> System.out.println(n));\n```\n\nmap tanpa operasi akhir tidak pernah dijalankan, jadi tidak ada yang dicetak. Untuk mencetak setiap data, pakai operasi akhir forEach.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> angka = Arrays.asList(1, 2, 3);\n        angka.stream().map(n -> {\n            System.out.println(\"ubah \" + n);\n            return n * 10;\n        });\n        System.out.println(\"selesai\");\n    }\n}",
+          "options": [
+            "ubah 1 ubah 2 ubah 3 selesai",
+            "selesai",
+            "selesai ubah 1 ubah 2 ubah 3",
+            "10 20 30 selesai"
+          ],
+          "answer": 1,
+          "explanation": "map adalah operasi perantara dan tidak ada operasi akhir, jadi lambda tidak pernah dijalankan.",
+          "remedial": "**Perantara vs akhir:**\n\n- Perantara (`filter`, `map`, `sorted`, `distinct`, `limit`) → hasilnya Stream, hanya menyusun rencana.\n- Akhir (`collect`, `count`, `forEach`, `sum`, `findFirst`) → menjalankan semuanya dan memberi hasil.\n- **Lazy**: tanpa operasi akhir, lambda di operasi perantara tidak pernah dijalankan.\n- Satu Stream hanya bisa dipakai **sekali**. Pemakaian kedua → `IllegalStateException`. Buat lagi dari `list.stream()`."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini dijalankan?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.stream.Stream;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> angka = Arrays.asList(1, 2, 3);\n        Stream<Integer> s = angka.stream();\n        System.out.println(s.count());\n        System.out.println(s.count());\n    }\n}",
+          "options": [
+            "Mencetak 3 lalu 3",
+            "Mencetak 3 lalu 0",
+            "Mencetak 3, lalu program berhenti dengan IllegalStateException",
+            "Tidak bisa dikompilasi"
+          ],
+          "answer": 2,
+          "explanation": "count pertama menghabiskan Stream. count kedua memakai Stream yang sudah habis.",
+          "remedial": "**Perantara vs akhir:**\n\n- Perantara (`filter`, `map`, `sorted`, `distinct`, `limit`) → hasilnya Stream, hanya menyusun rencana.\n- Akhir (`collect`, `count`, `forEach`, `sum`, `findFirst`) → menjalankan semuanya dan memberi hasil.\n- **Lazy**: tanpa operasi akhir, lambda di operasi perantara tidak pernah dijalankan.\n- Satu Stream hanya bisa dipakai **sekali**. Pemakaian kedua → `IllegalStateException`. Buat lagi dari `list.stream()`."
+        },
+        {
+          "question": "Mana yang termasuk operasi akhir?",
+          "options": [
+            "filter",
+            "map",
+            "sorted",
+            "count"
+          ],
+          "answer": 3,
+          "explanation": "count menghasilkan angka dan menutup Stream. Tiga lainnya menghasilkan Stream baru.",
+          "remedial": "**Perantara vs akhir:**\n\n- Perantara (`filter`, `map`, `sorted`, `distinct`, `limit`) → hasilnya Stream, hanya menyusun rencana.\n- Akhir (`collect`, `count`, `forEach`, `sum`, `findFirst`) → menjalankan semuanya dan memberi hasil.\n- **Lazy**: tanpa operasi akhir, lambda di operasi perantara tidak pernah dijalankan.\n- Satu Stream hanya bisa dipakai **sekali**. Pemakaian kedua → `IllegalStateException`. Buat lagi dari `list.stream()`."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> kota = Arrays.asList(\"Bogor\", \"Solo\", \"Bandung\");\n        long a = kota.stream().count();\n        long b = kota.stream().filter(k -> k.startsWith(\"B\")).count();\n        System.out.println(a + \" \" + b);\n    }\n}",
+          "options": [
+            "3 2",
+            "3 3",
+            "5 2",
+            "Program berhenti dengan IllegalStateException"
+          ],
+          "answer": 0,
+          "explanation": "Setiap baris membuat Stream baru dari list, jadi tidak ada Stream yang dipakai dua kali.",
+          "remedial": "**Perantara vs akhir:**\n\n- Perantara (`filter`, `map`, `sorted`, `distinct`, `limit`) → hasilnya Stream, hanya menyusun rencana.\n- Akhir (`collect`, `count`, `forEach`, `sum`, `findFirst`) → menjalankan semuanya dan memberi hasil.\n- **Lazy**: tanpa operasi akhir, lambda di operasi perantara tidak pernah dijalankan.\n- Satu Stream hanya bisa dipakai **sekali**. Pemakaian kedua → `IllegalStateException`. Buat lagi dari `list.stream()`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa kode `nama.stream().filter(n -> n.length() > 3);` tidak menghasilkan apa-apa?",
+      "options": [
+        "Karena filter tidak boleh dipakai pada String",
+        "Karena tidak ada operasi akhir, jadi Stream tidak pernah dijalankan",
+        "Karena list nama menjadi kosong",
+        "Karena lambda harus memakai kurung kurawal"
+      ],
+      "answer": 1,
+      "explanation": "Operasi perantara bersifat lazy. Tanpa operasi akhir, tidak ada data yang mengalir."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "List `pesanan` berisi \"kopi\", \"teh\", \"kopi\", dan \"susu\". Hitung dua hal dengan **dua Stream terpisah**: jumlah semua pesanan dan jumlah pesanan `\"kopi\"`. Cetak dengan format:\n\n```\nSemua: 4\nKopi: 2\n```",
+      "starterCode": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> pesanan = Arrays.asList(\"kopi\", \"teh\", \"kopi\", \"susu\");\n        // Tulis kode kamu di sini\n    }\n}",
+      "solution": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> pesanan = Arrays.asList(\"kopi\", \"teh\", \"kopi\", \"susu\");\n        long semua = pesanan.stream().count();\n        long kopi = pesanan.stream().filter(p -> p.equals(\"kopi\")).count();\n        System.out.println(\"Semua: \" + semua);\n        System.out.println(\"Kopi: \" + kopi);\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Semua: 4\nKopi: 2\n"
+        }
+      ],
+      "hints": [
+        "count() menghasilkan long.",
+        "Bandingkan teks dengan equals, bukan ==."
+      ],
+      "steps": [
+        "Hitung semua dengan pesanan.stream().count().",
+        "Hitung kopi dengan pesanan.stream().filter(p -> p.equals(\"kopi\")).count().",
+        "Cetak keduanya."
+      ],
+      "skeleton": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> pesanan = Arrays.asList(\"kopi\", \"teh\", \"kopi\", \"susu\");\n        long semua = pesanan.stream().___();\n        long kopi = pesanan.___().filter(p -> p.equals(\"kopi\")).count();\n        System.out.println(\"Semua: \" + semua);\n        System.out.println(\"Kopi: \" + kopi);\n    }\n}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Operasi perantara menghasilkan Stream baru, operasi akhir menghasilkan hasil akhir.",
+        "Stream bersifat lazy: tanpa operasi akhir, tidak ada yang dijalankan.",
+        "Satu Stream hanya bisa dipakai sekali; pemakaian kedua melempar IllegalStateException.",
+        "Kalau butuh beberapa hasil, buat Stream baru dari list untuk setiap hasil."
+      ]
+    }
+  ]
+}

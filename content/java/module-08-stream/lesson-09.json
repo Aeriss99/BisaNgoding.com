@@ -1,0 +1,168 @@
+{
+  "id": "java-stream-09",
+  "moduleId": "stream",
+  "order": 9,
+  "title": "Mengelompokkan dengan groupingBy",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pertanyaan seperti \"berapa banyak pesanan tiap menu?\" atau \"siswa mana saja di tiap kelas?\" butuh **pengelompokan**. Stream punya `Collectors.groupingBy` untuk itu.\n\n```java\nMap<String, Long> jumlah = pesanan.stream()\n        .collect(Collectors.groupingBy(p -> p, TreeMap::new, Collectors.counting()));\n```\n\nHasilnya berupa **Map**: key adalah nama kelompok, value adalah isi atau ringkasan kelompok itu.\n\nSeperti memilah cucian: kaos masuk keranjang kaos, celana masuk keranjang celana, kaus kaki masuk keranjang kaus kaki. Label di keranjang adalah key. Isi keranjang, atau jumlah barang di dalamnya, adalah value."
+    },
+    {
+      "type": "theory",
+      "content": "`groupingBy` di sini menerima tiga hal:\n\n| Bagian | Contoh | Artinya |\n|---|---|---|\n| 1. cara menentukan kelompok | `p -> p` atau `k -> k.charAt(0)` | key untuk setiap data |\n| 2. jenis Map | `TreeMap::new` | Map yang dipakai (TreeMap: key urut) |\n| 3. isi setiap kelompok | `Collectors.counting()` atau `Collectors.toList()` | value untuk setiap key |\n\nKenapa `TreeMap::new`? Kalau bagian kedua tidak ditulis, Java memakai HashMap yang urutan cetaknya tidak bisa diandalkan. Dengan TreeMap, key selalu urut abjad atau angka.\n\n```java run\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> nilai = Arrays.asList(85, 62, 91, 58, 77);\n        Map<String, List<Integer>> status = nilai.stream()\n                .collect(Collectors.groupingBy(n -> n >= 60 ? \"lulus\" : \"ulang\",\n                        TreeMap::new, Collectors.toList()));\n        System.out.println(status);\n    }\n}\n```"
+    },
+    {
+      "type": "theory",
+      "content": "Value setiap kelompok bisa diringkas dengan berbagai Collector:\n\n| Collector | Value untuk tiap key |\n|---|---|\n| `Collectors.toList()` | list anggotanya |\n| `Collectors.counting()` | jumlah anggota (tipe Long) |\n| `Collectors.summingInt(x -> angka)` | total angka anggota |\n\nContoh menghitung total penjualan per kategori:\n\n```java\nMap<String, Integer> total = produk.stream()\n        .collect(Collectors.groupingBy(p -> p.getKategori(), TreeMap::new,\n                Collectors.summingInt(p -> p.getHarga())));\n```\n\nPerhatikan tipe `counting()` adalah **Long**, jadi Map-nya `Map<String, Long>`, bukan `Map<String, Integer>`."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> pesanan = Arrays.asList(\"kopi\", \"teh\", \"kopi\", \"susu\", \"teh\", \"kopi\");\n\n        Map<String, Long> jumlah = pesanan.stream()\n                .collect(Collectors.groupingBy(p -> p, TreeMap::new, Collectors.counting()));\n        System.out.println(jumlah);\n\n        List<String> kota = Arrays.asList(\"Bogor\", \"Solo\", \"Bandung\", \"Medan\", \"Blitar\");\n        Map<Character, List<String>> perHuruf = kota.stream()\n                .collect(Collectors.groupingBy(k -> k.charAt(0), TreeMap::new, Collectors.toList()));\n        System.out.println(perHuruf);\n        System.out.println(perHuruf.get('B'));\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak oleh println(jumlah)?",
+        "options": [
+          "{kopi=3, susu=1, teh=2}",
+          "{kopi=3, teh=2, susu=1}",
+          "[kopi, teh, susu]",
+          "{kopi=1, susu=1, teh=1}"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 12,
+          "note": "Kelompok = nama menu itu sendiri, value = jumlahnya."
+        },
+        {
+          "line": 17,
+          "note": "Kelompok = huruf pertama nama kota."
+        },
+        {
+          "line": 17,
+          "note": "Value = list kota di kelompok itu."
+        },
+        {
+          "line": 19,
+          "note": "Ambil satu kelompok dari Map."
+        }
+      ],
+      "explanation": "Kelompok pertama memakai nama menu sebagai key. Kopi muncul 3 kali, teh 2 kali, susu 1 kali. TreeMap mengurutkan key secara abjad: `{kopi=3, susu=1, teh=2}`.\n\nKelompok kedua memakai huruf pertama sebagai key. Bogor, Bandung, dan Blitar masuk kelompok B dengan urutan sesuai list aslinya; Medan masuk M; Solo masuk S.\n\n`perHuruf.get('B')` mengambil list kelompok B: `[Bogor, Bandung, Blitar]`.",
+      "tryThis": [
+        {
+          "task": "Tambahkan \"susu\" ke list pesanan. Bagaimana jumlah susu sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Ganti k -> k.charAt(0) menjadi k -> k.length() dan ubah tipe Map-nya menjadi Map<Integer, List<String>>.",
+          "hint": "Kelompoknya sekarang berdasarkan panjang nama kota."
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai Integer untuk hasil counting**\n\nSalah:\n\n```java\nMap<String, Integer> jumlah = pesanan.stream()\n        .collect(Collectors.groupingBy(p -> p, TreeMap::new, Collectors.counting()));\n```\n\nBenar:\n\n```java\nMap<String, Long> jumlah = pesanan.stream()\n        .collect(Collectors.groupingBy(p -> p, TreeMap::new, Collectors.counting()));\n```\n\ncounting() menghasilkan Long. Map dengan value Integer tidak cocok dan kode gagal dikompilasi.\n\n**2. Mengandalkan urutan HashMap**\n\nSalah:\n\n```java\nMap<String, Long> jumlah = pesanan.stream()\n        .collect(Collectors.groupingBy(p -> p, Collectors.counting()));\nSystem.out.println(jumlah); // berharap urut abjad\n```\n\nBenar:\n\n```java\nMap<String, Long> jumlah = pesanan.stream()\n        .collect(Collectors.groupingBy(p -> p, TreeMap::new, Collectors.counting()));\nSystem.out.println(jumlah);\n```\n\nTanpa TreeMap::new, hasilnya HashMap yang urutannya tidak pasti. Tambahkan TreeMap::new kalau urutan key penting.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> warna = Arrays.asList(\"merah\", \"biru\", \"merah\", \"hijau\", \"merah\");\n        Map<String, Long> hasil = warna.stream()\n                .collect(Collectors.groupingBy(w -> w, TreeMap::new, Collectors.counting()));\n        System.out.println(hasil);\n    }\n}",
+          "options": [
+            "{merah=3, biru=1, hijau=1}",
+            "{biru=1, hijau=1, merah=3}",
+            "{biru, hijau, merah}",
+            "{merah=1, biru=1, hijau=1}"
+          ],
+          "answer": 1,
+          "explanation": "Merah muncul 3 kali. TreeMap mengurutkan key secara abjad: biru, hijau, merah.",
+          "remedial": "**groupingBy(key, jenisMap, isi):**\n\n- key: lambda yang menentukan kelompok, misalnya `p -> p.getKategori()`\n- jenisMap: `TreeMap::new` supaya key urut (tanpa ini urutan tidak pasti)\n- isi: `Collectors.toList()` (daftar anggota), `Collectors.counting()` (jumlah, tipe **Long**), `Collectors.summingInt(...)` (total)\n- Hasilnya Map. Ambil satu kelompok dengan `map.get(key)`."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> angka = Arrays.asList(1, 2, 3, 4, 5);\n        Map<String, List<Integer>> hasil = angka.stream()\n                .collect(Collectors.groupingBy(n -> n % 2 == 0 ? \"genap\" : \"ganjil\", TreeMap::new, Collectors.toList()));\n        System.out.println(hasil.get(\"genap\"));\n    }\n}",
+          "options": [
+            "[1, 3, 5]",
+            "2",
+            "[2, 4]",
+            "{genap=[2, 4]}"
+          ],
+          "answer": 2,
+          "explanation": "get(\"genap\") mengambil list anggota kelompok genap.",
+          "remedial": "**groupingBy(key, jenisMap, isi):**\n\n- key: lambda yang menentukan kelompok, misalnya `p -> p.getKategori()`\n- jenisMap: `TreeMap::new` supaya key urut (tanpa ini urutan tidak pasti)\n- isi: `Collectors.toList()` (daftar anggota), `Collectors.counting()` (jumlah, tipe **Long**), `Collectors.summingInt(...)` (total)\n- Hasilnya Map. Ambil satu kelompok dengan `map.get(key)`."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> nama = Arrays.asList(\"Ani\", \"Budi\", \"Eko\", \"Sari\");\n        Map<Integer, Long> hasil = nama.stream()\n                .collect(Collectors.groupingBy(n -> n.length(), TreeMap::new, Collectors.counting()));\n        System.out.println(hasil);\n    }\n}",
+          "options": [
+            "{3=2, 4=2}",
+            "{4=2, 3=2}",
+            "{3=[Ani, Eko], 4=[Budi, Sari]}",
+            "{Ani=3, Budi=4, Eko=3, Sari=4}"
+          ],
+          "answer": 0,
+          "explanation": "Ani dan Eko 3 huruf, Budi dan Sari 4 huruf. counting menghitung anggota tiap kelompok.",
+          "remedial": "**groupingBy(key, jenisMap, isi):**\n\n- key: lambda yang menentukan kelompok, misalnya `p -> p.getKategori()`\n- jenisMap: `TreeMap::new` supaya key urut (tanpa ini urutan tidak pasti)\n- isi: `Collectors.toList()` (daftar anggota), `Collectors.counting()` (jumlah, tipe **Long**), `Collectors.summingInt(...)` (total)\n- Hasilnya Map. Ambil satu kelompok dengan `map.get(key)`."
+        },
+        {
+          "question": "Kenapa kita menambahkan `TreeMap::new` di `groupingBy`?",
+          "options": [
+            "Supaya urutan key saat dicetak selalu urut dan pasti",
+            "Supaya data dobel dibuang",
+            "Karena groupingBy wajib memakai TreeMap",
+            "Supaya value menjadi Long"
+          ],
+          "answer": 0,
+          "explanation": "Tanpa TreeMap::new, hasilnya HashMap yang urutan cetaknya tidak pasti.",
+          "remedial": "**groupingBy(key, jenisMap, isi):**\n\n- key: lambda yang menentukan kelompok, misalnya `p -> p.getKategori()`\n- jenisMap: `TreeMap::new` supaya key urut (tanpa ini urutan tidak pasti)\n- isi: `Collectors.toList()` (daftar anggota), `Collectors.counting()` (jumlah, tipe **Long**), `Collectors.summingInt(...)` (total)\n- Hasilnya Map. Ambil satu kelompok dengan `map.get(key)`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Tipe value dari `groupingBy(x -> x, TreeMap::new, Collectors.counting())` adalah...",
+      "options": [
+        "Integer",
+        "Long",
+        "List",
+        "String"
+      ],
+      "answer": 1,
+      "explanation": "counting() selalu menghasilkan Long."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "List `hadir` berisi nama kelas setiap siswa yang hadir: \"7A\", \"7B\", \"7A\", \"7C\", \"7B\", \"7A\". Kelompokkan dan hitung jumlah siswa per kelas dengan `groupingBy`, `TreeMap::new`, dan `Collectors.counting()`, lalu cetak Map-nya.\n\nOutput yang diharapkan:\n```\n{7A=3, 7B=2, 7C=1}\n```",
+      "starterCode": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> hadir = Arrays.asList(\"7A\", \"7B\", \"7A\", \"7C\", \"7B\", \"7A\");\n        // Tulis kode kamu di sini\n    }\n}",
+      "solution": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> hadir = Arrays.asList(\"7A\", \"7B\", \"7A\", \"7C\", \"7B\", \"7A\");\n        Map<String, Long> perKelas = hadir.stream()\n                .collect(Collectors.groupingBy(k -> k, TreeMap::new, Collectors.counting()));\n        System.out.println(perKelas);\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "{7A=3, 7B=2, 7C=1}\n"
+        }
+      ],
+      "hints": [
+        "Key-nya adalah nama kelas itu sendiri: k -> k.",
+        "Tipe Map-nya Map<String, Long>."
+      ],
+      "steps": [
+        "Buat Stream dari hadir.",
+        "collect(Collectors.groupingBy(k -> k, TreeMap::new, Collectors.counting())).",
+        "Simpan ke Map<String, Long> lalu cetak."
+      ],
+      "skeleton": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> hadir = Arrays.asList(\"7A\", \"7B\", \"7A\", \"7C\", \"7B\", \"7A\");\n        Map<String, Long> perKelas = hadir.stream()\n                .collect(Collectors.___(k -> k, TreeMap::new, Collectors.___()));\n        System.out.println(perKelas);\n    }\n}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "groupingBy mengelompokkan data menjadi Map: key = kelompok, value = isi atau ringkasannya.",
+        "Tambahkan TreeMap::new supaya urutan key pasti.",
+        "Isi kelompok bisa toList, counting (tipe Long), atau summingInt.",
+        "Satu kelompok diambil dengan map.get(key)."
+      ]
+    }
+  ]
+}
