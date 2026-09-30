@@ -1,0 +1,171 @@
+{
+  "id": "java-stream-12",
+  "moduleId": "stream",
+  "order": 12,
+  "title": "Proyek Mini: Laporan Penjualan Kafe",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya menggabungkan semua yang sudah dipelajari di modul ini. Kita akan membuat **laporan penjualan harian** sebuah kafe dari daftar transaksi.\n\nSetiap transaksi punya: nama kasir, menu, jumlah, dan harga satuan. Method `getTotal()` menghitung `jumlah * harga`.\n\nLaporan yang ingin dibuat:\n1. total pendapatan hari ini (omzet),\n2. pendapatan per kasir,\n3. jumlah porsi terjual per menu,\n4. apakah ada transaksi besar (30000 ke atas).\n\nDi akhir hari, pemilik kafe tidak mau membaca struk satu per satu. Ia ingin ringkasan di satu kertas: berapa pendapatan hari ini, siapa kasir yang paling banyak menjual, menu apa yang paling laku. Stream adalah asisten yang membuat ringkasan itu dari tumpukan struk dalam beberapa baris kode."
+    },
+    {
+      "type": "theory",
+      "content": "Setiap pertanyaan laporan dijawab oleh satu Stream:\n\n| Pertanyaan | Operasi Stream |\n|---|---|\n| Omzet | `mapToInt(Transaksi::getTotal).sum()` |\n| Pendapatan per kasir | `groupingBy(Transaksi::getKasir, TreeMap::new, summingInt(Transaksi::getTotal))` |\n| Porsi per menu | `groupingBy(Transaksi::getMenu, TreeMap::new, summingInt(Transaksi::getJumlah))` |\n| Ada transaksi besar? | `anyMatch(t -> t.getTotal() >= 30000)` |\n\nPerhatikan `summingInt` di dalam `groupingBy`. Kalau `counting()` menghitung **berapa transaksi**, `summingInt` menjumlahkan **nilai** tertentu dari setiap transaksi di kelompok itu.\n\nContoh: Budi punya dua transaksi. `counting()` memberi 2, sedangkan `summingInt(Transaksi::getTotal)` memberi total uangnya: 24000 + 18000 = 42000."
+    },
+    {
+      "type": "theory",
+      "content": "Laporan juga bisa dilengkapi dengan \"menu terlaris\". Caranya: dari Map hasil `groupingBy`, cari entri dengan value terbesar.\n\n```java\nString terlaris = terjual.entrySet().stream()\n        .max(Map.Entry.comparingByValue())\n        .map(e -> e.getKey())\n        .orElse(\"-\");\n```\n\n`entrySet().stream()` membuat Stream dari pasangan key-value di Map. `Map.Entry.comparingByValue()` adalah Comparator yang membandingkan value-nya.\n\nDengan pola ini, kamu sudah bisa membuat berbagai laporan: produk terlaris, pelanggan paling sering belanja, atau kategori dengan pendapatan tertinggi. Semuanya tanpa perulangan manual."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Transaksi> trx = Arrays.asList(\n                new Transaksi(\"Sari\", \"Kopi Susu\", 2, 18000),\n                new Transaksi(\"Budi\", \"Teh Manis\", 3, 8000),\n                new Transaksi(\"Sari\", \"Roti Bakar\", 1, 15000),\n                new Transaksi(\"Budi\", \"Kopi Susu\", 1, 18000),\n                new Transaksi(\"Sari\", \"Teh Manis\", 2, 8000));\n\n        int omzet = trx.stream().mapToInt(Transaksi::getTotal).sum();\n        System.out.println(\"Omzet: \" + omzet);\n\n        Map<String, Integer> perKasir = trx.stream()\n                .collect(Collectors.groupingBy(Transaksi::getKasir, TreeMap::new,\n                        Collectors.summingInt(Transaksi::getTotal)));\n        System.out.println(\"Per kasir: \" + perKasir);\n\n        Map<String, Integer> terjual = trx.stream()\n                .collect(Collectors.groupingBy(Transaksi::getMenu, TreeMap::new,\n                        Collectors.summingInt(Transaksi::getJumlah)));\n        System.out.println(\"Terjual: \" + terjual);\n\n        boolean adaBesar = trx.stream().anyMatch(t -> t.getTotal() >= 30000);\n        System.out.println(\"Ada transaksi >= 30000: \" + adaBesar);\n    }\n}\n\nclass Transaksi {\n    private String kasir;\n    private String menu;\n    private int jumlah;\n    private int harga;\n\n    Transaksi(String kasir, String menu, int jumlah, int harga) {\n        this.kasir = kasir;\n        this.menu = menu;\n        this.jumlah = jumlah;\n        this.harga = harga;\n    }\n\n    String getKasir() {\n        return kasir;\n    }\n\n    String getMenu() {\n        return menu;\n    }\n\n    int getJumlah() {\n        return jumlah;\n    }\n\n    int getTotal() {\n        return jumlah * harga;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak oleh baris \"Omzet: \"?",
+        "options": [
+          "Omzet: 109000",
+          "Omzet: 9",
+          "Omzet: 67000",
+          "Omzet: 5"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 16,
+          "note": "Jumlahkan total setiap transaksi."
+        },
+        {
+          "line": 20,
+          "note": "Kelompokkan per kasir, urut abjad."
+        },
+        {
+          "line": 21,
+          "note": "Value = jumlah uang di kelompok itu."
+        },
+        {
+          "line": 26,
+          "note": "Value = jumlah porsi di kelompok itu."
+        },
+        {
+          "line": 29,
+          "note": "Cukup satu transaksi besar untuk menghasilkan true."
+        }
+      ],
+      "explanation": "Total setiap transaksi: Sari Kopi Susu 36000, Budi Teh Manis 24000, Sari Roti Bakar 15000, Budi Kopi Susu 18000, Sari Teh Manis 16000. Omzetnya 109000.\n\nPer kasir: Budi 24000 + 18000 = 42000, Sari 36000 + 15000 + 16000 = 67000. TreeMap mengurutkan nama: `{Budi=42000, Sari=67000}`.\n\nPorsi terjual per menu: Kopi Susu 2 + 1 = 3, Roti Bakar 1, Teh Manis 3 + 2 = 5.\n\nTransaksi Kopi Susu milik Sari bernilai 36000, jadi `anyMatch` bernilai true.",
+      "tryThis": [
+        {
+          "task": "Ganti summingInt(Transaksi::getTotal) menjadi counting() dan ubah tipe Map-nya menjadi Map<String, Long>.",
+          "hint": "Sekarang yang dihitung jumlah transaksi per kasir."
+        },
+        {
+          "task": "Tambahkan transaksi baru untuk kasir Andi lalu jalankan lagi.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai counting saat yang dibutuhkan total nilai**\n\nSalah:\n\n```java\nMap<String, Long> perKasir = trx.stream()\n        .collect(Collectors.groupingBy(Transaksi::getKasir, TreeMap::new,\n                Collectors.counting()));\n```\n\nBenar:\n\n```java\nMap<String, Integer> perKasir = trx.stream()\n        .collect(Collectors.groupingBy(Transaksi::getKasir, TreeMap::new,\n                Collectors.summingInt(Transaksi::getTotal)));\n```\n\ncounting menghitung banyaknya transaksi, bukan uangnya. Untuk menjumlahkan nilai, pakai summingInt.\n\n**2. Menjumlahkan harga satuan, bukan total**\n\nSalah:\n\n```java\nint omzet = trx.stream().mapToInt(t -> t.getJumlah()).sum();\n```\n\nBenar:\n\n```java\nint omzet = trx.stream().mapToInt(Transaksi::getTotal).sum();\n```\n\ngetJumlah hanya jumlah porsi. Omzet adalah jumlah uang, yaitu jumlah dikali harga, yang sudah dihitung getTotal.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Transaksi> trx = Arrays.asList(\n                new Transaksi(\"Sari\", \"Kopi Susu\", 2, 18000),\n                new Transaksi(\"Budi\", \"Teh Manis\", 3, 8000),\n                new Transaksi(\"Sari\", \"Roti Bakar\", 1, 15000),\n                new Transaksi(\"Budi\", \"Kopi Susu\", 1, 18000),\n                new Transaksi(\"Sari\", \"Teh Manis\", 2, 8000));\n        Map<String, Long> banyak = trx.stream()\n                .collect(Collectors.groupingBy(Transaksi::getKasir, TreeMap::new, Collectors.counting()));\n        System.out.println(banyak);\n    }\n}\n\nclass Transaksi {\n    private String kasir;\n    private String menu;\n    private int jumlah;\n    private int harga;\n\n    Transaksi(String kasir, String menu, int jumlah, int harga) {\n        this.kasir = kasir;\n        this.menu = menu;\n        this.jumlah = jumlah;\n        this.harga = harga;\n    }\n\n    String getKasir() {\n        return kasir;\n    }\n\n    String getMenu() {\n        return menu;\n    }\n\n    int getJumlah() {\n        return jumlah;\n    }\n\n    int getTotal() {\n        return jumlah * harga;\n    }\n}",
+          "options": [
+            "{Budi=2, Sari=3}",
+            "{Sari=3, Budi=2}",
+            "{Budi=42000, Sari=67000}",
+            "{Budi=4, Sari=5}"
+          ],
+          "answer": 0,
+          "explanation": "counting menghitung banyaknya transaksi: Budi 2, Sari 3.",
+          "remedial": "**Pola laporan dengan Stream:**\n\n- Total semua: `mapToInt(X::getNilai).sum()`\n- Total per kelompok: `groupingBy(X::getKelompok, TreeMap::new, Collectors.summingInt(X::getNilai))`\n- Banyaknya data per kelompok: `groupingBy(..., TreeMap::new, Collectors.counting())`\n- Ada yang memenuhi syarat? `anyMatch(...)`\n- Entri terbesar dari Map: `map.entrySet().stream().max(Map.Entry.comparingByValue())`"
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Transaksi> trx = Arrays.asList(\n                new Transaksi(\"Sari\", \"Kopi Susu\", 2, 18000),\n                new Transaksi(\"Budi\", \"Teh Manis\", 3, 8000),\n                new Transaksi(\"Sari\", \"Roti Bakar\", 1, 15000),\n                new Transaksi(\"Budi\", \"Kopi Susu\", 1, 18000),\n                new Transaksi(\"Sari\", \"Teh Manis\", 2, 8000));\n        int kopi = trx.stream()\n                .filter(t -> t.getMenu().equals(\"Kopi Susu\"))\n                .mapToInt(Transaksi::getTotal)\n                .sum();\n        System.out.println(kopi);\n    }\n}\n\nclass Transaksi {\n    private String kasir;\n    private String menu;\n    private int jumlah;\n    private int harga;\n\n    Transaksi(String kasir, String menu, int jumlah, int harga) {\n        this.kasir = kasir;\n        this.menu = menu;\n        this.jumlah = jumlah;\n        this.harga = harga;\n    }\n\n    String getKasir() {\n        return kasir;\n    }\n\n    String getMenu() {\n        return menu;\n    }\n\n    int getJumlah() {\n        return jumlah;\n    }\n\n    int getTotal() {\n        return jumlah * harga;\n    }\n}",
+          "options": [
+            "3",
+            "36000",
+            "54000",
+            "18000"
+          ],
+          "answer": 2,
+          "explanation": "Kopi Susu: 2 x 18000 = 36000 dan 1 x 18000 = 18000. Totalnya 54000.",
+          "remedial": "**Pola laporan dengan Stream:**\n\n- Total semua: `mapToInt(X::getNilai).sum()`\n- Total per kelompok: `groupingBy(X::getKelompok, TreeMap::new, Collectors.summingInt(X::getNilai))`\n- Banyaknya data per kelompok: `groupingBy(..., TreeMap::new, Collectors.counting())`\n- Ada yang memenuhi syarat? `anyMatch(...)`\n- Entri terbesar dari Map: `map.entrySet().stream().max(Map.Entry.comparingByValue())`"
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Transaksi> trx = Arrays.asList(\n                new Transaksi(\"Sari\", \"Kopi Susu\", 2, 18000),\n                new Transaksi(\"Budi\", \"Teh Manis\", 3, 8000),\n                new Transaksi(\"Sari\", \"Roti Bakar\", 1, 15000),\n                new Transaksi(\"Budi\", \"Kopi Susu\", 1, 18000),\n                new Transaksi(\"Sari\", \"Teh Manis\", 2, 8000));\n        Map<String, Integer> terjual = trx.stream()\n                .collect(Collectors.groupingBy(Transaksi::getMenu, TreeMap::new,\n                        Collectors.summingInt(Transaksi::getJumlah)));\n        String terlaris = terjual.entrySet().stream()\n                .max(Map.Entry.comparingByValue())\n                .map(e -> e.getKey())\n                .orElse(\"-\");\n        System.out.println(terlaris);\n    }\n}\n\nclass Transaksi {\n    private String kasir;\n    private String menu;\n    private int jumlah;\n    private int harga;\n\n    Transaksi(String kasir, String menu, int jumlah, int harga) {\n        this.kasir = kasir;\n        this.menu = menu;\n        this.jumlah = jumlah;\n        this.harga = harga;\n    }\n\n    String getKasir() {\n        return kasir;\n    }\n\n    String getMenu() {\n        return menu;\n    }\n\n    int getJumlah() {\n        return jumlah;\n    }\n\n    int getTotal() {\n        return jumlah * harga;\n    }\n}",
+          "options": [
+            "Kopi Susu",
+            "Roti Bakar",
+            "Teh Manis",
+            "-"
+          ],
+          "answer": 2,
+          "explanation": "Porsi terjual: Kopi Susu 3, Roti Bakar 1, Teh Manis 5. Yang terbesar Teh Manis.",
+          "remedial": "**Pola laporan dengan Stream:**\n\n- Total semua: `mapToInt(X::getNilai).sum()`\n- Total per kelompok: `groupingBy(X::getKelompok, TreeMap::new, Collectors.summingInt(X::getNilai))`\n- Banyaknya data per kelompok: `groupingBy(..., TreeMap::new, Collectors.counting())`\n- Ada yang memenuhi syarat? `anyMatch(...)`\n- Entri terbesar dari Map: `map.entrySet().stream().max(Map.Entry.comparingByValue())`"
+        },
+        {
+          "question": "Apa beda `Collectors.counting()` dan `Collectors.summingInt(Transaksi::getTotal)` di dalam `groupingBy` per kasir?",
+          "options": [
+            "counting menghitung banyaknya transaksi, summingInt menjumlahkan total uangnya",
+            "Keduanya sama saja",
+            "counting menjumlahkan uang, summingInt menghitung transaksi",
+            "summingInt hanya bisa dipakai tanpa groupingBy"
+          ],
+          "answer": 0,
+          "explanation": "counting menghitung anggota kelompok. summingInt menjumlahkan nilai dari setiap anggota.",
+          "remedial": "**Pola laporan dengan Stream:**\n\n- Total semua: `mapToInt(X::getNilai).sum()`\n- Total per kelompok: `groupingBy(X::getKelompok, TreeMap::new, Collectors.summingInt(X::getNilai))`\n- Banyaknya data per kelompok: `groupingBy(..., TreeMap::new, Collectors.counting())`\n- Ada yang memenuhi syarat? `anyMatch(...)`\n- Entri terbesar dari Map: `map.entrySet().stream().max(Map.Entry.comparingByValue())`"
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Operasi mana yang menghitung total pendapatan **per menu**?",
+      "options": [
+        "groupingBy(Transaksi::getMenu, TreeMap::new, Collectors.summingInt(Transaksi::getTotal))",
+        "groupingBy(Transaksi::getMenu, TreeMap::new, Collectors.counting())",
+        "mapToInt(Transaksi::getTotal).sum()",
+        "groupingBy(Transaksi::getKasir, TreeMap::new, Collectors.summingInt(Transaksi::getTotal))"
+      ],
+      "answer": 0,
+      "explanation": "Kelompokkan berdasarkan menu, lalu jumlahkan total uang di setiap kelompok."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Class `Transaksi` dan list `trx` sudah disediakan (Sari: Kopi Susu 2 x 18000, Budi: Teh Manis 3 x 8000, Sari: Roti Bakar 1 x 15000, Budi: Kopi Susu 1 x 18000, Sari: Teh Manis 2 x 8000). Buat laporan pendapatan **per menu** dengan `groupingBy(Transaksi::getMenu, TreeMap::new, Collectors.summingInt(Transaksi::getTotal))`, lalu cetak setiap pasangannya dengan `forEach((menu, total) -> ...)` dalam format `menu: total`.\n\nOutput yang diharapkan:\n```\nKopi Susu: 54000\nRoti Bakar: 15000\nTeh Manis: 40000\n```",
+      "starterCode": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Transaksi> trx = Arrays.asList(\n                new Transaksi(\"Sari\", \"Kopi Susu\", 2, 18000),\n                new Transaksi(\"Budi\", \"Teh Manis\", 3, 8000),\n                new Transaksi(\"Sari\", \"Roti Bakar\", 1, 15000),\n                new Transaksi(\"Budi\", \"Kopi Susu\", 1, 18000),\n                new Transaksi(\"Sari\", \"Teh Manis\", 2, 8000));\n        // Tulis kode kamu di sini\n    }\n}\n\nclass Transaksi {\n    private String kasir;\n    private String menu;\n    private int jumlah;\n    private int harga;\n\n    Transaksi(String kasir, String menu, int jumlah, int harga) {\n        this.kasir = kasir;\n        this.menu = menu;\n        this.jumlah = jumlah;\n        this.harga = harga;\n    }\n\n    String getKasir() {\n        return kasir;\n    }\n\n    String getMenu() {\n        return menu;\n    }\n\n    int getJumlah() {\n        return jumlah;\n    }\n\n    int getTotal() {\n        return jumlah * harga;\n    }\n}",
+      "solution": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Transaksi> trx = Arrays.asList(\n                new Transaksi(\"Sari\", \"Kopi Susu\", 2, 18000),\n                new Transaksi(\"Budi\", \"Teh Manis\", 3, 8000),\n                new Transaksi(\"Sari\", \"Roti Bakar\", 1, 15000),\n                new Transaksi(\"Budi\", \"Kopi Susu\", 1, 18000),\n                new Transaksi(\"Sari\", \"Teh Manis\", 2, 8000));\n        Map<String, Integer> perMenu = trx.stream()\n                .collect(Collectors.groupingBy(Transaksi::getMenu, TreeMap::new,\n                        Collectors.summingInt(Transaksi::getTotal)));\n        perMenu.forEach((menu, total) -> System.out.println(menu + \": \" + total));\n    }\n}\n\nclass Transaksi {\n    private String kasir;\n    private String menu;\n    private int jumlah;\n    private int harga;\n\n    Transaksi(String kasir, String menu, int jumlah, int harga) {\n        this.kasir = kasir;\n        this.menu = menu;\n        this.jumlah = jumlah;\n        this.harga = harga;\n    }\n\n    String getKasir() {\n        return kasir;\n    }\n\n    String getMenu() {\n        return menu;\n    }\n\n    int getJumlah() {\n        return jumlah;\n    }\n\n    int getTotal() {\n        return jumlah * harga;\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Kopi Susu: 54000\nRoti Bakar: 15000\nTeh Manis: 40000\n"
+        }
+      ],
+      "hints": [
+        "Key-nya menu: Transaksi::getMenu. Value-nya total uang: summingInt(Transaksi::getTotal).",
+        "Map punya forEach dengan dua parameter: key dan value."
+      ],
+      "steps": [
+        "Buat Map<String, Integer> perMenu dengan groupingBy(Transaksi::getMenu, TreeMap::new, Collectors.summingInt(Transaksi::getTotal)).",
+        "Panggil perMenu.forEach((menu, total) -> System.out.println(menu + \": \" + total))."
+      ],
+      "skeleton": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Transaksi> trx = Arrays.asList(\n                new Transaksi(\"Sari\", \"Kopi Susu\", 2, 18000),\n                new Transaksi(\"Budi\", \"Teh Manis\", 3, 8000),\n                new Transaksi(\"Sari\", \"Roti Bakar\", 1, 15000),\n                new Transaksi(\"Budi\", \"Kopi Susu\", 1, 18000),\n                new Transaksi(\"Sari\", \"Teh Manis\", 2, 8000));\n        Map<String, Integer> perMenu = trx.stream()\n                .collect(Collectors.groupingBy(Transaksi::___, TreeMap::new,\n                        Collectors.___(Transaksi::getTotal)));\n        perMenu.___((menu, total) -> System.out.println(menu + \": \" + total));\n    }\n}\n\nclass Transaksi {\n    private String kasir;\n    private String menu;\n    private int jumlah;\n    private int harga;\n\n    Transaksi(String kasir, String menu, int jumlah, int harga) {\n        this.kasir = kasir;\n        this.menu = menu;\n        this.jumlah = jumlah;\n        this.harga = harga;\n    }\n\n    String getKasir() {\n        return kasir;\n    }\n\n    String getMenu() {\n        return menu;\n    }\n\n    int getJumlah() {\n        return jumlah;\n    }\n\n    int getTotal() {\n        return jumlah * harga;\n    }\n}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Setiap pertanyaan laporan bisa dijawab dengan satu Stream.",
+        "Total semua data: mapToInt(...).sum().",
+        "Total per kelompok: groupingBy dengan summingInt; banyaknya data per kelompok: counting.",
+        "Entri terbesar di Map: entrySet().stream().max(Map.Entry.comparingByValue())."
+      ]
+    }
+  ]
+}
