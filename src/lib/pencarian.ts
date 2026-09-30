@@ -40,7 +40,7 @@ export function indeksPencarian(): HasilCari[] {
     if (!kelas) continue;
     const lessons = getVisibleLessons(m.id);
     if (lessons.length === 0) continue;
-    hasil.push({ jenis: 'modul', id: m.id, judul: m.title, induk: kelas.title, url: `/module/${m.id}` });
+    hasil.push({ jenis: 'modul', id: m.id, judul: m.title, induk: kelas.title, url: `/kelas/${kelas.id}?modul=${m.id}` });
     for (const l of lessons) {
       hasil.push({ jenis: 'materi', id: l.id, judul: l.title, induk: m.title, url: `/lesson/${l.id}` });
     }

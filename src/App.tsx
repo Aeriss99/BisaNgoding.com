@@ -10,6 +10,7 @@ import NotFound from './pages/NotFound';
 import SemuaKelas from './pages/SemuaKelas';
 import JalurKarier from './pages/JalurKarier';
 import NotifikasiPage from './pages/Notifikasi';
+import ProgresPage from './pages/Progres';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -83,6 +84,7 @@ function AppRoutes() {
         <Route path="/kelas" element={<SemuaKelas />} />
         <Route path="/jalur" element={<JalurKarier />} />
         <Route path="/notifikasi" element={<NotifikasiPage />} />
+        <Route path="/progres" element={<ProgresPage />} />
         <Route path="/kelas/:courseId" element={<HalamanKelas />} />
         <Route path="/module/:moduleId" element={<ModuleDetail />} />
         <Route path="*" element={<NotFound />} />

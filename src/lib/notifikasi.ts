@@ -90,7 +90,7 @@ export function hitungNotifikasi(d: DataNotifikasi): Notifikasi[] {
               ? `Dua modul baru di ${m.kelasJudul} sudah bisa dipelajari.`
               : `Mulai dari ${m.judul}. Semuanya sudah bisa dipelajari.`,
         waktu: labelTanggal(m.sejak, d.hariIni),
-        url: `/kelas/${m.kelasId}`,
+        url: jumlah === 1 ? `/kelas/${m.kelasId}?modul=${m.id}` : `/kelas/${m.kelasId}`,
       },
     });
   }
@@ -102,7 +102,7 @@ export function hitungNotifikasi(d: DataNotifikasi): Notifikasi[] {
         judul: `Quiz ${q.judul} lulus`,
         isi: q.adaBerikutnya ? 'Modul berikutnya sudah terbuka.' : 'Semua modul di kelas ini sudah kamu lewati.',
         waktu: labelTanggal(q.sejak, d.hariIni),
-        url: `/kelas/${q.kelasId}`,
+        url: `/kelas/${q.kelasId}?modul=${q.modulId}`,
       },
     });
   }
