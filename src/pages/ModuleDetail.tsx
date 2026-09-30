@@ -1,21 +1,20 @@
-import { useParams, Link, Navigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, CheckCircle, Trophy, Lock } from 'lucide-react';
-import { getModule, getVisibleLessons, getQuizQuestions, checkModuleUnlocked, coursesData, nomorModul } from '../lib/content';
-import { useProgress } from '../context/ProgressContext';
+import { useParams, Navigate, Link } from 'react-router-dom';
+import MenuAtas from '../components/layout/MenuAtas';
+import { modulesData } from '../lib/content';
 
 export default function ModuleDetail() {
-  const { moduleId } = useParams();
-  const mod = getModule(moduleId || '');
-  const { progress } = useProgress();
+  const { moduleId } = useParams<{ moduleId: string }>();
+  const mod = modulesData.find((m) => m.id === moduleId);
 
   if (!mod) {
     return (
-      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
-        <div className="p-8 text-center space-y-4">
-          <p className="text-red-500">Modul tidak ditemukan.</p>
+      <div className="min-h-screen bg-bg-base font-sans text-text-main">
+        <MenuAtas />
+        <div className="max-w-[1440px] mx-auto px-8 xl:px-16 pt-10 pb-16 flex flex-col items-center gap-7">
+          <p className="text-[18px]">Modul tidak ditemukan.</p>
           <Link
-            to="/kelas/java"
-            className="inline-block bg-blue-600 text-white font-bold py-2 px-6 rounded-xl"
+            to="/kelas"
+            className="px-4 py-2 bg-primary text-text-main border-2 border-text-main font-space font-bold hover:bg-primary-hover shadow-[2px_2px_0px_var(--color-text-main)] transition-all"
           >
             Kembali ke Kelas
           </Link>
@@ -24,212 +23,6 @@ export default function ModuleDetail() {
     );
   }
 
-  if (!checkModuleUnlocked(mod, progress)) {
-    return <Navigate to={`/kelas/${mod.courseId || 'java'}`} replace />;
-  }
-
-  const lessons = getVisibleLessons(mod.id);
-  const quizTersedia = !!getQuizQuestions(mod.id);
-  const quizScore = progress.quizScores?.[mod.id];
-  const requiresJdk17 = lessons.some((l) => l.javaVersion === 17);
-  const course = coursesData.find((c) => c.id === (mod.courseId || 'java'));
-  const nomorInfo = nomorModul(mod.id);
-
-  return (
-    <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
-      <header className="flex items-start gap-4 mb-4">
-        <Link
-          to={`/kelas/${mod.courseId || 'java'}`}
-          className="p-2 brutal-btn bg-white rounded-full flex items-center justify-center shrink-0"
-        >
-          <ArrowLeft className="w-6 h-6" />
-        </Link>
-        <div>
-          {nomorInfo && (
-            <div className="text-[var(--color-text-secondary)] font-mono text-xs font-bold uppercase tracking-wide">
-              Modul {nomorInfo.nomor} dari {nomorInfo.total}
-            </div>
-          )}
-          <h1 className="text-2xl font-extrabold">{mod.title}</h1>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {requiresJdk17 && (
-              <div className="inline-block font-mono text-[10px] font-bold px-2 py-0.5 rounded border-2 border-[var(--color-text-main)] bg-[var(--color-accent-light)] text-[var(--color-text-main)]">
-                BUTUH JDK 17 DI KOMPUTER
-              </div>
-            )}
-            {course?.language === 'git' && (
-              <div className="inline-block font-mono text-[10px] font-bold px-2 py-0.5 rounded border-2 border-[var(--color-text-main)] bg-[var(--color-primary-light)] text-[var(--color-text-main)]">
-                PRAKTIK DI TERMINAL KOMPUTERMU
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {mod.id === 'proyek-todolist' && (
-        <div className="hidden md:flex justify-center mb-6">
-          <img
-            src={`${import.meta.env.BASE_URL}illustrations/undraw_build-mode_aa78.svg`}
-            alt=""
-            aria-hidden="true"
-            loading="lazy"
-            className="pointer-events-none w-full max-w-[220px]"
-            onError={(e) => (e.currentTarget.style.display = 'none')}
-          />
-        </div>
-      )}
-
-      <div className="grid gap-3">
-        {lessons.length === 0 && (
-          <div className="p-8 text-center text-gray-500 brutal-card rounded-xl flex flex-col items-center justify-center gap-4">
-            <img
-              src={`${import.meta.env.BASE_URL}illustrations/undraw_work-time_1ogn.svg`}
-              alt=""
-              aria-hidden="true"
-              loading="lazy"
-              className="pointer-events-none w-full max-w-[200px]"
-              onError={(e) => (e.currentTarget.style.display = 'none')}
-            />
-            <p className="font-bold">
-              Belum ada pelajaran yang tersedia dalam modul ini.
-            </p>
-          </div>
-        )}
-
-        {lessons.map((lesson, i) => {
-          const isCompleted = progress.completedLessons.includes(lesson.id);
-
-          let isUnlocked = progress.unlockAll;
-          if (!isUnlocked) {
-            if (i === 0) {
-              isUnlocked = true;
-            } else {
-              const prevLessonId = lessons[i - 1].id;
-              isUnlocked =
-                progress.completedLessons.includes(prevLessonId) || isCompleted;
-            }
-          }
-
-          if (isUnlocked) {
-            return (
-              <Link
-                key={lesson.id}
-                to={`/lesson/${lesson.id}`}
-                className="flex items-center p-4 rounded-xl brutal-card cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-[var(--color-text-main)] brutal-border bg-[var(--color-accent)]">
-                  {i + 1}
-                </div>
-                <div className="flex-1 px-4 font-bold text-gray-900">
-                  {lesson.title}
-                </div>
-                <div className="flex-shrink-0 text-gray-400">
-                  {isCompleted ? (
-                    <CheckCircle className="w-6 h-6 text-[var(--color-success)] drop-shadow-[1px_1px_0_#1A1A1A]" />
-                  ) : (
-                    <BookOpen className="w-6 h-6 text-[var(--color-primary)]" />
-                  )}
-                </div>
-              </Link>
-            );
-          } else {
-            return (
-              <div
-                key={lesson.id}
-                title="Selesaikan pelajaran sebelumnya dulu"
-                className="flex items-center p-4 rounded-xl brutal-card-locked opacity-75 cursor-not-allowed select-none"
-              >
-                <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-gray-500 brutal-border bg-gray-200">
-                  {i + 1}
-                </div>
-                <div className="flex-1 px-4 font-bold text-gray-500">
-                  {lesson.title}
-                </div>
-                <div className="flex-shrink-0 text-gray-400">
-                  <Lock className="w-5 h-5" />
-                </div>
-              </div>
-            );
-          }
-        })}
-
-        {lessons.length > 0 &&
-          quizTersedia &&
-          (() => {
-            const allCompleted = lessons.every((l) =>
-              progress.completedLessons.includes(l.id)
-            );
-            const isQuizUnlocked = progress.unlockAll || allCompleted;
-
-            if (isQuizUnlocked) {
-              return (
-                <Link
-                  to={`/quiz/${mod.id}`}
-                  className="flex items-center p-4 rounded-xl brutal-card !bg-[var(--color-primary)] cursor-pointer mt-4"
-                >
-                  <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-[var(--color-accent)] brutal-border">
-                    <Trophy className="w-6 h-6 text-black" />
-                  </div>
-                  <div className="flex-1 px-4 font-bold text-white">
-                    Quiz Akhir Modul
-                    {quizScore && (
-                      <span
-                        className={`ml-3 text-xs px-2 py-1 rounded-full brutal-border text-black ${
-                          quizScore.passed
-                            ? 'bg-[var(--color-success)]'
-                            : 'bg-[var(--color-danger)]'
-                        }`}
-                      >
-                        Skor: {quizScore.score}%
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-shrink-0 text-white">
-                    {quizScore?.passed ? (
-                      <CheckCircle className="w-6 h-6 text-[var(--color-success)] drop-shadow-[1px_1px_0_#1A1A1A]" />
-                    ) : (
-                      <BookOpen className="w-6 h-6 text-white" />
-                    )}
-                  </div>
-                </Link>
-              );
-            } else {
-              return (
-                <div
-                  title="Selesaikan semua pelajaran dulu"
-                  className="flex items-center p-4 rounded-xl brutal-card-locked opacity-75 cursor-not-allowed select-none mt-4"
-                >
-                  <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-300 brutal-border">
-                    <Trophy className="w-6 h-6 text-gray-500" />
-                  </div>
-                  <div className="flex-1 px-4 font-bold text-gray-500">
-                    Quiz Akhir Modul
-                    <span className="block sm:inline sm:ml-3 text-xs font-normal text-gray-500 mt-1 sm:mt-0">
-                      (Selesaikan semua pelajaran dulu)
-                    </span>
-                  </div>
-                  <div className="flex-shrink-0 text-gray-400">
-                    <Lock className="w-6 h-6" />
-                  </div>
-                </div>
-              );
-            }
-          })()}
-      </div>
-
-      {lessons.length > 0 &&
-        lessons.every((l) => progress.completedLessons.includes(l.id)) && (
-          <div className="hidden md:flex justify-center mt-8 pt-4">
-            <img
-              src={`${import.meta.env.BASE_URL}illustrations/undraw_all-checked_d3u6.svg`}
-              alt=""
-              aria-hidden="true"
-              loading="lazy"
-              className="pointer-events-none w-full max-w-[200px]"
-              onError={(e) => (e.currentTarget.style.display = 'none')}
-            />
-          </div>
-        )}
-    </div>
-  );
+  // Redirect to the new CourseDetail route with query parameter
+  return <Navigate to={`/kelas/${mod.courseId || 'java'}?modul=${mod.id}`} replace />;
 }
