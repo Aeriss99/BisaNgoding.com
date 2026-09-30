@@ -1,6 +1,8 @@
 export interface Course {
   id: string;
   title: string;
+  /** Nama singkat di kartu (kalau judul terlalu panjang), contoh "English for IT". */
+  namaPendek?: string;
   language: string;
   short?: string;
   order: number;
@@ -8,6 +10,56 @@ export interface Course {
   /** Deskripsi satu kalimat untuk kartu di halaman Semua Kelas. */
   ringkas?: string;
   status?: 'ready' | 'soon';
+  /** Kelas baru yang sedang disiapkan (ditandai ungu "Segera · Kelas baru" dan punya halaman rencana). */
+  baru?: boolean;
+  /** Chip tambahan di halaman rencana kelas baru, contoh "Teori + latihan soal". */
+  infoRencana?: string[];
+  /** Daftar modul yang direncanakan untuk kelas baru. */
+  rencana?: BagianRencana[];
+}
+
+export interface BagianRencana {
+  judul: string;
+  sub: string;
+  modul: { judul: string; isi: string }[];
+}
+
+/** content/jalur-karier.json */
+export interface ItemJalur {
+  kelas: string;
+  /** Nama di kartu kalau berbeda dari judul kelas. */
+  nama?: string;
+  topik: string;
+  /** Pengganti "N modul" setelah "Tersedia · ". Boleh memakai {n} untuk jumlah modul. */
+  meta?: string;
+  /** Kelas baru sebagian tersedia, contoh "DOM segera". */
+  sebagian?: string;
+  /** Modul tujuan saat kartu diklik (halaman kelas dibuka di modul ini). */
+  modul?: string;
+  /** Khusus Fondasi: bagian kelas yang dipakai semua jalur, contoh "Dasar". */
+  bagian?: string;
+}
+
+export interface TahapJalur {
+  judul: string;
+  deskripsi: string;
+  /** Antar grup = "ATAU" (pilih salah satu); di dalam grup = "+" (pelajari keduanya). */
+  grup: ItemJalur[][];
+}
+
+export interface JalurKarier {
+  id: string;
+  judul: string;
+  ikon: 'server' | 'layout' | 'cloud';
+  warna: 'kuning' | 'cyan' | 'ungu';
+  ringkas: string;
+  intro: string;
+  tahap: TahapJalur[];
+}
+
+export interface DataJalurKarier {
+  jalur: JalurKarier[];
+  fondasi: ItemJalur[];
 }
 
 export interface Module {

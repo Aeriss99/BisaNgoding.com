@@ -78,10 +78,10 @@ describe('ringkasanKelas', () => {
 });
 
 describe('jalurKelas', () => {
-  it('kelas Java dipakai di jalur backend, English dipakai di semua jalur', () => {
+  it('kelas Java dipakai di jalur backend, English masuk Fondasi', () => {
     expect(jalurKelas('java').length).toBeGreaterThan(0);
     expect(jalurKelas('java')[0].keterangan).toMatch(/^tahap \d+$/);
-    expect(jalurKelas('english-it')).toContainEqual({ judul: 'Semua jalur', keterangan: 'sambil jalan' });
+    expect(jalurKelas('english-it')).toEqual([{ judul: 'Fondasi', keterangan: 'semua jalur' }]);
     expect(jalurKelas('kelas-yang-tidak-ada')).toEqual([]);
   });
 });

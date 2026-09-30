@@ -1,10 +1,9 @@
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
-import Dashboard from './pages/Dashboard';
 import Landing from './pages/Landing';
 import Profile from './pages/Profile';
 import ModuleDetail from './pages/ModuleDetail';
-import CourseDetail from './pages/CourseDetail';
+import HalamanKelas from './pages/RencanaKelas';
 import LessonPage from './pages/Lesson';
 import QuizPage from './pages/Quiz';
 import NotFound from './pages/NotFound';
@@ -73,9 +72,9 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Root Route: Landing if not logged in, otherwise Dashboard inside Layout */}
+      {/* Rute utama: Landing kalau belum masuk, beranda Jalur Karier kalau sudah */}
       <Route path="/" element={isLoggedIn ? <Layout /> : <Landing />}>
-        {isLoggedIn && <Route index element={<Dashboard />} />}
+        {isLoggedIn && <Route index element={<JalurKarier />} />}
       </Route>
 
       {/* Other Layout Routes */}
@@ -84,7 +83,7 @@ function AppRoutes() {
         <Route path="/kelas" element={<SemuaKelas />} />
         <Route path="/jalur" element={<JalurKarier />} />
         <Route path="/notifikasi" element={<NotifikasiPage />} />
-        <Route path="/kelas/:courseId" element={<CourseDetail />} />
+        <Route path="/kelas/:courseId" element={<HalamanKelas />} />
         <Route path="/module/:moduleId" element={<ModuleDetail />} />
         <Route path="*" element={<NotFound />} />
       </Route>
