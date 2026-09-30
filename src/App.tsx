@@ -8,6 +8,9 @@ import CourseDetail from './pages/CourseDetail';
 import LessonPage from './pages/Lesson';
 import QuizPage from './pages/Quiz';
 import NotFound from './pages/NotFound';
+import SemuaKelas from './pages/SemuaKelas';
+import JalurKarier from './pages/JalurKarier';
+import NotifikasiPage from './pages/Notifikasi';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -78,6 +81,9 @@ function AppRoutes() {
       {/* Other Layout Routes */}
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route path="/profile" element={<Profile />} />
+        <Route path="/kelas" element={<SemuaKelas />} />
+        <Route path="/jalur" element={<JalurKarier />} />
+        <Route path="/notifikasi" element={<NotifikasiPage />} />
         <Route path="/kelas/:courseId" element={<CourseDetail />} />
         <Route path="/module/:moduleId" element={<ModuleDetail />} />
         <Route path="*" element={<NotFound />} />

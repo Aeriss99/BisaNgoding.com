@@ -5,6 +5,8 @@ export interface Course {
   short?: string;
   order: number;
   description?: string;
+  /** Deskripsi satu kalimat untuk kartu di halaman Semua Kelas. */
+  ringkas?: string;
   status?: 'ready' | 'soon';
 }
 
