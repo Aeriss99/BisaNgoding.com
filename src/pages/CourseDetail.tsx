@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom';
-import MenuAtas from '../components/layout/MenuAtas';
 import { Ikon } from '../components/ui/IkonDesain';
 import { useProgress } from '../context/ProgressContext';
 import { WARNA_KELAS } from './SemuaKelas';
@@ -92,8 +91,6 @@ export default function CourseDetail() {
 
   return (
     <div className="min-h-screen bg-bg-base font-sans text-text-main">
-      <MenuAtas />
-      
       {/* Desktop Wrapper */}
       <div className="hidden lg:flex max-w-[1440px] mx-auto px-8 xl:px-16 pt-10 pb-16 flex-col gap-7 leading-[normal]">
         <Link to="/kelas" className="self-start flex items-center gap-1.5 text-[15px] font-semibold">

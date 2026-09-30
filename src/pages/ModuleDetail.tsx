@@ -1,5 +1,4 @@
 import { useParams, Navigate, Link } from 'react-router-dom';
-import MenuAtas from '../components/layout/MenuAtas';
 import { modulesData } from '../lib/content';
 
 export default function ModuleDetail() {
@@ -9,7 +8,6 @@ export default function ModuleDetail() {
   if (!mod) {
     return (
       <div className="min-h-screen bg-bg-base font-sans text-text-main">
-        <MenuAtas />
         <div className="max-w-[1440px] mx-auto px-8 xl:px-16 pt-10 pb-16 flex flex-col items-center gap-7">
           <p className="text-[18px]">Modul tidak ditemukan.</p>
           <Link
