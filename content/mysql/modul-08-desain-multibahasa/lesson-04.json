@@ -1,0 +1,113 @@
+{
+  "id": "desain-multibahasa-04",
+  "moduleId": "desain-multibahasa",
+  "order": 4,
+  "title": "Menambah Bahasa dan Merawat Data",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Hasil desain ini paling terasa saat toko ingin menambah bahasa. Dengan desain lama, bahasa Jepang berarti `ALTER TABLE` di banyak tabel dan mengubah kode. Dengan desain baru, cukup **satu baris data**:\n\n```sql\nINSERT INTO bahasa (kode, nama) VALUES ('ja', 'Jepang');\n```\n\nStruktur tabel tidak berubah sama sekali. Terjemahan Jepang bisa diisi pelan-pelan, dan selama belum lengkap, pola bahasa cadangan dari pelajaran sebelumnya tetap menampilkan nama Indonesia.\n\nMySQL 8 memakai set karakter `utf8mb4` sebagai bawaan, jadi huruf Jepang, Arab, dan emoji bisa disimpan di kolom VARCHAR biasa.\n\nSeperti restoran yang menambah menu berbahasa Korea. Dapurnya tidak dibongkar, harga tidak berubah. Cukup menambah satu buku menu baru, dan halaman yang belum selesai diterjemahkan sementara memakai menu bahasa Indonesia."
+    },
+    {
+      "type": "theory",
+      "content": "Pekerjaan perawatan yang sering dilakukan:\n\n**1. Mencari produk yang belum diterjemahkan.** Pakai `LEFT JOIN` dengan syarat bahasa di `ON`, lalu ambil yang pasangannya kosong:\n\n```sql\nSELECT p.sku\nFROM produk p\nLEFT JOIN produk_terjemahan t\n       ON t.produk_id = p.id AND t.kode_bahasa = 'en'\nWHERE t.produk_id IS NULL;\n```\n\n**2. Melihat kemajuan terjemahan per bahasa.** Hitung `COUNT(t.produk_id)`, bukan `COUNT(*)`, supaya bahasa yang belum punya terjemahan tercatat 0:\n\n```sql\nSELECT b.kode, COUNT(t.produk_id) AS jumlah\nFROM bahasa b\nLEFT JOIN produk_terjemahan t ON t.kode_bahasa = b.kode\nGROUP BY b.kode;\n```\n\n**3. Menerjemahkan kategori juga.** Nama kategori adalah teks, jadi polanya sama persis: tabel `kategori` menyimpan data yang tidak bergantung bahasa (misalnya `urutan` tampil di menu), dan `kategori_terjemahan` menyimpan namanya.\n\n![ERD kategori, kategori_terjemahan, bahasa, dan produk](images/mysql/bahasa-kategori.svg)\n\n**4. Menghapus data.**\n\n| Aksi | Yang terjadi |\n|---|---|\n| Hapus produk | terjemahannya ikut terhapus (`ON DELETE CASCADE`) |\n| Hapus bahasa yang masih dipakai | **ditolak** oleh foreign key, karena masih ada terjemahan yang menunjuk ke bahasa itu |\n\nPenolakan kedua justru melindungi kita. Kalau bahasa ingin disembunyikan sementara, lebih aman menambah kolom penanda seperti `aktif BOOLEAN` di tabel `bahasa` daripada menghapusnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBahasa Jepang baru ditambahkan. Query pertama mencari produk yang belum punya nama Inggris. Query kedua melihat kemajuan terjemahan setiap bahasa.\n\n```sql\nINSERT INTO bahasa (kode, nama) VALUES ('ja', 'Jepang');\n\nSELECT p.sku\nFROM produk p\nLEFT JOIN produk_terjemahan t\n       ON t.produk_id = p.id AND t.kode_bahasa = 'en'\nWHERE t.produk_id IS NULL\nORDER BY p.id;\n\nSELECT b.kode, b.nama, COUNT(t.produk_id) AS sudah_diterjemahkan\nFROM bahasa b\nLEFT JOIN produk_terjemahan t ON t.kode_bahasa = b.kode\nGROUP BY b.kode, b.nama\nORDER BY sudah_diterjemahkan DESC;\n```\n\nHasilnya:\n\n```text\n+-------+\n| sku   |\n+-------+\n| GL-03 |\n| MD-04 |\n+-------+\n2 rows in set\n\n+------+-----------+---------------------+\n| kode | nama      | sudah_diterjemahkan |\n+------+-----------+---------------------+\n| id   | Indonesia |                   4 |\n| en   | Inggris   |                   2 |\n| ja   | Jepang    |                   0 |\n+------+-----------+---------------------+\n3 rows in set\n```\n\n- GL-03 dan MD-04 perlu diterjemahkan ke bahasa Inggris.\n- Bahasa Jepang sudah terdaftar tapi baru 0 produk. Karena memakai `COUNT(t.produk_id)`, bahasa itu tetap muncul dengan angka 0.\n\nDaftar seperti ini bisa dijadikan halaman \"pekerjaan penerjemah\" di panel admin toko."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mencari yang belum diterjemahkan dengan tanda <>**\n\nSalah:\n\n```sql\nSELECT produk_id\nFROM produk_terjemahan\nWHERE kode_bahasa <> 'en';\n```\n\nBenar:\n\n```sql\nSELECT p.id\nFROM produk p\nLEFT JOIN produk_terjemahan t\n       ON t.produk_id = p.id AND t.kode_bahasa = 'en'\nWHERE t.produk_id IS NULL;\n```\n\nQuery pertama menampilkan semua baris yang bukan en, termasuk baris 'id' milik produk yang sudah punya terjemahan en. Yang kita cari adalah produk yang TIDAK punya pasangan en.\n\n**2. Menghitung kemajuan dengan COUNT(*)**\n\nSalah:\n\n```sql\nSELECT b.kode, COUNT(*) AS jumlah\nFROM bahasa b\nLEFT JOIN produk_terjemahan t ON t.kode_bahasa = b.kode\nGROUP BY b.kode;\n```\n\nBenar:\n\n```sql\nSELECT b.kode, COUNT(t.produk_id) AS jumlah\nFROM bahasa b\nLEFT JOIN produk_terjemahan t ON t.kode_bahasa = b.kode\nGROUP BY b.kode;\n```\n\nBahasa tanpa terjemahan tetap punya satu baris hasil LEFT JOIN (berisi NULL). COUNT(*) menghitungnya jadi 1, padahal seharusnya 0.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Toko ingin mendukung bahasa Arab. Perintah apa yang dibutuhkan di desain baru?",
+          "options": [
+            "INSERT INTO bahasa (kode, nama) VALUES ('ar', 'Arab');",
+            "ALTER TABLE produk ADD COLUMN nama_ar VARCHAR(100);",
+            "CREATE TABLE produk_ar (...);",
+            "ALTER TABLE produk_terjemahan ADD COLUMN ar TEXT;"
+          ],
+          "answer": 0,
+          "explanation": "Bahasa adalah data. Cukup satu baris di tabel bahasa, lalu terjemahannya diisi sebagai baris di tabel terjemahan.",
+          "remedial": "- Bahasa baru cukup `INSERT INTO bahasa`, tanpa `ALTER TABLE`.\n- Produk yang belum diterjemahkan: `LEFT JOIN ... ON ... AND kode_bahasa = 'xx' WHERE t.produk_id IS NULL`.\n- Kemajuan per bahasa: `COUNT(t.produk_id)`, supaya bahasa kosong terhitung 0.\n- Kategori memakai pola yang sama: `kategori` + `kategori_terjemahan`.\n- Bahasa yang masih dipakai tidak bisa dihapus karena foreign key."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel produk:\n-- +----+-------+----------+\n-- | id | sku   | harga    |\n-- +----+-------+----------+\n-- |  1 | KP-01 | 45000.00 |\n-- |  2 | TH-02 | 30000.00 |\n-- |  3 | GL-03 | 25000.00 |\n-- |  4 | MD-04 | 60000.00 |\n-- +----+-------+----------+\n\n-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nSELECT p.sku\nFROM produk p\nLEFT JOIN produk_terjemahan t\n       ON t.produk_id = p.id AND t.kode_bahasa = 'en'\nWHERE t.produk_id IS NULL\nORDER BY p.id;",
+          "options": [
+            "KP-01, TH-02",
+            "GL-03, MD-04",
+            "GL-03",
+            "Empty set"
+          ],
+          "answer": 1,
+          "explanation": "Hanya GL-03 dan MD-04 yang tidak punya pasangan en, sehingga t.produk_id mereka NULL.",
+          "remedial": "- Bahasa baru cukup `INSERT INTO bahasa`, tanpa `ALTER TABLE`.\n- Produk yang belum diterjemahkan: `LEFT JOIN ... ON ... AND kode_bahasa = 'xx' WHERE t.produk_id IS NULL`.\n- Kemajuan per bahasa: `COUNT(t.produk_id)`, supaya bahasa kosong terhitung 0.\n- Kategori memakai pola yang sama: `kategori` + `kategori_terjemahan`.\n- Bahasa yang masih dipakai tidak bisa dihapus karena foreign key."
+        },
+        {
+          "question": "Bahasa Jepang baru saja ditambahkan. Apa hasil query ini?",
+          "code": "-- Tabel bahasa:\n-- +------+-----------+\n-- | kode | nama      |\n-- +------+-----------+\n-- | en   | Inggris   |\n-- | id   | Indonesia |\n-- | ja   | Jepang    |\n-- +------+-----------+\n\n-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nSELECT COUNT(t.produk_id)\nFROM bahasa b\nLEFT JOIN produk_terjemahan t ON t.kode_bahasa = b.kode\nWHERE b.kode = 'ja';",
+          "options": [
+            "NULL",
+            "1",
+            "0",
+            "Empty set"
+          ],
+          "answer": 2,
+          "explanation": "LEFT JOIN menghasilkan satu baris untuk ja dengan t.produk_id NULL. COUNT(kolom) tidak menghitung NULL, jadi hasilnya 0.",
+          "remedial": "- Bahasa baru cukup `INSERT INTO bahasa`, tanpa `ALTER TABLE`.\n- Produk yang belum diterjemahkan: `LEFT JOIN ... ON ... AND kode_bahasa = 'xx' WHERE t.produk_id IS NULL`.\n- Kemajuan per bahasa: `COUNT(t.produk_id)`, supaya bahasa kosong terhitung 0.\n- Kategori memakai pola yang sama: `kategori` + `kategori_terjemahan`.\n- Bahasa yang masih dipakai tidak bisa dihapus karena foreign key."
+        },
+        {
+          "question": "Apa primary key yang tepat untuk tabel `kategori_terjemahan`?",
+          "options": [
+            "kategori_id saja",
+            "kode_bahasa saja",
+            "(kategori_id, kode_bahasa)",
+            "nama"
+          ],
+          "answer": 2,
+          "explanation": "Sama seperti produk: satu kategori punya satu nama untuk setiap bahasa.",
+          "remedial": "- Bahasa baru cukup `INSERT INTO bahasa`, tanpa `ALTER TABLE`.\n- Produk yang belum diterjemahkan: `LEFT JOIN ... ON ... AND kode_bahasa = 'xx' WHERE t.produk_id IS NULL`.\n- Kemajuan per bahasa: `COUNT(t.produk_id)`, supaya bahasa kosong terhitung 0.\n- Kategori memakai pola yang sama: `kategori` + `kategori_terjemahan`.\n- Bahasa yang masih dipakai tidak bisa dihapus karena foreign key."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil kolom nama dari query ini (urut dari atas)?",
+      "code": "-- Tabel kategori:\n-- +----+--------+\n-- | id | urutan |\n-- +----+--------+\n-- |  1 |      1 |\n-- |  2 |      2 |\n-- +----+--------+\n\n-- Tabel kategori_terjemahan:\n-- +-------------+-------------+---------+\n-- | kategori_id | kode_bahasa | nama    |\n-- +-------------+-------------+---------+\n-- |           1 | en          | Drinks  |\n-- |           1 | id          | Minuman |\n-- |           2 | id          | Pemanis |\n-- +-------------+-------------+---------+\nSELECT COALESCE(d.nama, c.nama) AS nama\nFROM kategori k\nLEFT JOIN kategori_terjemahan d\n       ON d.kategori_id = k.id AND d.kode_bahasa = 'en'\nLEFT JOIN kategori_terjemahan c\n       ON c.kategori_id = k.id AND c.kode_bahasa = 'id'\nORDER BY k.urutan;",
+      "options": [
+        "Drinks, Pemanis",
+        "Minuman, Pemanis",
+        "Drinks",
+        "Drinks, NULL"
+      ],
+      "answer": 0,
+      "explanation": "Kategori 1 punya nama en (Drinks). Kategori 2 belum, jadi memakai cadangan id (Pemanis)."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Produk yang TIDAK punya pasangan terjemahan en (pasangannya kosong)\n-- Tabel produk:\n-- +----+-------+----------+\n-- | id | sku   | harga    |\n-- +----+-------+----------+\n-- |  1 | KP-01 | 45000.00 |\n-- |  2 | TH-02 | 30000.00 |\n-- |  3 | GL-03 | 25000.00 |\n-- |  4 | MD-04 | 60000.00 |\n-- +----+-------+----------+\n\n-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nSELECT p.sku\nFROM produk p\n___ JOIN produk_terjemahan t\n       ON t.produk_id = p.id AND t.kode_bahasa = 'en'\nWHERE t.produk_id IS ___\nORDER BY p.id;",
+      "answers": [
+        "LEFT|LEFT OUTER|left|Left|left outer|Left Outer",
+        "NULL|null|Null"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Menambah bahasa cukup INSERT ke tabel bahasa, tanpa mengubah struktur.",
+        "Cari yang belum diterjemahkan dengan LEFT JOIN lalu WHERE ... IS NULL.",
+        "Hitung kemajuan dengan COUNT(kolom), bukan COUNT(*).",
+        "Kategori dan teks lain memakai pola tabel terjemahan yang sama.",
+        "Foreign key menolak penghapusan bahasa yang masih dipakai."
+      ]
+    }
+  ]
+}

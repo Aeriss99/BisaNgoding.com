@@ -1,0 +1,112 @@
+{
+  "id": "mysql-transaksi-02",
+  "moduleId": "mysql-transaksi",
+  "order": 2,
+  "title": "Atomicity dan Consistency",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Transaksi di database memegang empat janji yang disingkat **ACID**:\n\n| Huruf | Nama | Janjinya |\n|---|---|---|\n| **A** | Atomicity | semua langkah berhasil, atau semuanya dibatalkan |\n| **C** | Consistency | aturan data selalu terjaga sebelum dan sesudah transaksi |\n| **I** | Isolation | transaksi yang berjalan bersamaan tidak saling mengganggu |\n| **D** | Durability | data yang sudah di-COMMIT tidak hilang |\n\nMySQL menepati keempat janji ini lewat *storage engine* bawaannya, **InnoDB**. Pelajaran ini membahas A dan C. I dan D menyusul di dua pelajaran berikutnya.\n\nBayangkan memesan paket liburan: tiket pesawat dan hotel. Kalau hotelnya ternyata penuh, tiket pesawatnya ikut dibatalkan. Kamu tidak mau terbang ke kota yang tidak ada tempat menginapnya. Itulah **atomicity**.\n\n**Consistency** itu seperti aturan main sepak bola: gol dihitung hanya kalau sah. Apa pun yang terjadi di lapangan, papan skor tidak boleh menampilkan angka yang melanggar aturan."
+    },
+    {
+      "type": "theory",
+      "content": "**Atomicity** berasal dari kata *atom*, dulu dianggap bagian terkecil yang tidak bisa dibelah. Transaksi juga tidak bisa \"dibelah\": tidak ada setengah transfer.\n\nAda satu detail penting. Kalau salah satu statement di tengah transaksi **error**, misalnya melanggar constraint, MySQL hanya membatalkan statement itu saja. Transaksinya masih terbuka dan langkah sebelumnya masih menunggu. Kamu (atau aplikasimu) yang harus memutuskan `ROLLBACK`:\n\n```sql\nSTART TRANSACTION;\nUPDATE rekening SET saldo = saldo + 600000 WHERE id = 2;\nUPDATE rekening SET saldo = saldo - 600000 WHERE id = 1;\n-- ERROR 3819 (HY000): Check constraint 'saldo_tidak_negatif' is violated.\nROLLBACK;\n```\n\n**Consistency** berarti data selalu mengikuti aturan. Aturan itu bisa berasal dari dua tempat:\n\n| Sumber aturan | Contoh |\n|---|---|\n| constraint di tabel | `PRIMARY KEY`, `NOT NULL`, `FOREIGN KEY`, `CHECK (saldo >= 0)` |\n| logika bisnis | total uang sebelum dan sesudah transfer harus sama |\n\nConstraint dijaga otomatis oleh MySQL: statement yang melanggarnya langsung ditolak. Logika bisnis dijaga dengan cara menulis transaksi yang benar. Contohnya, mengurangi saldo **hanya kalau saldonya cukup**:\n\n```sql\nUPDATE rekening SET saldo = saldo - 100000\nWHERE id = 1 AND saldo >= 100000;\nSELECT ROW_COUNT();\n```\n\n`ROW_COUNT()` memberi tahu berapa baris yang benar-benar berubah oleh statement sebelumnya. Kalau hasilnya 0, saldo tidak cukup, dan aplikasi menjalankan `ROLLBACK`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDewi punya saldo 150000 dan mencoba mentransfer 700000. Pengurangan hanya dijalankan kalau saldonya cukup, lalu kita cek berapa baris yang berubah.\n\n```sql\nCREATE TABLE rekening (\n  id INT PRIMARY KEY,\n  nama VARCHAR(30) NOT NULL,\n  saldo DECIMAL(12,0) NOT NULL,\n  CONSTRAINT saldo_tidak_negatif CHECK (saldo >= 0)\n);\nINSERT INTO rekening VALUES\n  (1, 'Budi', 500000),\n  (2, 'Sari', 200000),\n  (3, 'Dewi', 150000);\n```\n\n```sql\nSTART TRANSACTION;                                          -- mulai\nUPDATE rekening SET saldo = saldo - 700000\nWHERE id = 3 AND saldo >= 700000;                           -- hanya kalau cukup\nSELECT ROW_COUNT();\nROLLBACK;\n```\n\nHasilnya:\n\n```text\n+-------------+\n| ROW_COUNT() |\n+-------------+\n|           0 |\n+-------------+\n1 row in set\n```\n\nHasilnya 0: tidak ada baris yang berubah karena saldo Dewi tidak cukup. Aplikasi melihat angka 0 ini lalu menjalankan `ROLLBACK`. Langkah menambah saldo penerima tidak pernah dijalankan, jadi tidak ada uang yang muncul dari udara.\n\nSekarang bukti aturan logika bisnis \"total uang tetap sama\". Kita hitung total saldo sebelum transfer, lalu sesudah transfer Rp100.000 dari Budi ke Sari:\n\n```sql\nSELECT SUM(saldo) AS total FROM rekening;\n\nSTART TRANSACTION;                                          -- mulai\nUPDATE rekening SET saldo = saldo - 100000 WHERE id = 1;    -- Budi\nUPDATE rekening SET saldo = saldo + 100000 WHERE id = 2;    -- Sari\nCOMMIT;                                                     -- simpan\nSELECT SUM(saldo) AS total FROM rekening;\n```\n\nHasilnya:\n\n```text\n+--------+\n| total  |\n+--------+\n| 850000 |\n+--------+\n1 row in set\n\n+--------+\n| total  |\n+--------+\n| 850000 |\n+--------+\n1 row in set\n```\n\nUang hanya berpindah tempat, jumlahnya tetap 850000. Data tetap konsisten."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tetap COMMIT setelah ada statement yang error**\n\nSalah:\n\n```sql\nSTART TRANSACTION;\nUPDATE rekening SET saldo = saldo + 600000 WHERE id = 2;\nUPDATE rekening SET saldo = saldo - 600000 WHERE id = 1;\n-- ERROR 3819: Check constraint ... is violated.\nCOMMIT;\n```\n\nBenar:\n\n```sql\nSTART TRANSACTION;\nUPDATE rekening SET saldo = saldo + 600000 WHERE id = 2;\nUPDATE rekening SET saldo = saldo - 600000 WHERE id = 1;\n-- ERROR 3819: Check constraint ... is violated.\nROLLBACK;\n```\n\nError hanya membatalkan statement yang gagal. Kalau tetap COMMIT, saldo Sari bertambah 600000 padahal saldo Budi tidak berkurang. Setelah error, jalankan ROLLBACK.\n\n**2. Menjaga aturan hanya di aplikasi**\n\nSalah:\n\n```sql\nCREATE TABLE rekening (\n  id INT PRIMARY KEY,\n  saldo DECIMAL(12,0) NOT NULL\n);\n```\n\nBenar:\n\n```sql\nCREATE TABLE rekening (\n  id INT PRIMARY KEY,\n  saldo DECIMAL(12,0) NOT NULL,\n  CONSTRAINT saldo_tidak_negatif CHECK (saldo >= 0)\n);\n```\n\nAplikasi bisa punya bug, dan data bisa diubah dari tempat lain. Aturan penting sebaiknya juga dipasang di tabel supaya MySQL ikut menjaganya (CHECK ditegakkan sejak MySQL 8.0.16).\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Mana yang paling tepat menggambarkan **atomicity**?",
+          "options": [
+            "Data yang sudah disimpan tidak akan hilang",
+            "Transaksi bersamaan tidak saling mengganggu",
+            "Semua langkah transaksi berhasil, atau semuanya dibatalkan",
+            "Setiap tabel wajib punya primary key"
+          ],
+          "answer": 2,
+          "explanation": "Atomicity = tidak ada transaksi yang setengah jadi.",
+          "remedial": "**ACID** = Atomicity, Consistency, Isolation, Durability.\n\n- **Atomicity**: semua langkah berhasil atau semua dibatalkan. Kalau satu statement error (misalnya melanggar CHECK), hanya statement itu yang batal. Transaksi masih terbuka, jadi jalankan `ROLLBACK`.\n- **Consistency**: aturan data selalu terjaga. Constraint (`PRIMARY KEY`, `NOT NULL`, `FOREIGN KEY`, `CHECK`) dijaga MySQL, logika bisnis dijaga lewat transaksi yang ditulis dengan benar.\n- `ROW_COUNT()` = jumlah baris yang berubah oleh statement sebelumnya."
+        },
+        {
+          "question": "Apa yang terjadi saat query ini dijalankan?",
+          "code": "-- Tabel rekening:\n-- +----+------+--------+\n-- | id | nama | saldo  |\n-- +----+------+--------+\n-- |  1 | Budi | 500000 |\n-- |  2 | Sari | 200000 |\n-- |  3 | Dewi | 150000 |\n-- +----+------+--------+\nINSERT INTO rekening VALUES (4, 'Andi', -5000);",
+          "options": [
+            "Baris Andi tersimpan dengan saldo -5000",
+            "Baris Andi tersimpan dengan saldo 0",
+            "Ditolak dengan error karena melanggar CHECK",
+            "Baris Andi tersimpan dengan saldo 5000"
+          ],
+          "answer": 2,
+          "explanation": "Constraint saldo_tidak_negatif menolak saldo negatif: ERROR 3819 (HY000): Check constraint 'saldo_tidak_negatif' is violated.",
+          "remedial": "**ACID** = Atomicity, Consistency, Isolation, Durability.\n\n- **Atomicity**: semua langkah berhasil atau semua dibatalkan. Kalau satu statement error (misalnya melanggar CHECK), hanya statement itu yang batal. Transaksi masih terbuka, jadi jalankan `ROLLBACK`.\n- **Consistency**: aturan data selalu terjaga. Constraint (`PRIMARY KEY`, `NOT NULL`, `FOREIGN KEY`, `CHECK`) dijaga MySQL, logika bisnis dijaga lewat transaksi yang ditulis dengan benar.\n- `ROW_COUNT()` = jumlah baris yang berubah oleh statement sebelumnya."
+        },
+        {
+          "question": "Di tengah transaksi, statement kedua gagal karena melanggar CHECK. Apa kondisi transaksinya?",
+          "options": [
+            "Seluruh transaksi otomatis dibatalkan dan ditutup",
+            "Seluruh transaksi otomatis di-COMMIT",
+            "MySQL berhenti dan harus dinyalakan ulang",
+            "Hanya statement yang gagal yang dibatalkan, transaksi masih terbuka"
+          ],
+          "answer": 3,
+          "explanation": "MySQL membatalkan statement yang gagal saja. Keputusan ROLLBACK atau lanjut ada di tanganmu.",
+          "remedial": "**ACID** = Atomicity, Consistency, Isolation, Durability.\n\n- **Atomicity**: semua langkah berhasil atau semua dibatalkan. Kalau satu statement error (misalnya melanggar CHECK), hanya statement itu yang batal. Transaksi masih terbuka, jadi jalankan `ROLLBACK`.\n- **Consistency**: aturan data selalu terjaga. Constraint (`PRIMARY KEY`, `NOT NULL`, `FOREIGN KEY`, `CHECK`) dijaga MySQL, logika bisnis dijaga lewat transaksi yang ditulis dengan benar.\n- `ROW_COUNT()` = jumlah baris yang berubah oleh statement sebelumnya."
+        },
+        {
+          "question": "Apa hasil query terakhir?",
+          "code": "-- Tabel rekening:\n-- +----+------+--------+\n-- | id | nama | saldo  |\n-- +----+------+--------+\n-- |  1 | Budi | 500000 |\n-- |  2 | Sari | 200000 |\n-- |  3 | Dewi | 150000 |\n-- +----+------+--------+\nUPDATE rekening SET saldo = saldo - 300000\nWHERE id = 2 AND saldo >= 300000;                           -- hanya kalau cukup\nSELECT ROW_COUNT();",
+          "options": [
+            "1",
+            "0",
+            "200000",
+            "-100000"
+          ],
+          "answer": 1,
+          "explanation": "Saldo Sari 200000, kurang dari 300000. Kondisi WHERE tidak terpenuhi, jadi tidak ada baris yang berubah.",
+          "remedial": "**ACID** = Atomicity, Consistency, Isolation, Durability.\n\n- **Atomicity**: semua langkah berhasil atau semua dibatalkan. Kalau satu statement error (misalnya melanggar CHECK), hanya statement itu yang batal. Transaksi masih terbuka, jadi jalankan `ROLLBACK`.\n- **Consistency**: aturan data selalu terjaga. Constraint (`PRIMARY KEY`, `NOT NULL`, `FOREIGN KEY`, `CHECK`) dijaga MySQL, logika bisnis dijaga lewat transaksi yang ditulis dengan benar.\n- `ROW_COUNT()` = jumlah baris yang berubah oleh statement sebelumnya."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query terakhir?",
+      "code": "-- Tabel rekening:\n-- +----+------+--------+\n-- | id | nama | saldo  |\n-- +----+------+--------+\n-- |  1 | Budi | 500000 |\n-- |  2 | Sari | 200000 |\n-- |  3 | Dewi | 150000 |\n-- +----+------+--------+\nSTART TRANSACTION;                                          -- mulai\nUPDATE rekening SET saldo = saldo - 50000 WHERE id = 3;     -- Dewi\nUPDATE rekening SET saldo = saldo + 50000 WHERE id = 1;     -- Budi\nCOMMIT;                                                     -- simpan\nSELECT SUM(saldo) FROM rekening;",
+      "options": [
+        "800000",
+        "900000",
+        "850000",
+        "750000"
+      ],
+      "answer": 2,
+      "explanation": "Uang hanya berpindah dari Dewi ke Budi. Totalnya tetap 500000 + 200000 + 150000 = 850000."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Kurangi saldo Budi hanya kalau saldonya cukup (dua syarat digabung)\n-- Tabel rekening:\n-- +----+------+--------+\n-- | id | nama | saldo  |\n-- +----+------+--------+\n-- |  1 | Budi | 500000 |\n-- |  2 | Sari | 200000 |\n-- |  3 | Dewi | 150000 |\n-- +----+------+--------+\nUPDATE rekening SET saldo = saldo - 100000\nWHERE id = 1 ___ saldo >= 100000;\nSELECT saldo FROM rekening WHERE id = 1;",
+      "answers": [
+        "AND|and|And"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "ACID: Atomicity, Consistency, Isolation, Durability.",
+        "Atomicity: tidak ada transaksi setengah jadi.",
+        "Statement yang error (misalnya melanggar constraint) hanya membatalkan dirinya sendiri, jadi jalankan ROLLBACK.",
+        "Consistency: constraint dan logika bisnis tetap terjaga.",
+        "Syarat seperti AND saldo >= jumlah plus ROW_COUNT() mencegah saldo minus."
+      ]
+    }
+  ]
+}

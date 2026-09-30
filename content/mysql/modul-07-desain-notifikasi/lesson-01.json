@@ -1,0 +1,112 @@
+{
+  "id": "desain-notifikasi-01",
+  "moduleId": "desain-notifikasi",
+  "order": 1,
+  "title": "Kebutuhan Sistem Notifikasi",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Hampir semua aplikasi punya **ikon lonceng** dengan angka merah kecil: \"3 notifikasi belum dibaca\". Di modul ini kita merancang database di balik lonceng itu untuk sebuah **toko online**.\n\nKelihatannya sederhana: satu tabel berisi pesan, selesai. Ternyata ada pertanyaan yang lebih rumit. Bagaimana mengirim promo ke sejuta pengguna sekaligus? Bagaimana tahu siapa yang **sudah** membacanya? Seperti di modul sebelumnya, kita mulai dari kebutuhan, bukan dari `CREATE TABLE`.\n\n```mermaid\nflowchart LR\n    A[\"Daftar fitur\"] --> B[\"Entitas dan relasi\"]\n    B --> C[\"ERD\"]\n    C --> D[\"CREATE TABLE\"]\n    D --> E[\"Query\"]\n```\n\nBayangkan sebuah sekolah. Ada dua cara menyampaikan kabar:\n\n- **Surat pribadi** ditaruh di loker satu siswa, misalnya \"Nilai ulanganmu sudah keluar\". Hanya pemilik loker yang membacanya.\n- **Pengumuman** ditempel sekali di papan, misalnya \"Besok libur\". Semua siswa membaca kertas yang sama.\n\nSekolah tidak memfotokopi pengumuman seribu kali untuk dimasukkan ke seribu loker. Sistem notifikasi kita juga akan membedakan dua cara ini."
+    },
+    {
+      "type": "theory",
+      "content": "Daftar fitur yang diminta:\n\n1. Pengguna menerima kabar tentang **pesanannya**: dibayar, dikirim, tiba.\n2. Tim toko mengirim **promo** dan **info sistem** (misalnya jadwal pemeliharaan) ke **semua pengguna** sekaligus.\n3. Setiap notifikasi punya judul, isi singkat, dan tautan ke halaman terkait.\n4. Ikon lonceng menampilkan **jumlah yang belum dibaca**, dihitung per pengguna.\n5. Daftar notifikasi urut dari yang terbaru dan dimuat per halaman.\n6. Notifikasi lama dibersihkan supaya database tidak terus membengkak.\n\nDari fitur 1 dan 2 terlihat bahwa setiap notifikasi punya **dua sifat yang berbeda**:\n\n| Contoh | Kategori (tentang apa) | Sasaran (untuk siapa) |\n|---|---|---|\n| Pesanan #1021 dikirim | pesanan | satu pengguna (Budi) |\n| Voucer ongkir untukmu | promo | satu pengguna (Budi) |\n| Promo Gajian diskon 50% | promo | semua pengguna |\n| Login dari perangkat baru | sistem | satu pengguna |\n| Pemeliharaan server hari Minggu | sistem | semua pengguna |\n\nPromo bisa untuk satu orang, bisa juga untuk semua orang. Jadi kategori dan sasaran harus disimpan terpisah.\n\nEntitas yang kita dapat:\n\n| Entitas | Isi |\n|---|---|\n| pengguna | Budi, Sari, Dewi |\n| kategori_notifikasi | pesanan, promo, sistem |\n| notifikasi (pribadi) | pesan untuk **satu** pengguna, seperti surat di loker |\n| notifikasi_massal | pesan untuk **semua** pengguna, seperti kertas di papan pengumuman |\n\n![ERD awal sistem notifikasi: pengguna, notifikasi pribadi, notifikasi massal, dan kategori beserta garis relasinya](images/mysql/notif-erd-awal.svg)\n\nPerhatikan garis **pengguna membaca notifikasi massal**. Satu pengumuman dibaca banyak pengguna, dan satu pengguna membaca banyak pengumuman. Itu hubungan **many-to-many**, jadi nanti butuh tabel penghubung. Kita bahas di pelajaran 3."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nApa jadinya kalau kebutuhan tadi dilewati dan semua dijejalkan ke satu tabel seadanya? Kolom `untuk` berisi nama penerima atau kata `SEMUA`, kolom `jenis` diketik bebas, dan ada satu kolom `sudah_dibaca`. Budi sudah membuka Promo Gajian, sedangkan Sari belum membukanya sama sekali.\n\n```sql\nCREATE TABLE notif_seadanya (id INT PRIMARY KEY, untuk VARCHAR(20), jenis VARCHAR(20), judul VARCHAR(50), sudah_dibaca BOOLEAN);\nINSERT INTO notif_seadanya VALUES\n  (1, 'Budi', 'pesanan', 'Pesanan dikirim', TRUE),\n  (2, 'SEMUA', 'promo', 'Promo Gajian', TRUE),\n  (3, 'Sari', 'pesanan', 'Pembayaran diterima', FALSE),\n  (4, 'SEMUA', 'promosi', 'Gratis Ongkir Akhir Pekan', FALSE),\n  (5, 'Budi', 'sistem', 'Login dari perangkat baru', FALSE);\n```\n\n```sql\nSELECT judul, sudah_dibaca\nFROM notif_seadanya\nWHERE untuk IN ('Sari', 'SEMUA')\nORDER BY id;\n\nSELECT jenis, COUNT(*) AS jumlah\nFROM notif_seadanya\nGROUP BY jenis\nORDER BY jenis;\n```\n\nHasilnya:\n\n```text\n+---------------------------+--------------+\n| judul                     | sudah_dibaca |\n+---------------------------+--------------+\n| Promo Gajian              |            1 |\n| Pembayaran diterima       |            0 |\n| Gratis Ongkir Akhir Pekan |            0 |\n+---------------------------+--------------+\n3 rows in set\n\n+---------+--------+\n| jenis   | jumlah |\n+---------+--------+\n| pesanan |      2 |\n| promo   |      1 |\n| promosi |      1 |\n| sistem  |      1 |\n+---------+--------+\n4 rows in set\n```\n\nAda tiga masalah:\n\n- **Status baca dipakai bersama.** Promo Gajian tampil sudah dibaca (`1`) di layar Sari, padahal yang membukanya Budi. Satu kolom `sudah_dibaca` tidak bisa mewakili sejuta orang.\n- **Nilai ajaib.** Kata `SEMUA` di kolom `untuk` harus diingat setiap programmer. Lupa sekali saja, pengumuman tidak tampil.\n- **Kategori diketik bebas.** `promo` dan `promosi` terhitung sebagai dua kategori berbeda.\n\nSemua masalah ini berasal dari desain, bukan dari query. Tiga pelajaran berikutnya memperbaikinya satu per satu."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Satu kolom sudah_dibaca untuk pesan yang dikirim ke semua orang**\n\nSalah:\n\n```sql\nCREATE TABLE pengumuman (\n  id INT PRIMARY KEY,\n  judul VARCHAR(100),\n  sudah_dibaca BOOLEAN\n);\n```\n\nBenar:\n\n```sql\nCREATE TABLE notifikasi_dibaca (\n  pengguna_id INT NOT NULL,\n  massal_id INT NOT NULL,\n  dibaca_pada DATETIME NOT NULL,\n  PRIMARY KEY (pengguna_id, massal_id)\n);\n```\n\nStatus baca adalah milik **pasangan** pengguna dan pesan, bukan milik pesannya saja. Kalau disimpan di tabel pesan, satu orang membuka, semua orang ikut dianggap sudah membaca.\n\n**2. Mencampur kategori dan sasaran dalam satu kolom**\n\nSalah:\n\n```sql\njenis VARCHAR(20)   -- 'pesanan', 'promo', 'massal'\n```\n\nBenar:\n\n```sql\nkategori_id INT NOT NULL   -- tentang apa\n-- untuk siapa: tabel notifikasi (pribadi)\n-- atau notifikasi_massal (semua pengguna)\n```\n\nKalau isinya \"massal\", promo itu tentang apa? Kalau isinya \"promo\", untuk satu orang atau semua? Kategori dan sasaran menjawab dua pertanyaan berbeda, jadi jangan dicampur.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Notifikasi \"Pesanan #1021 sudah dikirim\" yang hanya dikirim ke Budi termasuk...",
+          "options": [
+            "kategori pesanan, sasaran satu pengguna",
+            "kategori pesanan, sasaran semua pengguna",
+            "kategori sistem, sasaran semua pengguna",
+            "kategori promo, sasaran satu pengguna"
+          ],
+          "answer": 0,
+          "explanation": "Isinya tentang pesanan, dan yang perlu tahu hanya Budi. Jadi ini notifikasi pribadi berkategori pesanan.",
+          "remedial": "- Mulai dari daftar fitur: kabar pesanan, promo, info sistem, jumlah belum dibaca, halaman, pembersihan.\n- Setiap notifikasi punya **kategori** (pesanan, promo, sistem) dan **sasaran** (satu pengguna atau semua).\n- Notifikasi pribadi = surat di loker. Notifikasi massal = kertas di papan pengumuman.\n- Status baca notifikasi massal milik setiap pengguna, jadi tidak bisa disimpan dalam satu kolom di tabel pesan.\n- Pengguna dan notifikasi massal berhubungan many-to-many."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel notif_seadanya:\n-- +----+-------+---------+---------------------------+--------------+\n-- | id | untuk | jenis   | judul                     | sudah_dibaca |\n-- +----+-------+---------+---------------------------+--------------+\n-- |  1 | Budi  | pesanan | Pesanan dikirim           |            1 |\n-- |  2 | SEMUA | promo   | Promo Gajian              |            1 |\n-- |  3 | Sari  | pesanan | Pembayaran diterima       |            0 |\n-- |  4 | SEMUA | promosi | Gratis Ongkir Akhir Pekan |            0 |\n-- |  5 | Budi  | sistem  | Login dari perangkat baru |            0 |\n-- +----+-------+---------+---------------------------+--------------+\nSELECT COUNT(*) FROM notif_seadanya WHERE untuk = 'Budi';",
+          "options": [
+            "4",
+            "2",
+            "3",
+            "5"
+          ],
+          "answer": 1,
+          "explanation": "Hanya baris 1 dan 5 yang kolom untuk-nya persis Budi. Dua pengumuman SEMUA tidak ikut terhitung, padahal Budi juga menerimanya. Inilah bahaya nilai ajaib.",
+          "remedial": "- Mulai dari daftar fitur: kabar pesanan, promo, info sistem, jumlah belum dibaca, halaman, pembersihan.\n- Setiap notifikasi punya **kategori** (pesanan, promo, sistem) dan **sasaran** (satu pengguna atau semua).\n- Notifikasi pribadi = surat di loker. Notifikasi massal = kertas di papan pengumuman.\n- Status baca notifikasi massal milik setiap pengguna, jadi tidak bisa disimpan dalam satu kolom di tabel pesan.\n- Pengguna dan notifikasi massal berhubungan many-to-many."
+        },
+        {
+          "question": "Kenapa satu kolom sudah_dibaca di tabel pengumuman tidak bisa dipakai untuk pesan yang dikirim ke semua pengguna?",
+          "options": [
+            "Karena BOOLEAN tidak ada di MySQL",
+            "Karena kolom itu hanya bisa diisi sekali",
+            "Karena statusnya berbeda untuk setiap pengguna, sedangkan kolom itu hanya satu untuk semua orang",
+            "Karena pengumuman tidak boleh punya primary key"
+          ],
+          "answer": 2,
+          "explanation": "Budi mungkin sudah membaca, Sari belum. Satu nilai tidak bisa menyimpan dua keadaan yang berbeda.",
+          "remedial": "- Mulai dari daftar fitur: kabar pesanan, promo, info sistem, jumlah belum dibaca, halaman, pembersihan.\n- Setiap notifikasi punya **kategori** (pesanan, promo, sistem) dan **sasaran** (satu pengguna atau semua).\n- Notifikasi pribadi = surat di loker. Notifikasi massal = kertas di papan pengumuman.\n- Status baca notifikasi massal milik setiap pengguna, jadi tidak bisa disimpan dalam satu kolom di tabel pesan.\n- Pengguna dan notifikasi massal berhubungan many-to-many."
+        },
+        {
+          "question": "Satu notifikasi massal dibaca banyak pengguna, dan satu pengguna membaca banyak notifikasi massal. Hubungan ini disebut...",
+          "options": [
+            "one-to-one",
+            "one-to-many",
+            "many-to-one",
+            "many-to-many"
+          ],
+          "answer": 3,
+          "explanation": "Banyak di kedua sisi berarti many-to-many, jadi perlu tabel penghubung yang mencatat pasangan pengguna dan notifikasi.",
+          "remedial": "- Mulai dari daftar fitur: kabar pesanan, promo, info sistem, jumlah belum dibaca, halaman, pembersihan.\n- Setiap notifikasi punya **kategori** (pesanan, promo, sistem) dan **sasaran** (satu pengguna atau semua).\n- Notifikasi pribadi = surat di loker. Notifikasi massal = kertas di papan pengumuman.\n- Status baca notifikasi massal milik setiap pengguna, jadi tidak bisa disimpan dalam satu kolom di tabel pesan.\n- Pengguna dan notifikasi massal berhubungan many-to-many."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Query ini dimaksudkan menampilkan notifikasi yang belum dibaca Sari. Apa hasilnya?",
+      "code": "-- Tabel notif_seadanya:\n-- +----+-------+---------+---------------------------+--------------+\n-- | id | untuk | jenis   | judul                     | sudah_dibaca |\n-- +----+-------+---------+---------------------------+--------------+\n-- |  1 | Budi  | pesanan | Pesanan dikirim           |            1 |\n-- |  2 | SEMUA | promo   | Promo Gajian              |            1 |\n-- |  3 | Sari  | pesanan | Pembayaran diterima       |            0 |\n-- |  4 | SEMUA | promosi | Gratis Ongkir Akhir Pekan |            0 |\n-- |  5 | Budi  | sistem  | Login dari perangkat baru |            0 |\n-- +----+-------+---------+---------------------------+--------------+\nSELECT judul FROM notif_seadanya\nWHERE untuk IN ('Sari', 'SEMUA') AND sudah_dibaca = FALSE\nORDER BY id;",
+      "options": [
+        "Pembayaran diterima, Gratis Ongkir Akhir Pekan",
+        "Promo Gajian, Pembayaran diterima, Gratis Ongkir Akhir Pekan",
+        "Pembayaran diterima",
+        "Promo Gajian, Gratis Ongkir Akhir Pekan"
+      ],
+      "answer": 0,
+      "explanation": "Promo Gajian hilang dari daftar Sari karena kolom sudah_dibaca-nya bernilai 1. Padahal yang membukanya Budi, bukan Sari."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Notifikasi untuk satu pengguna disebut notifikasi pribadi.\n-- Notifikasi untuk semua pengguna sekaligus disebut notifikasi ___\n-- Pengguna dan notifikasi itu berhubungan many-to-___",
+      "answers": [
+        "massal|broadcast|siaran",
+        "many"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Mulai desain dari daftar fitur, lalu tentukan entitas dan relasinya.",
+        "Setiap notifikasi punya kategori (tentang apa) dan sasaran (untuk siapa). Simpan terpisah.",
+        "Notifikasi pribadi untuk satu pengguna, notifikasi massal untuk semua pengguna.",
+        "Status baca milik pasangan pengguna dan pesan, bukan milik pesannya saja.",
+        "Hindari nilai ajaib seperti kata SEMUA di kolom penerima."
+      ]
+    }
+  ]
+}

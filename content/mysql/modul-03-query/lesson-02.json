@@ -1,0 +1,112 @@
+{
+  "id": "mysql-query-02",
+  "moduleId": "mysql-query",
+  "order": 2,
+  "title": "AND, OR, dan NOT",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Satu syarat sering tidak cukup. Guru mungkin ingin mencari \"siswa kelas X-A **yang** nilainya di atas 80\". Itu dua syarat sekaligus.\n\nSQL punya tiga kata untuk menggabungkan syarat:\n\n- **`AND`**: semua syarat harus benar\n- **`OR`**: cukup salah satu syarat benar\n- **`NOT`**: membalik syarat (benar jadi salah, salah jadi benar)\n\nBayangkan lowongan kerja. \"Syarat: lulusan SMK **dan** bisa menyetir\" berarti pelamar harus memenuhi keduanya. \"Lulusan SMK **atau** SMA\" berarti salah satu saja sudah boleh. \"**Bukan** perokok\" berarti semua orang boleh, kecuali perokok."
+    },
+    {
+      "type": "theory",
+      "content": "Tabel kebenarannya:\n\n| Syarat A | Syarat B | A `AND` B | A `OR` B |\n|---|---|---|---|\n| benar | benar | benar | benar |\n| benar | salah | salah | benar |\n| salah | benar | salah | benar |\n| salah | salah | salah | salah |\n\n`NOT` cukup satu syarat: `NOT kota = 'Bandung'` artinya \"kota selain Bandung\".\n\n**Awas urutan pengerjaan.** Seperti perkalian dikerjakan sebelum penjumlahan di matematika, MySQL mengerjakan `NOT` dulu, lalu `AND`, baru `OR`. Coba lihat syarat ini:\n\n```sql\nWHERE kota = 'Bogor' OR kota = 'Bandung' AND nilai > 80\n```\n\nMySQL membacanya sebagai:\n\n```sql\nWHERE kota = 'Bogor' OR (kota = 'Bandung' AND nilai > 80)\n```\n\nArtinya: semua siswa Bogor (berapa pun nilainya), ditambah siswa Bandung yang nilainya di atas 80. Kalau maksudmu \"siswa Bogor atau Bandung, yang nilainya di atas 80\", kamu **harus** memakai kurung:\n\n```sql\nWHERE (kota = 'Bogor' OR kota = 'Bandung') AND nilai > 80\n```\n\nAturan praktis: **setiap kali mencampur AND dan OR, pakai kurung.** Query jadi lebih mudah dibaca dan tidak ada kejutan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nData siswa di tabel `siswa`:\n\n| id | nama | kelas | kota | nilai |\n|---|---|---|---|---|\n| 1 | Budi | X-A | Bandung | 85 |\n| 2 | Sari | X-B | Bogor | 92 |\n| 3 | Andi | X-A | Bogor | 70 |\n| 4 | Dewi | X-B | Bandung | 78 |\n| 5 | Rina | X-A | Depok | 95 |\n\nSiswa kelas X-A **dan** nilainya minimal 80:\n\n```sql\nSELECT nama, kelas, nilai\nFROM siswa\nWHERE kelas = 'X-A' AND nilai >= 80;\n```\n\nHasilnya:\n\n```text\n+------+-------+-------+\n| nama | kelas | nilai |\n+------+-------+-------+\n| Budi | X-A   |    85 |\n| Rina | X-A   |    95 |\n+------+-------+-------+\n2 rows in set\n```\n\nAndi juga kelas X-A, tapi nilainya 70, jadi syarat kedua gagal.\n\n#### Kurung mengubah hasil\n\nSekarang bandingkan dua query yang hanya beda **kurung**:\n\n```sql\nSELECT nama, kota, nilai FROM siswa\nWHERE kota = 'Bogor' OR kota = 'Bandung' AND nilai > 80;\n\nSELECT nama, kota, nilai FROM siswa\nWHERE (kota = 'Bogor' OR kota = 'Bandung') AND nilai > 80;\n```\n\nHasilnya:\n\n```text\n+------+---------+-------+\n| nama | kota    | nilai |\n+------+---------+-------+\n| Budi | Bandung |    85 |\n| Sari | Bogor   |    92 |\n| Andi | Bogor   |    70 |\n+------+---------+-------+\n3 rows in set\n\n+------+---------+-------+\n| nama | kota    | nilai |\n+------+---------+-------+\n| Budi | Bandung |    85 |\n| Sari | Bogor   |    92 |\n+------+---------+-------+\n2 rows in set\n```\n\nQuery pertama ikut menampilkan Andi (Bogor, nilai 70), karena `AND` dikerjakan lebih dulu sehingga syarat nilai hanya berlaku untuk Bandung. Query kedua memakai kurung, jadi syarat nilai berlaku untuk semua."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyingkat syarat OR**\n\nSalah:\n\n```sql\nSELECT nama FROM siswa\nWHERE kota = 'Bogor' OR 'Depok';\n```\n\nBenar:\n\n```sql\nSELECT nama FROM siswa\nWHERE kota = 'Bogor' OR kota = 'Depok';\n```\n\nDalam bahasa sehari-hari kita bilang \"kota Bogor atau Depok\", tapi SQL butuh perbandingan lengkap di kedua sisi. Versi yang salah tidak error, hanya memberi peringatan. MySQL menganggap `'Depok'` sendirian bernilai salah, jadi yang tampil cuma siswa Bogor. Kesalahan diam seperti ini paling berbahaya.\n\n**2. Mencampur AND dan OR tanpa kurung**\n\nSalah:\n\n```sql\nSELECT nama FROM siswa\nWHERE kelas = 'X-A' OR kelas = 'X-B' AND nilai > 90;\n```\n\nBenar:\n\n```sql\nSELECT nama FROM siswa\nWHERE (kelas = 'X-A' OR kelas = 'X-B') AND nilai > 90;\n```\n\nTanpa kurung, `AND` dikerjakan duluan: semua siswa X-A ikut tampil, berapa pun nilainya. Pakai kurung supaya syarat nilai berlaku untuk kedua kelas.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel siswa:\n-- +----+------+-------+---------+-------+\n-- | id | nama | kelas | kota    | nilai |\n-- +----+------+-------+---------+-------+\n-- |  1 | Budi | X-A   | Bandung |    85 |\n-- |  2 | Sari | X-B   | Bogor   |    92 |\n-- |  3 | Andi | X-A   | Bogor   |    70 |\n-- |  4 | Dewi | X-B   | Bandung |    78 |\n-- |  5 | Rina | X-A   | Depok   |    95 |\n-- +----+------+-------+---------+-------+\nSELECT nama FROM siswa WHERE kelas = 'X-B' OR kota = 'Bandung' AND nilai > 80;",
+          "options": [
+            "Sari",
+            "Budi, Sari",
+            "Budi, Sari, Dewi",
+            "Budi, Sari, Dewi, Rina"
+          ],
+          "answer": 2,
+          "explanation": "`AND` dikerjakan dulu: (Bandung dan nilai > 80) hanya Budi. Lalu di-`OR` dengan semua siswa X-B: Sari dan Dewi.",
+          "remedial": "- `AND`: semua syarat harus benar\n- `OR`: cukup salah satu benar\n- `NOT`: membalik syarat\n- Urutan pengerjaan: `NOT`, lalu `AND`, lalu `OR`\n- Mencampur `AND` dan `OR`? Selalu pakai kurung.\n- Tulis perbandingan lengkap: `kota = 'A' OR kota = 'B'`, bukan `kota = 'A' OR 'B'`"
+        },
+        {
+          "question": "Kapan sebuah baris lolos syarat `A AND B`?",
+          "options": [
+            "Kalau A benar",
+            "Kalau A dan B sama-sama benar",
+            "Kalau salah satu benar",
+            "Kalau A dan B sama-sama salah"
+          ],
+          "answer": 1,
+          "explanation": "`AND` menuntut semua syarat benar.",
+          "remedial": "- `AND`: semua syarat harus benar\n- `OR`: cukup salah satu benar\n- `NOT`: membalik syarat\n- Urutan pengerjaan: `NOT`, lalu `AND`, lalu `OR`\n- Mencampur `AND` dan `OR`? Selalu pakai kurung.\n- Tulis perbandingan lengkap: `kota = 'A' OR kota = 'B'`, bukan `kota = 'A' OR 'B'`"
+        },
+        {
+          "question": "Seseorang menulis `WHERE kota = 'Bogor' OR 'Depok'` untuk mencari siswa dari Bogor atau Depok. Apa yang terjadi?",
+          "options": [
+            "Siswa Bogor dan Depok tampil semua",
+            "Query gagal dengan pesan error",
+            "Semua siswa tampil",
+            "Hanya siswa Bogor yang tampil, tanpa pesan error"
+          ],
+          "answer": 3,
+          "explanation": "`'Depok'` sendirian dianggap bernilai salah. Yang benar: `kota = 'Bogor' OR kota = 'Depok'`.",
+          "remedial": "- `AND`: semua syarat harus benar\n- `OR`: cukup salah satu benar\n- `NOT`: membalik syarat\n- Urutan pengerjaan: `NOT`, lalu `AND`, lalu `OR`\n- Mencampur `AND` dan `OR`? Selalu pakai kurung.\n- Tulis perbandingan lengkap: `kota = 'A' OR kota = 'B'`, bukan `kota = 'A' OR 'B'`"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel siswa:\n-- +----+------+-------+---------+-------+\n-- | id | nama | kelas | kota    | nilai |\n-- +----+------+-------+---------+-------+\n-- |  1 | Budi | X-A   | Bandung |    85 |\n-- |  2 | Sari | X-B   | Bogor   |    92 |\n-- |  3 | Andi | X-A   | Bogor   |    70 |\n-- |  4 | Dewi | X-B   | Bandung |    78 |\n-- |  5 | Rina | X-A   | Depok   |    95 |\n-- +----+------+-------+---------+-------+\nSELECT nama FROM siswa WHERE NOT (kota = 'Bandung' OR kota = 'Bogor');",
+          "options": [
+            "Rina",
+            "Budi, Dewi",
+            "Sari, Andi",
+            "Budi, Sari, Andi, Dewi"
+          ],
+          "answer": 0,
+          "explanation": "Isi kurung benar untuk siswa Bandung dan Bogor. `NOT` membaliknya, jadi yang tersisa hanya Rina dari Depok.",
+          "remedial": "- `AND`: semua syarat harus benar\n- `OR`: cukup salah satu benar\n- `NOT`: membalik syarat\n- Urutan pengerjaan: `NOT`, lalu `AND`, lalu `OR`\n- Mencampur `AND` dan `OR`? Selalu pakai kurung.\n- Tulis perbandingan lengkap: `kota = 'A' OR kota = 'B'`, bukan `kota = 'A' OR 'B'`"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Berapa baris yang tampil?",
+      "code": "-- Tabel siswa:\n-- +----+------+-------+---------+-------+\n-- | id | nama | kelas | kota    | nilai |\n-- +----+------+-------+---------+-------+\n-- |  1 | Budi | X-A   | Bandung |    85 |\n-- |  2 | Sari | X-B   | Bogor   |    92 |\n-- |  3 | Andi | X-A   | Bogor   |    70 |\n-- |  4 | Dewi | X-B   | Bandung |    78 |\n-- |  5 | Rina | X-A   | Depok   |    95 |\n-- +----+------+-------+---------+-------+\nSELECT nama FROM siswa WHERE (kelas = 'X-A' OR kelas = 'X-B') AND nilai < 80;",
+      "options": [
+        "0 baris",
+        "2 baris",
+        "3 baris",
+        "5 baris"
+      ],
+      "answer": 1,
+      "explanation": "Isi kurung benar untuk semua siswa. Lalu yang nilainya di bawah 80 hanya Andi (70) dan Dewi (78)."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Tampilkan siswa kelas X-A yang nilainya di atas 80 (kedua syarat harus benar)\n-- Tabel siswa:\n-- +----+------+-------+---------+-------+\n-- | id | nama | kelas | kota    | nilai |\n-- +----+------+-------+---------+-------+\n-- |  1 | Budi | X-A   | Bandung |    85 |\n-- |  2 | Sari | X-B   | Bogor   |    92 |\n-- |  3 | Andi | X-A   | Bogor   |    70 |\n-- |  4 | Dewi | X-B   | Bandung |    78 |\n-- |  5 | Rina | X-A   | Depok   |    95 |\n-- +----+------+-------+---------+-------+\nSELECT nama FROM siswa WHERE kelas = 'X-A' ___ nilai > 80;",
+      "answers": [
+        "AND|and|And"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "AND: semua syarat harus benar. OR: cukup salah satu.",
+        "NOT membalik syarat.",
+        "MySQL mengerjakan NOT, lalu AND, baru OR.",
+        "Selalu pakai kurung saat mencampur AND dan OR.",
+        "Tulis perbandingan lengkap: kota = 'A' OR kota = 'B'."
+      ]
+    }
+  ]
+}

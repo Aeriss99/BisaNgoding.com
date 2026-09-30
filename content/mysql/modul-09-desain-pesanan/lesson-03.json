@@ -1,0 +1,113 @@
+{
+  "id": "desain-pesanan-03",
+  "moduleId": "desain-pesanan",
+  "order": 3,
+  "title": "Status dan Riwayat Status",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setelah dipesan, sebuah pesanan berjalan melewati beberapa tahap: menunggu pembayaran, dibayar, dikirim, lalu selesai. Kadang juga dibatalkan.\n\nPembeli ingin tahu **pesanannya sedang di tahap apa**. Admin ingin tahu **kapan** setiap tahap terjadi, misalnya \"berapa lama dari dibayar sampai dikirim?\".\n\nKalau hanya ada satu kolom `status`, kita tahu keadaan sekarang, tapi tidak tahu kapan tahap sebelumnya terjadi. Setiap `UPDATE` menimpa status lama tanpa jejak.\n\nSeperti melacak paket. Di layar paling atas tertulis status sekarang dengan huruf besar: **Dalam Pengiriman**. Di bawahnya ada daftar perjalanan: \"10.00 paket diambil kurir, 14.00 tiba di gudang Bandung\". Status besar itu untuk dilihat sekilas, daftar perjalanan untuk yang ingin tahu ceritanya."
+    },
+    {
+      "type": "theory",
+      "content": "Tahap-tahap pesanan dan perpindahannya:\n\n```mermaid\nflowchart LR\n  A[menunggu_bayar] --> B[dibayar]\n  B --> C[dikirim]\n  C --> D[selesai]\n  A --> E[dibatalkan]\n  B --> E\n```\n\nDesainnya memakai **dua tempat**:\n\n| Tempat | Isi | Dipakai untuk |\n|---|---|---|\n| `pesanan.status` | status **saat ini** saja | daftar pesanan, filter \"yang belum dikirim\" |\n| tabel `riwayat_status` | satu baris untuk **setiap perubahan**, lengkap dengan waktu | halaman perjalanan pesanan, laporan lama proses |\n\nKenapa tidak cukup salah satu?\n\n- **Hanya kolom status**: tidak tahu kapan dibayar atau dikirim.\n- **Hanya tabel riwayat**: untuk tahu status sekarang, setiap pesanan harus dicari baris riwayat terakhirnya. Query-nya rumit dan lambat saat pesanan sudah ribuan.\n\nHarganya: setiap perubahan status harus menulis **dua** tempat. Supaya tidak pernah setengah jalan, keduanya dibungkus dalam satu transaksi:\n\n```sql\nSTART TRANSACTION;\nUPDATE pesanan SET status = 'dikirim' WHERE id = 3;\nINSERT INTO riwayat_status (pesanan_id, status, catatan)\nVALUES (3, 'dikirim', 'resi KRM-1003');\nCOMMIT;\n```\n\n**Kenapa ENUM?** Daftar status sedikit, jarang berubah, dan kode aplikasi memang bergantung pada nama-nama itu. ENUM menolak nilai di luar daftar, misalnya salah ketik `'dikrim'`. Dalam mode strict (bawaan MySQL 8), MySQL menolak dengan `ERROR 1265 (01000): Data truncated for column 'status' at row 1`. Kekurangannya: menambah status baru berarti `ALTER TABLE` di `pesanan` dan `riwayat_status`. Kalau status sering bertambah, tabel `status` terpisah dengan foreign key lebih luwes.\n\nTabel tambahannya, termasuk `pembayaran`. Pembayaran dipisah dari pesanan karena satu pesanan bisa punya lebih dari satu percobaan bayar, dan setiap pembayaran punya data sendiri: metode, jumlah, waktu.\n\n```sql\nCREATE TABLE riwayat_status (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  pesanan_id INT NOT NULL,\n  status ENUM('menunggu_bayar', 'dibayar', 'dikirim', 'selesai', 'dibatalkan') NOT NULL,\n  waktu DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  catatan VARCHAR(255),\n  FOREIGN KEY (pesanan_id) REFERENCES pesanan(id)\n);\nCREATE TABLE pembayaran (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  pesanan_id INT NOT NULL,\n  metode VARCHAR(30) NOT NULL,\n  jumlah DECIMAL(12,0) NOT NULL,\n  dibayar_pada DATETIME NOT NULL,\n  FOREIGN KEY (pesanan_id) REFERENCES pesanan(id)\n);\n```\n\n![ERD pesanan dengan riwayat_status dan pembayaran. Satu pesanan punya banyak baris riwayat status dan bisa punya beberapa pembayaran](images/mysql/pesanan-status.svg)"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nQuery pertama menampilkan perjalanan pesanan nomor 1. Lalu admin mengirim pesanan nomor 3: status di `pesanan` diubah dan satu baris riwayat ditambahkan (di aplikasi sungguhan, keduanya di dalam satu transaksi). Query terakhir memeriksa hasilnya.\n\n```sql\nSELECT status, waktu, catatan\nFROM riwayat_status\nWHERE pesanan_id = 1\nORDER BY waktu;\n\nUPDATE pesanan SET status = 'dikirim' WHERE id = 3;\nINSERT INTO riwayat_status (pesanan_id, status, waktu, catatan)\nVALUES (3, 'dikirim', '2026-03-10 09:00:00', 'resi KRM-1003');\n\nSELECT p.id, p.status AS status_sekarang, r.status, r.waktu\nFROM pesanan p\nJOIN riwayat_status r ON r.pesanan_id = p.id\nWHERE p.id = 3\nORDER BY r.waktu;\n```\n\nHasilnya:\n\n```text\n+----------------+---------------------+------------------+\n| status         | waktu               | catatan          |\n+----------------+---------------------+------------------+\n| menunggu_bayar | 2026-03-02 09:15:00 | NULL             |\n| dibayar        | 2026-03-02 09:40:00 | NULL             |\n| dikirim        | 2026-03-03 10:00:00 | resi KRM-1001    |\n| selesai        | 2026-03-05 15:30:00 | diterima pembeli |\n+----------------+---------------------+------------------+\n4 rows in set\n\n+----+-----------------+----------------+---------------------+\n| id | status_sekarang | status         | waktu               |\n+----+-----------------+----------------+---------------------+\n|  3 | dikirim         | menunggu_bayar | 2026-03-09 19:05:00 |\n|  3 | dikirim         | dibayar        | 2026-03-09 19:30:00 |\n|  3 | dikirim         | dikirim        | 2026-03-10 09:00:00 |\n+----+-----------------+----------------+---------------------+\n3 rows in set\n```\n\n- Pesanan 1 punya empat baris riwayat. Dari sini halaman pembeli bisa menggambar garis waktu.\n- Setelah dikirim, `status_sekarang` pesanan 3 menjadi `dikirim`, dan riwayatnya bertambah satu baris. Status lama (`menunggu_bayar`, `dibayar`) tetap tercatat.\n- Waktu ditulis manual supaya hasil contoh tetap. Di aplikasi, kolom `waktu` cukup dibiarkan terisi otomatis oleh `DEFAULT CURRENT_TIMESTAMP`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengubah status tanpa mencatat riwayat**\n\nSalah:\n\n```sql\nUPDATE pesanan SET status = 'dikirim' WHERE id = 3;\n```\n\nBenar:\n\n```sql\nSTART TRANSACTION;\nUPDATE pesanan SET status = 'dikirim' WHERE id = 3;\nINSERT INTO riwayat_status (pesanan_id, status)\nVALUES (3, 'dikirim');\nCOMMIT;\n```\n\nTanpa baris riwayat, tidak ada yang tahu kapan pesanan dikirim. Transaksi memastikan kedua perubahan tersimpan bersama atau batal bersama.\n\n**2. Status sebagai teks bebas**\n\nSalah:\n\n```sql\nstatus VARCHAR(20) NOT NULL\n-- aplikasi bisa menulis 'Dikirim', 'dikirim', 'dikrim'\n```\n\nBenar:\n\n```sql\nstatus ENUM('menunggu_bayar', 'dibayar', 'dikirim', 'selesai', 'dibatalkan') NOT NULL\n```\n\nTeks bebas menerima salah ketik dan penulisan yang berbeda-beda, sehingga filter WHERE status = 'dikirim' bisa melewatkan data. ENUM hanya menerima nilai di daftar.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa desain ini menyimpan status di `pesanan.status` **dan** di tabel `riwayat_status`?",
+          "options": [
+            "Karena MySQL mewajibkan setiap ENUM disimpan di dua tabel",
+            "Supaya kalau salah satu terhapus, masih ada cadangannya",
+            "Status sekarang cepat dibaca dari pesanan, sedangkan riwayat mencatat kapan setiap tahap terjadi",
+            "Karena tabel pesanan tidak boleh diubah dengan UPDATE"
+          ],
+          "answer": 2,
+          "explanation": "Kolom status melayani daftar dan filter. Tabel riwayat melayani garis waktu. Keduanya diubah bersama dalam satu transaksi.",
+          "remedial": "- `pesanan.status` (ENUM) menyimpan status **saat ini** untuk tampilan dan filter cepat.\n- `riwayat_status` menyimpan **setiap perubahan** beserta waktunya.\n- Perubahan status = `UPDATE pesanan` + `INSERT riwayat_status` dalam satu transaksi.\n- ENUM menolak nilai di luar daftar, tapi menambah status baru butuh `ALTER TABLE`.\n- `pembayaran` dipisah karena satu pesanan bisa punya beberapa pembayaran."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel riwayat_status:\n-- +----+------------+----------------+---------------------+\n-- | id | pesanan_id | status         | waktu               |\n-- +----+------------+----------------+---------------------+\n-- |  1 |          1 | menunggu_bayar | 2026-03-02 09:15:00 |\n-- |  2 |          1 | dibayar        | 2026-03-02 09:40:00 |\n-- |  3 |          1 | dikirim        | 2026-03-03 10:00:00 |\n-- |  4 |          2 | menunggu_bayar | 2026-03-05 14:20:00 |\n-- |  5 |          2 | dibayar        | 2026-03-05 15:00:00 |\n-- |  6 |          1 | selesai        | 2026-03-05 15:30:00 |\n-- |  7 |          2 | dikirim        | 2026-03-06 11:00:00 |\n-- |  8 |          3 | menunggu_bayar | 2026-03-09 19:05:00 |\n-- |  9 |          3 | dibayar        | 2026-03-09 19:30:00 |\n-- | 10 |          4 | menunggu_bayar | 2026-03-11 08:30:00 |\n-- | 11 |          4 | dibatalkan     | 2026-03-12 08:30:00 |\n-- +----+------------+----------------+---------------------+\nSELECT waktu\nFROM riwayat_status\nWHERE pesanan_id = 1 AND status = 'dikirim';",
+          "options": [
+            "2026-03-02 09:40:00",
+            "2026-03-03 10:00:00",
+            "2026-03-05 15:30:00",
+            "2026-03-06 11:00:00"
+          ],
+          "answer": 1,
+          "explanation": "Baris riwayat pesanan 1 dengan status dikirim tercatat pada 3 Maret pukul 10.00. Baris 6 Maret milik pesanan 2.",
+          "remedial": "- `pesanan.status` (ENUM) menyimpan status **saat ini** untuk tampilan dan filter cepat.\n- `riwayat_status` menyimpan **setiap perubahan** beserta waktunya.\n- Perubahan status = `UPDATE pesanan` + `INSERT riwayat_status` dalam satu transaksi.\n- ENUM menolak nilai di luar daftar, tapi menambah status baru butuh `ALTER TABLE`.\n- `pembayaran` dipisah karena satu pesanan bisa punya beberapa pembayaran."
+        },
+        {
+          "question": "Apa yang terjadi saat perintah ini dijalankan?",
+          "code": "-- Tabel pesanan:\n-- +----+--------------+------------+--------+---------------------+\n-- | id | pelanggan_id | status     | ongkir | dibuat_pada         |\n-- +----+--------------+------------+--------+---------------------+\n-- |  1 |            1 | selesai    |  10000 | 2026-03-02 09:15:00 |\n-- |  2 |            2 | dikirim    |  12000 | 2026-03-05 14:20:00 |\n-- |  3 |            1 | dibayar    |  10000 | 2026-03-09 19:05:00 |\n-- |  4 |            1 | dibatalkan |  10000 | 2026-03-11 08:30:00 |\n-- +----+--------------+------------+--------+---------------------+\nUPDATE pesanan SET status = 'dikemas' WHERE id = 3;",
+          "options": [
+            "Berhasil, status baru dikemas otomatis ditambahkan ke ENUM",
+            "Error, karena 'dikemas' tidak ada di daftar ENUM",
+            "Berhasil, tapi status menjadi NULL",
+            "Tidak ada yang berubah dan tidak ada error"
+          ],
+          "answer": 1,
+          "explanation": "Kolom status hanya menerima nilai yang terdaftar di ENUM. Dalam mode strict, MySQL menolak dengan ERROR 1265 (Data truncated for column 'status').",
+          "remedial": "- `pesanan.status` (ENUM) menyimpan status **saat ini** untuk tampilan dan filter cepat.\n- `riwayat_status` menyimpan **setiap perubahan** beserta waktunya.\n- Perubahan status = `UPDATE pesanan` + `INSERT riwayat_status` dalam satu transaksi.\n- ENUM menolak nilai di luar daftar, tapi menambah status baru butuh `ALTER TABLE`.\n- `pembayaran` dipisah karena satu pesanan bisa punya beberapa pembayaran."
+        },
+        {
+          "question": "Kenapa pembayaran dibuat sebagai tabel sendiri, bukan kolom di tabel pesanan?",
+          "options": [
+            "Satu pesanan bisa punya lebih dari satu pembayaran, masing-masing dengan metode dan waktunya",
+            "Karena kolom DECIMAL tidak boleh ada di tabel pesanan",
+            "Supaya total pesanan tidak perlu dihitung",
+            "Karena pembayaran tidak punya hubungan dengan pesanan"
+          ],
+          "answer": 0,
+          "explanation": "Misalnya percobaan pertama gagal lalu pembeli membayar ulang. Relasinya one-to-many, jadi dipisah ke tabel sendiri.",
+          "remedial": "- `pesanan.status` (ENUM) menyimpan status **saat ini** untuk tampilan dan filter cepat.\n- `riwayat_status` menyimpan **setiap perubahan** beserta waktunya.\n- Perubahan status = `UPDATE pesanan` + `INSERT riwayat_status` dalam satu transaksi.\n- ENUM menolak nilai di luar daftar, tapi menambah status baru butuh `ALTER TABLE`.\n- `pembayaran` dipisah karena satu pesanan bisa punya beberapa pembayaran."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini (urut dari atas)?",
+      "code": "-- Tabel riwayat_status:\n-- +----+------------+----------------+---------------------+\n-- | id | pesanan_id | status         | waktu               |\n-- +----+------------+----------------+---------------------+\n-- |  1 |          1 | menunggu_bayar | 2026-03-02 09:15:00 |\n-- |  2 |          1 | dibayar        | 2026-03-02 09:40:00 |\n-- |  3 |          1 | dikirim        | 2026-03-03 10:00:00 |\n-- |  4 |          2 | menunggu_bayar | 2026-03-05 14:20:00 |\n-- |  5 |          2 | dibayar        | 2026-03-05 15:00:00 |\n-- |  6 |          1 | selesai        | 2026-03-05 15:30:00 |\n-- |  7 |          2 | dikirim        | 2026-03-06 11:00:00 |\n-- |  8 |          3 | menunggu_bayar | 2026-03-09 19:05:00 |\n-- |  9 |          3 | dibayar        | 2026-03-09 19:30:00 |\n-- | 10 |          4 | menunggu_bayar | 2026-03-11 08:30:00 |\n-- | 11 |          4 | dibatalkan     | 2026-03-12 08:30:00 |\n-- +----+------------+----------------+---------------------+\nSELECT status\nFROM riwayat_status\nWHERE pesanan_id = 2\nORDER BY waktu;",
+      "options": [
+        "dikirim, dibayar, menunggu_bayar",
+        "menunggu_bayar, dibayar, dikirim",
+        "dikirim",
+        "menunggu_bayar, dibayar, dikirim, selesai"
+      ],
+      "answer": 1,
+      "explanation": "Pesanan 2 punya tiga baris riwayat. Diurutkan dari waktu paling awal: menunggu_bayar, dibayar, lalu dikirim. Ia belum selesai."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Perjalanan pesanan 4, urut dari waktu paling AWAL (naik)\n-- Tabel riwayat_status:\n-- +----+------------+----------------+---------------------+\n-- | id | pesanan_id | status         | waktu               |\n-- +----+------------+----------------+---------------------+\n-- |  1 |          1 | menunggu_bayar | 2026-03-02 09:15:00 |\n-- |  2 |          1 | dibayar        | 2026-03-02 09:40:00 |\n-- |  3 |          1 | dikirim        | 2026-03-03 10:00:00 |\n-- |  4 |          2 | menunggu_bayar | 2026-03-05 14:20:00 |\n-- |  5 |          2 | dibayar        | 2026-03-05 15:00:00 |\n-- |  6 |          1 | selesai        | 2026-03-05 15:30:00 |\n-- |  7 |          2 | dikirim        | 2026-03-06 11:00:00 |\n-- |  8 |          3 | menunggu_bayar | 2026-03-09 19:05:00 |\n-- |  9 |          3 | dibayar        | 2026-03-09 19:30:00 |\n-- | 10 |          4 | menunggu_bayar | 2026-03-11 08:30:00 |\n-- | 11 |          4 | dibatalkan     | 2026-03-12 08:30:00 |\n-- +----+------------+----------------+---------------------+\nSELECT status, waktu\nFROM riwayat_status\nWHERE ___ = 4\nORDER BY waktu ___;",
+      "answers": [
+        "pesanan_id",
+        "ASC|asc|Asc"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "pesanan.status menyimpan status saat ini, dipakai untuk daftar dan filter.",
+        "riwayat_status mencatat setiap perubahan status beserta waktunya.",
+        "Ubah status dengan UPDATE + INSERT riwayat dalam satu transaksi.",
+        "ENUM menolak status di luar daftar, tapi menambah status butuh ALTER TABLE.",
+        "Pembayaran dipisah karena satu pesanan bisa punya beberapa pembayaran."
+      ]
+    }
+  ]
+}

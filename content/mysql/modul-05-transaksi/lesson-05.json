@@ -1,0 +1,112 @@
+{
+  "id": "mysql-transaksi-05",
+  "moduleId": "mysql-transaksi",
+  "order": 5,
+  "title": "User dan Hak Akses",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sejauh ini kita membayangkan semua query dijalankan oleh user **root**. Root adalah akun paling berkuasa di MySQL: bisa membaca semua data, menghapus database, bahkan membuat user lain.\n\nMasalahnya, kalau aplikasi toko online juga memakai root lalu ada celah keamanan, penyerang ikut mendapat semua kekuasaan itu. Karena itu setiap aplikasi atau orang sebaiknya punya **user sendiri** dengan **hak akses secukupnya**. Prinsip ini disebut *least privilege*: hak akses sekecil mungkin yang masih cukup untuk bekerja.\n\nDi hotel, tamu mendapat kartu kunci yang hanya membuka kamarnya sendiri. Petugas kebersihan punya kartu untuk satu lantai. Hanya manajer yang memegang kunci induk. Kalau kartu tamu hilang, pencuri hanya bisa masuk satu kamar, bukan seluruh hotel."
+    },
+    {
+      "type": "theory",
+      "content": "Akun MySQL ditulis dengan format `'nama'@'host'`. Host adalah dari mana user boleh terhubung:\n\n| Host | Artinya |\n|---|---|\n| `'localhost'` | hanya dari komputer server itu sendiri |\n| `'192.168.1.%'` | dari komputer di jaringan 192.168.1.x |\n| `'%'` | dari mana saja (paling longgar) |\n\nPerintah pengelolaan user:\n\n```sql\nCREATE USER 'app_toko'@'localhost' IDENTIFIED BY 'Kata-Sandi-Kuat-2026';\nGRANT SELECT, INSERT, UPDATE ON toko.* TO 'app_toko'@'localhost';\nSHOW GRANTS FOR 'app_toko'@'localhost';\nREVOKE UPDATE ON toko.* FROM 'app_toko'@'localhost';\nDROP USER 'app_toko'@'localhost';\n```\n\n| Perintah | Gunanya |\n|---|---|\n| `CREATE USER` | membuat user dan kata sandinya |\n| `GRANT ... TO` | memberi hak akses |\n| `REVOKE ... FROM` | mencabut hak akses |\n| `SHOW GRANTS FOR` | melihat hak akses seorang user |\n| `DROP USER` | menghapus user |\n\nHak akses bisa diberikan di beberapa tingkat:\n\n| Ditulis | Berlaku untuk |\n|---|---|\n| `*.*` | semua database |\n| `toko.*` | semua tabel di database toko |\n| `toko.produk` | hanya tabel produk |\n\nHak yang sering dipakai: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, dan `ALL PRIVILEGES` (semua hak).\n\nCatatan untuk MySQL 8: user harus dibuat dulu dengan `CREATE USER`. Cara lama `GRANT ... IDENTIFIED BY ...` yang masih ada di tutorial lama sudah tidak bisa dipakai."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSebuah toko online punya database `toko` dan tiga pihak yang perlu mengaksesnya:\n\n| User | Siapa | Hak yang dibutuhkan |\n|---|---|---|\n| `app_toko` | aplikasi web toko | membaca dan mengubah data |\n| `laporan` | staf keuangan | hanya membaca |\n| `admin_db` | pengelola database | semua hak, tapi hanya di database toko |\n\nPerintah untuk menyiapkannya:\n\n```sql\nCREATE USER 'app_toko'@'localhost' IDENTIFIED BY 'Sandi-Aplikasi-Panjang-01';\nGRANT SELECT, INSERT, UPDATE, DELETE ON toko.* TO 'app_toko'@'localhost';\n\nCREATE USER 'laporan'@'192.168.1.%' IDENTIFIED BY 'Sandi-Laporan-Panjang-02';\nGRANT SELECT ON toko.* TO 'laporan'@'192.168.1.%';\n\nCREATE USER 'admin_db'@'localhost' IDENTIFIED BY 'Sandi-Admin-Panjang-03';\nGRANT ALL PRIVILEGES ON toko.* TO 'admin_db'@'localhost';\n```\n\nKalau staf keuangan tidak sengaja menjalankan `DELETE FROM pesanan;`, MySQL menolaknya dengan pesan error berawalan `ERROR 1142 (42000): DELETE command denied to user 'laporan'`. Data aman.\n\n`SHOW GRANTS FOR 'laporan'@'192.168.1.%';` menampilkan baris-baris seperti ini:\n\n```text\nGRANT USAGE ON *.* TO `laporan`@`192.168.1.%`\nGRANT SELECT ON `toko`.* TO `laporan`@`192.168.1.%`\n```\n\n`USAGE` artinya \"boleh login, tapi tanpa hak apa pun\". Baris kedua adalah hak yang kita berikan.\n\nPerintah-perintah ini butuh MySQL sungguhan dan hak admin, jadi di sini hanya ditampilkan tanpa dijalankan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Aplikasi terhubung memakai root**\n\nSalah:\n\n```text\n-- di pengaturan aplikasi\nDB_USER=root\nDB_PASSWORD=root123\n```\n\nBenar:\n\n```text\n-- di pengaturan aplikasi\nDB_USER=app_toko\nDB_PASSWORD=Sandi-Aplikasi-Panjang-01\n```\n\nKalau aplikasi dibobol, penyerang mendapat seluruh kekuasaan root, termasuk menghapus semua database. User khusus membatasi kerusakan.\n\n**2. Memberi semua hak di semua database**\n\nSalah:\n\n```sql\nGRANT ALL PRIVILEGES ON *.* TO 'app_toko'@'%';\n```\n\nBenar:\n\n```sql\nGRANT SELECT, INSERT, UPDATE, DELETE ON toko.* TO 'app_toko'@'localhost';\n```\n\nAplikasi toko tidak butuh DROP atau akses ke database lain, dan tidak perlu bisa login dari mana saja. Berikan hanya yang dipakai.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa maksud prinsip *least privilege*?",
+          "options": [
+            "Setiap user diberi hak akses sekecil mungkin yang masih cukup untuk pekerjaannya",
+            "Hanya boleh ada satu user di setiap database",
+            "User baru otomatis mendapat semua hak",
+            "Kata sandi harus sependek mungkin supaya mudah diingat"
+          ],
+          "answer": 0,
+          "explanation": "Makin sedikit hak, makin kecil kerusakan kalau akun itu disalahgunakan.",
+          "remedial": "- Akun MySQL = `'nama'@'host'`. `'%'` = dari mana saja, `'localhost'` = dari server itu sendiri.\n- `CREATE USER ... IDENTIFIED BY '...'` → buat user\n- `GRANT hak ON db.tabel TO user` → beri hak\n- `REVOKE hak ON db.tabel FROM user` → cabut hak\n- `SHOW GRANTS FOR user` → lihat hak\n- **Least privilege**: beri hak sekecil mungkin. Jangan pakai root untuk aplikasi."
+        },
+        {
+          "question": "Perintah untuk mencabut hak akses yang sudah diberikan adalah...",
+          "options": [
+            "DROP",
+            "DELETE",
+            "ROLLBACK",
+            "REVOKE"
+          ],
+          "answer": 3,
+          "explanation": "REVOKE ... FROM mencabut hak. ROLLBACK membatalkan transaksi, bukan hak akses.",
+          "remedial": "- Akun MySQL = `'nama'@'host'`. `'%'` = dari mana saja, `'localhost'` = dari server itu sendiri.\n- `CREATE USER ... IDENTIFIED BY '...'` → buat user\n- `GRANT hak ON db.tabel TO user` → beri hak\n- `REVOKE hak ON db.tabel FROM user` → cabut hak\n- `SHOW GRANTS FOR user` → lihat hak\n- **Least privilege**: beri hak sekecil mungkin. Jangan pakai root untuk aplikasi."
+        },
+        {
+          "question": "User `laporan` hanya diberi hak di bawah ini. Apa yang terjadi saat ia menjalankan `UPDATE produk SET harga = 0;` di database toko?",
+          "code": "GRANT SELECT ON toko.* TO 'laporan'@'localhost';",
+          "options": [
+            "Semua harga menjadi 0",
+            "Ditolak dengan error karena tidak punya hak UPDATE",
+            "Hanya baris pertama yang berubah",
+            "MySQL meminta kata sandi root"
+          ],
+          "answer": 1,
+          "explanation": "laporan hanya punya hak SELECT. MySQL menolak UPDATE dengan error \"UPDATE command denied\".",
+          "remedial": "- Akun MySQL = `'nama'@'host'`. `'%'` = dari mana saja, `'localhost'` = dari server itu sendiri.\n- `CREATE USER ... IDENTIFIED BY '...'` → buat user\n- `GRANT hak ON db.tabel TO user` → beri hak\n- `REVOKE hak ON db.tabel FROM user` → cabut hak\n- `SHOW GRANTS FOR user` → lihat hak\n- **Least privilege**: beri hak sekecil mungkin. Jangan pakai root untuk aplikasi."
+        },
+        {
+          "question": "Apa arti `toko.*` pada perintah GRANT?",
+          "options": [
+            "Semua database yang namanya diawali toko",
+            "Hanya tabel bernama toko",
+            "Semua tabel di database toko",
+            "Semua database di server"
+          ],
+          "answer": 2,
+          "explanation": "Format db.tabel: toko.* berarti semua tabel di database toko. Semua database ditulis *.*.",
+          "remedial": "- Akun MySQL = `'nama'@'host'`. `'%'` = dari mana saja, `'localhost'` = dari server itu sendiri.\n- `CREATE USER ... IDENTIFIED BY '...'` → buat user\n- `GRANT hak ON db.tabel TO user` → beri hak\n- `REVOKE hak ON db.tabel FROM user` → cabut hak\n- `SHOW GRANTS FOR user` → lihat hak\n- **Least privilege**: beri hak sekecil mungkin. Jangan pakai root untuk aplikasi."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Setelah ketiga perintah ini, query mana yang masih boleh dijalankan `kasir` di database toko?",
+      "code": "GRANT SELECT, INSERT ON toko.* TO 'kasir'@'localhost';\nGRANT UPDATE ON toko.produk TO 'kasir'@'localhost';\nREVOKE INSERT ON toko.* FROM 'kasir'@'localhost';",
+      "options": [
+        "INSERT INTO pesanan ...",
+        "UPDATE pesanan SET ...",
+        "DELETE FROM produk ...",
+        "UPDATE produk SET ..."
+      ],
+      "answer": 3,
+      "explanation": "Yang tersisa: SELECT di semua tabel toko dan UPDATE khusus tabel produk. INSERT sudah dicabut, DELETE tidak pernah diberikan, dan UPDATE hanya untuk produk, bukan pesanan."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Beri user app_toko hak membaca dan menambah data di semua tabel database toko\n___ SELECT, INSERT ON toko.* ___ 'app_toko'@'localhost';",
+      "answers": [
+        "GRANT|grant|Grant",
+        "TO|to|To"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Setiap aplikasi dan orang sebaiknya punya user MySQL sendiri.",
+        "Akun ditulis 'nama'@'host'; '%' berarti dari mana saja.",
+        "CREATE USER membuat user, GRANT memberi hak, REVOKE mencabut, SHOW GRANTS melihat.",
+        "Tingkat hak: *.* semua database, toko.* satu database, toko.produk satu tabel.",
+        "Least privilege: jangan pakai root atau ALL PRIVILEGES untuk aplikasi."
+      ]
+    }
+  ]
+}

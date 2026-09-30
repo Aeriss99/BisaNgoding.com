@@ -1,0 +1,112 @@
+{
+  "id": "mysql-query-06",
+  "moduleId": "mysql-query",
+  "order": 6,
+  "title": "DISTINCT dan Alias",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tabel pesanan biasanya berisi nama kota yang sama berulang-ulang, karena satu kota punya banyak pembeli. Kalau kamu hanya ingin tahu \"pesanan datang dari kota mana saja?\", kamu tidak butuh daftar yang berulang.\n\n**`DISTINCT`** membuang baris hasil yang kembar. Di pelajaran ini kita juga membahas **alias**, yaitu nama sementara untuk kolom atau tabel supaya hasil lebih rapi dan query lebih singkat.\n\n`DISTINCT` itu seperti membuat daftar hadir dari tumpukan struk belanja: nama Budi mungkin muncul di tiga struk, tapi di daftar hadir cukup ditulis sekali.\n\nAlias itu seperti nama panggilan. Nama lengkapmu mungkin panjang, tapi teman cukup memanggil satu kata. Nama aslinya tidak berubah."
+    },
+    {
+      "type": "theory",
+      "content": "**DISTINCT** ditulis tepat setelah `SELECT`:\n\n```sql\nSELECT DISTINCT kota FROM pesanan;\n```\n\nKalau ada beberapa kolom, `DISTINCT` berlaku untuk **gabungan** kolomnya. `SELECT DISTINCT pelanggan, kota` membuang baris yang pelanggan **dan** kotanya sama-sama kembar. `NULL` dianggap satu nilai, jadi beberapa `NULL` hanya muncul sekali.\n\n**Alias kolom** memberi nama pada kolom hasil, terutama untuk hasil perhitungan:\n\n```sql\nSELECT menu, jumlah * harga AS subtotal FROM pesanan;\n```\n\nTanpa alias, judul kolomnya menjadi `jumlah * harga`. Kata `AS` boleh dihilangkan (`jumlah * harga subtotal`), tapi menuliskannya membuat query lebih jelas. Kalau alias berisi spasi, bungkus dengan backtick: `` AS `Total Harga` ``. Lebih praktis pakai garis bawah: `total_harga`.\n\n**Alias tabel** memberi nama pendek untuk tabel:\n\n```sql\nSELECT p.menu, p.jumlah FROM pesanan AS p;\n```\n\nAlias tabel akan sangat berguna saat menggabung beberapa tabel (JOIN) di modul berikutnya.\n\nSatu aturan penting: alias kolom **boleh** dipakai di `ORDER BY`, tapi **tidak boleh** dipakai di `WHERE`. Alasannya, `WHERE` dikerjakan lebih dulu, sebelum kolom hasil dan aliasnya dibuat."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `pesanan` sebuah kafe:\n\n| id | pelanggan | kota | menu | jumlah | harga |\n|---|---|---|---|---|---|\n| 1 | Budi | Bandung | Kopi Susu | 2 | 18000 |\n| 2 | Sari | Bogor | Teh Manis | 1 | 8000 |\n| 3 | Budi | Bandung | Roti Bakar | 1 | 15000 |\n| 4 | Dewi | Bandung | Kopi Susu | 3 | 18000 |\n| 5 | Sari | Bogor | Kopi Susu | 1 | 18000 |\n\nKota asal pesanan, tanpa duplikat. Lalu pasangan pelanggan dan kota, tanpa duplikat:\n\n```sql\nSELECT DISTINCT kota FROM pesanan\nORDER BY kota;\n\nSELECT DISTINCT pelanggan, kota FROM pesanan\nORDER BY pelanggan;\n```\n\nHasilnya:\n\n```text\n+---------+\n| kota    |\n+---------+\n| Bandung |\n| Bogor   |\n+---------+\n2 rows in set\n\n+-----------+---------+\n| pelanggan | kota    |\n+-----------+---------+\n| Budi      | Bandung |\n| Dewi      | Bandung |\n| Sari      | Bogor   |\n+-----------+---------+\n3 rows in set\n```\n\nBudi dan Sari masing-masing memesan dua kali, tapi hanya muncul sekali.\n\n#### Alias kolom dan tabel\n\nPakai alias kolom untuk hasil perhitungan dan alias tabel `p`. Alias `subtotal` boleh dipakai di `ORDER BY`:\n\n```sql\nSELECT p.pelanggan, p.menu, p.jumlah * p.harga AS subtotal\nFROM pesanan AS p\nWHERE p.jumlah > 1\nORDER BY subtotal DESC;\n```\n\nHasilnya:\n\n```text\n+-----------+-----------+----------+\n| pelanggan | menu      | subtotal |\n+-----------+-----------+----------+\n| Dewi      | Kopi Susu |    54000 |\n| Budi      | Kopi Susu |    36000 |\n+-----------+-----------+----------+\n2 rows in set\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira DISTINCT hanya berlaku untuk kolom pertama**\n\nSalah:\n\n```sql\n-- Maksudnya: daftar pelanggan tanpa duplikat\nSELECT DISTINCT pelanggan, menu FROM pesanan;\n```\n\nBenar:\n\n```sql\nSELECT DISTINCT pelanggan FROM pesanan;\n```\n\nDISTINCT membandingkan **seluruh** kolom yang dipilih. Budi memesan Kopi Susu dan Roti Bakar, jadi pasangan (Budi, Kopi Susu) dan (Budi, Roti Bakar) berbeda dan keduanya tetap tampil.\n\n**2. Memakai alias kolom di WHERE**\n\nSalah:\n\n```sql\nSELECT menu, jumlah * harga AS subtotal\nFROM pesanan\nWHERE subtotal > 20000;\n```\n\nBenar:\n\n```sql\nSELECT menu, jumlah * harga AS subtotal\nFROM pesanan\nWHERE jumlah * harga > 20000;\n```\n\nWHERE dikerjakan sebelum alias dibuat, jadi MySQL menolak: `ERROR 1054 (42S22): Unknown column 'subtotal' in 'where clause'`. Tulis ulang perhitungannya di WHERE.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Berapa baris yang tampil?",
+          "code": "-- Tabel pesanan:\n-- +----+-----------+---------+------------+--------+-------+\n-- | id | pelanggan | kota    | menu       | jumlah | harga |\n-- +----+-----------+---------+------------+--------+-------+\n-- |  1 | Budi      | Bandung | Kopi Susu  |      2 | 18000 |\n-- |  2 | Sari      | Bogor   | Teh Manis  |      1 |  8000 |\n-- |  3 | Budi      | Bandung | Roti Bakar |      1 | 15000 |\n-- |  4 | Dewi      | Bandung | Kopi Susu  |      3 | 18000 |\n-- |  5 | Sari      | Bogor   | Kopi Susu  |      1 | 18000 |\n-- +----+-----------+---------+------------+--------+-------+\nSELECT DISTINCT menu FROM pesanan;",
+          "options": [
+            "1 baris",
+            "2 baris",
+            "3 baris",
+            "5 baris"
+          ],
+          "answer": 2,
+          "explanation": "Menunya hanya tiga jenis: Kopi Susu, Teh Manis, Roti Bakar.",
+          "remedial": "- `SELECT DISTINCT kolom` membuang baris hasil yang kembar\n- Beberapa kolom: yang dibandingkan gabungan semua kolomnya\n- Alias kolom: `ekspresi AS nama`, `AS` boleh dihilangkan\n- Alias tabel: `FROM pesanan AS p`, lalu `p.kolom`\n- Alias kolom boleh di ORDER BY, tidak boleh di WHERE"
+        },
+        {
+          "question": "Berapa baris yang tampil?",
+          "code": "-- Tabel pesanan:\n-- +----+-----------+---------+------------+--------+-------+\n-- | id | pelanggan | kota    | menu       | jumlah | harga |\n-- +----+-----------+---------+------------+--------+-------+\n-- |  1 | Budi      | Bandung | Kopi Susu  |      2 | 18000 |\n-- |  2 | Sari      | Bogor   | Teh Manis  |      1 |  8000 |\n-- |  3 | Budi      | Bandung | Roti Bakar |      1 | 15000 |\n-- |  4 | Dewi      | Bandung | Kopi Susu  |      3 | 18000 |\n-- |  5 | Sari      | Bogor   | Kopi Susu  |      1 | 18000 |\n-- +----+-----------+---------+------------+--------+-------+\nSELECT DISTINCT pelanggan, menu FROM pesanan;",
+          "options": [
+            "5 baris",
+            "3 baris",
+            "4 baris",
+            "2 baris"
+          ],
+          "answer": 0,
+          "explanation": "Tidak ada pasangan pelanggan dan menu yang kembar, jadi kelima baris tetap tampil.",
+          "remedial": "- `SELECT DISTINCT kolom` membuang baris hasil yang kembar\n- Beberapa kolom: yang dibandingkan gabungan semua kolomnya\n- Alias kolom: `ekspresi AS nama`, `AS` boleh dihilangkan\n- Alias tabel: `FROM pesanan AS p`, lalu `p.kolom`\n- Alias kolom boleh di ORDER BY, tidak boleh di WHERE"
+        },
+        {
+          "question": "Kenapa alias kolom tidak bisa dipakai di `WHERE`?",
+          "options": [
+            "Karena alias hanya boleh huruf besar",
+            "Karena WHERE dikerjakan sebelum kolom hasil dan aliasnya dibuat",
+            "Karena alias hanya berlaku untuk tabel",
+            "Karena WHERE tidak boleh berisi perhitungan"
+          ],
+          "answer": 1,
+          "explanation": "MySQL menyaring baris dulu (WHERE), baru menyusun kolom hasil. Saat WHERE berjalan, alias belum ada.",
+          "remedial": "- `SELECT DISTINCT kolom` membuang baris hasil yang kembar\n- Beberapa kolom: yang dibandingkan gabungan semua kolomnya\n- Alias kolom: `ekspresi AS nama`, `AS` boleh dihilangkan\n- Alias tabel: `FROM pesanan AS p`, lalu `p.kolom`\n- Alias kolom boleh di ORDER BY, tidak boleh di WHERE"
+        },
+        {
+          "question": "Apa judul kolom hasil dari query `SELECT harga harga_satuan FROM pesanan;`?",
+          "options": [
+            "harga",
+            "harga harga_satuan",
+            "Query error karena tidak ada AS",
+            "harga_satuan"
+          ],
+          "answer": 3,
+          "explanation": "`AS` boleh dihilangkan. Kata setelah nama kolom dianggap alias.",
+          "remedial": "- `SELECT DISTINCT kolom` membuang baris hasil yang kembar\n- Beberapa kolom: yang dibandingkan gabungan semua kolomnya\n- Alias kolom: `ekspresi AS nama`, `AS` boleh dihilangkan\n- Alias tabel: `FROM pesanan AS p`, lalu `p.kolom`\n- Alias kolom boleh di ORDER BY, tidak boleh di WHERE"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel pesanan:\n-- +----+-----------+---------+------------+--------+-------+\n-- | id | pelanggan | kota    | menu       | jumlah | harga |\n-- +----+-----------+---------+------------+--------+-------+\n-- |  1 | Budi      | Bandung | Kopi Susu  |      2 | 18000 |\n-- |  2 | Sari      | Bogor   | Teh Manis  |      1 |  8000 |\n-- |  3 | Budi      | Bandung | Roti Bakar |      1 | 15000 |\n-- |  4 | Dewi      | Bandung | Kopi Susu  |      3 | 18000 |\n-- |  5 | Sari      | Bogor   | Kopi Susu  |      1 | 18000 |\n-- +----+-----------+---------+------------+--------+-------+\nSELECT p.menu, p.jumlah * p.harga AS subtotal FROM pesanan AS p WHERE p.pelanggan = 'Budi';",
+      "options": [
+        "Kopi Susu 18000 dan Roti Bakar 15000",
+        "Kopi Susu 36000 dan Roti Bakar 15000",
+        "Kopi Susu 36000 saja",
+        "Error, alias p tidak dikenal"
+      ],
+      "answer": 1,
+      "explanation": "Budi memesan 2 Kopi Susu (2 × 18000 = 36000) dan 1 Roti Bakar (15000). Alias `p` dikenali karena dibuat di FROM."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Tampilkan daftar kota pelanggan, setiap kota cukup muncul sekali\n-- Tabel pesanan:\n-- +----+-----------+---------+------------+--------+-------+\n-- | id | pelanggan | kota    | menu       | jumlah | harga |\n-- +----+-----------+---------+------------+--------+-------+\n-- |  1 | Budi      | Bandung | Kopi Susu  |      2 | 18000 |\n-- |  2 | Sari      | Bogor   | Teh Manis  |      1 |  8000 |\n-- |  3 | Budi      | Bandung | Roti Bakar |      1 | 15000 |\n-- |  4 | Dewi      | Bandung | Kopi Susu  |      3 | 18000 |\n-- |  5 | Sari      | Bogor   | Kopi Susu  |      1 | 18000 |\n-- +----+-----------+---------+------------+--------+-------+\nSELECT ___ kota FROM pesanan ORDER BY kota;",
+      "answers": [
+        "DISTINCT|distinct|Distinct"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "DISTINCT membuang baris hasil yang kembar.",
+        "Dengan beberapa kolom, DISTINCT melihat gabungan semua kolom.",
+        "Alias kolom memberi nama pada hasil, terutama perhitungan.",
+        "Alias tabel menyingkat nama tabel: FROM pesanan AS p.",
+        "Alias kolom boleh di ORDER BY, tidak boleh di WHERE."
+      ]
+    }
+  ]
+}

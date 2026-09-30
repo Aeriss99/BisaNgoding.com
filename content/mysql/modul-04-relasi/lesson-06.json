@@ -1,0 +1,114 @@
+{
+  "id": "mysql-relasi-06",
+  "moduleId": "mysql-relasi",
+  "order": 6,
+  "title": "LEFT JOIN dan RIGHT JOIN",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "INNER JOIN membuang baris yang tidak punya pasangan. Tapi kadang justru baris itulah yang kita cari:\n\n- Tampilkan **semua** pelanggan beserta pesanannya, termasuk yang belum pernah memesan.\n- Siapa saja pelanggan yang **belum pernah** memesan? Mereka mau dikirimi voucher.\n\nUntuk itu ada **LEFT JOIN** dan **RIGHT JOIN**, yang disebut juga *outer join*.\n\nBayangkan wali kelas membuat daftar pengumpulan tugas. Ia menulis **semua** nama siswa di kolom kiri, lalu mengisi kolom kanan dengan judul tugas yang sudah dikumpulkan. Siswa yang belum mengumpulkan tetap tertulis namanya, hanya kolom kanannya kosong. Itulah LEFT JOIN: tabel kiri tampil lengkap, bagian kanan yang tidak punya pasangan diisi NULL."
+    },
+    {
+      "type": "theory",
+      "content": "Tabel **kiri** adalah yang ditulis di `FROM`, tabel **kanan** yang ditulis setelah `JOIN`.\n\n```sql\nSELECT p.nama, ps.id AS pesanan\nFROM pelanggan p              -- kiri\nLEFT JOIN pesanan ps          -- kanan\n  ON ps.pelanggan_id = p.id;\n```\n\n| Jenis | Yang pasti tampil | Kolom tanpa pasangan |\n|---|---|---|\n| `INNER JOIN` | hanya baris yang punya pasangan | tidak ada |\n| `LEFT JOIN` | semua baris tabel kiri | kolom tabel kanan diisi NULL |\n| `RIGHT JOIN` | semua baris tabel kanan | kolom tabel kiri diisi NULL |\n\n`A RIGHT JOIN B` hasilnya sama dengan `B LEFT JOIN A`. Karena itu banyak programmer cukup memakai LEFT JOIN dan menukar urutan tabelnya.\n\n**Mencari yang tidak punya pasangan.** Setelah LEFT JOIN, baris tanpa pasangan punya NULL di kolom tabel kanan. Saring dengan `IS NULL`:\n\n```sql\nSELECT p.nama\nFROM pelanggan p\nLEFT JOIN pesanan ps ON ps.pelanggan_id = p.id\nWHERE ps.id IS NULL;\n```\n\nPeriksa kolom yang pasti terisi kalau pasangannya ada, misalnya primary key `ps.id`.\n\nCatatan: MySQL tidak punya `FULL OUTER JOIN` (tampil lengkap dari kedua sisi). Kalau butuh, gabungkan LEFT JOIN dan RIGHT JOIN dengan UNION, yang dibahas di pelajaran UNION nanti."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nData awal:\n\n| id | nama | kota |\n|---|---|---|\n| 1 | Budi | Bandung |\n| 2 | Sari | Jakarta |\n| 3 | Rina | Surabaya |\n| 4 | Dewi | Bandung |\n\n| id | pelanggan_id | tanggal | total |\n|---|---|---|---|\n| 101 | 1 | 2024-05-01 | 51000 |\n| 102 | 2 | 2024-05-02 | 24000 |\n| 103 | 1 | 2024-05-03 | 28000 |\n| 104 | NULL | 2024-05-04 | 15000 |\n\nSemua pelanggan beserta pesanannya:\n\n```sql\nSELECT p.nama, ps.id AS pesanan, ps.total\nFROM pelanggan p\nLEFT JOIN pesanan ps ON ps.pelanggan_id = p.id\nORDER BY p.id, ps.id;\n```\n\nHasilnya:\n\n```text\n+------+---------+-------+\n| nama | pesanan | total |\n+------+---------+-------+\n| Budi |     101 | 51000 |\n| Budi |     103 | 28000 |\n| Sari |     102 | 24000 |\n| Rina |    NULL |  NULL |\n| Dewi |    NULL |  NULL |\n+------+---------+-------+\n5 rows in set\n```\n\nRina dan Dewi tetap tampil dengan NULL di kolom pesanan. Pesanan 104 (pembeli tamu) tidak tampil karena tabel kirinya `pelanggan`.\n\n### Contoh kedua\n\nPelanggan yang belum pernah memesan:\n\n```sql\nSELECT p.nama, p.kota\nFROM pelanggan p\nLEFT JOIN pesanan ps ON ps.pelanggan_id = p.id\nWHERE ps.id IS NULL\nORDER BY p.id;\n```\n\nHasilnya:\n\n```text\n+------+----------+\n| nama | kota     |\n+------+----------+\n| Rina | Surabaya |\n| Dewi | Bandung  |\n+------+----------+\n2 rows in set\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mencari NULL dengan tanda sama dengan**\n\nSalah:\n\n```sql\nSELECT p.nama\nFROM pelanggan p\nLEFT JOIN pesanan ps ON ps.pelanggan_id = p.id\nWHERE ps.id = NULL;\n```\n\nBenar:\n\n```sql\nSELECT p.nama\nFROM pelanggan p\nLEFT JOIN pesanan ps ON ps.pelanggan_id = p.id\nWHERE ps.id IS NULL;\n```\n\nPerbandingan dengan NULL memakai = selalu menghasilkan \"tidak diketahui\", jadi hasilnya kosong tanpa pesan error. Pakai IS NULL.\n\n**2. Menghitung pesanan dengan COUNT(*) setelah LEFT JOIN**\n\nSalah:\n\n```sql\nSELECT p.nama, COUNT(*) AS jumlah_pesanan\nFROM pelanggan p\nLEFT JOIN pesanan ps ON ps.pelanggan_id = p.id\nGROUP BY p.id, p.nama;\n```\n\nBenar:\n\n```sql\nSELECT p.nama, COUNT(ps.id) AS jumlah_pesanan\nFROM pelanggan p\nLEFT JOIN pesanan ps ON ps.pelanggan_id = p.id\nGROUP BY p.id, p.nama;\n```\n\nCOUNT(*) menghitung baris, dan Rina tetap punya satu baris (berisi NULL), jadi terhitung 1 pesanan. COUNT(ps.id) tidak menghitung NULL, jadi Rina benar 0.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pada `FROM pelanggan p LEFT JOIN pesanan ps ON ...`, tabel mana yang semua barisnya pasti tampil?",
+          "options": [
+            "pesanan",
+            "Keduanya",
+            "pelanggan",
+            "Hanya baris yang punya pasangan"
+          ],
+          "answer": 2,
+          "explanation": "LEFT JOIN menampilkan semua baris tabel kiri, yaitu tabel di FROM: pelanggan.",
+          "remedial": "- Tabel **kiri** = di `FROM`, tabel **kanan** = setelah `JOIN`.\n- **LEFT JOIN**: semua baris kiri tampil. Yang tidak punya pasangan → kolom kanan NULL.\n- **RIGHT JOIN**: kebalikannya. `A RIGHT JOIN B` = `B LEFT JOIN A`.\n- Cari yang belum punya pasangan: `LEFT JOIN ... WHERE kanan.id IS NULL`.\n- Menghitung setelah LEFT JOIN: `COUNT(kanan.id)`, bukan `COUNT(*)`."
+        },
+        {
+          "question": "Berapa baris hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+-------+\n-- | id  | pelanggan_id | tanggal    | total |\n-- +-----+--------------+------------+-------+\n-- | 101 |            1 | 2024-05-01 | 51000 |\n-- | 102 |            2 | 2024-05-02 | 24000 |\n-- | 103 |            1 | 2024-05-03 | 28000 |\n-- | 104 |         NULL | 2024-05-04 | 15000 |\n-- +-----+--------------+------------+-------+\nSELECT p.nama, ps.id\nFROM pelanggan p\nLEFT JOIN pesanan ps ON ps.pelanggan_id = p.id;",
+          "options": [
+            "4 baris",
+            "5 baris",
+            "3 baris",
+            "6 baris"
+          ],
+          "answer": 1,
+          "explanation": "Budi punya 2 pesanan (2 baris), Sari 1 baris, Rina dan Dewi masing-masing 1 baris berisi NULL. Totalnya 5.",
+          "remedial": "- Tabel **kiri** = di `FROM`, tabel **kanan** = setelah `JOIN`.\n- **LEFT JOIN**: semua baris kiri tampil. Yang tidak punya pasangan → kolom kanan NULL.\n- **RIGHT JOIN**: kebalikannya. `A RIGHT JOIN B` = `B LEFT JOIN A`.\n- Cari yang belum punya pasangan: `LEFT JOIN ... WHERE kanan.id IS NULL`.\n- Menghitung setelah LEFT JOIN: `COUNT(kanan.id)`, bukan `COUNT(*)`."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+-------+\n-- | id  | pelanggan_id | tanggal    | total |\n-- +-----+--------------+------------+-------+\n-- | 101 |            1 | 2024-05-01 | 51000 |\n-- | 102 |            2 | 2024-05-02 | 24000 |\n-- | 103 |            1 | 2024-05-03 | 28000 |\n-- | 104 |         NULL | 2024-05-04 | 15000 |\n-- +-----+--------------+------------+-------+\nSELECT ps.id\nFROM pelanggan p\nRIGHT JOIN pesanan ps ON ps.pelanggan_id = p.id\nWHERE p.id IS NULL;",
+          "options": [
+            "104",
+            "103",
+            "Empty set",
+            "3"
+          ],
+          "answer": 0,
+          "explanation": "RIGHT JOIN menampilkan semua pesanan. Hanya pesanan 104 yang tidak punya pasangan pelanggan, jadi p.id-nya NULL.",
+          "remedial": "- Tabel **kiri** = di `FROM`, tabel **kanan** = setelah `JOIN`.\n- **LEFT JOIN**: semua baris kiri tampil. Yang tidak punya pasangan → kolom kanan NULL.\n- **RIGHT JOIN**: kebalikannya. `A RIGHT JOIN B` = `B LEFT JOIN A`.\n- Cari yang belum punya pasangan: `LEFT JOIN ... WHERE kanan.id IS NULL`.\n- Menghitung setelah LEFT JOIN: `COUNT(kanan.id)`, bukan `COUNT(*)`."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+-------+\n-- | id  | pelanggan_id | tanggal    | total |\n-- +-----+--------------+------------+-------+\n-- | 101 |            1 | 2024-05-01 | 51000 |\n-- | 102 |            2 | 2024-05-02 | 24000 |\n-- | 103 |            1 | 2024-05-03 | 28000 |\n-- | 104 |         NULL | 2024-05-04 | 15000 |\n-- +-----+--------------+------------+-------+\nSELECT COUNT(ps.id)\nFROM pelanggan p\nLEFT JOIN pesanan ps ON ps.pelanggan_id = p.id\nWHERE p.nama = 'Rina';",
+          "options": [
+            "1",
+            "NULL",
+            "Error",
+            "0"
+          ],
+          "answer": 3,
+          "explanation": "Rina tetap punya satu baris hasil, tapi ps.id-nya NULL. COUNT(kolom) tidak menghitung NULL, jadi hasilnya 0.",
+          "remedial": "- Tabel **kiri** = di `FROM`, tabel **kanan** = setelah `JOIN`.\n- **LEFT JOIN**: semua baris kiri tampil. Yang tidak punya pasangan → kolom kanan NULL.\n- **RIGHT JOIN**: kebalikannya. `A RIGHT JOIN B` = `B LEFT JOIN A`.\n- Cari yang belum punya pasangan: `LEFT JOIN ... WHERE kanan.id IS NULL`.\n- Menghitung setelah LEFT JOIN: `COUNT(kanan.id)`, bukan `COUNT(*)`."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+-------+\n-- | id  | pelanggan_id | tanggal    | total |\n-- +-----+--------------+------------+-------+\n-- | 101 |            1 | 2024-05-01 | 51000 |\n-- | 102 |            2 | 2024-05-02 | 24000 |\n-- | 103 |            1 | 2024-05-03 | 28000 |\n-- | 104 |         NULL | 2024-05-04 | 15000 |\n-- +-----+--------------+------------+-------+\nSELECT p.nama\nFROM pelanggan p\nLEFT JOIN pesanan ps ON ps.pelanggan_id = p.id\nWHERE ps.id IS NULL\nORDER BY p.id;",
+      "options": [
+        "Rina, Dewi",
+        "Budi, Sari",
+        "Empty set",
+        "Rina, Dewi, NULL"
+      ],
+      "answer": 0,
+      "explanation": "Rina dan Dewi tidak punya pesanan, jadi ps.id mereka NULL setelah LEFT JOIN."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Cari pelanggan yang belum pernah memesan\n-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+-------+\n-- | id  | pelanggan_id | tanggal    | total |\n-- +-----+--------------+------------+-------+\n-- | 101 |            1 | 2024-05-01 | 51000 |\n-- | 102 |            2 | 2024-05-02 | 24000 |\n-- | 103 |            1 | 2024-05-03 | 28000 |\n-- | 104 |         NULL | 2024-05-04 | 15000 |\n-- +-----+--------------+------------+-------+\nSELECT p.nama\nFROM pelanggan p\n___ JOIN pesanan ps ON ps.pelanggan_id = p.id\nWHERE ps.id ___\nORDER BY p.id;",
+      "answers": [
+        "LEFT|left|Left",
+        "IS NULL|is null|Is Null"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "LEFT JOIN menampilkan semua baris tabel kiri; kolom kanan tanpa pasangan berisi NULL.",
+        "RIGHT JOIN kebalikannya; A RIGHT JOIN B sama dengan B LEFT JOIN A.",
+        "Cari yang belum punya pasangan dengan LEFT JOIN ... WHERE kanan.id IS NULL.",
+        "Setelah LEFT JOIN, hitung dengan COUNT(kolom_kanan), bukan COUNT(*).",
+        "MySQL tidak punya FULL OUTER JOIN."
+      ]
+    }
+  ]
+}

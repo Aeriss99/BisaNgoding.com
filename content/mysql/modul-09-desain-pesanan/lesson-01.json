@@ -1,0 +1,110 @@
+{
+  "id": "desain-pesanan-01",
+  "moduleId": "desain-pesanan",
+  "order": 1,
+  "title": "Kebutuhan Riwayat Pesanan",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sebuah toko online kecil menjual kopi, teh, gula aren, dan madu. Awalnya semua pesanan dicatat di satu tabel besar, mirip lembar kerja: satu baris untuk setiap barang yang dibeli, lengkap dengan nama dan email pembeli.\n\nSekarang toko ingin membuat halaman **Pesanan Saya** untuk pembeli, dan halaman **Kelola Pesanan** untuk admin. Sebelum menulis `CREATE TABLE`, kita perlu tahu dulu: **apa saja yang harus bisa ditampilkan?** Dari situ baru kita tentukan tabelnya.\n\nDi modul ini kita mendesain database riwayat pesanan dari nol: kebutuhan, entitas, ERD, tabel lengkap, sampai query yang dipakai halaman sungguhan.\n\nBayangkan kasir toko kelontong. Setiap transaksi menghasilkan **struk**: bagian atas berisi tanggal dan nama pembeli, bagian tengah berisi daftar barang, bagian bawah berisi total dan cara bayar. Struk lama disimpan di map. Kalau bulan depan harga kopi naik, struk bulan lalu tetap mencatat harga lama, karena itulah yang benar-benar dibayar. Database riwayat pesanan pada dasarnya adalah **map struk digital** yang rapi."
+    },
+    {
+      "type": "theory",
+      "content": "**Kebutuhan** dari halaman yang akan dibuat:\n\n| Siapa | Butuh apa |\n|---|---|\n| Pembeli | daftar pesanannya, terbaru di atas, dengan tanggal, status, jumlah barang, dan total |\n| Pembeli | isi satu pesanan: barang, harga saat membeli, alamat kirim, ongkir |\n| Pembeli | perjalanan pesanan: kapan dibayar, dikirim, selesai |\n| Admin | pesanan yang sudah dibayar tapi belum dikirim |\n| Admin | catatan pembayaran setiap pesanan |\n\nDari kebutuhan itu kita cari **entitas**, yaitu \"benda\" yang perlu dicatat. Caranya: cari kata benda yang punya datanya sendiri.\n\n| Entitas | Isinya | Relasi |\n|---|---|---|\n| `pelanggan` | nama, email | satu pelanggan punya banyak pesanan |\n| `alamat` | alamat pelanggan (rumah, kantor) | satu pelanggan punya banyak alamat |\n| `produk` | nama, harga sekarang, stok | satu produk bisa dibeli di banyak pesanan |\n| `pesanan` | kepala struk: siapa, kapan, ke mana, status | satu pesanan berisi banyak barang |\n| `detail_pesanan` | satu baris barang di dalam pesanan | penghubung pesanan dan produk |\n| `pembayaran` | metode, jumlah, waktu bayar | satu pesanan bisa punya beberapa pembayaran |\n\nPesanan dan produk adalah relasi **many-to-many**: satu pesanan berisi banyak produk, satu produk ada di banyak pesanan. Karena itu dibutuhkan tabel penghubung `detail_pesanan`.\n\n![ERD awal riwayat pesanan: pelanggan punya alamat dan membuat pesanan, pesanan berisi detail_pesanan yang merujuk ke produk, dan pesanan dibayar lewat pembayaran](images/mysql/pesanan-erd-awal.svg)\n\nGaris `||--|{` antara pesanan dan detail berarti **setiap pesanan minimal berisi satu barang**. Pesanan kosong tidak masuk akal.\n\nBeberapa keputusan desain penting yang akan dibahas di pelajaran berikutnya:\n\n| Pertanyaan | Dibahas di |\n|---|---|\n| Kalau harga produk naik, apakah riwayat pesanan lama ikut berubah? | Pelajaran 2 |\n| Bagaimana mencatat kapan pesanan dibayar, dikirim, selesai? | Pelajaran 3 |\n| Bagaimana menampilkan daftar pesanan yang panjang per halaman? | Pelajaran 4 |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nIni tabel lama toko. Setiap baris berisi data pembeli **dan** data barang sekaligus. Budi pernah mengganti emailnya, tapi yang ikut berubah hanya baris pesanan terbarunya.\n\n```sql\nCREATE TABLE catatan_pesanan (\n  no_pesanan VARCHAR(10) NOT NULL,\n  pelanggan VARCHAR(50) NOT NULL,\n  email VARCHAR(100) NOT NULL,\n  produk VARCHAR(50) NOT NULL,\n  harga DECIMAL(12,0) NOT NULL,\n  jumlah INT NOT NULL\n);\nINSERT INTO catatan_pesanan VALUES\n  ('P-001', 'Budi', 'budi@contoh.com', 'Kopi Bubuk', 45000, 2),\n  ('P-001', 'Budi', 'budi@contoh.com', 'Gula Aren', 25000, 1),\n  ('P-002', 'Sari', 'sari@contoh.com', 'Teh Melati', 30000, 3),\n  ('P-003', 'Budi', 'budi.s@contoh.com', 'Kopi Bubuk', 50000, 1);\n```\n\n```sql\nSELECT DISTINCT pelanggan, email\nFROM catatan_pesanan\nWHERE pelanggan = 'Budi';\n```\n\nHasilnya:\n\n```text\n+-----------+-------------------+\n| pelanggan | email             |\n+-----------+-------------------+\n| Budi      | budi@contoh.com   |\n| Budi      | budi.s@contoh.com |\n+-----------+-------------------+\n2 rows in set\n```\n\nSekarang Budi tercatat punya **dua email**. Mana yang benar? Tabel tidak bisa menjawab. Masalah lain dari desain satu tabel ini:\n\n- Nama dan email Budi ditulis ulang di setiap baris. Mengubahnya berarti mengubah banyak baris, dan mudah ada yang terlewat.\n- Tidak ada tempat untuk status, alamat kirim, ongkir, atau catatan pembayaran. Kalau semuanya ditambah sebagai kolom, data itu juga akan tertulis berulang di setiap baris barang.\n- Tidak ada identitas pelanggan selain nama. Kalau ada dua pelanggan bernama Budi, datanya tercampur.\n\nKarena itu data dipecah ke beberapa tabel sesuai entitasnya, seperti di ERD."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan data pembeli di setiap baris barang**\n\nSalah:\n\n```sql\nINSERT INTO catatan_pesanan VALUES\n  ('P-004', 'Budi', 'budi@contoh.com', 'Teh Melati', 30000, 1),\n  ('P-004', 'Budi', 'budi@contoh.com', 'Madu Hutan', 60000, 1);\n```\n\nBenar:\n\n```sql\n-- data pelanggan disimpan sekali, pesanan cukup merujuk id-nya\nINSERT INTO pesanan (id, pelanggan_id, alamat_kirim, dibuat_pada)\nVALUES (4, 1, 'Jl. Melati No. 5, Bandung', '2026-03-11 08:30:00');\n```\n\nData pelanggan yang ditulis berulang mudah tidak konsisten, misalnya email yang berbeda-beda. Simpan sekali di tabel pelanggan, lalu rujuk dengan foreign key.\n\n**2. Menyimpan semua barang dalam satu kolom teks**\n\nSalah:\n\n```sql\nINSERT INTO pesanan (id, pelanggan_id, barang)\nVALUES (1, 1, 'Kopi Bubuk x2, Gula Aren x1');\n```\n\nBenar:\n\n```sql\nINSERT INTO detail_pesanan (pesanan_id, produk_id, nama_produk, harga_satuan, jumlah)\nVALUES (1, 1, 'Kopi Bubuk', 45000, 2),\n       (1, 3, 'Gula Aren', 25000, 1);\n```\n\nTeks gabungan tidak bisa dijumlahkan dengan SUM, tidak bisa dicari dengan WHERE biasa, dan melanggar 1NF. Satu barang = satu baris di detail_pesanan.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa pesanan dan produk membutuhkan tabel `detail_pesanan`?",
+          "options": [
+            "Karena satu pesanan berisi banyak produk dan satu produk ada di banyak pesanan",
+            "Karena tabel pesanan tidak boleh punya foreign key",
+            "Karena MySQL membatasi jumlah kolom di tabel pesanan",
+            "Supaya harga produk tidak perlu disimpan di mana pun"
+          ],
+          "answer": 0,
+          "explanation": "Relasi many-to-many selalu membutuhkan tabel penghubung. Di sini tabel penghubungnya adalah detail_pesanan.",
+          "remedial": "- Mulai desain dari **kebutuhan** halaman, lalu cari **entitas** (kata benda yang punya data sendiri).\n- Entitasnya: `pelanggan`, `alamat`, `produk`, `pesanan`, `detail_pesanan`, `pembayaran`.\n- Pesanan dan produk berelasi many-to-many, jadi butuh tabel penghubung `detail_pesanan`.\n- Data pelanggan disimpan sekali, bukan diulang di setiap baris barang."
+        },
+        {
+          "question": "Berapa baris yang tampil?",
+          "code": "-- Tabel catatan_pesanan:\n-- +------------+-----------+-------------------+------------+-------+--------+\n-- | no_pesanan | pelanggan | email             | produk     | harga | jumlah |\n-- +------------+-----------+-------------------+------------+-------+--------+\n-- | P-001      | Budi      | budi@contoh.com   | Gula Aren  | 25000 |      1 |\n-- | P-001      | Budi      | budi@contoh.com   | Kopi Bubuk | 45000 |      2 |\n-- | P-003      | Budi      | budi.s@contoh.com | Kopi Bubuk | 50000 |      1 |\n-- | P-002      | Sari      | sari@contoh.com   | Teh Melati | 30000 |      3 |\n-- +------------+-----------+-------------------+------------+-------+--------+\nSELECT DISTINCT email\nFROM catatan_pesanan\nWHERE pelanggan = 'Budi';",
+          "options": [
+            "1 baris",
+            "3 baris",
+            "2 baris",
+            "4 baris"
+          ],
+          "answer": 2,
+          "explanation": "Budi punya tiga baris, tapi DISTINCT menghapus email yang sama. Tersisa dua email berbeda: budi@contoh.com dan budi.s@contoh.com.",
+          "remedial": "- Mulai desain dari **kebutuhan** halaman, lalu cari **entitas** (kata benda yang punya data sendiri).\n- Entitasnya: `pelanggan`, `alamat`, `produk`, `pesanan`, `detail_pesanan`, `pembayaran`.\n- Pesanan dan produk berelasi many-to-many, jadi butuh tabel penghubung `detail_pesanan`.\n- Data pelanggan disimpan sekali, bukan diulang di setiap baris barang."
+        },
+        {
+          "question": "Mana yang **bukan** entitas di desain riwayat pesanan ini?",
+          "options": [
+            "pelanggan",
+            "produk",
+            "total bayar",
+            "pembayaran"
+          ],
+          "answer": 2,
+          "explanation": "Total bayar adalah hasil hitungan dari barang di dalam pesanan ditambah ongkir. Ia tidak punya data sendiri, jadi bukan entitas.",
+          "remedial": "- Mulai desain dari **kebutuhan** halaman, lalu cari **entitas** (kata benda yang punya data sendiri).\n- Entitasnya: `pelanggan`, `alamat`, `produk`, `pesanan`, `detail_pesanan`, `pembayaran`.\n- Pesanan dan produk berelasi many-to-many, jadi butuh tabel penghubung `detail_pesanan`.\n- Data pelanggan disimpan sekali, bukan diulang di setiap baris barang."
+        },
+        {
+          "question": "Di ERD, garis `pesanan ||--|{ detail_pesanan` berarti...",
+          "options": [
+            "satu pesanan punya tepat satu detail",
+            "satu pesanan punya minimal satu detail, bisa lebih",
+            "satu detail boleh milik banyak pesanan",
+            "pesanan boleh tidak punya detail sama sekali"
+          ],
+          "answer": 1,
+          "explanation": "Tanda |{ di sisi detail berarti \"satu atau lebih\". Pesanan tanpa barang tidak masuk akal.",
+          "remedial": "- Mulai desain dari **kebutuhan** halaman, lalu cari **entitas** (kata benda yang punya data sendiri).\n- Entitasnya: `pelanggan`, `alamat`, `produk`, `pesanan`, `detail_pesanan`, `pembayaran`.\n- Pesanan dan produk berelasi many-to-many, jadi butuh tabel penghubung `detail_pesanan`.\n- Data pelanggan disimpan sekali, bukan diulang di setiap baris barang."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel catatan_pesanan:\n-- +------------+-----------+-------------------+------------+-------+--------+\n-- | no_pesanan | pelanggan | email             | produk     | harga | jumlah |\n-- +------------+-----------+-------------------+------------+-------+--------+\n-- | P-001      | Budi      | budi@contoh.com   | Gula Aren  | 25000 |      1 |\n-- | P-001      | Budi      | budi@contoh.com   | Kopi Bubuk | 45000 |      2 |\n-- | P-003      | Budi      | budi.s@contoh.com | Kopi Bubuk | 50000 |      1 |\n-- | P-002      | Sari      | sari@contoh.com   | Teh Melati | 30000 |      3 |\n-- +------------+-----------+-------------------+------------+-------+--------+\nSELECT COUNT(*) FROM catatan_pesanan\nWHERE pelanggan = 'Budi';",
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "answer": 2,
+      "explanation": "Budi muncul di tiga baris: dua barang di P-001 dan satu barang di P-003. Datanya tertulis ulang tiga kali."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Pesanan merujuk pelanggan lewat FOREIGN KEY ... (kata kunci rujukan) pelanggan(id)\n-- Tabel pelanggan:\n-- +----+------+\n-- | id | nama |\n-- +----+------+\n-- |  1 | Budi |\n-- |  2 | Sari |\n-- |  3 | Andi |\n-- +----+------+\nCREATE TABLE pesanan (\n  id INT PRIMARY KEY,\n  pelanggan_id INT NOT NULL,\n  dibuat_pada DATETIME NOT NULL,\n  FOREIGN KEY (pelanggan_id) ___ pelanggan(id)\n);\nINSERT INTO pesanan VALUES (1, 1, '2026-03-02 09:15:00');\nSELECT p.id, c.nama FROM pesanan p JOIN pelanggan c ON c.id = p.pelanggan_id;",
+      "answers": [
+        "REFERENCES|references|References"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Desain database dimulai dari kebutuhan halaman, bukan langsung dari CREATE TABLE.",
+        "Entitas riwayat pesanan: pelanggan, alamat, produk, pesanan, detail_pesanan, pembayaran.",
+        "Pesanan dan produk many-to-many, jadi dihubungkan lewat detail_pesanan.",
+        "Satu tabel besar membuat data pembeli tertulis berulang dan mudah tidak konsisten."
+      ]
+    }
+  ]
+}

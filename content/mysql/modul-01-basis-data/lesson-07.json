@@ -1,0 +1,112 @@
+{
+  "id": "db-dasar-07",
+  "moduleId": "db-dasar",
+  "order": 7,
+  "title": "Membaca ERD dan Normalisasi",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sebelum membuat tabel, programmer biasanya menggambar rancangannya dulu dalam bentuk **ERD** (*Entity Relationship Diagram*). ERD memperlihatkan tabel apa saja yang ada, kolomnya, dan bagaimana tabel-tabel itu terhubung.\n\nPelajaran ini juga membahas **normalisasi**: cara merapikan tabel yang berantakan supaya tidak ada data dobel.\n\nERD itu seperti **denah rumah**. Tukang tidak langsung menyusun bata. Mereka melihat denah dulu: ada kamar apa saja, ukurannya berapa, pintu mana yang menghubungkan ruang tamu dengan dapur. Mengubah denah jauh lebih murah daripada membongkar tembok."
+    },
+    {
+      "type": "theory",
+      "content": "Contoh ERD toko:\n\n![ERD toko: pelanggan membuat pesanan, pesanan berisi detail pesanan, setiap detail menunjuk satu produk](images/mysql/bd-erd-toko.svg)\n\nCara membacanya:\n\n| Bagian | Artinya |\n|---|---|\n| **Kotak** (entitas) | satu tabel, misalnya `pelanggan` |\n| **Isi kotak** (atribut) | kolom beserta tipenya |\n| **PK** / **FK** | primary key / foreign key |\n| **Garis** | relasi antara dua tabel |\n| **Ujung garis** | berapa banyak baris di sisi itu |\n\nSimbol ujung garis (disebut notasi *kaki gagak*):\n\n| Simbol | Artinya |\n|---|---|\n| `\\|\\|` (dua garis tegak) | tepat satu |\n| `o\\|` (lingkaran dan garis) | nol atau satu |\n| `o{` (lingkaran dan kaki gagak) | nol atau banyak |\n| `\\|{` (garis dan kaki gagak) | satu atau banyak |\n\nLingkaran berarti \"boleh nol\", garis tegak berarti \"minimal satu\", kaki gagak (tiga cabang) berarti \"banyak\".\n\nContoh membaca garis `pelanggan ||--o{ pesanan`: **satu pelanggan** boleh punya **nol atau banyak pesanan**, dan setiap pesanan dimiliki **tepat satu pelanggan**. Simbol yang menempel di sebuah kotak menjawab \"berapa baris di tabel ini untuk satu baris di seberangnya\".\n\nBandingkan dengan garis `pesanan ||--|{ detail_pesanan`: ujung di `detail_pesanan` memakai garis tegak, bukan lingkaran. Artinya setiap pesanan punya **minimal satu** detail, karena pesanan tanpa barang tidak masuk akal.\n\n**Normalisasi** adalah langkah merapikan tabel agar setiap fakta hanya disimpan di satu tempat. Tiga tahap pertamanya:\n\n| Bentuk | Aturan |\n|---|---|\n| **1NF** | setiap sel berisi satu nilai, tidak ada kolom berulang (`produk1`, `produk2`), dan setiap baris punya primary key |\n| **2NF** | sudah 1NF, dan setiap kolom bukan kunci bergantung pada **seluruh** primary key, bukan hanya sebagian (penting kalau primary key-nya gabungan) |\n| **3NF** | sudah 2NF, dan kolom bukan kunci tidak bergantung pada kolom bukan kunci lain |\n\nCara mudah mengingat: setiap kolom harus bergantung pada **kuncinya, seluruh kuncinya, dan hanya kuncinya**."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nToko kopi mencatat pesanan dalam satu tabel yang berantakan:\n\n| no_pesanan | tanggal | pelanggan | kota | produk |\n|---|---|---|---|---|\n| 1001 | 2026-03-01 | Budi | Bandung | Kopi Susu x2, Roti Bakar x1 |\n| 1002 | 2026-03-01 | Sari | Surabaya | Teh Manis x1 |\n| 1003 | 2026-03-02 | Budi | Bandung | Kopi Susu x1 |\n\n**Langkah 1 (1NF)**: kolom `produk` berisi beberapa nilai sekaligus. Pecah menjadi satu baris per produk, dan pisahkan jumlahnya:\n\n| no_pesanan | tanggal | pelanggan | kota | produk | harga | jumlah |\n|---|---|---|---|---|---|---|\n| 1001 | 2026-03-01 | Budi | Bandung | Kopi Susu | 18000 | 2 |\n| 1001 | 2026-03-01 | Budi | Bandung | Roti Bakar | 15000 | 1 |\n| 1002 | 2026-03-01 | Sari | Surabaya | Teh Manis | 8000 | 1 |\n| 1003 | 2026-03-02 | Budi | Bandung | Kopi Susu | 18000 | 1 |\n\nPrimary key-nya gabungan (`no_pesanan`, `produk`).\n\n**Langkah 2 (2NF)**: `tanggal`, `pelanggan`, `kota` hanya bergantung pada `no_pesanan`. `harga` hanya bergantung pada `produk`. Keduanya bergantung pada sebagian kunci, jadi dipisah:\n\n- `pesanan` (**no_pesanan**, tanggal, pelanggan, kota)\n- `produk` (**id**, nama, harga)\n- `detail_pesanan` (**no_pesanan**, **produk_id**, jumlah)\n\n**Langkah 3 (3NF)**: di tabel `pesanan`, `kota` bergantung pada pelanggan, bukan pada nomor pesanan. Kalau Budi pindah ke Cimahi, semua pesanannya harus diubah. Pindahkan ke tabel sendiri:\n\n- `pelanggan` (**id**, nama, kota)\n- `pesanan` (**no_pesanan**, tanggal, pelanggan_id)\n\nHasil akhirnya empat tabel: `pelanggan`, `pesanan`, `detail_pesanan`, dan `produk`, persis seperti ERD toko di kartu sebelumnya. Sekarang kota Budi dan harga Kopi Susu masing-masing hanya disimpan di satu tempat.\n\nCatatan: di toko sungguhan, harga saat membeli justru sengaja disalin ke detail pesanan supaya riwayat tidak berubah ketika harga naik. Alasannya dibahas di modul desain riwayat pesanan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membaca simbol ERD dari sisi yang salah**\n\nSalah:\n\n```text\nkelas ||--o{ siswa\nartinya: satu siswa punya banyak kelas\n```\n\nBenar:\n\n```text\nkelas ||--o{ siswa\nartinya: satu kelas punya nol atau banyak siswa,\nsetiap siswa berada di tepat satu kelas\n```\n\nSimbol yang menempel di sebuah kotak menunjukkan jumlah baris di kotak itu. Kaki gagak menempel di siswa, berarti siswanya yang banyak.\n\n**2. Menyimpan beberapa nilai dalam satu sel**\n\nSalah:\n\n```text\n| id | nama | telepon                    |\n| 1  | Budi | 0812111222, 0857333444     |\n```\n\nBenar:\n\n```text\nTabel telepon_siswa:\n| siswa_id | telepon    |\n| 1        | 0812111222 |\n| 1        | 0857333444 |\n```\n\nSatu sel berisi banyak nilai melanggar 1NF. Mencari siswa pemilik nomor 0857333444 jadi sulit, dan menghapus satu nomor berarti mengedit teks.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Dalam ERD, sebuah kotak mewakili...",
+          "options": [
+            "satu baris data",
+            "satu entitas atau tabel",
+            "satu relasi",
+            "satu nilai NULL"
+          ],
+          "answer": 1,
+          "explanation": "Kotak adalah entitas, yang nantinya menjadi tabel. Isi kotak adalah atributnya (kolom).",
+          "remedial": "- **ERD**: kotak = tabel (entitas), isi kotak = kolom (atribut), garis = relasi\n- `||` tepat satu, `o|` nol atau satu, `o{` nol atau banyak, `|{` satu atau banyak\n- **1NF**: satu sel satu nilai, tanpa kolom berulang, ada primary key\n- **2NF**: kolom bergantung pada seluruh primary key gabungan\n- **3NF**: kolom tidak bergantung pada kolom bukan kunci lain"
+        },
+        {
+          "question": "Apa arti garis ERD `pelanggan ||--o{ pesanan`?",
+          "options": [
+            "Satu pesanan dimiliki banyak pelanggan",
+            "Setiap pelanggan wajib punya tepat satu pesanan",
+            "Pelanggan dan pesanan tidak berhubungan",
+            "Satu pelanggan punya nol atau banyak pesanan, setiap pesanan milik tepat satu pelanggan"
+          ],
+          "answer": 3,
+          "explanation": "Kaki gagak dengan lingkaran (o{) menempel di pesanan: nol atau banyak pesanan. Dua garis tegak (||) menempel di pelanggan: tepat satu pelanggan.",
+          "remedial": "- **ERD**: kotak = tabel (entitas), isi kotak = kolom (atribut), garis = relasi\n- `||` tepat satu, `o|` nol atau satu, `o{` nol atau banyak, `|{` satu atau banyak\n- **1NF**: satu sel satu nilai, tanpa kolom berulang, ada primary key\n- **2NF**: kolom bergantung pada seluruh primary key gabungan\n- **3NF**: kolom tidak bergantung pada kolom bukan kunci lain"
+        },
+        {
+          "question": "Kolom `hobi` sebuah tabel berisi `Basket, Musik, Membaca`. Tabel ini melanggar bentuk normal yang mana?",
+          "options": [
+            "1NF",
+            "2NF",
+            "3NF",
+            "Tidak melanggar apa pun"
+          ],
+          "answer": 0,
+          "explanation": "1NF mensyaratkan setiap sel hanya berisi satu nilai.",
+          "remedial": "- **ERD**: kotak = tabel (entitas), isi kotak = kolom (atribut), garis = relasi\n- `||` tepat satu, `o|` nol atau satu, `o{` nol atau banyak, `|{` satu atau banyak\n- **1NF**: satu sel satu nilai, tanpa kolom berulang, ada primary key\n- **2NF**: kolom bergantung pada seluruh primary key gabungan\n- **3NF**: kolom tidak bergantung pada kolom bukan kunci lain"
+        },
+        {
+          "question": "Tabel `pesanan` punya kolom `no_pesanan` (primary key), `pelanggan_id`, dan `nama_pelanggan`. Apa masalahnya?",
+          "code": "-- Tabel pesanan\n-- | no_pesanan | pelanggan_id | nama_pelanggan |\n-- | 1001       | 7            | Budi           |\n-- | 1002       | 8            | Sari           |\n-- | 1003       | 7            | Budi           |",
+          "options": [
+            "Melanggar 1NF karena ada angka",
+            "Tidak ada masalah",
+            "Melanggar 3NF: nama_pelanggan bergantung pada pelanggan_id, jadi sebaiknya disimpan di tabel pelanggan",
+            "Primary key-nya harus nama_pelanggan"
+          ],
+          "answer": 2,
+          "explanation": "nama_pelanggan ditentukan oleh pelanggan_id, bukan oleh nomor pesanan. Nama Budi tersimpan berulang dan harus diubah di banyak baris kalau berganti.",
+          "remedial": "- **ERD**: kotak = tabel (entitas), isi kotak = kolom (atribut), garis = relasi\n- `||` tepat satu, `o|` nol atau satu, `o{` nol atau banyak, `|{` satu atau banyak\n- **1NF**: satu sel satu nilai, tanpa kolom berulang, ada primary key\n- **2NF**: kolom bergantung pada seluruh primary key gabungan\n- **3NF**: kolom tidak bergantung pada kolom bukan kunci lain"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Primary key tabel ini adalah gabungan (no_pesanan, produk_id). Bentuk normal mana yang dilanggar?",
+      "code": "-- Tabel detail_pesanan\n-- | no_pesanan | produk_id | jumlah | nama_produk |\n-- | 1001       | 1         | 2      | Kopi Susu   |\n-- | 1001       | 2         | 1      | Roti Bakar  |\n-- | 1002       | 1         | 3      | Kopi Susu   |",
+      "options": [
+        "1NF",
+        "2NF",
+        "3NF",
+        "Tidak melanggar apa pun"
+      ],
+      "answer": 1,
+      "explanation": "nama_produk hanya bergantung pada produk_id, yaitu sebagian dari primary key gabungan. Itu melanggar 2NF. Solusinya, nama_produk dipindah ke tabel produk."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Simbol ujung garis ERD (notasi kaki gagak)\n||   artinya tepat ___\no{   artinya nol atau ___",
+      "answers": [
+        "satu|Satu|1",
+        "banyak|Banyak"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "ERD adalah gambar rancangan database: kotak untuk tabel, garis untuk relasi.",
+        "Simbol ujung garis: || tepat satu, o| nol atau satu, o{ nol atau banyak, |{ satu atau banyak.",
+        "1NF: satu sel satu nilai, tanpa kolom berulang, ada primary key.",
+        "2NF dan 3NF: kolom bergantung pada seluruh kunci dan hanya pada kunci.",
+        "Normalisasi membuat setiap fakta disimpan di satu tempat saja."
+      ]
+    }
+  ]
+}

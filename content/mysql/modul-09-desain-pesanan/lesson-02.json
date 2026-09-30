@@ -1,0 +1,114 @@
+{
+  "id": "desain-pesanan-02",
+  "moduleId": "desain-pesanan",
+  "order": 2,
+  "title": "Pesanan dan Detail Pesanan",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Satu pesanan terdiri dari dua bagian, persis seperti struk:\n\n- **Kepala**: siapa yang pesan, kapan, dikirim ke mana, ongkirnya berapa. Disimpan di tabel `pesanan`.\n- **Isi**: daftar barang, satu baris per barang. Disimpan di tabel `detail_pesanan`.\n\nPertanyaan terpenting di pelajaran ini: tanggal 2 Maret Budi membeli Kopi Bubuk seharga **45.000**. Seminggu kemudian harganya naik menjadi **50.000**. Saat Budi membuka riwayat pesanannya, harga berapa yang harus tampil?\n\nJawabannya jelas **45.000**, karena itulah yang ia bayar. Tapi kalau tabel `detail_pesanan` hanya menyimpan `produk_id` lalu harga diambil dari tabel `produk`, riwayatnya akan ikut berubah menjadi 50.000. Struk lama jadi berbohong.\n\nSeperti memotret label harga di rak saat membeli. Label di rak boleh diganti besok, tapi fotomu tetap menunjukkan harga hari itu. Di database, \"foto\" ini disebut **snapshot** atau salinan: nama dan harga produk disalin ke `detail_pesanan` saat pembeli menekan tombol pesan."
+    },
+    {
+      "type": "theory",
+      "content": "![ERD pelanggan, alamat, pesanan, detail_pesanan, dan produk. Kolom nama_produk, harga_satuan, dan alamat_kirim adalah salinan saat membeli](images/mysql/pesanan-inti.svg)\n\nDi `detail_pesanan` ada dua jenis kolom:\n\n| Kolom | Jenis | Gunanya |\n|---|---|---|\n| `produk_id` | **rujukan** (foreign key) | tahu barang aslinya, untuk laporan \"produk terlaris\" |\n| `nama_produk` | **salinan** | nama saat membeli, walaupun nama produk diganti kemudian |\n| `harga_satuan` | **salinan** | harga saat membeli, walaupun harga naik atau turun |\n| `jumlah` | data pesanan | berapa banyak yang dibeli |\n\nHal yang sama berlaku untuk alamat: `pesanan.alamat_kirim` adalah salinan alamat saat checkout. Kalau Budi pindah rumah, pesanan lamanya tetap tercatat dikirim ke alamat lama.\n\n> **Bukankah menyalin data melanggar normalisasi?** Tidak di sini. `produk.harga` berarti \"harga **sekarang**\", sedangkan `detail_pesanan.harga_satuan` berarti \"harga **saat transaksi**\". Keduanya fakta yang berbeda, jadi wajar disimpan terpisah.\n\nTabel lengkapnya:\n\n```sql\nCREATE TABLE pelanggan (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  nama VARCHAR(100) NOT NULL,\n  email VARCHAR(150) NOT NULL UNIQUE\n);\nCREATE TABLE alamat (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  pelanggan_id INT NOT NULL,\n  label VARCHAR(30) NOT NULL,\n  alamat_lengkap VARCHAR(255) NOT NULL,\n  kota VARCHAR(50) NOT NULL,\n  FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id)\n);\nCREATE TABLE produk (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  nama VARCHAR(100) NOT NULL,\n  harga DECIMAL(12,0) NOT NULL,\n  stok INT NOT NULL DEFAULT 0\n);\nCREATE TABLE pesanan (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  pelanggan_id INT NOT NULL,\n  alamat_kirim VARCHAR(255) NOT NULL,\n  status ENUM('menunggu_bayar', 'dibayar', 'dikirim', 'selesai', 'dibatalkan') NOT NULL DEFAULT 'menunggu_bayar',\n  ongkir DECIMAL(12,0) NOT NULL DEFAULT 0,\n  dibuat_pada DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id)\n);\nCREATE TABLE detail_pesanan (\n  pesanan_id INT NOT NULL,\n  produk_id INT NOT NULL,\n  nama_produk VARCHAR(100) NOT NULL,\n  harga_satuan DECIMAL(12,0) NOT NULL,\n  jumlah INT NOT NULL,\n  PRIMARY KEY (pesanan_id, produk_id),\n  FOREIGN KEY (pesanan_id) REFERENCES pesanan(id),\n  FOREIGN KEY (produk_id) REFERENCES produk(id),\n  CHECK (jumlah > 0)\n);\n```\n\nCatatan desain:\n\n| Keputusan | Alasan |\n|---|---|\n| Uang memakai `DECIMAL(12,0)` | DECIMAL menyimpan angka dengan tepat (FLOAT bisa meleset sedikit). Rupiah di toko ini tidak memakai sen, jadi angka di belakang koma 0 dan hasil hitungan tampil tanpa `.00`. Di modul lain kita memakai `DECIMAL(12,2)`, dan itu juga benar. Pakai `(12,2)` kalau harga bisa punya sen, lalu pakai tipe yang sama di semua kolom uang |\n| `PRIMARY KEY (pesanan_id, produk_id)` | satu produk hanya muncul satu kali per pesanan. Beli 3 kopi berarti `jumlah = 3`, bukan tiga baris |\n| `CHECK (jumlah > 0)` | tidak ada yang membeli 0 atau -1 barang (MySQL 8.0.16 ke atas menegakkan CHECK) |\n| Subtotal **tidak** disimpan | cukup dihitung `harga_satuan * jumlah`. Kedua angkanya salinan yang tidak akan berubah, jadi hasilnya selalu sama |\n| Produk yang sudah pernah dibeli tidak dihapus | foreign key menolaknya. Kalau produk berhenti dijual, tandai saja tidak aktif, misalnya dengan kolom `aktif BOOLEAN` |\n\n**Total satu pesanan** = jumlah semua subtotal + ongkir:\n\n```sql\nSUM(d.harga_satuan * d.jumlah) + p.ongkir\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nHarga Kopi Bubuk naik lagi menjadi 55.000. Lalu kita lihat isi pesanan nomor 1 milik Budi, dibandingkan dengan harga produk sekarang, dan menghitung totalnya. Data lengkapnya memakai tabel dari kartu sebelumnya.\n\n```sql\nUPDATE produk SET harga = 55000 WHERE id = 1;\n\nSELECT d.nama_produk, d.harga_satuan, pr.harga AS harga_sekarang,\n       d.jumlah, d.harga_satuan * d.jumlah AS subtotal\nFROM detail_pesanan d\nJOIN produk pr ON pr.id = d.produk_id\nWHERE d.pesanan_id = 1\nORDER BY d.produk_id;\n\nSELECT p.id,\n       SUM(d.harga_satuan * d.jumlah) AS total_barang,\n       p.ongkir,\n       SUM(d.harga_satuan * d.jumlah) + p.ongkir AS total_bayar\nFROM pesanan p\nJOIN detail_pesanan d ON d.pesanan_id = p.id\nWHERE p.id = 1\nGROUP BY p.id, p.ongkir;\n```\n\nHasilnya:\n\n```text\n+-------------+--------------+----------------+--------+----------+\n| nama_produk | harga_satuan | harga_sekarang | jumlah | subtotal |\n+-------------+--------------+----------------+--------+----------+\n| Kopi Bubuk  |        45000 |          55000 |      2 |    90000 |\n| Gula Aren   |        25000 |          25000 |      1 |    25000 |\n+-------------+--------------+----------------+--------+----------+\n2 rows in set\n\n+----+--------------+--------+-------------+\n| id | total_barang | ongkir | total_bayar |\n+----+--------------+--------+-------------+\n|  1 |       115000 |  10000 |      125000 |\n+----+--------------+--------+-------------+\n1 row in set\n```\n\n- `harga_satuan` tetap 45000 walaupun harga sekarang sudah 55000. Riwayat Budi aman.\n- Subtotal kopi 2 × 45000 = 90000, gula aren 25000. Total barang 115000, ditambah ongkir 10000, jadi Budi membayar 125000.\n- `GROUP BY p.id` membuat satu baris per pesanan karena ada `SUM`. Kolom `ongkir` ikut ditampilkan, jadi kita tulis juga di `GROUP BY`. MySQL 8 sebenarnya sudah menerima `GROUP BY p.id` saja karena `id` adalah primary key, tapi menulis semua kolom yang ditampilkan lebih jelas dan aman."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengambil harga riwayat dari tabel produk**\n\nSalah:\n\n```sql\nSELECT pr.nama, pr.harga, d.jumlah\nFROM detail_pesanan d\nJOIN produk pr ON pr.id = d.produk_id\nWHERE d.pesanan_id = 1;\n```\n\nBenar:\n\n```sql\nSELECT d.nama_produk, d.harga_satuan, d.jumlah\nFROM detail_pesanan d\nWHERE d.pesanan_id = 1;\n```\n\nproduk.harga adalah harga sekarang. Kalau harga naik, riwayat pesanan lama ikut berubah. Riwayat harus memakai salinan harga_satuan.\n\n**2. Menjumlahkan harga tanpa dikali jumlah**\n\nSalah:\n\n```sql\nSELECT SUM(harga_satuan) AS total\nFROM detail_pesanan\nWHERE pesanan_id = 1;\n```\n\nBenar:\n\n```sql\nSELECT SUM(harga_satuan * jumlah) AS total\nFROM detail_pesanan\nWHERE pesanan_id = 1;\n```\n\nDua bungkus kopi harus dihitung 2 × 45000. SUM(harga_satuan) hanya menjumlahkan harga satuan, hasilnya 70000, padahal seharusnya 115000.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa `detail_pesanan` menyimpan kolom `harga_satuan` sendiri, padahal tabel `produk` sudah punya `harga`?",
+          "options": [
+            "Supaya query tidak perlu memakai JOIN sama sekali",
+            "Supaya riwayat tetap menunjukkan harga saat membeli walaupun harga produk berubah",
+            "Karena foreign key tidak bisa merujuk kolom harga",
+            "Karena tabel produk hanya boleh diakses admin"
+          ],
+          "answer": 1,
+          "explanation": "produk.harga adalah harga sekarang. harga_satuan adalah salinan harga saat transaksi, jadi riwayat tidak ikut berubah.",
+          "remedial": "- `pesanan` = kepala struk, `detail_pesanan` = satu baris per barang.\n- Simpan **salinan** `nama_produk` dan `harga_satuan` saat membeli supaya riwayat tidak berubah ketika harga produk berubah.\n- `produk_id` tetap disimpan sebagai rujukan untuk laporan.\n- Subtotal = `harga_satuan * jumlah`. Total = `SUM(harga_satuan * jumlah) + ongkir`.\n- Uang memakai DECIMAL, bukan FLOAT."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel detail_pesanan:\n-- +------------+-----------+-------------+--------------+--------+\n-- | pesanan_id | produk_id | nama_produk | harga_satuan | jumlah |\n-- +------------+-----------+-------------+--------------+--------+\n-- |          1 |         1 | Kopi Bubuk  |        45000 |      2 |\n-- |          1 |         3 | Gula Aren   |        25000 |      1 |\n-- |          2 |         2 | Teh Melati  |        30000 |      3 |\n-- |          3 |         1 | Kopi Bubuk  |        50000 |      1 |\n-- |          3 |         4 | Madu Hutan  |        60000 |      1 |\n-- |          4 |         2 | Teh Melati  |        30000 |      1 |\n-- +------------+-----------+-------------+--------------+--------+\nSELECT SUM(harga_satuan * jumlah)\nFROM detail_pesanan\nWHERE pesanan_id = 3;",
+          "options": [
+            "110000",
+            "120000",
+            "100000",
+            "2"
+          ],
+          "answer": 0,
+          "explanation": "Pesanan 3 berisi Kopi Bubuk 1 × 50000 dan Madu Hutan 1 × 60000. Totalnya 110000 (ongkir belum ditambahkan).",
+          "remedial": "- `pesanan` = kepala struk, `detail_pesanan` = satu baris per barang.\n- Simpan **salinan** `nama_produk` dan `harga_satuan` saat membeli supaya riwayat tidak berubah ketika harga produk berubah.\n- `produk_id` tetap disimpan sebagai rujukan untuk laporan.\n- Subtotal = `harga_satuan * jumlah`. Total = `SUM(harga_satuan * jumlah) + ongkir`.\n- Uang memakai DECIMAL, bukan FLOAT."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel produk:\n-- +----+------------+-------+\n-- | id | nama       | harga |\n-- +----+------------+-------+\n-- |  1 | Kopi Bubuk | 50000 |\n-- |  2 | Teh Melati | 30000 |\n-- |  3 | Gula Aren  | 25000 |\n-- |  4 | Madu Hutan | 60000 |\n-- +----+------------+-------+\n\n-- Tabel detail_pesanan:\n-- +------------+-----------+-------------+--------------+--------+\n-- | pesanan_id | produk_id | nama_produk | harga_satuan | jumlah |\n-- +------------+-----------+-------------+--------------+--------+\n-- |          1 |         1 | Kopi Bubuk  |        45000 |      2 |\n-- |          1 |         3 | Gula Aren   |        25000 |      1 |\n-- |          2 |         2 | Teh Melati  |        30000 |      3 |\n-- |          3 |         1 | Kopi Bubuk  |        50000 |      1 |\n-- |          3 |         4 | Madu Hutan  |        60000 |      1 |\n-- |          4 |         2 | Teh Melati  |        30000 |      1 |\n-- +------------+-----------+-------------+--------------+--------+\nSELECT d.harga_satuan\nFROM detail_pesanan d\nJOIN produk pr ON pr.id = d.produk_id\nWHERE d.pesanan_id = 1 AND pr.nama = 'Kopi Bubuk';",
+          "options": [
+            "50000",
+            "90000",
+            "45000",
+            "NULL"
+          ],
+          "answer": 2,
+          "explanation": "Kolom yang diambil adalah salinan harga saat membeli, yaitu 45000. Harga sekarang di tabel produk (50000) tidak dipakai.",
+          "remedial": "- `pesanan` = kepala struk, `detail_pesanan` = satu baris per barang.\n- Simpan **salinan** `nama_produk` dan `harga_satuan` saat membeli supaya riwayat tidak berubah ketika harga produk berubah.\n- `produk_id` tetap disimpan sebagai rujukan untuk laporan.\n- Subtotal = `harga_satuan * jumlah`. Total = `SUM(harga_satuan * jumlah) + ongkir`.\n- Uang memakai DECIMAL, bukan FLOAT."
+        },
+        {
+          "question": "Apa yang terjadi saat perintah ini dijalankan?",
+          "code": "-- Tabel detail_pesanan:\n-- +------------+-----------+-------------+--------------+--------+\n-- | pesanan_id | produk_id | nama_produk | harga_satuan | jumlah |\n-- +------------+-----------+-------------+--------------+--------+\n-- |          1 |         1 | Kopi Bubuk  |        45000 |      2 |\n-- |          1 |         3 | Gula Aren   |        25000 |      1 |\n-- |          2 |         2 | Teh Melati  |        30000 |      3 |\n-- |          3 |         1 | Kopi Bubuk  |        50000 |      1 |\n-- |          3 |         4 | Madu Hutan  |        60000 |      1 |\n-- |          4 |         2 | Teh Melati  |        30000 |      1 |\n-- +------------+-----------+-------------+--------------+--------+\nINSERT INTO detail_pesanan VALUES (1, 1, 'Kopi Bubuk', 45000, 1);",
+          "options": [
+            "Berhasil, pesanan 1 sekarang punya dua baris Kopi Bubuk",
+            "Berhasil, jumlah Kopi Bubuk otomatis menjadi 3",
+            "Error, karena harga_satuan berbeda dengan harga produk",
+            "Error, karena pasangan (1, 1) sudah ada"
+          ],
+          "answer": 3,
+          "explanation": "PRIMARY KEY (pesanan_id, produk_id) menolak produk yang sama dua kali di satu pesanan. Kalau ingin menambah, ubah jumlahnya dengan UPDATE.",
+          "remedial": "- `pesanan` = kepala struk, `detail_pesanan` = satu baris per barang.\n- Simpan **salinan** `nama_produk` dan `harga_satuan` saat membeli supaya riwayat tidak berubah ketika harga produk berubah.\n- `produk_id` tetap disimpan sebagai rujukan untuk laporan.\n- Subtotal = `harga_satuan * jumlah`. Total = `SUM(harga_satuan * jumlah) + ongkir`.\n- Uang memakai DECIMAL, bukan FLOAT."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Harga Teh Melati naik. Apa hasil query terakhir?",
+      "code": "-- Tabel produk:\n-- +----+------------+-------+\n-- | id | nama       | harga |\n-- +----+------------+-------+\n-- |  1 | Kopi Bubuk | 50000 |\n-- |  2 | Teh Melati | 30000 |\n-- |  3 | Gula Aren  | 25000 |\n-- |  4 | Madu Hutan | 60000 |\n-- +----+------------+-------+\n\n-- Tabel detail_pesanan:\n-- +------------+-----------+-------------+--------------+--------+\n-- | pesanan_id | produk_id | nama_produk | harga_satuan | jumlah |\n-- +------------+-----------+-------------+--------------+--------+\n-- |          1 |         1 | Kopi Bubuk  |        45000 |      2 |\n-- |          1 |         3 | Gula Aren   |        25000 |      1 |\n-- |          2 |         2 | Teh Melati  |        30000 |      3 |\n-- |          3 |         1 | Kopi Bubuk  |        50000 |      1 |\n-- |          3 |         4 | Madu Hutan  |        60000 |      1 |\n-- |          4 |         2 | Teh Melati  |        30000 |      1 |\n-- +------------+-----------+-------------+--------------+--------+\nUPDATE produk SET harga = 35000 WHERE id = 2;\nSELECT harga_satuan * jumlah\nFROM detail_pesanan\nWHERE pesanan_id = 2;",
+      "options": [
+        "105000",
+        "90000",
+        "35000",
+        "30000"
+      ],
+      "answer": 1,
+      "explanation": "Subtotal dihitung dari salinan harga_satuan (30000) × 3 = 90000. Kenaikan harga di tabel produk tidak mengubah riwayat."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Total bayar pesanan 1 = jumlah (harga_satuan dikali jumlah) + ongkir\n-- Tabel pesanan:\n-- +----+--------------+------------+--------+---------------------+\n-- | id | pelanggan_id | status     | ongkir | dibuat_pada         |\n-- +----+--------------+------------+--------+---------------------+\n-- |  1 |            1 | selesai    |  10000 | 2026-03-02 09:15:00 |\n-- |  2 |            2 | dikirim    |  12000 | 2026-03-05 14:20:00 |\n-- |  3 |            1 | dibayar    |  10000 | 2026-03-09 19:05:00 |\n-- |  4 |            1 | dibatalkan |  10000 | 2026-03-11 08:30:00 |\n-- +----+--------------+------------+--------+---------------------+\n\n-- Tabel detail_pesanan:\n-- +------------+-----------+-------------+--------------+--------+\n-- | pesanan_id | produk_id | nama_produk | harga_satuan | jumlah |\n-- +------------+-----------+-------------+--------------+--------+\n-- |          1 |         1 | Kopi Bubuk  |        45000 |      2 |\n-- |          1 |         3 | Gula Aren   |        25000 |      1 |\n-- |          2 |         2 | Teh Melati  |        30000 |      3 |\n-- |          3 |         1 | Kopi Bubuk  |        50000 |      1 |\n-- |          3 |         4 | Madu Hutan  |        60000 |      1 |\n-- |          4 |         2 | Teh Melati  |        30000 |      1 |\n-- +------------+-----------+-------------+--------------+--------+\nSELECT p.id, ___(d.harga_satuan ___ d.jumlah) + p.ongkir AS total_bayar\nFROM pesanan p\nJOIN detail_pesanan d ON d.pesanan_id = p.id\nWHERE p.id = 1\nGROUP BY p.id, p.ongkir;",
+      "answers": [
+        "SUM|sum|Sum",
+        "*"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "pesanan menyimpan kepala struk, detail_pesanan menyimpan satu baris per barang.",
+        "Nama dan harga produk disalin ke detail_pesanan saat membeli (snapshot).",
+        "Salinan bukan data dobel: harga sekarang dan harga saat transaksi adalah fakta berbeda.",
+        "Total pesanan = SUM(harga_satuan * jumlah) + ongkir.",
+        "Uang memakai DECIMAL supaya perhitungannya tepat."
+      ]
+    }
+  ]
+}

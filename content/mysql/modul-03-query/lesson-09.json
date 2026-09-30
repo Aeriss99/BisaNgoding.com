@@ -1,0 +1,113 @@
+{
+  "id": "mysql-query-09",
+  "moduleId": "mysql-query",
+  "order": 9,
+  "title": "Fungsi Agregat",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sejauh ini setiap baris di tabel menghasilkan satu baris di hasil. Tapi pertanyaan seperti \"berapa jumlah siswa?\", \"berapa rata-rata nilainya?\", atau \"siapa nilai tertinggi?\" butuh jawaban **satu angka** dari banyak baris.\n\nFungsi yang merangkum banyak baris menjadi satu nilai disebut **fungsi agregat**.\n\nDi akhir hari, kasir tidak melaporkan setiap struk satu per satu. Ia cukup melaporkan: \"hari ini ada 120 transaksi, total pemasukan 3 juta, transaksi terbesar 250 ribu\". Itulah fungsi agregat: meringkas tumpukan struk menjadi beberapa angka."
+    },
+    {
+      "type": "theory",
+      "content": "Lima fungsi agregat yang paling sering dipakai:\n\n| Fungsi | Artinya |\n|---|---|\n| `COUNT(*)` | jumlah **baris** |\n| `COUNT(kolom)` | jumlah baris yang kolomnya **tidak NULL** |\n| `SUM(kolom)` | jumlah total |\n| `AVG(kolom)` | rata-rata |\n| `MIN(kolom)` / `MAX(kolom)` | nilai terkecil / terbesar |\n\n**Semua fungsi agregat mengabaikan NULL**, kecuali `COUNT(*)` yang menghitung semua baris. Akibatnya:\n\n- Kalau ada 5 siswa dan 1 belum ujian (skornya NULL), `COUNT(*)` = 5 tapi `COUNT(skor)` = 4.\n- `AVG(skor)` membagi total dengan 4, bukan 5. Siswa yang belum ujian tidak dianggap bernilai 0.\n\nBeberapa hal lain:\n\n- `AVG` pada kolom bilangan bulat menampilkan 4 angka di belakang koma, misalnya `85.0000`. Karena itu, `AVG` sering dibungkus `ROUND(AVG(skor))` atau `ROUND(AVG(skor), 1)`.\n- `MIN` dan `MAX` juga bekerja untuk teks (urutan abjad) dan tanggal (paling lama atau terbaru).\n- Agregat bisa digabung dengan `WHERE`. `WHERE` menyaring baris dulu, baru agregat dihitung dari sisanya.\n- Kalau tidak ada baris yang tersisa, `COUNT` menghasilkan `0`, sedangkan `SUM`, `AVG`, `MIN`, dan `MAX` menghasilkan `NULL`.\n- `COUNT(DISTINCT kolom)` menghitung jumlah nilai yang berbeda."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `ujian` berisi skor ujian matematika. Andi belum ikut ujian, jadi skornya NULL:\n\n| id | nama | kelas | skor |\n|---|---|---|---|\n| 1 | Budi | X-A | 80 |\n| 2 | Sari | X-B | 90 |\n| 3 | Andi | X-A | NULL |\n| 4 | Dewi | X-B | 70 |\n| 5 | Rina | X-A | 100 |\n\nRingkasan seluruh kelas:\n\n```sql\nSELECT COUNT(*) AS jumlah_siswa,\n  COUNT(skor) AS sudah_ujian,\n  SUM(skor) AS total,\n  ROUND(AVG(skor)) AS rata_rata,\n  MIN(skor) AS terendah,\n  MAX(skor) AS tertinggi\nFROM ujian;\n```\n\nHasilnya:\n\n```text\n+--------------+-------------+-------+-----------+----------+-----------+\n| jumlah_siswa | sudah_ujian | total | rata_rata | terendah | tertinggi |\n+--------------+-------------+-------+-----------+----------+-----------+\n|            5 |           4 |   340 |        85 |       70 |       100 |\n+--------------+-------------+-------+-----------+----------+-----------+\n1 row in set\n```\n\nRata-ratanya 85, yaitu 340 dibagi 4. Kalau skor Andi dianggap 0, rata-ratanya akan 68, dan itu tidak adil untuk siswa yang memang belum ujian.\n\n#### Dengan WHERE dan pada teks\n\nAgregat bersama `WHERE`, lalu `MIN`/`MAX` pada teks, dan `COUNT(DISTINCT ...)`:\n\n```sql\nSELECT COUNT(*) AS jumlah, MAX(skor) AS tertinggi\nFROM ujian\nWHERE kelas = 'X-B';\n\nSELECT MIN(nama) AS pertama_abjad, MAX(nama) AS terakhir_abjad, COUNT(DISTINCT kelas) AS jumlah_kelas\nFROM ujian;\n```\n\nHasilnya:\n\n```text\n+--------+-----------+\n| jumlah | tertinggi |\n+--------+-----------+\n|      2 |        90 |\n+--------+-----------+\n1 row in set\n\n+---------------+----------------+--------------+\n| pertama_abjad | terakhir_abjad | jumlah_kelas |\n+---------------+----------------+--------------+\n| Andi          | Sari           |            2 |\n+---------------+----------------+--------------+\n1 row in set\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mencampur kolom biasa dengan agregat**\n\nSalah:\n\n```sql\nSELECT nama, MAX(skor) FROM ujian;\n```\n\nBenar:\n\n```sql\nSELECT nama, skor FROM ujian\nORDER BY skor DESC\nLIMIT 1;\n```\n\nAgregat merangkum semua baris jadi satu, jadi MySQL tidak tahu `nama` milik baris yang mana. MySQL 8 menolaknya: `ERROR 1140 (42000): In aggregated query without GROUP BY, expression #1 of SELECT list contains nonaggregated column ...`. Untuk mencari siapa yang tertinggi, urutkan lalu ambil satu.\n\n**2. Memakai COUNT(kolom) untuk menghitung semua baris**\n\nSalah:\n\n```sql\n-- Maksudnya: jumlah semua siswa\nSELECT COUNT(skor) FROM ujian;\n```\n\nBenar:\n\n```sql\nSELECT COUNT(*) FROM ujian;\n```\n\n`COUNT(skor)` melewati baris yang skornya NULL, jadi hasilnya 4, padahal siswanya ada 5. Untuk menghitung baris, pakai `COUNT(*)`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel ujian:\n-- +----+------+-------+------+\n-- | id | nama | kelas | skor |\n-- +----+------+-------+------+\n-- |  1 | Budi | X-A   |   80 |\n-- |  2 | Sari | X-B   |   90 |\n-- |  3 | Andi | X-A   | NULL |\n-- |  4 | Dewi | X-B   |   70 |\n-- |  5 | Rina | X-A   |  100 |\n-- +----+------+-------+------+\nSELECT COUNT(skor) FROM ujian;",
+          "options": [
+            "5",
+            "4",
+            "1",
+            "340"
+          ],
+          "answer": 1,
+          "explanation": "COUNT(kolom) tidak menghitung NULL. Skor Andi NULL, jadi hasilnya 4.",
+          "remedial": "- `COUNT(*)` menghitung semua baris\n- `COUNT(kolom)` menghitung yang tidak NULL\n- `SUM`, `AVG`, `MIN`, `MAX` mengabaikan NULL\n- `AVG` sering dibungkus `ROUND`\n- Tidak ada baris: `COUNT` = 0, yang lain NULL\n- Jangan campur kolom biasa dengan agregat tanpa GROUP BY"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel ujian:\n-- +----+------+-------+------+\n-- | id | nama | kelas | skor |\n-- +----+------+-------+------+\n-- |  1 | Budi | X-A   |   80 |\n-- |  2 | Sari | X-B   |   90 |\n-- |  3 | Andi | X-A   | NULL |\n-- |  4 | Dewi | X-B   |   70 |\n-- |  5 | Rina | X-A   |  100 |\n-- +----+------+-------+------+\nSELECT ROUND(AVG(skor)) FROM ujian WHERE kelas = 'X-A';",
+          "options": [
+            "60",
+            "80",
+            "90",
+            "100"
+          ],
+          "answer": 2,
+          "explanation": "Kelas X-A: Budi 80, Andi NULL, Rina 100. NULL diabaikan, jadi (80 + 100) / 2 = 90.",
+          "remedial": "- `COUNT(*)` menghitung semua baris\n- `COUNT(kolom)` menghitung yang tidak NULL\n- `SUM`, `AVG`, `MIN`, `MAX` mengabaikan NULL\n- `AVG` sering dibungkus `ROUND`\n- Tidak ada baris: `COUNT` = 0, yang lain NULL\n- Jangan campur kolom biasa dengan agregat tanpa GROUP BY"
+        },
+        {
+          "question": "Apa beda `COUNT(*)` dan `COUNT(telepon)`?",
+          "options": [
+            "Tidak ada bedanya",
+            "COUNT(*) lebih cepat tapi hasilnya sama",
+            "COUNT(*) menghitung semua baris, COUNT(telepon) hanya baris yang teleponnya tidak NULL",
+            "COUNT(telepon) menghitung jumlah digit telepon"
+          ],
+          "answer": 2,
+          "explanation": "Fungsi agregat pada kolom mengabaikan NULL. Hanya COUNT(*) yang menghitung semua baris.",
+          "remedial": "- `COUNT(*)` menghitung semua baris\n- `COUNT(kolom)` menghitung yang tidak NULL\n- `SUM`, `AVG`, `MIN`, `MAX` mengabaikan NULL\n- `AVG` sering dibungkus `ROUND`\n- Tidak ada baris: `COUNT` = 0, yang lain NULL\n- Jangan campur kolom biasa dengan agregat tanpa GROUP BY"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel ujian:\n-- +----+------+-------+------+\n-- | id | nama | kelas | skor |\n-- +----+------+-------+------+\n-- |  1 | Budi | X-A   |   80 |\n-- |  2 | Sari | X-B   |   90 |\n-- |  3 | Andi | X-A   | NULL |\n-- |  4 | Dewi | X-B   |   70 |\n-- |  5 | Rina | X-A   |  100 |\n-- +----+------+-------+------+\nSELECT SUM(skor) FROM ujian WHERE kelas = 'X-C';",
+          "options": [
+            "0",
+            "Empty set",
+            "Error",
+            "NULL"
+          ],
+          "answer": 3,
+          "explanation": "Tidak ada siswa kelas X-C. Tanpa baris, SUM menghasilkan NULL (satu baris berisi NULL), sedangkan COUNT akan menghasilkan 0.",
+          "remedial": "- `COUNT(*)` menghitung semua baris\n- `COUNT(kolom)` menghitung yang tidak NULL\n- `SUM`, `AVG`, `MIN`, `MAX` mengabaikan NULL\n- `AVG` sering dibungkus `ROUND`\n- Tidak ada baris: `COUNT` = 0, yang lain NULL\n- Jangan campur kolom biasa dengan agregat tanpa GROUP BY"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel ujian:\n-- +----+------+-------+------+\n-- | id | nama | kelas | skor |\n-- +----+------+-------+------+\n-- |  1 | Budi | X-A   |   80 |\n-- |  2 | Sari | X-B   |   90 |\n-- |  3 | Andi | X-A   | NULL |\n-- |  4 | Dewi | X-B   |   70 |\n-- |  5 | Rina | X-A   |  100 |\n-- +----+------+-------+------+\nSELECT MAX(skor) - MIN(skor) AS selisih FROM ujian;",
+      "options": [
+        "30",
+        "100",
+        "NULL",
+        "20"
+      ],
+      "answer": 0,
+      "explanation": "MAX = 100, MIN = 70, NULL diabaikan. Selisihnya 30."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Hitung jumlah siswa yang SUDAH punya skor (NULL tidak ikut dihitung)\n-- Tabel ujian:\n-- +----+------+-------+------+\n-- | id | nama | kelas | skor |\n-- +----+------+-------+------+\n-- |  1 | Budi | X-A   |   80 |\n-- |  2 | Sari | X-B   |   90 |\n-- |  3 | Andi | X-A   | NULL |\n-- |  4 | Dewi | X-B   |   70 |\n-- |  5 | Rina | X-A   |  100 |\n-- +----+------+-------+------+\nSELECT ___(skor) FROM ujian;",
+      "answers": [
+        "COUNT|count|Count"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Fungsi agregat merangkum banyak baris menjadi satu nilai.",
+        "COUNT(*) menghitung semua baris, COUNT(kolom) melewati NULL.",
+        "SUM, AVG, MIN, MAX mengabaikan NULL.",
+        "WHERE menyaring baris sebelum agregat dihitung.",
+        "Tanpa baris, COUNT menghasilkan 0 dan agregat lain NULL."
+      ]
+    }
+  ]
+}

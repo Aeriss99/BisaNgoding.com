@@ -1,0 +1,112 @@
+{
+  "id": "mysql-query-05",
+  "moduleId": "mysql-query",
+  "order": 5,
+  "title": "Mengurutkan dan Membatasi",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tanpa perintah khusus, MySQL **tidak menjamin** urutan baris hasil query. Kadang terlihat urut, tapi itu kebetulan dan bisa berubah.\n\nPadahal aplikasi sering butuh urutan: produk termurah di atas, berita terbaru dulu, peringkat nilai tertinggi. Aplikasi juga jarang menampilkan semua data sekaligus. Toko online menampilkan 20 produk per halaman, bukan 5.000.\n\nUntuk itu ada **`ORDER BY`** (mengurutkan) dan **`LIMIT`** (membatasi jumlah baris).\n\nBayangkan papan peringkat lomba lari. Pertama, panitia **mengurutkan** peserta dari waktu tercepat. Lalu hanya **3 teratas** yang dipanggil ke podium. Mengurutkan itu `ORDER BY`, memanggil 3 teratas itu `LIMIT 3`."
+    },
+    {
+      "type": "theory",
+      "content": "**ORDER BY**\n\n| Penulisan | Artinya |\n|---|---|\n| `ORDER BY harga` | kecil ke besar (sama dengan `ASC`) |\n| `ORDER BY harga ASC` | kecil ke besar, A ke Z, tanggal lama ke baru |\n| `ORDER BY harga DESC` | besar ke kecil, Z ke A, tanggal baru ke lama |\n| `ORDER BY kategori, harga DESC` | urut kategori dulu, lalu di dalam kategori yang sama urut harga termahal |\n\nKalau tidak ditulis, arahnya `ASC`. Pada urutan `ASC`, nilai `NULL` ditaruh paling atas.\n\n**LIMIT**\n\n| Penulisan | Artinya |\n|---|---|\n| `LIMIT 3` | ambil 3 baris pertama |\n| `LIMIT 2, 3` | lewati 2 baris, lalu ambil 3 |\n| `LIMIT 3 OFFSET 2` | sama dengan di atas, lebih mudah dibaca |\n\nPerhatikan urutan angka pada `LIMIT 2, 3`: yang pertama **jumlah yang dilewati** (offset), yang kedua **jumlah yang diambil**.\n\n**Membuat halaman.** Kalau satu halaman berisi `n` baris, maka halaman ke-`h` memakai offset `(h - 1) × n`:\n\n| Halaman (10 per halaman) | Query |\n|---|---|\n| 1 | `LIMIT 10 OFFSET 0` |\n| 2 | `LIMIT 10 OFFSET 10` |\n| 3 | `LIMIT 10 OFFSET 20` |\n\nUrutan penulisan klausanya: `SELECT ... FROM ... WHERE ... ORDER BY ... LIMIT ...`. Pakai `LIMIT` bersama `ORDER BY`, supaya jelas baris mana yang disebut \"pertama\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMenu kafe di tabel `produk`:\n\n| id | nama | kategori | harga | stok |\n|---|---|---|---|---|\n| 1 | Kopi Susu | Minuman | 18000 | 25 |\n| 2 | Teh Manis | Minuman | 8000 | 40 |\n| 3 | Roti Bakar | Makanan | 15000 | 0 |\n| 4 | Nasi Goreng | Makanan | 22000 | 12 |\n| 5 | Es Jeruk | Minuman | 10000 | 18 |\n| 6 | Pisang Goreng | Makanan | 12000 | 30 |\n\nUrutkan dari yang termahal, lalu ambil 3 teratas:\n\n```sql\nSELECT nama, harga FROM produk\nORDER BY harga DESC;\n\nSELECT nama, harga FROM produk\nORDER BY harga DESC\nLIMIT 3;\n```\n\nHasilnya:\n\n```text\n+---------------+-------+\n| nama          | harga |\n+---------------+-------+\n| Nasi Goreng   | 22000 |\n| Kopi Susu     | 18000 |\n| Roti Bakar    | 15000 |\n| Pisang Goreng | 12000 |\n| Es Jeruk      | 10000 |\n| Teh Manis     |  8000 |\n+---------------+-------+\n6 rows in set\n\n+-------------+-------+\n| nama        | harga |\n+-------------+-------+\n| Nasi Goreng | 22000 |\n| Kopi Susu   | 18000 |\n| Roti Bakar  | 15000 |\n+-------------+-------+\n3 rows in set\n```\n\n#### Beberapa kolom dan halaman\n\nUrutkan berdasarkan kategori, lalu di dalam kategori yang sama dari harga termahal. Setelah itu, urutkan semua menu dari yang termahal dan tampilkan \"halaman 2\", kalau satu halaman berisi 2 menu:\n\n```sql\nSELECT kategori, nama, harga FROM produk\nORDER BY kategori, harga DESC;\n\nSELECT nama, harga FROM produk\nORDER BY harga DESC\nLIMIT 2 OFFSET 2;\n```\n\nHasilnya:\n\n```text\n+----------+---------------+-------+\n| kategori | nama          | harga |\n+----------+---------------+-------+\n| Makanan  | Nasi Goreng   | 22000 |\n| Makanan  | Roti Bakar    | 15000 |\n| Makanan  | Pisang Goreng | 12000 |\n| Minuman  | Kopi Susu     | 18000 |\n| Minuman  | Es Jeruk      | 10000 |\n| Minuman  | Teh Manis     |  8000 |\n+----------+---------------+-------+\n6 rows in set\n\n+---------------+-------+\n| nama          | harga |\n+---------------+-------+\n| Roti Bakar    | 15000 |\n| Pisang Goreng | 12000 |\n+---------------+-------+\n2 rows in set\n```\n\nHalaman 2 melewati 2 menu termahal (Nasi Goreng dan Kopi Susu), lalu mengambil 2 berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis LIMIT sebelum ORDER BY**\n\nSalah:\n\n```sql\nSELECT nama FROM produk\nLIMIT 3\nORDER BY harga DESC;\n```\n\nBenar:\n\n```sql\nSELECT nama FROM produk\nORDER BY harga DESC\nLIMIT 3;\n```\n\nUrutan klausa di SQL sudah ditentukan. `LIMIT` selalu paling akhir. Versi yang salah gagal dengan `ERROR 1064 (42000)`.\n\n**2. Salah membaca LIMIT dengan dua angka**\n\nSalah:\n\n```sql\n-- Maksudnya: ambil baris ke-3 sampai ke-5\nSELECT nama FROM produk\nORDER BY harga\nLIMIT 3, 5;\n```\n\nBenar:\n\n```sql\n-- Lewati 2 baris, lalu ambil 3 baris (baris ke-3 sampai ke-5)\nSELECT nama FROM produk\nORDER BY harga\nLIMIT 2, 3;\n```\n\n`LIMIT a, b` bukan \"dari baris a sampai b\". Artinya \"lewati a baris, lalu ambil b baris\". Kalau ragu, tulis `LIMIT 3 OFFSET 2` yang lebih jelas.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kalau hanya menulis `ORDER BY harga` tanpa ASC atau DESC, bagaimana urutannya?",
+          "options": [
+            "Besar ke kecil",
+            "Kecil ke besar",
+            "Acak",
+            "Error, arah wajib ditulis"
+          ],
+          "answer": 1,
+          "explanation": "Arah bawaan adalah `ASC`, dari kecil ke besar.",
+          "remedial": "- `ORDER BY kolom` = kecil ke besar (`ASC`), tambahkan `DESC` untuk besar ke kecil\n- Beberapa kolom: `ORDER BY kategori, harga DESC`\n- `LIMIT n` = ambil n baris\n- `LIMIT offset, n` atau `LIMIT n OFFSET offset`\n- Halaman ke-h: offset = (h - 1) × jumlah per halaman\n- Urutan: WHERE, ORDER BY, lalu LIMIT paling akhir"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel produk:\n-- +----+---------------+----------+-------+------+\n-- | id | nama          | kategori | harga | stok |\n-- +----+---------------+----------+-------+------+\n-- |  1 | Kopi Susu     | Minuman  | 18000 |   25 |\n-- |  2 | Teh Manis     | Minuman  |  8000 |   40 |\n-- |  3 | Roti Bakar    | Makanan  | 15000 |    0 |\n-- |  4 | Nasi Goreng   | Makanan  | 22000 |   12 |\n-- |  5 | Es Jeruk      | Minuman  | 10000 |   18 |\n-- |  6 | Pisang Goreng | Makanan  | 12000 |   30 |\n-- +----+---------------+----------+-------+------+\nSELECT nama FROM produk ORDER BY stok DESC LIMIT 2;",
+          "options": [
+            "Kopi Susu, Teh Manis",
+            "Roti Bakar, Nasi Goreng",
+            "Teh Manis, Pisang Goreng",
+            "Teh Manis, Kopi Susu"
+          ],
+          "answer": 2,
+          "explanation": "Stok terbanyak: Teh Manis (40), lalu Pisang Goreng (30).",
+          "remedial": "- `ORDER BY kolom` = kecil ke besar (`ASC`), tambahkan `DESC` untuk besar ke kecil\n- Beberapa kolom: `ORDER BY kategori, harga DESC`\n- `LIMIT n` = ambil n baris\n- `LIMIT offset, n` atau `LIMIT n OFFSET offset`\n- Halaman ke-h: offset = (h - 1) × jumlah per halaman\n- Urutan: WHERE, ORDER BY, lalu LIMIT paling akhir"
+        },
+        {
+          "question": "Apa arti `LIMIT 4, 2`?",
+          "options": [
+            "Ambil baris ke-4 sampai ke-2",
+            "Ambil 4 baris, lewati 2",
+            "Ambil baris ke-4 dan ke-2",
+            "Lewati 4 baris, lalu ambil 2 baris"
+          ],
+          "answer": 3,
+          "explanation": "Angka pertama adalah offset (dilewati), angka kedua adalah jumlah yang diambil.",
+          "remedial": "- `ORDER BY kolom` = kecil ke besar (`ASC`), tambahkan `DESC` untuk besar ke kecil\n- Beberapa kolom: `ORDER BY kategori, harga DESC`\n- `LIMIT n` = ambil n baris\n- `LIMIT offset, n` atau `LIMIT n OFFSET offset`\n- Halaman ke-h: offset = (h - 1) × jumlah per halaman\n- Urutan: WHERE, ORDER BY, lalu LIMIT paling akhir"
+        },
+        {
+          "question": "Satu halaman berisi 10 produk. Query mana yang menampilkan halaman ke-3?",
+          "options": [
+            "LIMIT 10 OFFSET 20",
+            "LIMIT 3 OFFSET 10",
+            "LIMIT 30",
+            "LIMIT 20, 30"
+          ],
+          "answer": 0,
+          "explanation": "Offset halaman 3 = (3 - 1) × 10 = 20. Jadi lewati 20, ambil 10.",
+          "remedial": "- `ORDER BY kolom` = kecil ke besar (`ASC`), tambahkan `DESC` untuk besar ke kecil\n- Beberapa kolom: `ORDER BY kategori, harga DESC`\n- `LIMIT n` = ambil n baris\n- `LIMIT offset, n` atau `LIMIT n OFFSET offset`\n- Halaman ke-h: offset = (h - 1) × jumlah per halaman\n- Urutan: WHERE, ORDER BY, lalu LIMIT paling akhir"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel produk:\n-- +----+---------------+----------+-------+------+\n-- | id | nama          | kategori | harga | stok |\n-- +----+---------------+----------+-------+------+\n-- |  1 | Kopi Susu     | Minuman  | 18000 |   25 |\n-- |  2 | Teh Manis     | Minuman  |  8000 |   40 |\n-- |  3 | Roti Bakar    | Makanan  | 15000 |    0 |\n-- |  4 | Nasi Goreng   | Makanan  | 22000 |   12 |\n-- |  5 | Es Jeruk      | Minuman  | 10000 |   18 |\n-- |  6 | Pisang Goreng | Makanan  | 12000 |   30 |\n-- +----+---------------+----------+-------+------+\nSELECT nama FROM produk ORDER BY kategori, harga LIMIT 2;",
+      "options": [
+        "Teh Manis, Es Jeruk",
+        "Roti Bakar, Nasi Goreng",
+        "Nasi Goreng, Roti Bakar",
+        "Pisang Goreng, Roti Bakar"
+      ],
+      "answer": 3,
+      "explanation": "Makanan lebih dulu dari Minuman menurut abjad. Di dalam Makanan, harga termurah Pisang Goreng (12000), lalu Roti Bakar (15000)."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Tampilkan 3 produk dengan harga TERMAHAL\n-- Tabel produk:\n-- +----+---------------+----------+-------+------+\n-- | id | nama          | kategori | harga | stok |\n-- +----+---------------+----------+-------+------+\n-- |  1 | Kopi Susu     | Minuman  | 18000 |   25 |\n-- |  2 | Teh Manis     | Minuman  |  8000 |   40 |\n-- |  3 | Roti Bakar    | Makanan  | 15000 |    0 |\n-- |  4 | Nasi Goreng   | Makanan  | 22000 |   12 |\n-- |  5 | Es Jeruk      | Minuman  | 10000 |   18 |\n-- |  6 | Pisang Goreng | Makanan  | 12000 |   30 |\n-- +----+---------------+----------+-------+------+\nSELECT nama FROM produk ORDER BY harga ___ LIMIT ___;",
+      "answers": [
+        "DESC|desc|Desc",
+        "3"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tanpa ORDER BY, urutan hasil tidak dijamin.",
+        "ORDER BY bawaannya ASC. Tambahkan DESC untuk besar ke kecil.",
+        "Bisa mengurutkan beberapa kolom sekaligus.",
+        "LIMIT offset, n sama dengan LIMIT n OFFSET offset.",
+        "LIMIT selalu ditulis paling akhir, setelah ORDER BY."
+      ]
+    }
+  ]
+}

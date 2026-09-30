@@ -1,0 +1,113 @@
+{
+  "id": "desain-multibahasa-03",
+  "moduleId": "desain-multibahasa",
+  "order": 3,
+  "title": "Mengambil Terjemahan",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Datanya sudah tersimpan rapi. Sekarang pertanyaannya: bagaimana menampilkan daftar produk untuk pengunjung yang memilih bahasa Inggris?\n\nKita perlu menggabung `produk` dengan `produk_terjemahan`, tapi hanya mengambil baris terjemahan **bahasa yang diminta**. Dan kalau terjemahannya belum ada, produk itu tetap harus tampil dengan nama bahasa Indonesia. Ini disebut **bahasa cadangan** (*fallback*).\n\nSeperti pemandu wisata. Kalau ada turis Jepang dan pemandu berbahasa Jepang sedang tidak ada, turis itu tidak disuruh pulang. Ia tetap ikut tur dengan pemandu berbahasa Indonesia yang selalu ada. Di sini bahasa Indonesia adalah \"pemandu cadangan\" yang dijamin selalu tersedia."
+    },
+    {
+      "type": "theory",
+      "content": "Ada tiga cara menggabung, dan hasilnya berbeda:\n\n| Cara | Produk tanpa terjemahan en |\n|---|---|\n| `JOIN ... ON ... AND t.kode_bahasa = 'en'` | **hilang** dari hasil |\n| `LEFT JOIN ... ON ... AND t.kode_bahasa = 'en'` | tetap tampil, namanya NULL |\n| `LEFT JOIN` dua kali + `COALESCE` | tetap tampil dengan nama bahasa cadangan |\n\nKuncinya: syarat bahasa ditulis **di dalam `ON`**, bukan di `WHERE`. Syarat di `ON` hanya memilih pasangan mana yang digabung. Syarat di `WHERE` menyaring hasil akhir, sehingga baris yang namanya NULL ikut terbuang.\n\nPola bahasa cadangan memakai tabel terjemahan **dua kali** dengan alias berbeda:\n\n```sql\nLEFT JOIN produk_terjemahan d            -- d = bahasa yang diminta\n       ON d.produk_id = p.id AND d.kode_bahasa = 'en'\nLEFT JOIN produk_terjemahan c            -- c = bahasa cadangan\n       ON c.produk_id = p.id AND c.kode_bahasa = 'id'\n```\n\nLalu `COALESCE(d.nama, c.nama)` mengambil nilai pertama yang tidak NULL: pakai nama Inggris kalau ada, kalau tidak pakai nama Indonesia.\n\n```mermaid\nflowchart LR\n  A[Pengunjung minta bahasa en] --> B{Terjemahan en ada?}\n  B -- ya --> C[Tampilkan nama en]\n  B -- tidak --> D[Tampilkan nama id]\n```\n\nPola ini hanya aman kalau **setiap produk pasti punya terjemahan bahasa cadangan**. Database tidak bisa memaksa aturan \"wajib ada baris id\" dengan foreign key biasa, jadi aplikasi yang menjaganya: saat produk baru dibuat, terjemahan bahasa Indonesia langsung disimpan dalam satu transaksi."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDaftar produk untuk halaman berbahasa Inggris, dengan bahasa Indonesia sebagai cadangan. Kolom `bahasa_tampil` memberi tahu terjemahan mana yang akhirnya dipakai.\n\n```sql\nSELECT p.sku,\n       COALESCE(d.nama, c.nama) AS nama,\n       IF(d.nama IS NULL, 'id', 'en') AS bahasa_tampil,\n       p.harga\nFROM produk p\nLEFT JOIN produk_terjemahan d\n       ON d.produk_id = p.id AND d.kode_bahasa = 'en'\nLEFT JOIN produk_terjemahan c\n       ON c.produk_id = p.id AND c.kode_bahasa = 'id'\nORDER BY p.id;\n```\n\nHasilnya:\n\n```text\n+-------+---------------+---------------+----------+\n| sku   | nama          | bahasa_tampil | harga    |\n+-------+---------------+---------------+----------+\n| KP-01 | Ground Coffee | en            | 45000.00 |\n| TH-02 | Jasmine Tea   | en            | 30000.00 |\n| GL-03 | Gula Aren     | id            | 25000.00 |\n| MD-04 | Madu Hutan    | id            | 60000.00 |\n+-------+---------------+---------------+----------+\n4 rows in set\n```\n\nKeempat produk tampil. Kopi dan teh memakai nama Inggris, sedangkan Gula Aren dan Madu Hutan memakai nama Indonesia karena terjemahan Inggrisnya belum ada.\n\nDi aplikasi sungguhan, `'en'` diganti dengan bahasa pilihan pengunjung (dikirim sebagai parameter), sedangkan `'id'` tetap sebagai cadangan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menaruh syarat bahasa di WHERE setelah LEFT JOIN**\n\nSalah:\n\n```sql\nSELECT p.sku, t.nama\nFROM produk p\nLEFT JOIN produk_terjemahan t ON t.produk_id = p.id\nWHERE t.kode_bahasa = 'en';\n```\n\nBenar:\n\n```sql\nSELECT p.sku, t.nama\nFROM produk p\nLEFT JOIN produk_terjemahan t\n       ON t.produk_id = p.id AND t.kode_bahasa = 'en';\n```\n\nBaris produk tanpa terjemahan en punya kode_bahasa NULL, lalu dibuang oleh WHERE. Hasilnya sama saja dengan INNER JOIN. Taruh syarat bahasa di ON.\n\n**2. Urutan COALESCE terbalik**\n\nSalah:\n\n```sql\nCOALESCE(c.nama, d.nama) AS nama\n```\n\nBenar:\n\n```sql\nCOALESCE(d.nama, c.nama) AS nama\n```\n\nCOALESCE mengambil nilai pertama yang tidak NULL. Kalau cadangan ditulis dulu, nama Indonesia selalu menang dan terjemahan Inggris tidak pernah tampil.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Berapa baris yang tampil?",
+          "code": "-- Tabel produk:\n-- +----+-------+----------+\n-- | id | sku   | harga    |\n-- +----+-------+----------+\n-- |  1 | KP-01 | 45000.00 |\n-- |  2 | TH-02 | 30000.00 |\n-- |  3 | GL-03 | 25000.00 |\n-- |  4 | MD-04 | 60000.00 |\n-- +----+-------+----------+\n\n-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nSELECT p.sku, t.nama\nFROM produk p\nJOIN produk_terjemahan t\n  ON t.produk_id = p.id AND t.kode_bahasa = 'en';",
+          "options": [
+            "2 baris",
+            "4 baris",
+            "6 baris",
+            "0 baris"
+          ],
+          "answer": 0,
+          "explanation": "JOIN biasa hanya menampilkan produk yang punya pasangan. Hanya KP-01 dan TH-02 yang punya terjemahan en.",
+          "remedial": "- Tulis syarat bahasa **di `ON`**, bukan di `WHERE`, supaya produk tanpa terjemahan tidak hilang.\n- `JOIN` biasa membuang produk yang belum diterjemahkan. `LEFT JOIN` mempertahankannya dengan nilai NULL.\n- Bahasa cadangan: `LEFT JOIN` tabel terjemahan dua kali (alias `d` dan `c`), lalu `COALESCE(d.nama, c.nama)`.\n- Urutan di `COALESCE` penting: bahasa yang diminta dulu, cadangan kemudian."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel produk:\n-- +----+-------+----------+\n-- | id | sku   | harga    |\n-- +----+-------+----------+\n-- |  1 | KP-01 | 45000.00 |\n-- |  2 | TH-02 | 30000.00 |\n-- |  3 | GL-03 | 25000.00 |\n-- |  4 | MD-04 | 60000.00 |\n-- +----+-------+----------+\n\n-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nSELECT t.nama\nFROM produk p\nLEFT JOIN produk_terjemahan t\n  ON t.produk_id = p.id AND t.kode_bahasa = 'en'\nWHERE p.sku = 'GL-03';",
+          "options": [
+            "Gula Aren",
+            "NULL",
+            "Empty set",
+            "Palm Sugar"
+          ],
+          "answer": 1,
+          "explanation": "LEFT JOIN tetap menampilkan GL-03, tapi karena tidak ada pasangan en, kolom dari tabel terjemahan berisi NULL.",
+          "remedial": "- Tulis syarat bahasa **di `ON`**, bukan di `WHERE`, supaya produk tanpa terjemahan tidak hilang.\n- `JOIN` biasa membuang produk yang belum diterjemahkan. `LEFT JOIN` mempertahankannya dengan nilai NULL.\n- Bahasa cadangan: `LEFT JOIN` tabel terjemahan dua kali (alias `d` dan `c`), lalu `COALESCE(d.nama, c.nama)`.\n- Urutan di `COALESCE` penting: bahasa yang diminta dulu, cadangan kemudian."
+        },
+        {
+          "question": "Apa hasil `COALESCE(NULL, 'Madu Hutan')`?",
+          "options": [
+            "NULL",
+            "Madu Hutan",
+            "Error",
+            "0"
+          ],
+          "answer": 1,
+          "explanation": "COALESCE mengembalikan nilai pertama yang tidak NULL dari daftarnya.",
+          "remedial": "- Tulis syarat bahasa **di `ON`**, bukan di `WHERE`, supaya produk tanpa terjemahan tidak hilang.\n- `JOIN` biasa membuang produk yang belum diterjemahkan. `LEFT JOIN` mempertahankannya dengan nilai NULL.\n- Bahasa cadangan: `LEFT JOIN` tabel terjemahan dua kali (alias `d` dan `c`), lalu `COALESCE(d.nama, c.nama)`.\n- Urutan di `COALESCE` penting: bahasa yang diminta dulu, cadangan kemudian."
+        },
+        {
+          "question": "Berapa baris yang tampil?",
+          "code": "-- Tabel produk:\n-- +----+-------+----------+\n-- | id | sku   | harga    |\n-- +----+-------+----------+\n-- |  1 | KP-01 | 45000.00 |\n-- |  2 | TH-02 | 30000.00 |\n-- |  3 | GL-03 | 25000.00 |\n-- |  4 | MD-04 | 60000.00 |\n-- +----+-------+----------+\n\n-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nSELECT p.sku, t.nama\nFROM produk p\nLEFT JOIN produk_terjemahan t ON t.produk_id = p.id\nWHERE t.kode_bahasa = 'en';",
+          "options": [
+            "4 baris",
+            "6 baris",
+            "2 baris",
+            "1 baris"
+          ],
+          "answer": 2,
+          "explanation": "Syarat bahasa ditaruh di WHERE, jadi baris yang bukan en ikut terbuang. Hasilnya sama dengan JOIN biasa: hanya 2 produk.",
+          "remedial": "- Tulis syarat bahasa **di `ON`**, bukan di `WHERE`, supaya produk tanpa terjemahan tidak hilang.\n- `JOIN` biasa membuang produk yang belum diterjemahkan. `LEFT JOIN` mempertahankannya dengan nilai NULL.\n- Bahasa cadangan: `LEFT JOIN` tabel terjemahan dua kali (alias `d` dan `c`), lalu `COALESCE(d.nama, c.nama)`.\n- Urutan di `COALESCE` penting: bahasa yang diminta dulu, cadangan kemudian."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini (urut dari atas)?",
+      "code": "-- Tabel produk:\n-- +----+-------+----------+\n-- | id | sku   | harga    |\n-- +----+-------+----------+\n-- |  1 | KP-01 | 45000.00 |\n-- |  2 | TH-02 | 30000.00 |\n-- |  3 | GL-03 | 25000.00 |\n-- |  4 | MD-04 | 60000.00 |\n-- +----+-------+----------+\n\n-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nSELECT COALESCE(d.nama, c.nama) AS nama\nFROM produk p\nLEFT JOIN produk_terjemahan d\n       ON d.produk_id = p.id AND d.kode_bahasa = 'en'\nLEFT JOIN produk_terjemahan c\n       ON c.produk_id = p.id AND c.kode_bahasa = 'id'\nORDER BY p.id;",
+      "options": [
+        "Ground Coffee, Jasmine Tea, NULL, NULL",
+        "Ground Coffee, Jasmine Tea",
+        "Kopi Bubuk, Teh Melati, Gula Aren, Madu Hutan",
+        "Ground Coffee, Jasmine Tea, Gula Aren, Madu Hutan"
+      ],
+      "answer": 3,
+      "explanation": "Kopi dan teh punya nama en. Gula Aren dan Madu Hutan tidak, jadi COALESCE memakai nama id sebagai cadangan."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Ambil nama en, kalau kosong pakai nama id (fungsi nilai pertama yang tidak NULL)\n-- Tabel produk:\n-- +----+-------+----------+\n-- | id | sku   | harga    |\n-- +----+-------+----------+\n-- |  1 | KP-01 | 45000.00 |\n-- |  2 | TH-02 | 30000.00 |\n-- |  3 | GL-03 | 25000.00 |\n-- |  4 | MD-04 | 60000.00 |\n-- +----+-------+----------+\n\n-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nSELECT p.sku, ___(d.nama, c.nama) AS nama\nFROM produk p\n___ JOIN produk_terjemahan d\n       ON d.produk_id = p.id AND d.kode_bahasa = 'en'\nLEFT JOIN produk_terjemahan c\n       ON c.produk_id = p.id AND c.kode_bahasa = 'id'\nORDER BY p.id;",
+      "answers": [
+        "COALESCE|IFNULL|coalesce|Coalesce|ifnull|Ifnull",
+        "LEFT|LEFT OUTER|left|Left|left outer|Left Outer"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Syarat bahasa ditulis di ON supaya produk tanpa terjemahan tidak hilang.",
+        "JOIN biasa membuang produk yang belum diterjemahkan, LEFT JOIN mempertahankannya.",
+        "Bahasa cadangan: LEFT JOIN tabel terjemahan dua kali, lalu COALESCE(diminta, cadangan).",
+        "Pastikan setiap produk selalu punya terjemahan bahasa cadangan."
+      ]
+    }
+  ]
+}

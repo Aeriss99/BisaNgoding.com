@@ -1,0 +1,111 @@
+{
+  "id": "mysql-transaksi-06",
+  "moduleId": "mysql-transaksi",
+  "order": 6,
+  "title": "Backup dan Restore",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Transaksi melindungi data dari kegagalan di tengah jalan. Tapi ada bahaya yang tidak bisa ditolong transaksi:\n\n- disk server rusak\n- seseorang menjalankan `DELETE` tanpa `WHERE` lalu COMMIT\n- server terkena serangan atau datanya dikunci penjahat\n- pusat data terbakar atau kebanjiran\n\nUntuk semua itu, satu-satunya penyelamat adalah **backup**: salinan data yang disimpan di tempat lain. **Restore** adalah proses mengembalikan data dari salinan itu.\n\nKamu pasti menyimpan fotokopi ijazah dan kartu keluarga, dan tidak menaruhnya di map yang sama dengan aslinya. Kalau rumah kebanjiran, masih ada salinan di rumah orang tua. Backup database bekerja dengan cara yang sama."
+    },
+    {
+      "type": "theory",
+      "content": "MySQL menyediakan program **mysqldump**. Program ini dijalankan di terminal (bukan di dalam klien mysql) dan menghasilkan file teks berisi perintah SQL: `CREATE TABLE` untuk strukturnya dan `INSERT` untuk datanya.\n\n```bash\n# backup satu database ke file\nmysqldump -u root -p toko > toko_2026-09-29.sql\n\n# backup yang konsisten tanpa mengunci tabel (untuk tabel InnoDB)\nmysqldump -u root -p --single-transaction toko > toko_2026-09-29.sql\n\n# backup semua database\nmysqldump -u root -p --all-databases > semua_2026-09-29.sql\n```\n\nTanda `>` artinya \"tulis hasilnya ke file\". `-p` membuat mysqldump menanyakan kata sandi. Jangan tulis kata sandi langsung setelah `-p` karena akan tersimpan di riwayat terminal.\n\n`--single-transaction` membuat mysqldump membaca semua tabel dari satu snapshot transaksi (ingat REPEATABLE READ), jadi hasilnya konsisten walaupun aplikasi tetap berjalan.\n\nUntuk **restore**, file itu dijalankan oleh program `mysql`. Arah panahnya dibalik:\n\n```bash\nmysql -u root -p -e \"CREATE DATABASE toko_pulih\"\nmysql -u root -p toko_pulih < toko_2026-09-29.sql\n```\n\nTanda `<` artinya \"baca isi file sebagai masukan\". Database tujuannya harus sudah ada.\n\nBackup yang baik punya tiga kebiasaan:\n\n| Kebiasaan | Contoh |\n|---|---|\n| terjadwal otomatis | setiap malam jam 01.00, simpan beberapa versi terakhir |\n| aturan 3-2-1 | 3 salinan, di 2 jenis media, 1 di lokasi lain |\n| dites restore | sebulan sekali pulihkan ke server uji dan periksa isinya |\n\nBackup yang tidak pernah dites belum tentu bisa dipulihkan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nIsi file hasil mysqldump kurang lebih seperti ini (disederhanakan). Isinya hanya perintah SQL biasa.\n\nRestore berarti menjalankan semua perintah di file itu. Setelah file dijalankan, tabel `produk` kembali lengkap:\n\n```sql\n-- MySQL dump (disederhanakan)\nDROP TABLE IF EXISTS `produk`;\nCREATE TABLE `produk` (\n  `id` int NOT NULL,\n  `nama` varchar(30) NOT NULL,\n  `harga` decimal(10,0) NOT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;\nINSERT INTO `produk` VALUES (1,'Kopi Susu',18000),(2,'Teh Tarik',12000),(3,'Roti Bakar',15000);\n```\n\n```sql\nSELECT * FROM produk;\n```\n\nHasilnya:\n\n```text\n+----+------------+-------+\n| id | nama       | harga |\n+----+------------+-------+\n|  1 | Kopi Susu  | 18000 |\n|  2 | Teh Tarik  | 12000 |\n|  3 | Roti Bakar | 15000 |\n+----+------------+-------+\n3 rows in set\n```\n\nKarena file backup berisi `DROP TABLE IF EXISTS`, merestore ke database yang masih dipakai akan **menimpa** tabel yang ada. Itu sebabnya contoh restore di atas memakai database baru `toko_pulih`: periksa dulu isinya, baru pindahkan data yang dibutuhkan.\n\nContoh jadwal backup sebuah toko kecil:\n\n| Jadwal | Isi | Disimpan di |\n|---|---|---|\n| setiap malam | `mysqldump --single-transaction toko` | disk lain di server, simpan 7 hari |\n| setiap minggu | salinan backup harian | penyimpanan cloud, simpan 3 bulan |\n| setiap bulan | tes restore ke server uji | catat hasilnya |"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Arah panah terbalik saat restore**\n\nSalah:\n\n```bash\nmysql -u root -p toko > toko_backup.sql\n```\n\nBenar:\n\n```bash\nmysql -u root -p toko < toko_backup.sql\n```\n\nTanda > menulis ke file, jadi terminal langsung mengosongkan toko_backup.sql. Backup-mu hilang. Untuk restore, file dibaca dengan <.\n\n**2. Menyimpan backup hanya di server yang sama dan tidak pernah dites**\n\nSalah:\n\n```bash\n# backup harian ke /var/backup di server yang sama\n# belum pernah dicoba restore\n```\n\nBenar:\n\n```bash\n# backup harian disalin juga ke tempat lain (aturan 3-2-1)\n# tes restore rutin ke server uji\n```\n\nKalau server rusak, backup di dalamnya ikut hilang. Backup yang tidak pernah dites bisa saja rusak atau tidak lengkap.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa isi file yang dihasilkan `mysqldump`?",
+          "options": [
+            "Salinan file mesin MySQL yang hanya bisa dibaca MySQL",
+            "File teks berisi perintah SQL seperti CREATE TABLE dan INSERT",
+            "Gambar tabel dalam format PDF",
+            "Daftar user dan kata sandinya saja"
+          ],
+          "answer": 1,
+          "explanation": "mysqldump menghasilkan skrip SQL. Menjalankan skrip itu membangun ulang tabel dan datanya.",
+          "remedial": "- **Backup** = salinan data di tempat lain. **Restore** = mengembalikannya.\n- Backup: `mysqldump -u root -p toko > toko.sql` (tambah `--single-transaction` untuk InnoDB)\n- Restore: `mysql -u root -p toko_pulih < toko.sql`\n- `>` menulis ke file, `<` membaca dari file. Jangan tertukar.\n- Jadwalkan otomatis, ikuti aturan 3-2-1, dan tes restore secara rutin."
+        },
+        {
+          "question": "Perintah mana yang benar untuk merestore file `toko.sql` ke database `toko_pulih`?",
+          "options": [
+            "mysqldump -u root -p toko_pulih < toko.sql",
+            "mysql -u root -p toko_pulih > toko.sql",
+            "mysql -u root -p toko_pulih < toko.sql",
+            "mysqldump -u root -p toko_pulih > toko.sql"
+          ],
+          "answer": 2,
+          "explanation": "Restore memakai program mysql dan tanda < untuk membaca file.",
+          "remedial": "- **Backup** = salinan data di tempat lain. **Restore** = mengembalikannya.\n- Backup: `mysqldump -u root -p toko > toko.sql` (tambah `--single-transaction` untuk InnoDB)\n- Restore: `mysql -u root -p toko_pulih < toko.sql`\n- `>` menulis ke file, `<` membaca dari file. Jangan tertukar.\n- Jadwalkan otomatis, ikuti aturan 3-2-1, dan tes restore secara rutin."
+        },
+        {
+          "question": "Apa gunanya opsi `--single-transaction` pada mysqldump?",
+          "options": [
+            "Membuat backup yang konsisten dari tabel InnoDB tanpa mengunci tabel",
+            "Membackup hanya satu tabel",
+            "Membatalkan backup kalau ada error",
+            "Memadatkan file backup supaya kecil"
+          ],
+          "answer": 0,
+          "explanation": "mysqldump membaca semua tabel dari satu snapshot transaksi, jadi aplikasi tetap bisa berjalan.",
+          "remedial": "- **Backup** = salinan data di tempat lain. **Restore** = mengembalikannya.\n- Backup: `mysqldump -u root -p toko > toko.sql` (tambah `--single-transaction` untuk InnoDB)\n- Restore: `mysql -u root -p toko_pulih < toko.sql`\n- `>` menulis ke file, `<` membaca dari file. Jangan tertukar.\n- Jadwalkan otomatis, ikuti aturan 3-2-1, dan tes restore secara rutin."
+        },
+        {
+          "question": "Toko menyimpan backup harian di disk yang sama dengan database dan belum pernah mencoba restore. Apa saran terbaik?",
+          "options": [
+            "Sudah cukup, yang penting ada backup",
+            "Hapus backup lama supaya disk tidak penuh",
+            "Ganti backup harian menjadi tahunan",
+            "Salin backup ke lokasi lain dan tes restore secara rutin"
+          ],
+          "answer": 3,
+          "explanation": "Aturan 3-2-1 dan tes restore memastikan backup benar-benar bisa menyelamatkan data.",
+          "remedial": "- **Backup** = salinan data di tempat lain. **Restore** = mengembalikannya.\n- Backup: `mysqldump -u root -p toko > toko.sql` (tambah `--single-transaction` untuk InnoDB)\n- Restore: `mysql -u root -p toko_pulih < toko.sql`\n- `>` menulis ke file, `<` membaca dari file. Jangan tertukar.\n- Jadwalkan otomatis, ikuti aturan 3-2-1, dan tes restore secara rutin."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Data apa yang hilang setelah restore?",
+      "code": "-- Backup otomatis berjalan setiap hari jam 01.00\n-- Jam 15.00 seorang staf menjalankan DELETE FROM pesanan tanpa WHERE (autocommit menyala)\n-- Jam 15.10 database direstore dari backup jam 01.00 hari itu",
+      "options": [
+        "Tidak ada, semua pesanan kembali",
+        "Semua pesanan yang masuk setelah jam 01.00",
+        "Semua pesanan sebelum jam 01.00",
+        "Hanya pesanan yang masuk setelah jam 15.10"
+      ],
+      "answer": 1,
+      "explanation": "Backup hanya berisi data sampai jam 01.00. Pesanan yang masuk sesudahnya (termasuk yang masuk antara jam 15.00 dan 15.10) tidak ada di backup. Untuk mengejar selisih seperti ini, MySQL punya binary log yang bisa dipelajari nanti."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Di terminal: backup database toko ke file, lalu pulihkan file itu ke database toko_pulih\n___ -u root -p toko > toko.sql\nmysql -u root -p toko_pulih ___ toko.sql",
+      "answers": [
+        "mysqldump",
+        "<"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Backup melindungi dari kerusakan yang tidak bisa ditolong transaksi.",
+        "mysqldump menghasilkan file SQL berisi CREATE TABLE dan INSERT.",
+        "Backup memakai >, restore memakai mysql dengan <.",
+        "--single-transaction membuat backup InnoDB yang konsisten tanpa mengunci tabel.",
+        "Jadwalkan otomatis, ikuti aturan 3-2-1, dan tes restore secara rutin."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "id": "desain-multibahasa-02",
+  "moduleId": "desain-multibahasa",
+  "order": 2,
+  "title": "Tabel Bahasa dan Tabel Terjemahan",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sekarang kita bangun desain yang baru. Idenya sederhana: pisahkan data produk menjadi dua bagian.\n\n- Bagian yang **sama di semua bahasa**: harga, stok, kode barang. Tetap di tabel `produk`.\n- Bagian yang **berbeda per bahasa**: nama, deskripsi. Pindah ke tabel `produk_terjemahan`.\n\nDitambah satu tabel kecil `bahasa` yang berisi daftar bahasa yang didukung toko.\n\nSeperti kemasan produk ekspor. Isinya satu (kopi 250 gram, harga sama), tapi labelnya dicetak dalam beberapa bahasa. Barangnya dicatat sekali di gudang, labelnya disimpan per bahasa."
+    },
+    {
+      "type": "theory",
+      "content": "![ERD tabel produk, bahasa, dan produk_terjemahan dengan primary key gabungan produk_id dan kode_bahasa](images/mysql/bahasa-produk-terjemahan.svg)\n\n**Tabel `bahasa`** memakai kode bahasa standar dua huruf: `id` untuk Indonesia, `en` untuk Inggris, `ja` untuk Jepang, `ar` untuk Arab. Kolomnya dibuat `VARCHAR(10)` supaya kode dengan wilayah seperti `pt-BR` (Portugis Brasil) juga muat.\n\n> Hati-hati: kode bahasa Indonesia adalah **`'id'`**, teks dua huruf. Jangan tertukar dengan kolom `id` yang berupa angka.\n\n**Tabel `produk_terjemahan`** punya **primary key gabungan** `(produk_id, kode_bahasa)`:\n\n| produk_id | kode_bahasa | nama | Boleh? |\n|---|---|---|---|\n| 1 | id | Kopi Bubuk | ya |\n| 1 | en | Ground Coffee | ya, bahasanya beda |\n| 2 | en | Jasmine Tea | ya, produknya beda |\n| 1 | en | Coffee Powder | **ditolak**, pasangan (1, en) sudah ada |\n\nArtinya satu produk hanya punya **satu** terjemahan untuk setiap bahasa. Dua foreign key menjaga datanya:\n\n| Foreign key | Menjaga apa |\n|---|---|\n| `produk_id → produk(id)` | tidak ada terjemahan untuk produk yang tidak ada. `ON DELETE CASCADE`: produk dihapus, terjemahannya ikut terhapus |\n| `kode_bahasa → bahasa(kode)` | tidak bisa menulis kode bahasa asal, misalnya `jp` padahal yang terdaftar `ja` |\n\nPembagian kolomnya:\n\n| Tetap di `produk` | Pindah ke `produk_terjemahan` |\n|---|---|\n| sku, harga, stok, berat | nama, deskripsi |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nIni desain lengkapnya. Perhatikan tabel `produk` tidak punya kolom nama sama sekali.\n\n```sql\nCREATE TABLE bahasa (\n  kode VARCHAR(10) PRIMARY KEY,\n  nama VARCHAR(50) NOT NULL\n);\nCREATE TABLE produk (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  sku VARCHAR(20) NOT NULL UNIQUE,\n  harga DECIMAL(12,2) NOT NULL,\n  stok INT NOT NULL DEFAULT 0\n);\nCREATE TABLE produk_terjemahan (\n  produk_id INT NOT NULL,\n  kode_bahasa VARCHAR(10) NOT NULL,\n  nama VARCHAR(100) NOT NULL,\n  deskripsi TEXT,\n  PRIMARY KEY (produk_id, kode_bahasa),\n  FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE,\n  FOREIGN KEY (kode_bahasa) REFERENCES bahasa(kode)\n);\nINSERT INTO bahasa VALUES ('id', 'Indonesia'), ('en', 'Inggris');\nINSERT INTO produk (sku, harga, stok) VALUES\n  ('KP-01', 45000, 12),\n  ('TH-02', 30000, 8),\n  ('GL-03', 25000, 0),\n  ('MD-04', 60000, 5);\nINSERT INTO produk_terjemahan VALUES\n  (1, 'id', 'Kopi Bubuk', 'Kopi robusta giling halus'),\n  (1, 'en', 'Ground Coffee', 'Finely ground robusta coffee'),\n  (2, 'id', 'Teh Melati', 'Teh hijau dengan bunga melati'),\n  (2, 'en', 'Jasmine Tea', 'Green tea with jasmine flowers'),\n  (3, 'id', 'Gula Aren', 'Gula merah dari nira aren'),\n  (4, 'id', 'Madu Hutan', 'Madu murni dari hutan Sumatra');\n```\n\n```sql\nSELECT p.sku, t.kode_bahasa, t.nama, p.harga\nFROM produk p\nJOIN produk_terjemahan t ON t.produk_id = p.id\nORDER BY p.id, t.kode_bahasa;\n```\n\nHasilnya:\n\n```text\n+-------+-------------+---------------+----------+\n| sku   | kode_bahasa | nama          | harga    |\n+-------+-------------+---------------+----------+\n| KP-01 | en          | Ground Coffee | 45000.00 |\n| KP-01 | id          | Kopi Bubuk    | 45000.00 |\n| TH-02 | en          | Jasmine Tea   | 30000.00 |\n| TH-02 | id          | Teh Melati    | 30000.00 |\n| GL-03 | id          | Gula Aren     | 25000.00 |\n| MD-04 | id          | Madu Hutan    | 60000.00 |\n+-------+-------------+---------------+----------+\n6 rows in set\n```\n\nKopi dan teh muncul dua kali karena punya dua terjemahan. Harganya tetap satu angka yang disimpan sekali di tabel `produk`, lalu ikut tampil di setiap baris hasil JOIN.\n\nGula Aren dan Madu Hutan baru punya terjemahan `id`. Cara menampilkannya di halaman bahasa Inggris dibahas di pelajaran berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Primary key tabel terjemahan hanya produk_id**\n\nSalah:\n\n```sql\nCREATE TABLE produk_terjemahan (\n  produk_id INT PRIMARY KEY,\n  kode_bahasa VARCHAR(10) NOT NULL,\n  nama VARCHAR(100) NOT NULL\n);\n```\n\nBenar:\n\n```sql\nCREATE TABLE produk_terjemahan (\n  produk_id INT NOT NULL,\n  kode_bahasa VARCHAR(10) NOT NULL,\n  nama VARCHAR(100) NOT NULL,\n  PRIMARY KEY (produk_id, kode_bahasa)\n);\n```\n\nKalau produk_id saja yang jadi primary key, satu produk hanya bisa punya satu baris, alias satu bahasa. Kuncinya harus pasangan produk dan bahasa.\n\n**2. Menaruh harga di tabel terjemahan**\n\nSalah:\n\n```sql\nINSERT INTO produk_terjemahan (produk_id, kode_bahasa, nama, harga)\nVALUES (1, 'id', 'Kopi Bubuk', 45000), (1, 'en', 'Ground Coffee', 45000);\n```\n\nBenar:\n\n```sql\nUPDATE produk SET harga = 45000 WHERE id = 1;\nINSERT INTO produk_terjemahan (produk_id, kode_bahasa, nama)\nVALUES (1, 'id', 'Kopi Bubuk'), (1, 'en', 'Ground Coffee');\n```\n\nHarga yang disalin ke setiap bahasa bisa berbeda kalau salah satu lupa diubah. Data yang sama untuk semua bahasa cukup disimpan sekali.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa primary key `produk_terjemahan` adalah gabungan `(produk_id, kode_bahasa)`?",
+          "options": [
+            "Supaya satu produk bisa punya banyak bahasa, tapi hanya satu terjemahan per bahasa",
+            "Supaya query berjalan tanpa JOIN",
+            "Karena MySQL mewajibkan setiap tabel punya dua kolom kunci",
+            "Supaya satu bahasa hanya boleh dipakai oleh satu produk"
+          ],
+          "answer": 0,
+          "explanation": "Pasangan produk dan bahasa harus unik. Produk yang sama boleh muncul lagi dengan bahasa lain.",
+          "remedial": "- `bahasa(kode, nama)` berisi daftar bahasa: `id`, `en`, ...\n- `produk` berisi data yang sama di semua bahasa: sku, harga, stok.\n- `produk_terjemahan` berisi nama dan deskripsi per bahasa, dengan **PRIMARY KEY (produk_id, kode_bahasa)**.\n- Foreign key ke `produk` dan `bahasa` menolak terjemahan untuk produk atau bahasa yang tidak terdaftar."
+        },
+        {
+          "question": "Apa yang terjadi saat perintah terakhir dijalankan?",
+          "code": "-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nINSERT INTO produk_terjemahan VALUES (1, 'en', 'Coffee Powder');",
+          "options": [
+            "Berhasil, produk 1 sekarang punya dua nama Inggris",
+            "Berhasil, nama lama diganti otomatis",
+            "Error, karena pasangan (1, 'en') sudah ada",
+            "Error, karena bahasa en tidak terdaftar"
+          ],
+          "answer": 2,
+          "explanation": "Primary key gabungan menolak pasangan yang sama. Kalau ingin mengganti nama, pakai UPDATE.",
+          "remedial": "- `bahasa(kode, nama)` berisi daftar bahasa: `id`, `en`, ...\n- `produk` berisi data yang sama di semua bahasa: sku, harga, stok.\n- `produk_terjemahan` berisi nama dan deskripsi per bahasa, dengan **PRIMARY KEY (produk_id, kode_bahasa)**.\n- Foreign key ke `produk` dan `bahasa` menolak terjemahan untuk produk atau bahasa yang tidak terdaftar."
+        },
+        {
+          "question": "Apa hasil query terakhir?",
+          "code": "-- Tabel bahasa:\n-- +------+-----------+\n-- | kode | nama      |\n-- +------+-----------+\n-- | en   | Inggris   |\n-- | id   | Indonesia |\n-- +------+-----------+\n\n-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nINSERT INTO produk_terjemahan VALUES (3, 'en', 'Palm Sugar');\nSELECT COUNT(*) FROM produk_terjemahan WHERE produk_id = 3;",
+          "options": [
+            "1",
+            "2",
+            "3",
+            "Error"
+          ],
+          "answer": 1,
+          "explanation": "Produk 3 belum punya terjemahan en, jadi INSERT berhasil. Sekarang produk 3 punya dua baris: 'id' dan 'en'.",
+          "remedial": "- `bahasa(kode, nama)` berisi daftar bahasa: `id`, `en`, ...\n- `produk` berisi data yang sama di semua bahasa: sku, harga, stok.\n- `produk_terjemahan` berisi nama dan deskripsi per bahasa, dengan **PRIMARY KEY (produk_id, kode_bahasa)**.\n- Foreign key ke `produk` dan `bahasa` menolak terjemahan untuk produk atau bahasa yang tidak terdaftar."
+        },
+        {
+          "question": "Di tabel mana kolom `stok` sebaiknya disimpan?",
+          "options": [
+            "produk_terjemahan, satu per bahasa",
+            "produk",
+            "bahasa",
+            "Tabel baru stok_terjemahan"
+          ],
+          "answer": 1,
+          "explanation": "Jumlah barang di gudang sama saja apa pun bahasa pengunjungnya, jadi disimpan sekali di tabel produk.",
+          "remedial": "- `bahasa(kode, nama)` berisi daftar bahasa: `id`, `en`, ...\n- `produk` berisi data yang sama di semua bahasa: sku, harga, stok.\n- `produk_terjemahan` berisi nama dan deskripsi per bahasa, dengan **PRIMARY KEY (produk_id, kode_bahasa)**.\n- Foreign key ke `produk` dan `bahasa` menolak terjemahan untuk produk atau bahasa yang tidak terdaftar."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel produk_terjemahan:\n-- +-----------+-------------+---------------+\n-- | produk_id | kode_bahasa | nama          |\n-- +-----------+-------------+---------------+\n-- |         1 | en          | Ground Coffee |\n-- |         1 | id          | Kopi Bubuk    |\n-- |         2 | en          | Jasmine Tea   |\n-- |         2 | id          | Teh Melati    |\n-- |         3 | id          | Gula Aren     |\n-- |         4 | id          | Madu Hutan    |\n-- +-----------+-------------+---------------+\nSELECT kode_bahasa FROM produk_terjemahan WHERE produk_id = 2 ORDER BY kode_bahasa;",
+      "options": [
+        "en, id",
+        "id, en",
+        "id",
+        "Jasmine Tea, Teh Melati"
+      ],
+      "answer": 0,
+      "explanation": "Produk 2 punya dua terjemahan. Diurutkan menurut abjad, 'en' lebih dulu dari 'id'."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Kunci gabungan: kolom produk dulu, lalu kolom kode bahasa\nCREATE TABLE produk_terjemahan (\n  produk_id INT NOT NULL,\n  kode_bahasa VARCHAR(10) NOT NULL,\n  nama VARCHAR(100) NOT NULL,\n  PRIMARY KEY (___, ___),\n  FOREIGN KEY (produk_id) REFERENCES produk(id),\n  FOREIGN KEY (kode_bahasa) REFERENCES bahasa(kode)\n);\nINSERT INTO produk_terjemahan VALUES (1, 'id', 'Kopi Bubuk'), (1, 'en', 'Ground Coffee');\nSELECT COUNT(*) FROM produk_terjemahan;",
+      "answers": [
+        "produk_id",
+        "kode_bahasa"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tabel bahasa berisi kode standar seperti id, en, ja.",
+        "Tabel produk menyimpan data yang sama di semua bahasa: sku, harga, stok.",
+        "Tabel produk_terjemahan menyimpan nama dan deskripsi per bahasa.",
+        "PRIMARY KEY (produk_id, kode_bahasa) menjamin satu terjemahan per bahasa.",
+        "Foreign key menolak produk atau kode bahasa yang tidak terdaftar."
+      ]
+    }
+  ]
+}

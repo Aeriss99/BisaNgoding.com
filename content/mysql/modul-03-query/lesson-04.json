@@ -1,0 +1,113 @@
+{
+  "id": "mysql-query-04",
+  "moduleId": "mysql-query",
+  "order": 4,
+  "title": "Mencari NULL",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ingat lagi: `NULL` artinya **nilainya tidak diketahui** atau belum diisi. `NULL` bukan angka 0 dan bukan teks kosong.\n\nKarena \"tidak diketahui\", `NULL` punya perilaku unik saat dibandingkan. Banyak pemula terjebak di sini: mereka menulis `WHERE telepon = NULL`, dan hasilnya selalu kosong.\n\nBayangkan formulir pendaftaran yang kolom teleponnya dibiarkan kosong. Kalau ditanya \"apakah nomor telepon Sari sama dengan nomor telepon Dewi?\", jawaban jujurnya adalah \"tidak tahu\", karena keduanya belum mengisi. Begitulah MySQL memperlakukan `NULL`: dibandingkan dengan apa pun, hasilnya \"tidak tahu\"."
+    },
+    {
+      "type": "theory",
+      "content": "Setiap perbandingan dengan `NULL` menghasilkan `NULL` (tidak tahu), bukan benar:\n\n| Ekspresi | Hasil |\n|---|---|\n| `NULL = NULL` | `NULL` |\n| `5 = NULL` | `NULL` |\n| `5 + NULL` | `NULL` |\n\nDan `WHERE` hanya meloloskan baris yang syaratnya **benar**. Baris yang hasilnya \"tidak tahu\" ikut dibuang. Karena itu `= NULL` tidak pernah menemukan apa pun.\n\nUntuk mencari `NULL`, pakai operator khusus:\n\n```sql\nWHERE telepon IS NULL        -- yang belum diisi\nWHERE telepon IS NOT NULL    -- yang sudah diisi\n```\n\nHati-hati juga dengan `<>`. Syarat `kota <> 'Bandung'` **tidak** menampilkan baris yang kotanya `NULL`, karena `NULL <> 'Bandung'` juga \"tidak tahu\".\n\n**Mengganti NULL saat ditampilkan**\n\n| Fungsi | Artinya | Contoh |\n|---|---|---|\n| `IFNULL(a, b)` | kalau `a` NULL, pakai `b` | `IFNULL(telepon, '-')` |\n| `COALESCE(a, b, c, ...)` | ambil nilai pertama yang bukan NULL | `COALESCE(telepon, email, 'tidak ada')` |\n\nFungsi ini hanya mengubah **tampilan hasil**. Isi tabelnya tetap `NULL`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `pelanggan` sebuah toko. Beberapa kolom belum diisi:\n\n| id | nama | telepon | kota | poin |\n|---|---|---|---|---|\n| 1 | Budi | 0812-1111 | Bandung | 120 |\n| 2 | Sari | NULL | Bogor | 80 |\n| 3 | Andi | 0813-2222 | NULL | NULL |\n| 4 | Dewi | NULL | Depok | 45 |\n| 5 | Rina | 0815-3333 | Bandung | 0 |\n\nBandingkan `= NULL` dengan `IS NULL`:\n\n```sql\nSELECT nama FROM pelanggan WHERE telepon = NULL;\n\nSELECT nama FROM pelanggan WHERE telepon IS NULL;\n```\n\nHasilnya:\n\n```text\nEmpty set\n\n+------+\n| nama |\n+------+\n| Sari |\n| Dewi |\n+------+\n2 rows in set\n```\n\nQuery pertama selalu `Empty set`. Query kedua menemukan Sari dan Dewi.\n\n#### IFNULL dan COALESCE\n\nSekarang tampilkan data dengan rapi. Kolom kosong diganti teks, dan poin yang kosong dianggap 0 sebelum ditambah bonus 10:\n\n```sql\nSELECT nama,\n  IFNULL(telepon, 'belum diisi') AS telepon,\n  COALESCE(kota, 'tidak diketahui') AS kota,\n  poin + 10 AS poin_asli_plus_10,\n  IFNULL(poin, 0) + 10 AS poin_aman_plus_10\nFROM pelanggan;\n```\n\nHasilnya:\n\n```text\n+------+-------------+-----------------+-------------------+-------------------+\n| nama | telepon     | kota            | poin_asli_plus_10 | poin_aman_plus_10 |\n+------+-------------+-----------------+-------------------+-------------------+\n| Budi | 0812-1111   | Bandung         |               130 |               130 |\n| Sari | belum diisi | Bogor           |                90 |                90 |\n| Andi | 0813-2222   | tidak diketahui |              NULL |                10 |\n| Dewi | belum diisi | Depok           |                55 |                55 |\n| Rina | 0815-3333   | Bandung         |                10 |                10 |\n+------+-------------+-----------------+-------------------+-------------------+\n5 rows in set\n```\n\nLihat baris Andi: `poin + 10` menghasilkan `NULL`, karena apa pun ditambah NULL hasilnya NULL. Dengan `IFNULL(poin, 0)`, poinnya dianggap 0 dulu sehingga hasilnya 10. Rina tetap 10 karena poinnya memang 0, bukan NULL."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mencari NULL dengan =**\n\nSalah:\n\n```sql\nSELECT nama FROM pelanggan\nWHERE telepon = NULL;\n```\n\nBenar:\n\n```sql\nSELECT nama FROM pelanggan\nWHERE telepon IS NULL;\n```\n\nPerbandingan dengan NULL selalu menghasilkan \"tidak tahu\", jadi `= NULL` tidak pernah cocok. Tidak ada pesan error, hasilnya hanya kosong.\n\n**2. Memberi kutip pada NULL**\n\nSalah:\n\n```sql\nSELECT nama FROM pelanggan\nWHERE kota = 'NULL';\n```\n\nBenar:\n\n```sql\nSELECT nama FROM pelanggan\nWHERE kota IS NULL;\n```\n\n`'NULL'` dengan kutip adalah teks biasa berisi empat huruf N-U-L-L, bukan nilai kosong. Query ini mencari kota yang namanya \"NULL\".\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+-----------+---------+------+\n-- | id | nama | telepon   | kota    | poin |\n-- +----+------+-----------+---------+------+\n-- |  1 | Budi | 0812-1111 | Bandung |  120 |\n-- |  2 | Sari | NULL      | Bogor   |   80 |\n-- |  3 | Andi | 0813-2222 | NULL    | NULL |\n-- |  4 | Dewi | NULL      | Depok   |   45 |\n-- |  5 | Rina | 0815-3333 | Bandung |    0 |\n-- +----+------+-----------+---------+------+\nSELECT nama FROM pelanggan WHERE kota <> 'Bandung';",
+          "options": [
+            "Sari, Andi, Dewi",
+            "Sari, Dewi",
+            "Andi",
+            "Budi, Rina"
+          ],
+          "answer": 1,
+          "explanation": "Andi tidak tampil. Kotanya NULL, dan `NULL <> 'Bandung'` hasilnya \"tidak tahu\", bukan benar.",
+          "remedial": "- NULL = tidak diketahui, bukan 0 dan bukan teks kosong\n- Perbandingan dengan NULL hasilnya NULL, jadi `= NULL` tidak pernah cocok\n- Pakai `IS NULL` dan `IS NOT NULL`\n- `kota <> 'Bandung'` tidak menampilkan baris yang kotanya NULL\n- `IFNULL(a, b)` dan `COALESCE(a, b, ...)` mengganti NULL di hasil"
+        },
+        {
+          "question": "Kenapa `WHERE telepon = NULL` tidak pernah menemukan baris apa pun?",
+          "options": [
+            "Karena NULL harus ditulis huruf kecil",
+            "Karena kolom telepon tidak boleh NULL",
+            "Karena MySQL menganggap NULL sama dengan 0",
+            "Karena perbandingan dengan NULL hasilnya NULL (tidak tahu), bukan benar"
+          ],
+          "answer": 3,
+          "explanation": "WHERE hanya meloloskan baris yang syaratnya benar. Untuk NULL, pakai `IS NULL`.",
+          "remedial": "- NULL = tidak diketahui, bukan 0 dan bukan teks kosong\n- Perbandingan dengan NULL hasilnya NULL, jadi `= NULL` tidak pernah cocok\n- Pakai `IS NULL` dan `IS NOT NULL`\n- `kota <> 'Bandung'` tidak menampilkan baris yang kotanya NULL\n- `IFNULL(a, b)` dan `COALESCE(a, b, ...)` mengganti NULL di hasil"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+-----------+---------+------+\n-- | id | nama | telepon   | kota    | poin |\n-- +----+------+-----------+---------+------+\n-- |  1 | Budi | 0812-1111 | Bandung |  120 |\n-- |  2 | Sari | NULL      | Bogor   |   80 |\n-- |  3 | Andi | 0813-2222 | NULL    | NULL |\n-- |  4 | Dewi | NULL      | Depok   |   45 |\n-- |  5 | Rina | 0815-3333 | Bandung |    0 |\n-- +----+------+-----------+---------+------+\nSELECT nama FROM pelanggan WHERE poin IS NULL;",
+          "options": [
+            "Andi",
+            "Rina",
+            "Andi, Rina",
+            "Empty set"
+          ],
+          "answer": 0,
+          "explanation": "Poin Rina adalah 0, dan 0 bukan NULL. Hanya poin Andi yang kosong.",
+          "remedial": "- NULL = tidak diketahui, bukan 0 dan bukan teks kosong\n- Perbandingan dengan NULL hasilnya NULL, jadi `= NULL` tidak pernah cocok\n- Pakai `IS NULL` dan `IS NOT NULL`\n- `kota <> 'Bandung'` tidak menampilkan baris yang kotanya NULL\n- `IFNULL(a, b)` dan `COALESCE(a, b, ...)` mengganti NULL di hasil"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "SELECT COALESCE(NULL, NULL, 'Bandung', 'Bogor');",
+          "options": [
+            "NULL",
+            "Bogor",
+            "Bandung, Bogor",
+            "Bandung"
+          ],
+          "answer": 3,
+          "explanation": "COALESCE mengambil nilai pertama yang bukan NULL, yaitu Bandung.",
+          "remedial": "- NULL = tidak diketahui, bukan 0 dan bukan teks kosong\n- Perbandingan dengan NULL hasilnya NULL, jadi `= NULL` tidak pernah cocok\n- Pakai `IS NULL` dan `IS NOT NULL`\n- `kota <> 'Bandung'` tidak menampilkan baris yang kotanya NULL\n- `IFNULL(a, b)` dan `COALESCE(a, b, ...)` mengganti NULL di hasil"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel pelanggan:\n-- +----+------+-----------+---------+------+\n-- | id | nama | telepon   | kota    | poin |\n-- +----+------+-----------+---------+------+\n-- |  1 | Budi | 0812-1111 | Bandung |  120 |\n-- |  2 | Sari | NULL      | Bogor   |   80 |\n-- |  3 | Andi | 0813-2222 | NULL    | NULL |\n-- |  4 | Dewi | NULL      | Depok   |   45 |\n-- |  5 | Rina | 0815-3333 | Bandung |    0 |\n-- +----+------+-----------+---------+------+\nSELECT IFNULL(poin, 0) + 10 AS poin_baru FROM pelanggan WHERE nama = 'Andi';",
+      "options": [
+        "NULL",
+        "10",
+        "0",
+        "1010"
+      ],
+      "answer": 1,
+      "explanation": "Poin Andi NULL, jadi IFNULL menggantinya dengan 0. Lalu 0 + 10 = 10."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Tampilkan pelanggan yang SUDAH mengisi nomor telepon\n-- Tabel pelanggan:\n-- +----+------+-----------+---------+------+\n-- | id | nama | telepon   | kota    | poin |\n-- +----+------+-----------+---------+------+\n-- |  1 | Budi | 0812-1111 | Bandung |  120 |\n-- |  2 | Sari | NULL      | Bogor   |   80 |\n-- |  3 | Andi | 0813-2222 | NULL    | NULL |\n-- |  4 | Dewi | NULL      | Depok   |   45 |\n-- |  5 | Rina | 0815-3333 | Bandung |    0 |\n-- +----+------+-----------+---------+------+\nSELECT nama FROM pelanggan WHERE telepon ___;",
+      "answers": [
+        "IS NOT NULL|is not null|Is Not Null"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "NULL berarti tidak diketahui. Perbandingan dengan NULL hasilnya NULL.",
+        "Cari NULL dengan IS NULL, bukan = NULL.",
+        "Syarat <> tidak menampilkan baris yang nilainya NULL.",
+        "Apa pun ditambah NULL hasilnya NULL.",
+        "IFNULL dan COALESCE mengganti NULL di hasil tanpa mengubah tabel."
+      ]
+    }
+  ]
+}

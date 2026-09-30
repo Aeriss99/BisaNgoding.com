@@ -1,0 +1,113 @@
+{
+  "id": "mysql-relasi-07",
+  "moduleId": "mysql-relasi",
+  "order": 7,
+  "title": "JOIN Banyak Tabel",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Satu pesanan bisa berisi beberapa produk. Di database, informasi itu tersebar di tiga tabel:\n\n- `pesanan`: kapan dan oleh siapa,\n- `detail_pesanan`: produk apa saja dan berapa banyak,\n- `produk`: nama dan harga setiap produk.\n\nUntuk membuat nota lengkap, ketiganya harus digabung. Kabar baiknya: JOIN bisa disambung terus, satu tabel demi satu tabel.\n\nBayangkan merangkai gerbong kereta. Gerbong pertama (`pesanan`) dikaitkan ke gerbong kedua (`detail_pesanan`), lalu gerbong kedua dikaitkan ke gerbong ketiga (`produk`). Setiap sambungan butuh pengaitnya sendiri. Di SQL, pengait itu adalah `ON`."
+    },
+    {
+      "type": "theory",
+      "content": "![ERD empat tabel: pelanggan membuat pesanan, pesanan berisi detail_pesanan, setiap detail menunjuk satu produk](images/mysql/relasi-pesanan-detail.svg)\n\nSetiap JOIN tambahan ditulis di bawah JOIN sebelumnya, masing-masing dengan `ON`-nya sendiri:\n\n```sql\nSELECT ps.id, pr.nama, d.jumlah\nFROM pesanan ps\nJOIN detail_pesanan d ON d.pesanan_id = ps.id\nJOIN produk pr        ON pr.id = d.produk_id;\n```\n\nAturan praktis: menggabung **n** tabel butuh **n − 1** syarat `ON`. Tiga tabel, dua ON. Empat tabel, tiga ON.\n\nSetelah digabung, hasilnya bisa dihitung dengan `GROUP BY` seperti di modul sebelumnya. Misalnya total setiap pesanan:\n\n```sql\nSELECT ps.id, SUM(pr.harga * d.jumlah) AS total\nFROM pesanan ps\nJOIN detail_pesanan d ON d.pesanan_id = ps.id\nJOIN produk pr        ON pr.id = d.produk_id\nGROUP BY ps.id;\n```\n\nUrutan kerjanya: gabungkan dulu semua baris, lalu kelompokkan per pesanan, lalu jumlahkan harga × jumlah di setiap kelompok.\n\nCatatan: di toko sungguhan, harga saat membeli biasanya ikut disimpan di `detail_pesanan`, supaya riwayat tidak berubah ketika harga produk naik. Itu dibahas di modul desain riwayat pesanan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nNota lengkap: setiap produk di setiap pesanan beserta subtotalnya.\n\n```sql\nSELECT ps.id, ps.tanggal, pr.nama, d.jumlah,\n       pr.harga * d.jumlah AS subtotal\nFROM pesanan ps\nJOIN detail_pesanan d ON d.pesanan_id = ps.id\nJOIN produk pr ON pr.id = d.produk_id\nORDER BY ps.id, pr.nama;\n```\n\nHasilnya:\n\n```text\n+-----+------------+-------------+--------+----------+\n| id  | tanggal    | nama        | jumlah | subtotal |\n+-----+------------+-------------+--------+----------+\n| 101 | 2024-05-01 | Kopi Susu   |      2 |    36000 |\n| 101 | 2024-05-01 | Roti Bakar  |      1 |    15000 |\n| 102 | 2024-05-02 | Teh Manis   |      3 |    24000 |\n| 103 | 2024-05-03 | Air Mineral |      2 |    10000 |\n| 103 | 2024-05-03 | Kopi Susu   |      2 |    36000 |\n+-----+------------+-------------+--------+----------+\n5 rows in set\n```\n\n### Contoh kedua\n\nTotal setiap pesanan, ditambah nama pemesannya (empat tabel, tiga ON):\n\n```sql\nSELECT ps.id, pl.nama, SUM(pr.harga * d.jumlah) AS total\nFROM pesanan ps\nJOIN pelanggan pl ON pl.id = ps.pelanggan_id\nJOIN detail_pesanan d ON d.pesanan_id = ps.id\nJOIN produk pr ON pr.id = d.produk_id\nGROUP BY ps.id, pl.nama\nORDER BY ps.id;\n```\n\nHasilnya:\n\n```text\n+-----+------+-------+\n| id  | nama | total |\n+-----+------+-------+\n| 101 | Budi | 51000 |\n| 102 | Sari | 24000 |\n| 103 | Budi | 46000 |\n+-----+------+-------+\n3 rows in set\n```\n\nPesanan 101: 2 × 18000 + 1 × 15000 = 51000. Rina tidak muncul karena belum punya pesanan (INNER JOIN)."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyambung dengan kolom yang salah**\n\nSalah:\n\n```sql\nJOIN produk pr ON pr.id = d.pesanan_id\n```\n\nBenar:\n\n```sql\nJOIN produk pr ON pr.id = d.produk_id\n```\n\nMySQL tidak memberi error karena keduanya angka, tapi pesanan 101 dicocokkan dengan produk nomor 101 yang tidak ada. Hasilnya kosong atau ngawur. Periksa bahwa ON menghubungkan foreign key dengan primary key yang benar.\n\n**2. Lupa mengalikan dengan jumlah**\n\nSalah:\n\n```sql\nSELECT ps.id, SUM(pr.harga) AS total\n```\n\nBenar:\n\n```sql\nSELECT ps.id, SUM(pr.harga * d.jumlah) AS total\n```\n\nSUM(pr.harga) hanya menjumlahkan harga satuan. Dua gelas kopi harus dihitung 2 × 18000.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kamu menggabung empat tabel dalam satu query. Berapa syarat ON yang dibutuhkan?",
+          "options": [
+            "4",
+            "2",
+            "1",
+            "3"
+          ],
+          "answer": 3,
+          "explanation": "Setiap tabel setelah tabel pertama butuh satu ON. Empat tabel berarti tiga ON.",
+          "remedial": "- JOIN bisa disambung: setiap tabel tambahan butuh `JOIN ... ON ...` sendiri.\n- **n tabel butuh n − 1 syarat ON.**\n- ON menghubungkan foreign key dengan primary key yang benar (`d.produk_id = pr.id`).\n- Setelah digabung, pakai `GROUP BY` dan `SUM(harga * jumlah)` untuk total per pesanan."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel detail_pesanan:\n-- +------------+-----------+--------+\n-- | pesanan_id | produk_id | jumlah |\n-- +------------+-----------+--------+\n-- |        101 |         1 |      2 |\n-- |        101 |         3 |      1 |\n-- |        102 |         2 |      3 |\n-- |        103 |         1 |      2 |\n-- |        103 |         4 |      2 |\n-- +------------+-----------+--------+\n\n-- Tabel produk:\n-- +----+-------------+-------+\n-- | id | nama        | harga |\n-- +----+-------------+-------+\n-- |  1 | Kopi Susu   | 18000 |\n-- |  2 | Teh Manis   |  8000 |\n-- |  3 | Roti Bakar  | 15000 |\n-- |  4 | Air Mineral |  5000 |\n-- +----+-------------+-------+\nSELECT SUM(pr.harga * d.jumlah) AS total\nFROM detail_pesanan d\nJOIN produk pr ON pr.id = d.produk_id\nWHERE d.pesanan_id = 102;",
+          "options": [
+            "8000",
+            "24000",
+            "3",
+            "11000"
+          ],
+          "answer": 1,
+          "explanation": "Pesanan 102 hanya berisi 3 Teh Manis seharga 8000. Totalnya 3 × 8000 = 24000.",
+          "remedial": "- JOIN bisa disambung: setiap tabel tambahan butuh `JOIN ... ON ...` sendiri.\n- **n tabel butuh n − 1 syarat ON.**\n- ON menghubungkan foreign key dengan primary key yang benar (`d.produk_id = pr.id`).\n- Setelah digabung, pakai `GROUP BY` dan `SUM(harga * jumlah)` untuk total per pesanan."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+\n-- | id | nama |\n-- +----+------+\n-- |  1 | Budi |\n-- |  2 | Sari |\n-- |  3 | Rina |\n-- +----+------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+\n-- | id  | pelanggan_id | tanggal    |\n-- +-----+--------------+------------+\n-- | 101 |            1 | 2024-05-01 |\n-- | 102 |            2 | 2024-05-02 |\n-- | 103 |            1 | 2024-05-03 |\n-- +-----+--------------+------------+\n\n-- Tabel detail_pesanan:\n-- +------------+-----------+--------+\n-- | pesanan_id | produk_id | jumlah |\n-- +------------+-----------+--------+\n-- |        101 |         1 |      2 |\n-- |        101 |         3 |      1 |\n-- |        102 |         2 |      3 |\n-- |        103 |         1 |      2 |\n-- |        103 |         4 |      2 |\n-- +------------+-----------+--------+\n\n-- Tabel produk:\n-- +----+-------------+-------+\n-- | id | nama        | harga |\n-- +----+-------------+-------+\n-- |  1 | Kopi Susu   | 18000 |\n-- |  2 | Teh Manis   |  8000 |\n-- |  3 | Roti Bakar  | 15000 |\n-- |  4 | Air Mineral |  5000 |\n-- +----+-------------+-------+\nSELECT DISTINCT pl.nama\nFROM pelanggan pl\nJOIN pesanan ps ON ps.pelanggan_id = pl.id\nJOIN detail_pesanan d ON d.pesanan_id = ps.id\nJOIN produk pr ON pr.id = d.produk_id\nWHERE pr.nama = 'Roti Bakar';",
+          "options": [
+            "Sari",
+            "Budi, Sari",
+            "Budi",
+            "Rina"
+          ],
+          "answer": 2,
+          "explanation": "Roti Bakar (produk 3) hanya ada di pesanan 101, dan pesanan 101 milik Budi.",
+          "remedial": "- JOIN bisa disambung: setiap tabel tambahan butuh `JOIN ... ON ...` sendiri.\n- **n tabel butuh n − 1 syarat ON.**\n- ON menghubungkan foreign key dengan primary key yang benar (`d.produk_id = pr.id`).\n- Setelah digabung, pakai `GROUP BY` dan `SUM(harga * jumlah)` untuk total per pesanan."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel detail_pesanan:\n-- +------------+-----------+--------+\n-- | pesanan_id | produk_id | jumlah |\n-- +------------+-----------+--------+\n-- |        101 |         1 |      2 |\n-- |        101 |         3 |      1 |\n-- |        102 |         2 |      3 |\n-- |        103 |         1 |      2 |\n-- |        103 |         4 |      2 |\n-- +------------+-----------+--------+\n\n-- Tabel produk:\n-- +----+-------------+-------+\n-- | id | nama        | harga |\n-- +----+-------------+-------+\n-- |  1 | Kopi Susu   | 18000 |\n-- |  2 | Teh Manis   |  8000 |\n-- |  3 | Roti Bakar  | 15000 |\n-- |  4 | Air Mineral |  5000 |\n-- +----+-------------+-------+\nSELECT pr.nama\nFROM detail_pesanan d\nJOIN produk pr ON pr.id = d.produk_id\nGROUP BY pr.id, pr.nama\nORDER BY SUM(d.jumlah) DESC\nLIMIT 1;",
+          "options": [
+            "Teh Manis",
+            "Air Mineral",
+            "Roti Bakar",
+            "Kopi Susu"
+          ],
+          "answer": 3,
+          "explanation": "Jumlah terjual: Kopi Susu 2 + 2 = 4, Teh Manis 3, Air Mineral 2, Roti Bakar 1. Yang terbanyak Kopi Susu.",
+          "remedial": "- JOIN bisa disambung: setiap tabel tambahan butuh `JOIN ... ON ...` sendiri.\n- **n tabel butuh n − 1 syarat ON.**\n- ON menghubungkan foreign key dengan primary key yang benar (`d.produk_id = pr.id`).\n- Setelah digabung, pakai `GROUP BY` dan `SUM(harga * jumlah)` untuk total per pesanan."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel pesanan:\n-- +-----+--------------+------------+\n-- | id  | pelanggan_id | tanggal    |\n-- +-----+--------------+------------+\n-- | 101 |            1 | 2024-05-01 |\n-- | 102 |            2 | 2024-05-02 |\n-- | 103 |            1 | 2024-05-03 |\n-- +-----+--------------+------------+\n\n-- Tabel detail_pesanan:\n-- +------------+-----------+--------+\n-- | pesanan_id | produk_id | jumlah |\n-- +------------+-----------+--------+\n-- |        101 |         1 |      2 |\n-- |        101 |         3 |      1 |\n-- |        102 |         2 |      3 |\n-- |        103 |         1 |      2 |\n-- |        103 |         4 |      2 |\n-- +------------+-----------+--------+\n\n-- Tabel produk:\n-- +----+-------------+-------+\n-- | id | nama        | harga |\n-- +----+-------------+-------+\n-- |  1 | Kopi Susu   | 18000 |\n-- |  2 | Teh Manis   |  8000 |\n-- |  3 | Roti Bakar  | 15000 |\n-- |  4 | Air Mineral |  5000 |\n-- +----+-------------+-------+\nSELECT ps.id, SUM(pr.harga * d.jumlah) AS total\nFROM pesanan ps\nJOIN detail_pesanan d ON d.pesanan_id = ps.id\nJOIN produk pr ON pr.id = d.produk_id\nGROUP BY ps.id\nORDER BY total DESC\nLIMIT 1;",
+      "options": [
+        "101 | 51000",
+        "103 | 46000",
+        "101 | 33000",
+        "102 | 24000"
+      ],
+      "answer": 0,
+      "explanation": "Pesanan 101: 2 × 18000 + 1 × 15000 = 51000. Pesanan 103: 2 × 18000 + 2 × 5000 = 46000. Pesanan 102: 24000. Yang terbesar 101."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Gabungkan detail dengan produk untuk melihat nama produk di pesanan 103\n-- Tabel detail_pesanan:\n-- +------------+-----------+--------+\n-- | pesanan_id | produk_id | jumlah |\n-- +------------+-----------+--------+\n-- |        101 |         1 |      2 |\n-- |        101 |         3 |      1 |\n-- |        102 |         2 |      3 |\n-- |        103 |         1 |      2 |\n-- |        103 |         4 |      2 |\n-- +------------+-----------+--------+\n\n-- Tabel produk:\n-- +----+-------------+-------+\n-- | id | nama        | harga |\n-- +----+-------------+-------+\n-- |  1 | Kopi Susu   | 18000 |\n-- |  2 | Teh Manis   |  8000 |\n-- |  3 | Roti Bakar  | 15000 |\n-- |  4 | Air Mineral |  5000 |\n-- +----+-------------+-------+\nSELECT pr.nama, d.jumlah\nFROM detail_pesanan d\nJOIN produk pr ___ pr.id = d.___\nWHERE d.pesanan_id = 103\nORDER BY pr.nama;",
+      "answers": [
+        "ON|on|On",
+        "produk_id"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "JOIN bisa disambung untuk menggabung tiga tabel atau lebih.",
+        "Menggabung n tabel butuh n − 1 syarat ON.",
+        "Pastikan setiap ON menghubungkan foreign key dengan primary key yang tepat.",
+        "Gabungkan dulu, lalu GROUP BY untuk menghitung total per pesanan."
+      ]
+    }
+  ]
+}

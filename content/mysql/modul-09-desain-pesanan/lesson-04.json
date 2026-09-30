@@ -1,0 +1,114 @@
+{
+  "id": "desain-pesanan-04",
+  "moduleId": "desain-pesanan",
+  "order": 4,
+  "title": "Menampilkan Riwayat Pesanan",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Semua tabel sudah siap. Sekarang kita tulis query untuk halaman **Pesanan Saya**. Setiap pesanan tampil sebagai satu kartu berisi:\n\n- nomor dan tanggal pesanan\n- status saat ini\n- jumlah barang\n- total bayar\n\nUrutannya **terbaru di atas**. Ada tab untuk menyaring status (Belum Bayar, Diproses, Selesai, Dibatalkan), dan pesanan ditampilkan **10 per halaman** supaya pembeli lama yang punya ratusan pesanan tidak menunggu lama.\n\nSeperti map arsip struk yang disusun dengan struk terbaru paling depan. Kamu tidak membaca semuanya sekaligus, tapi membuka satu lembar map (satu halaman) berisi 10 struk. Mau yang lebih lama? Buka lembar berikutnya. Dan supaya cepat menemukan map milik satu pelanggan, lemari arsipnya diberi **label per pelanggan**. Label itu adalah index."
+    },
+    {
+      "type": "theory",
+      "content": "Query dibangun sedikit demi sedikit:\n\n| Kebutuhan | Bagian query |\n|---|---|\n| pesanan milik Budi saja | `WHERE p.pelanggan_id = 1` |\n| butuh data barang | `JOIN detail_pesanan d ON d.pesanan_id = p.id` |\n| satu baris per pesanan | `GROUP BY p.id, ...` |\n| jumlah barang | `SUM(d.jumlah)` |\n| total bayar | `SUM(d.harga_satuan * d.jumlah) + p.ongkir` |\n| terbaru di atas | `ORDER BY p.dibuat_pada DESC, p.id DESC` |\n| halaman pertama | `LIMIT 10 OFFSET 0` |\n\nHasil akhirnya:\n\n```sql\nSELECT p.id, p.dibuat_pada, p.status,\n       SUM(d.jumlah) AS jumlah_barang,\n       SUM(d.harga_satuan * d.jumlah) + p.ongkir AS total\nFROM pesanan p\nJOIN detail_pesanan d ON d.pesanan_id = p.id\nWHERE p.pelanggan_id = 1\nGROUP BY p.id, p.dibuat_pada, p.status, p.ongkir\nORDER BY p.dibuat_pada DESC, p.id DESC\nLIMIT 10 OFFSET 0;\n```\n\nBeberapa hal yang perlu diperhatikan:\n\n- **`SUM(d.jumlah)` atau `COUNT(*)`?** `COUNT(*)` menghitung **jenis** barang (banyaknya baris detail). `SUM(d.jumlah)` menghitung **total bungkus**. Pilih sesuai yang ingin ditampilkan.\n- **Status diambil dari `p.status`**, bukan dari `riwayat_status`. Inilah gunanya menyimpan status saat ini di tabel pesanan.\n- **Filter tab** cukup ditambahkan ke `WHERE`. Tab \"Diproses\" misalnya: `AND p.status IN ('dibayar', 'dikirim')`.\n- **`p.id DESC` sebagai penentu kedua.** Kalau dua pesanan dibuat pada detik yang sama, urutannya tetap pasti, sehingga tidak ada pesanan yang muncul dua kali atau terlewat saat pindah halaman.\n\n**Rumus halaman:** `OFFSET = (nomor_halaman - 1) × isi_per_halaman`.\n\n| Halaman | Isi 10 per halaman |\n|---|---|\n| 1 | `LIMIT 10 OFFSET 0` |\n| 2 | `LIMIT 10 OFFSET 10` |\n| 3 | `LIMIT 10 OFFSET 20` |\n\n**Index yang dibutuhkan.** Query ini dijalankan setiap kali pembeli membuka halaman, jadi harus cepat walaupun tabel berisi jutaan pesanan:\n\n```sql\nCREATE INDEX idx_pesanan_pelanggan_waktu ON pesanan (pelanggan_id, dibuat_pada);\nCREATE INDEX idx_riwayat_pesanan_waktu ON riwayat_status (pesanan_id, waktu);\n```\n\n| Index | Membantu |\n|---|---|\n| `pesanan (pelanggan_id, dibuat_pada)` | langsung menemukan pesanan satu pelanggan, sudah dalam urutan waktu |\n| `riwayat_status (pesanan_id, waktu)` | halaman perjalanan satu pesanan |\n| primary key `detail_pesanan (pesanan_id, produk_id)` | JOIN ke detail. Sudah ada, karena kolom pertamanya `pesanan_id` |\n\nIndex mempercepat SELECT, tapi setiap INSERT jadi sedikit lebih lambat dan butuh ruang. Jadi buat index untuk query yang memang sering dipakai, bukan untuk semua kolom.\n\n> **Simpan total atau hitung?** Di sini total dihitung setiap kali dengan `SUM`. Banyak toko besar juga menyimpan kolom `total` di tabel `pesanan` saat checkout supaya daftar lebih cepat. Ini aman karena isi pesanan tidak berubah setelah dibuat, tapi aplikasi harus memastikan angka itu selalu sama dengan jumlah detailnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi punya empat pesanan. Supaya hasilnya pendek, contoh ini memakai 2 pesanan per halaman. Query pertama halaman 1, query kedua halaman 2.\n\n```sql\nSELECT p.id, p.dibuat_pada, p.status,\n       SUM(d.jumlah) AS jumlah_barang,\n       SUM(d.harga_satuan * d.jumlah) + p.ongkir AS total\nFROM pesanan p\nJOIN detail_pesanan d ON d.pesanan_id = p.id\nWHERE p.pelanggan_id = 1\nGROUP BY p.id, p.dibuat_pada, p.status, p.ongkir\nORDER BY p.dibuat_pada DESC, p.id DESC\nLIMIT 2 OFFSET 0;\n\nSELECT p.id, p.dibuat_pada, p.status,\n       SUM(d.jumlah) AS jumlah_barang,\n       SUM(d.harga_satuan * d.jumlah) + p.ongkir AS total\nFROM pesanan p\nJOIN detail_pesanan d ON d.pesanan_id = p.id\nWHERE p.pelanggan_id = 1\nGROUP BY p.id, p.dibuat_pada, p.status, p.ongkir\nORDER BY p.dibuat_pada DESC, p.id DESC\nLIMIT 2 OFFSET 2;\n```\n\nHasilnya:\n\n```text\n+----+---------------------+----------------+---------------+--------+\n| id | dibuat_pada         | status         | jumlah_barang | total  |\n+----+---------------------+----------------+---------------+--------+\n|  6 | 2026-03-14 16:45:00 | menunggu_bayar |             4 | 150000 |\n|  4 | 2026-03-11 08:30:00 | dibatalkan     |             1 |  40000 |\n+----+---------------------+----------------+---------------+--------+\n2 rows in set\n\n+----+---------------------+---------+---------------+--------+\n| id | dibuat_pada         | status  | jumlah_barang | total  |\n+----+---------------------+---------+---------------+--------+\n|  3 | 2026-03-09 19:05:00 | dibayar |             2 | 120000 |\n|  1 | 2026-03-02 09:15:00 | selesai |             3 | 125000 |\n+----+---------------------+---------+---------------+--------+\n2 rows in set\n```\n\n- Halaman 1 berisi pesanan terbaru (14 Maret dan 11 Maret), halaman 2 berisi yang lebih lama.\n- Pesanan 6 berisi 1 kopi dan 3 teh, jadi `jumlah_barang` = 4 dan total = 50000 + 90000 + 10000 ongkir = 150000.\n- Pesanan milik Sari dan Andi tidak ikut karena `WHERE p.pelanggan_id = 1`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. JOIN ke riwayat_status untuk mengambil status**\n\nSalah:\n\n```sql\nSELECT p.id, r.status, SUM(d.harga_satuan * d.jumlah) AS total\nFROM pesanan p\nJOIN detail_pesanan d ON d.pesanan_id = p.id\nJOIN riwayat_status r ON r.pesanan_id = p.id\nGROUP BY p.id, r.status;\n```\n\nBenar:\n\n```sql\nSELECT p.id, p.status, SUM(d.harga_satuan * d.jumlah) AS total\nFROM pesanan p\nJOIN detail_pesanan d ON d.pesanan_id = p.id\nGROUP BY p.id, p.status;\n```\n\nSetiap baris detail dipasangkan dengan setiap baris riwayat. Hasilnya satu pesanan muncul sekali untuk setiap status yang pernah dilewatinya (pesanan 1 muncul 4 kali, termasuk status lama). Kalau dikelompokkan dengan GROUP BY p.id saja, SUM justru ikut berlipat. Status saat ini sudah ada di p.status.\n\n**2. LIMIT tanpa ORDER BY**\n\nSalah:\n\n```sql\nSELECT id, dibuat_pada\nFROM pesanan\nWHERE pelanggan_id = 1\nLIMIT 10 OFFSET 10;\n```\n\nBenar:\n\n```sql\nSELECT id, dibuat_pada\nFROM pesanan\nWHERE pelanggan_id = 1\nORDER BY dibuat_pada DESC, id DESC\nLIMIT 10 OFFSET 10;\n```\n\nTanpa ORDER BY, MySQL tidak menjamin urutan baris. Halaman 2 bisa berisi pesanan yang sudah tampil di halaman 1.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel detail_pesanan:\n-- +------------+-----------+-------------+--------------+--------+\n-- | pesanan_id | produk_id | nama_produk | harga_satuan | jumlah |\n-- +------------+-----------+-------------+--------------+--------+\n-- |          1 |         1 | Kopi Bubuk  |        45000 |      2 |\n-- |          1 |         3 | Gula Aren   |        25000 |      1 |\n-- |          2 |         2 | Teh Melati  |        30000 |      3 |\n-- |          3 |         1 | Kopi Bubuk  |        50000 |      1 |\n-- |          3 |         4 | Madu Hutan  |        60000 |      1 |\n-- |          4 |         2 | Teh Melati  |        30000 |      1 |\n-- |          5 |         3 | Gula Aren   |        25000 |      4 |\n-- |          6 |         1 | Kopi Bubuk  |        50000 |      1 |\n-- |          6 |         2 | Teh Melati  |        30000 |      3 |\n-- +------------+-----------+-------------+--------------+--------+\nSELECT SUM(jumlah)\nFROM detail_pesanan\nWHERE pesanan_id = 6;",
+          "options": [
+            "2",
+            "4",
+            "3",
+            "150000"
+          ],
+          "answer": 1,
+          "explanation": "Pesanan 6 berisi 1 Kopi Bubuk dan 3 Teh Melati. SUM(jumlah) = 4 bungkus. COUNT(*) akan menghasilkan 2 (jenis barang).",
+          "remedial": "- Daftar pesanan: `JOIN detail_pesanan`, `GROUP BY p.id, ...`, `SUM(d.jumlah)` dan `SUM(d.harga_satuan * d.jumlah) + p.ongkir`.\n- Status diambil dari `p.status`. JOIN ke riwayat bisa membuat SUM berlipat.\n- Terbaru dulu: `ORDER BY p.dibuat_pada DESC, p.id DESC`.\n- Halaman: `LIMIT n OFFSET (halaman - 1) × n`, selalu bersama ORDER BY.\n- Index `pesanan (pelanggan_id, dibuat_pada)` mempercepat daftar pesanan satu pelanggan."
+        },
+        {
+          "question": "Setiap halaman berisi 10 pesanan. Klausa apa untuk halaman ke-4?",
+          "options": [
+            "LIMIT 10 OFFSET 4",
+            "LIMIT 10 OFFSET 40",
+            "LIMIT 40 OFFSET 10",
+            "LIMIT 10 OFFSET 30"
+          ],
+          "answer": 3,
+          "explanation": "OFFSET = (4 - 1) × 10 = 30. Tiga halaman pertama (30 pesanan) dilewati, lalu 10 berikutnya diambil.",
+          "remedial": "- Daftar pesanan: `JOIN detail_pesanan`, `GROUP BY p.id, ...`, `SUM(d.jumlah)` dan `SUM(d.harga_satuan * d.jumlah) + p.ongkir`.\n- Status diambil dari `p.status`. JOIN ke riwayat bisa membuat SUM berlipat.\n- Terbaru dulu: `ORDER BY p.dibuat_pada DESC, p.id DESC`.\n- Halaman: `LIMIT n OFFSET (halaman - 1) × n`, selalu bersama ORDER BY.\n- Index `pesanan (pelanggan_id, dibuat_pada)` mempercepat daftar pesanan satu pelanggan."
+        },
+        {
+          "question": "Apa hasil query ini (urut dari atas)?",
+          "code": "-- Tabel pesanan:\n-- +----+--------------+----------------+--------+---------------------+\n-- | id | pelanggan_id | status         | ongkir | dibuat_pada         |\n-- +----+--------------+----------------+--------+---------------------+\n-- |  1 |            1 | selesai        |  10000 | 2026-03-02 09:15:00 |\n-- |  2 |            2 | dikirim        |  12000 | 2026-03-05 14:20:00 |\n-- |  3 |            1 | dibayar        |  10000 | 2026-03-09 19:05:00 |\n-- |  4 |            1 | dibatalkan     |  10000 | 2026-03-11 08:30:00 |\n-- |  5 |            3 | menunggu_bayar |  15000 | 2026-03-12 10:00:00 |\n-- |  6 |            1 | menunggu_bayar |  10000 | 2026-03-14 16:45:00 |\n-- +----+--------------+----------------+--------+---------------------+\nSELECT id\nFROM pesanan\nWHERE pelanggan_id = 1 AND status IN ('dibayar', 'dikirim', 'menunggu_bayar')\nORDER BY dibuat_pada DESC;",
+          "options": [
+            "3, 6",
+            "6, 4, 3",
+            "6, 3",
+            "2, 3, 6"
+          ],
+          "answer": 2,
+          "explanation": "Pesanan Budi yang statusnya ada di daftar: 3 (dibayar) dan 6 (menunggu_bayar). Pesanan 1 selesai dan 4 dibatalkan tidak ikut. Terbaru dulu: 6, lalu 3.",
+          "remedial": "- Daftar pesanan: `JOIN detail_pesanan`, `GROUP BY p.id, ...`, `SUM(d.jumlah)` dan `SUM(d.harga_satuan * d.jumlah) + p.ongkir`.\n- Status diambil dari `p.status`. JOIN ke riwayat bisa membuat SUM berlipat.\n- Terbaru dulu: `ORDER BY p.dibuat_pada DESC, p.id DESC`.\n- Halaman: `LIMIT n OFFSET (halaman - 1) × n`, selalu bersama ORDER BY.\n- Index `pesanan (pelanggan_id, dibuat_pada)` mempercepat daftar pesanan satu pelanggan."
+        },
+        {
+          "question": "Index mana yang paling membantu query daftar pesanan satu pelanggan yang diurutkan dari terbaru?",
+          "options": [
+            "INDEX pada pesanan (status)",
+            "INDEX pada pesanan (ongkir)",
+            "INDEX pada pesanan (pelanggan_id, dibuat_pada)",
+            "INDEX pada detail_pesanan (jumlah)"
+          ],
+          "answer": 2,
+          "explanation": "Query menyaring dengan pelanggan_id lalu mengurutkan dengan dibuat_pada. Index gabungan dengan urutan kolom itu melayani keduanya.",
+          "remedial": "- Daftar pesanan: `JOIN detail_pesanan`, `GROUP BY p.id, ...`, `SUM(d.jumlah)` dan `SUM(d.harga_satuan * d.jumlah) + p.ongkir`.\n- Status diambil dari `p.status`. JOIN ke riwayat bisa membuat SUM berlipat.\n- Terbaru dulu: `ORDER BY p.dibuat_pada DESC, p.id DESC`.\n- Halaman: `LIMIT n OFFSET (halaman - 1) × n`, selalu bersama ORDER BY.\n- Index `pesanan (pelanggan_id, dibuat_pada)` mempercepat daftar pesanan satu pelanggan."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel detail_pesanan:\n-- +------------+-----------+-------------+--------------+--------+\n-- | pesanan_id | produk_id | nama_produk | harga_satuan | jumlah |\n-- +------------+-----------+-------------+--------------+--------+\n-- |          1 |         1 | Kopi Bubuk  |        45000 |      2 |\n-- |          1 |         3 | Gula Aren   |        25000 |      1 |\n-- |          2 |         2 | Teh Melati  |        30000 |      3 |\n-- |          3 |         1 | Kopi Bubuk  |        50000 |      1 |\n-- |          3 |         4 | Madu Hutan  |        60000 |      1 |\n-- |          4 |         2 | Teh Melati  |        30000 |      1 |\n-- +------------+-----------+-------------+--------------+--------+\n\n-- Tabel riwayat_status:\n-- +----+------------+----------------+---------------------+\n-- | id | pesanan_id | status         | waktu               |\n-- +----+------------+----------------+---------------------+\n-- |  1 |          1 | menunggu_bayar | 2026-03-02 09:15:00 |\n-- |  2 |          1 | dibayar        | 2026-03-02 09:40:00 |\n-- |  3 |          1 | dikirim        | 2026-03-03 10:00:00 |\n-- |  4 |          2 | menunggu_bayar | 2026-03-05 14:20:00 |\n-- |  5 |          2 | dibayar        | 2026-03-05 15:00:00 |\n-- |  6 |          1 | selesai        | 2026-03-05 15:30:00 |\n-- |  7 |          2 | dikirim        | 2026-03-06 11:00:00 |\n-- |  8 |          3 | menunggu_bayar | 2026-03-09 19:05:00 |\n-- |  9 |          3 | dibayar        | 2026-03-09 19:30:00 |\n-- | 10 |          4 | menunggu_bayar | 2026-03-11 08:30:00 |\n-- | 11 |          4 | dibatalkan     | 2026-03-12 08:30:00 |\n-- +----+------------+----------------+---------------------+\nSELECT SUM(d.harga_satuan * d.jumlah)\nFROM pesanan p\nJOIN detail_pesanan d ON d.pesanan_id = p.id\nJOIN riwayat_status r ON r.pesanan_id = p.id\nWHERE p.id = 1;",
+      "options": [
+        "115000",
+        "230000",
+        "460000",
+        "125000"
+      ],
+      "answer": 2,
+      "explanation": "Pesanan 1 punya 2 baris detail dan 4 baris riwayat, jadi JOIN menghasilkan 2 × 4 = 8 baris. Setiap subtotal terhitung 4 kali: 115000 × 4 = 460000. Inilah bahaya JOIN dua tabel \"banyak\" sekaligus."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Daftar pesanan Budi: satu baris per pesanan (kelompokkan), terbaru dulu, 2 per halaman\n-- Tabel pesanan:\n-- +----+--------------+----------------+--------+---------------------+\n-- | id | pelanggan_id | status         | ongkir | dibuat_pada         |\n-- +----+--------------+----------------+--------+---------------------+\n-- |  1 |            1 | selesai        |  10000 | 2026-03-02 09:15:00 |\n-- |  2 |            2 | dikirim        |  12000 | 2026-03-05 14:20:00 |\n-- |  3 |            1 | dibayar        |  10000 | 2026-03-09 19:05:00 |\n-- |  4 |            1 | dibatalkan     |  10000 | 2026-03-11 08:30:00 |\n-- |  5 |            3 | menunggu_bayar |  15000 | 2026-03-12 10:00:00 |\n-- |  6 |            1 | menunggu_bayar |  10000 | 2026-03-14 16:45:00 |\n-- +----+--------------+----------------+--------+---------------------+\n\n-- Tabel detail_pesanan:\n-- +------------+-----------+-------------+--------------+--------+\n-- | pesanan_id | produk_id | nama_produk | harga_satuan | jumlah |\n-- +------------+-----------+-------------+--------------+--------+\n-- |          1 |         1 | Kopi Bubuk  |        45000 |      2 |\n-- |          1 |         3 | Gula Aren   |        25000 |      1 |\n-- |          2 |         2 | Teh Melati  |        30000 |      3 |\n-- |          3 |         1 | Kopi Bubuk  |        50000 |      1 |\n-- |          3 |         4 | Madu Hutan  |        60000 |      1 |\n-- |          4 |         2 | Teh Melati  |        30000 |      1 |\n-- |          5 |         3 | Gula Aren   |        25000 |      4 |\n-- |          6 |         1 | Kopi Bubuk  |        50000 |      1 |\n-- |          6 |         2 | Teh Melati  |        30000 |      3 |\n-- +------------+-----------+-------------+--------------+--------+\nSELECT p.id, SUM(d.harga_satuan * d.jumlah) + p.ongkir AS total\nFROM pesanan p\nJOIN detail_pesanan d ON d.pesanan_id = p.id\nWHERE p.pelanggan_id = 1\n___ BY p.id, p.ongkir, p.dibuat_pada\nORDER BY p.dibuat_pada ___, p.id DESC\n___ 2 OFFSET 0;",
+      "answers": [
+        "GROUP|group|Group",
+        "DESC|desc|Desc",
+        "LIMIT|limit|Limit"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Daftar pesanan memakai JOIN detail_pesanan + GROUP BY per pesanan.",
+        "SUM(jumlah) menghitung bungkus, COUNT(*) menghitung jenis barang.",
+        "Status diambil dari pesanan.status, bukan JOIN ke riwayat, supaya SUM tidak berlipat.",
+        "Halaman: ORDER BY yang pasti + LIMIT n OFFSET (halaman - 1) × n.",
+        "Index pesanan (pelanggan_id, dibuat_pada) membuat daftar pesanan tetap cepat."
+      ]
+    }
+  ]
+}

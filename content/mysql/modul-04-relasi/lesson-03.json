@@ -1,0 +1,113 @@
+{
+  "id": "mysql-relasi-03",
+  "moduleId": "mysql-relasi",
+  "order": 3,
+  "title": "ON DELETE dan ON UPDATE",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di pelajaran sebelumnya, MySQL **menolak** menghapus pelanggan yang masih punya pesanan. Itu perilaku bawaan. Tapi kadang kita ingin hal lain:\n\n- Pesanan dihapus? Semua detail barangnya sebaiknya **ikut terhapus**.\n- Kategori \"Promo\" dihapus? Produknya jangan ikut hilang, cukup **dilepas** dari kategori itu.\n\nPerilaku ini diatur dengan `ON DELETE` (saat induk dihapus) dan `ON UPDATE` (saat primary key induk diubah).\n\nBayangkan map berisi lembaran nota. Kalau map dibuang, lembaran di dalamnya ikut terbuang (**CASCADE**). Lain halnya dengan rak buku berlabel \"Novel\". Kalau labelnya dicopot, bukunya tetap ada, hanya tidak berlabel lagi (**SET NULL**). Dan untuk arsip penting, petugas menolak membuang map selama isinya belum dipindahkan (**RESTRICT**)."
+    },
+    {
+      "type": "theory",
+      "content": "Aturannya ditulis di belakang `REFERENCES`:\n\n```sql\nFOREIGN KEY (pesanan_id) REFERENCES pesanan (id)\n  ON DELETE CASCADE\n  ON UPDATE CASCADE\n```\n\n| Pilihan | Saat baris induk dihapus/diubah | Cocok untuk |\n|---|---|---|\n| `RESTRICT` / `NO ACTION` | ditolak selama masih ada anak | data penting: pelanggan → pesanan |\n| `CASCADE` | anak ikut dihapus/diubah | bagian dari induk: pesanan → detail |\n| `SET NULL` | kolom foreign key di anak menjadi NULL | hubungan opsional: kategori → produk |\n\nKalau `ON DELETE` tidak ditulis, MySQL memakai `NO ACTION`, yang di InnoDB sama dengan `RESTRICT`. Jadi tidak menulis apa-apa berarti **menolak**.\n\nDiagram toko di bawah memberi label aturan hapus pada setiap garis relasi:\n\n![ERD toko dengan aturan hapus di setiap garis relasi: pelanggan ke pesanan RESTRICT, pesanan ke detail_pesanan CASCADE, produk ke detail_pesanan RESTRICT, kategori ke produk SET NULL](images/mysql/relasi-aturan-hapus.svg)\n\nDua catatan penting:\n\n- `SET NULL` hanya bisa dipakai kalau kolomnya **boleh NULL**. Pada kolom `NOT NULL`, MySQL menolak membuat foreign key-nya.\n- `ON UPDATE CASCADE` berguna kalau primary key induk bisa berubah, misalnya kode kategori. Kalau primary key berupa nomor urut yang tidak pernah diubah, aturan ini jarang terpakai."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**CASCADE**: detail pesanan ikut terhapus saat pesanannya dihapus.\n\n```sql\nCREATE TABLE pesanan (\n  id INT PRIMARY KEY,\n  tanggal DATE NOT NULL\n);\nCREATE TABLE detail_pesanan (\n  pesanan_id INT,\n  produk VARCHAR(30),\n  jumlah INT NOT NULL,\n  PRIMARY KEY (pesanan_id, produk),\n  FOREIGN KEY (pesanan_id) REFERENCES pesanan (id)\n    ON DELETE CASCADE\n);\nINSERT INTO pesanan VALUES (101, '2024-05-01'), (102, '2024-05-02');\nINSERT INTO detail_pesanan VALUES\n  (101, 'Kopi Susu', 2),\n  (101, 'Roti Bakar', 1),\n  (102, 'Teh Manis', 3);\n```\n\n```sql\nDELETE FROM pesanan WHERE id = 101;\nSELECT * FROM detail_pesanan;\n```\n\nHasilnya:\n\n```text\n+------------+-----------+--------+\n| pesanan_id | produk    | jumlah |\n+------------+-----------+--------+\n|        102 | Teh Manis |      3 |\n+------------+-----------+--------+\n1 row in set\n```\n\nDua baris detail milik pesanan 101 ikut hilang tanpa perlu DELETE terpisah.\n\n### Contoh kedua\n\n**SET NULL**: produk tetap ada saat kategorinya dihapus.\n\n```sql\nCREATE TABLE kategori (\n  id INT PRIMARY KEY,\n  nama VARCHAR(30) NOT NULL\n);\nCREATE TABLE produk (\n  id INT PRIMARY KEY,\n  nama VARCHAR(30) NOT NULL,\n  kategori_id INT,\n  FOREIGN KEY (kategori_id) REFERENCES kategori (id)\n    ON DELETE SET NULL\n    ON UPDATE CASCADE\n);\nINSERT INTO kategori VALUES (1, 'Minuman'), (2, 'Makanan');\nINSERT INTO produk VALUES\n  (1, 'Kopi Susu', 1),\n  (2, 'Teh Manis', 1),\n  (3, 'Roti Bakar', 2);\n```\n\n```sql\nDELETE FROM kategori WHERE id = 1;\nSELECT * FROM produk;\n```\n\nHasilnya:\n\n```text\n+----+------------+-------------+\n| id | nama       | kategori_id |\n+----+------------+-------------+\n|  1 | Kopi Susu  |        NULL |\n|  2 | Teh Manis  |        NULL |\n|  3 | Roti Bakar |           2 |\n+----+------------+-------------+\n3 rows in set\n```\n\nKopi Susu dan Teh Manis tidak terhapus. Kolom `kategori_id` mereka menjadi NULL, artinya \"belum punya kategori\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memasang CASCADE pada data yang harus disimpan**\n\nSalah:\n\n```sql\nFOREIGN KEY (pelanggan_id) REFERENCES pelanggan (id)\n  ON DELETE CASCADE\n```\n\nBenar:\n\n```sql\nFOREIGN KEY (pelanggan_id) REFERENCES pelanggan (id)\n  ON DELETE RESTRICT\n```\n\nDengan CASCADE, menghapus satu pelanggan ikut menghapus seluruh riwayat pesanannya, termasuk catatan penjualan toko. Untuk data penting, biarkan MySQL menolak.\n\n**2. Memakai SET NULL pada kolom NOT NULL**\n\nSalah:\n\n```sql\nkategori_id INT NOT NULL,\nFOREIGN KEY (kategori_id) REFERENCES kategori (id)\n  ON DELETE SET NULL\n```\n\nBenar:\n\n```sql\nkategori_id INT,\nFOREIGN KEY (kategori_id) REFERENCES kategori (id)\n  ON DELETE SET NULL\n```\n\nSET NULL berarti mengisi NULL, padahal kolomnya dilarang NULL. MySQL menolak membuat foreign key seperti ini, jadi buang NOT NULL-nya.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Detail pesanan tidak ada artinya tanpa pesanannya. Aturan apa yang paling cocok untuk detail_pesanan.pesanan_id?",
+          "options": [
+            "ON DELETE SET NULL",
+            "ON DELETE CASCADE",
+            "ON DELETE RESTRICT",
+            "Tidak perlu foreign key"
+          ],
+          "answer": 1,
+          "explanation": "Detail adalah bagian dari pesanan. Saat pesanan dihapus, detailnya memang harus ikut terhapus.",
+          "remedial": "- `ON DELETE` = apa yang terjadi pada anak saat induk dihapus. `ON UPDATE` = saat primary key induk diubah.\n- **RESTRICT / NO ACTION** (bawaan): ditolak selama masih ada anak.\n- **CASCADE**: anak ikut terhapus/berubah. Cocok untuk detail pesanan.\n- **SET NULL**: foreign key anak menjadi NULL. Kolomnya harus boleh NULL."
+        },
+        {
+          "question": "Apa hasil query terakhir?",
+          "code": "-- produk.kategori_id: FOREIGN KEY ke kategori(id) ON DELETE SET NULL ON UPDATE CASCADE\n-- Tabel kategori:\n-- +----+---------+\n-- | id | nama    |\n-- +----+---------+\n-- |  1 | Minuman |\n-- |  2 | Makanan |\n-- +----+---------+\n\n-- Tabel produk:\n-- +----+------------+-------------+\n-- | id | nama       | kategori_id |\n-- +----+------------+-------------+\n-- |  1 | Kopi Susu  |           1 |\n-- |  2 | Teh Manis  |           1 |\n-- |  3 | Roti Bakar |           2 |\n-- +----+------------+-------------+\nDELETE FROM kategori WHERE id = 2;\nSELECT nama FROM produk WHERE kategori_id IS NULL;",
+          "options": [
+            "Kopi Susu, Teh Manis",
+            "Empty set",
+            "Error, kategori masih dipakai",
+            "Roti Bakar"
+          ],
+          "answer": 3,
+          "explanation": "Kategori 2 (Makanan) dipakai Roti Bakar. Dengan SET NULL, Roti Bakar tetap ada dan kategori_id-nya menjadi NULL.",
+          "remedial": "- `ON DELETE` = apa yang terjadi pada anak saat induk dihapus. `ON UPDATE` = saat primary key induk diubah.\n- **RESTRICT / NO ACTION** (bawaan): ditolak selama masih ada anak.\n- **CASCADE**: anak ikut terhapus/berubah. Cocok untuk detail pesanan.\n- **SET NULL**: foreign key anak menjadi NULL. Kolomnya harus boleh NULL."
+        },
+        {
+          "question": "Apa hasil query terakhir?",
+          "code": "-- produk.kategori_id: FOREIGN KEY ke kategori(id) ON DELETE SET NULL ON UPDATE CASCADE\n-- Tabel kategori:\n-- +----+---------+\n-- | id | nama    |\n-- +----+---------+\n-- |  1 | Minuman |\n-- |  2 | Makanan |\n-- +----+---------+\n\n-- Tabel produk:\n-- +----+------------+-------------+\n-- | id | nama       | kategori_id |\n-- +----+------------+-------------+\n-- |  1 | Kopi Susu  |           1 |\n-- |  2 | Teh Manis  |           1 |\n-- |  3 | Roti Bakar |           2 |\n-- +----+------------+-------------+\nUPDATE kategori SET id = 10 WHERE id = 1;\nSELECT kategori_id FROM produk WHERE nama = 'Kopi Susu';",
+          "options": [
+            "1",
+            "NULL",
+            "10",
+            "Error, id kategori masih dipakai"
+          ],
+          "answer": 2,
+          "explanation": "ON UPDATE CASCADE ikut mengubah kategori_id di produk dari 1 menjadi 10.",
+          "remedial": "- `ON DELETE` = apa yang terjadi pada anak saat induk dihapus. `ON UPDATE` = saat primary key induk diubah.\n- **RESTRICT / NO ACTION** (bawaan): ditolak selama masih ada anak.\n- **CASCADE**: anak ikut terhapus/berubah. Cocok untuk detail pesanan.\n- **SET NULL**: foreign key anak menjadi NULL. Kolomnya harus boleh NULL."
+        },
+        {
+          "question": "Kalau sebuah foreign key ditulis tanpa ON DELETE, apa yang terjadi saat baris induk yang masih dipakai dihapus?",
+          "options": [
+            "Anak ikut terhapus",
+            "Foreign key di anak menjadi NULL",
+            "Induk terhapus, anak dibiarkan",
+            "Penghapusan ditolak"
+          ],
+          "answer": 3,
+          "explanation": "Bawaannya NO ACTION, yang di InnoDB bekerja seperti RESTRICT: penghapusan ditolak.",
+          "remedial": "- `ON DELETE` = apa yang terjadi pada anak saat induk dihapus. `ON UPDATE` = saat primary key induk diubah.\n- **RESTRICT / NO ACTION** (bawaan): ditolak selama masih ada anak.\n- **CASCADE**: anak ikut terhapus/berubah. Cocok untuk detail pesanan.\n- **SET NULL**: foreign key anak menjadi NULL. Kolomnya harus boleh NULL."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query terakhir?",
+      "code": "-- detail_pesanan.pesanan_id: FOREIGN KEY ke pesanan(id) ON DELETE CASCADE\n-- Tabel pesanan:\n-- +-----+------------+\n-- | id  | tanggal    |\n-- +-----+------------+\n-- | 101 | 2024-05-01 |\n-- | 102 | 2024-05-02 |\n-- +-----+------------+\n\n-- Tabel detail_pesanan:\n-- +------------+------------+--------+\n-- | pesanan_id | produk     | jumlah |\n-- +------------+------------+--------+\n-- |        101 | Kopi Susu  |      2 |\n-- |        101 | Roti Bakar |      1 |\n-- |        102 | Teh Manis  |      3 |\n-- +------------+------------+--------+\nDELETE FROM pesanan WHERE id = 102;\nSELECT COUNT(*) FROM detail_pesanan;",
+      "options": [
+        "2",
+        "3",
+        "1",
+        "Error, pesanan masih punya detail"
+      ],
+      "answer": 0,
+      "explanation": "Pesanan 102 punya satu baris detail (Teh Manis). CASCADE ikut menghapusnya, jadi dari 3 baris tersisa 2."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Saat pesanan dihapus, semua detailnya ikut terhapus\nCREATE TABLE detail_pesanan (\n  pesanan_id INT,\n  produk VARCHAR(30),\n  jumlah INT NOT NULL,\n  PRIMARY KEY (pesanan_id, produk),\n  FOREIGN KEY (pesanan_id) REFERENCES pesanan (id)\n    ON ___ ___\n);",
+      "answers": [
+        "DELETE|delete|Delete",
+        "CASCADE|cascade|Cascade"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "ON DELETE dan ON UPDATE mengatur nasib baris anak saat induk dihapus atau diubah.",
+        "Tanpa aturan, MySQL menolak (NO ACTION, sama dengan RESTRICT).",
+        "CASCADE ikut menghapus anak: cocok untuk detail pesanan.",
+        "SET NULL melepas anak dari induknya; kolomnya harus boleh NULL.",
+        "Jangan pasang CASCADE pada data yang harus disimpan, seperti riwayat pesanan."
+      ]
+    }
+  ]
+}

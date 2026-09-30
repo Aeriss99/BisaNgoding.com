@@ -1,0 +1,112 @@
+{
+  "id": "desain-musik-03",
+  "moduleId": "desain-musik",
+  "order": 3,
+  "title": "Pengguna, Playlist, dan Lagu Favorit",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Katalog sudah jadi. Sekarang sisi pengguna: **playlist** dan **lagu yang disukai**.\n\nKeduanya sama-sama hubungan many-to-many dengan lagu, tapi sifatnya berbeda. Playlist butuh **urutan**. Tombol suka butuh jaminan bahwa satu pengguna **tidak bisa menyukai lagu yang sama dua kali**.\n\nPlaylist itu seperti daftar lagu yang kamu tulis untuk karaoke bersama teman: urutannya penting, lagu nomor 1 dinyanyikan duluan.\n\nTombol suka itu seperti cap hati di buku lagu. Satu lagu cukup dicap sekali. Menekan tombolnya lagi bukan menambah cap kedua, tapi **menghapus** cap itu."
+    },
+    {
+      "type": "theory",
+      "content": "![ERD pengguna, playlist, playlist_lagu, suka_lagu, dan lagu](images/mysql/musik-pengguna.svg)\n\n```sql\nCREATE TABLE pengguna (\n  id    INT AUTO_INCREMENT PRIMARY KEY,\n  nama  VARCHAR(100) NOT NULL,\n  email VARCHAR(150) NOT NULL UNIQUE\n);\n\nCREATE TABLE playlist (\n  id          INT AUTO_INCREMENT PRIMARY KEY,\n  pengguna_id INT NOT NULL,\n  nama        VARCHAR(100) NOT NULL,\n  FOREIGN KEY (pengguna_id) REFERENCES pengguna(id)\n);\n\nCREATE TABLE playlist_lagu (\n  playlist_id INT NOT NULL,\n  lagu_id     INT NOT NULL,\n  urutan      INT NOT NULL,\n  PRIMARY KEY (playlist_id, lagu_id),\n  FOREIGN KEY (playlist_id) REFERENCES playlist(id) ON DELETE CASCADE,\n  FOREIGN KEY (lagu_id) REFERENCES lagu(id)\n);\n\nCREATE TABLE suka_lagu (\n  pengguna_id  INT NOT NULL,\n  lagu_id      INT NOT NULL,\n  disukai_pada DATETIME NOT NULL,\n  PRIMARY KEY (pengguna_id, lagu_id),\n  FOREIGN KEY (pengguna_id) REFERENCES pengguna(id),\n  FOREIGN KEY (lagu_id) REFERENCES lagu(id)\n);\n```\n\nKeputusan desainnya:\n\n| Keputusan | Pilihan kita | Akibatnya |\n|---|---|---|\n| Primary key `playlist_lagu` | `(playlist_id, lagu_id)` | lagu yang sama tidak bisa masuk dua kali di satu playlist |\n| Urutan lagu | kolom `urutan` | memindah posisi lagu = `UPDATE` kolom urutan |\n| Primary key `suka_lagu` | `(pengguna_id, lagu_id)` | tidak bisa menyukai lagu yang sama dua kali |\n| Hapus playlist | `ON DELETE CASCADE` | isi playlist ikut terhapus, lagunya tetap ada di katalog |\n\nPilihan pertama adalah keputusan bisnis. Kalau aplikasimu **mengizinkan** lagu yang sama muncul dua kali di satu playlist, primary key-nya diganti menjadi `(playlist_id, urutan)`. Tidak ada jawaban yang selalu benar, yang penting kamu memilih dengan sadar.\n\nMembatalkan suka cukup dengan menghapus barisnya:\n\n```sql\nDELETE FROM suka_lagu WHERE pengguna_id = 1 AND lagu_id = 4;\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nData katalog sama dengan pelajaran sebelumnya. Budi (pengguna 1) punya playlist **Teman Kerja** (playlist 1). Isi tabel `playlist_lagu` sengaja dimasukkan tidak berurutan:\n\n| playlist_id | lagu_id | urutan |\n|---|---|---|\n| 1 | 1 | 2 |\n| 1 | 4 | 1 |\n| 1 | 5 | 3 |\n\nQuery pertama menampilkan isi playlist sesuai urutan. Query kedua menampilkan lagu yang disukai Budi, yang terbaru dulu. Query ketiga menghitung berapa orang yang menyukai setiap lagu.\n\n```sql\nSELECT pl.urutan, l.judul\nFROM playlist_lagu pl\nJOIN lagu l ON l.id = pl.lagu_id\nWHERE pl.playlist_id = 1\nORDER BY pl.urutan;\n\nSELECT l.judul, s.disukai_pada\nFROM suka_lagu s\nJOIN lagu l ON l.id = s.lagu_id\nWHERE s.pengguna_id = 1\nORDER BY s.disukai_pada DESC;\n\nSELECT l.judul, COUNT(*) AS jumlah_suka\nFROM suka_lagu s\nJOIN lagu l ON l.id = s.lagu_id\nGROUP BY l.id, l.judul\nORDER BY jumlah_suka DESC, l.judul;\n```\n\nHasilnya:\n\n```text\n+--------+----------------+\n| urutan | judul          |\n+--------+----------------+\n|      1 | Rumah          |\n|      2 | Hujan di Braga |\n|      3 | Sampai Nanti   |\n+--------+----------------+\n3 rows in set\n\n+----------------+---------------------+\n| judul          | disukai_pada        |\n+----------------+---------------------+\n| Rumah          | 2026-09-03 21:00:00 |\n| Hujan di Braga | 2026-09-01 07:10:00 |\n+----------------+---------------------+\n2 rows in set\n\n+----------------+-------------+\n| judul          | jumlah_suka |\n+----------------+-------------+\n| Hujan di Braga |           3 |\n| Jalan Pulang   |           1 |\n| Rumah          |           1 |\n+----------------+-------------+\n3 rows in set\n```\n\nUrutan di layar berasal dari kolom `urutan`, bukan dari urutan baris disimpan. Karena primary key `suka_lagu` menjamin satu baris per pengguna per lagu, `COUNT(*)` di query ketiga benar-benar berarti \"jumlah orang yang menyukai\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memberi id sendiri pada suka_lagu tanpa primary key gabungan**\n\nSalah:\n\n```sql\nCREATE TABLE suka_lagu (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  pengguna_id INT NOT NULL,\n  lagu_id INT NOT NULL\n);\n```\n\nBenar:\n\n```sql\nCREATE TABLE suka_lagu (\n  pengguna_id INT NOT NULL,\n  lagu_id INT NOT NULL,\n  PRIMARY KEY (pengguna_id, lagu_id)\n);\n```\n\nKalau tombol hati tertekan dua kali (misalnya karena jaringan lambat), desain pertama menyimpan dua baris dan jumlah suka jadi salah. Primary key gabungan membuat database sendiri yang menolak baris kembar.\n\n**2. Lupa ORDER BY saat menampilkan playlist**\n\nSalah:\n\n```sql\nSELECT lagu_id FROM playlist_lagu WHERE playlist_id = 1;\n```\n\nBenar:\n\n```sql\nSELECT lagu_id FROM playlist_lagu WHERE playlist_id = 1\nORDER BY urutan;\n```\n\nTanpa ORDER BY, database tidak menjanjikan urutan apa pun. Hari ini mungkin kebetulan benar, besok bisa berbeda.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Tabel suka_lagu punya PRIMARY KEY (pengguna_id, lagu_id). Apa yang terjadi saat INSERT ini dijalankan?",
+          "code": "-- Tabel suka_lagu:\n-- +-------------+---------+--------------+\n-- | pengguna_id | lagu_id | disukai_pada |\n-- +-------------+---------+--------------+\n-- |           1 |       2 | 2026-09-03   |\n-- |           1 |       4 | 2026-09-01   |\n-- |           2 |       4 | 2026-09-02   |\n-- |           3 |       1 | 2026-09-06   |\n-- |           3 |       4 | 2026-09-05   |\n-- +-------------+---------+--------------+\nINSERT INTO suka_lagu VALUES (1, 4, '2026-09-10');",
+          "options": [
+            "Ditolak dengan error duplikat, karena pengguna 1 sudah menyukai lagu 4",
+            "Berhasil, karena tanggalnya berbeda",
+            "Berhasil, dan baris lama tertimpa",
+            "Berhasil, jumlah suka lagu 4 menjadi 4"
+          ],
+          "answer": 0,
+          "explanation": "Pasangan (1, 4) sudah ada. Tanggal yang berbeda tidak berpengaruh karena bukan bagian dari primary key.",
+          "remedial": "- `playlist_lagu (playlist_id, lagu_id, urutan)` → isi playlist, tampilkan dengan `ORDER BY urutan`.\n- Primary key `(playlist_id, lagu_id)` → lagu yang sama tidak bisa dua kali di satu playlist.\n- `suka_lagu` dengan primary key `(pengguna_id, lagu_id)` → tidak bisa suka dua kali. INSERT kedua ditolak.\n- Batal suka = `DELETE` barisnya.\n- `ON DELETE CASCADE` di playlist_lagu → hapus playlist, isinya ikut terhapus, lagunya tetap ada."
+        },
+        {
+          "question": "Apa akibat memilih PRIMARY KEY (playlist_id, lagu_id) untuk tabel playlist_lagu?",
+          "options": [
+            "Lagu yang sama tidak bisa masuk dua kali di satu playlist",
+            "Satu lagu hanya boleh ada di satu playlist",
+            "Satu playlist hanya boleh berisi satu lagu",
+            "Urutan lagu otomatis terisi"
+          ],
+          "answer": 0,
+          "explanation": "Yang unik adalah pasangannya. Lagu 4 tetap boleh ada di playlist 1 dan playlist 2.",
+          "remedial": "- `playlist_lagu (playlist_id, lagu_id, urutan)` → isi playlist, tampilkan dengan `ORDER BY urutan`.\n- Primary key `(playlist_id, lagu_id)` → lagu yang sama tidak bisa dua kali di satu playlist.\n- `suka_lagu` dengan primary key `(pengguna_id, lagu_id)` → tidak bisa suka dua kali. INSERT kedua ditolak.\n- Batal suka = `DELETE` barisnya.\n- `ON DELETE CASCADE` di playlist_lagu → hapus playlist, isinya ikut terhapus, lagunya tetap ada."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel suka_lagu:\n-- +-------------+---------+--------------+\n-- | pengguna_id | lagu_id | disukai_pada |\n-- +-------------+---------+--------------+\n-- |           1 |       2 | 2026-09-03   |\n-- |           1 |       4 | 2026-09-01   |\n-- |           2 |       4 | 2026-09-02   |\n-- |           3 |       1 | 2026-09-06   |\n-- |           3 |       4 | 2026-09-05   |\n-- +-------------+---------+--------------+\nSELECT lagu_id FROM suka_lagu\nGROUP BY lagu_id\nORDER BY COUNT(*) DESC\nLIMIT 1;",
+          "options": [
+            "4",
+            "1",
+            "2",
+            "3"
+          ],
+          "answer": 0,
+          "explanation": "Lagu 4 disukai tiga pengguna (1, 2, dan 3), paling banyak dibanding lagu lain.",
+          "remedial": "- `playlist_lagu (playlist_id, lagu_id, urutan)` → isi playlist, tampilkan dengan `ORDER BY urutan`.\n- Primary key `(playlist_id, lagu_id)` → lagu yang sama tidak bisa dua kali di satu playlist.\n- `suka_lagu` dengan primary key `(pengguna_id, lagu_id)` → tidak bisa suka dua kali. INSERT kedua ditolak.\n- Batal suka = `DELETE` barisnya.\n- `ON DELETE CASCADE` di playlist_lagu → hapus playlist, isinya ikut terhapus, lagunya tetap ada."
+        },
+        {
+          "question": "Kolom playlist_id di playlist_lagu memakai ON DELETE CASCADE. Apa yang terjadi saat Budi menghapus playlist-nya?",
+          "options": [
+            "Baris isi playlist ikut terhapus, lagunya tetap ada di tabel lagu",
+            "Semua lagu di playlist itu ikut terhapus dari katalog",
+            "Playlist tidak bisa dihapus selama masih ada isinya",
+            "Isi playlist pindah ke playlist lain"
+          ],
+          "answer": 0,
+          "explanation": "CASCADE hanya menghapus baris anak di playlist_lagu. Tabel lagu tidak disentuh.",
+          "remedial": "- `playlist_lagu (playlist_id, lagu_id, urutan)` → isi playlist, tampilkan dengan `ORDER BY urutan`.\n- Primary key `(playlist_id, lagu_id)` → lagu yang sama tidak bisa dua kali di satu playlist.\n- `suka_lagu` dengan primary key `(pengguna_id, lagu_id)` → tidak bisa suka dua kali. INSERT kedua ditolak.\n- Batal suka = `DELETE` barisnya.\n- `ON DELETE CASCADE` di playlist_lagu → hapus playlist, isinya ikut terhapus, lagunya tetap ada."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel lagu:\n-- +----+----------------+\n-- | id | judul          |\n-- +----+----------------+\n-- |  1 | Hujan di Braga |\n-- |  2 | Kopi Pagi      |\n-- |  3 | Jalan Pulang   |\n-- |  4 | Rumah          |\n-- |  5 | Sampai Nanti   |\n-- +----+----------------+\n\n-- Tabel playlist_lagu:\n-- +-------------+---------+--------+\n-- | playlist_id | lagu_id | urutan |\n-- +-------------+---------+--------+\n-- |           1 |       1 |      2 |\n-- |           1 |       4 |      1 |\n-- |           1 |       5 |      3 |\n-- |           2 |       2 |      1 |\n-- |           2 |       3 |      2 |\n-- +-------------+---------+--------+\nSELECT l.judul\nFROM playlist_lagu pl\nJOIN lagu l ON l.id = pl.lagu_id\nWHERE pl.playlist_id = 1\nORDER BY pl.urutan;",
+      "options": [
+        "Rumah, Hujan di Braga, Sampai Nanti",
+        "Hujan di Braga, Sampai Nanti, Rumah",
+        "Hujan di Braga, Rumah, Sampai Nanti",
+        "Sampai Nanti, Rumah, Hujan di Braga"
+      ],
+      "answer": 0,
+      "explanation": "Diurutkan menurut kolom urutan: Rumah (1), Hujan di Braga (2), Sampai Nanti (3)."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Budi (pengguna 1) membatalkan suka pada lagu 4, lalu melihat sisa lagu yang ia sukai\n-- Tabel suka_lagu:\n-- +-------------+---------+--------------+\n-- | pengguna_id | lagu_id | disukai_pada |\n-- +-------------+---------+--------------+\n-- |           1 |       2 | 2026-09-03   |\n-- |           1 |       4 | 2026-09-01   |\n-- |           2 |       4 | 2026-09-02   |\n-- |           3 |       1 | 2026-09-06   |\n-- |           3 |       4 | 2026-09-05   |\n-- +-------------+---------+--------------+\n___ FROM suka_lagu\nWHERE pengguna_id = 1 AND lagu_id = 4;\n\nSELECT lagu_id FROM suka_lagu WHERE pengguna_id = 1;",
+      "answers": [
+        "DELETE|delete|Delete"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Playlist disimpan di playlist_lagu dengan kolom urutan, tampilkan dengan ORDER BY urutan.",
+        "Primary key gabungan di suka_lagu membuat database menolak suka dua kali.",
+        "Membatalkan suka cukup dengan DELETE barisnya.",
+        "ON DELETE CASCADE menghapus isi playlist tanpa menyentuh katalog lagu.",
+        "Boleh tidaknya lagu kembar di playlist adalah keputusan bisnis yang menentukan primary key."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "id": "mysql-transaksi-01",
+  "moduleId": "mysql-transaksi",
+  "order": 1,
+  "title": "Transaksi: Semua atau Tidak Sama Sekali",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Budi mentransfer Rp100.000 ke Sari. Bagi database, pekerjaan ini terdiri dari **dua langkah**:\n\n1. kurangi saldo Budi Rp100.000\n2. tambah saldo Sari Rp100.000\n\nSekarang bayangkan listrik server padam tepat setelah langkah 1. Saldo Budi sudah berkurang, tapi saldo Sari belum bertambah. Uang Rp100.000 hilang begitu saja.\n\nUntuk mencegah hal seperti ini, database punya **transaksi**: sekumpulan langkah yang diperlakukan sebagai **satu kesatuan**. Hasilnya hanya dua kemungkinan: semua langkah tersimpan, atau tidak ada satu pun yang tersimpan.\n\nBayangkan belanja di kasir. Kasir memindai barang satu per satu, tapi belanjaan belum jadi milikmu sampai pembayaran berhasil. Kalau kartumu ditolak, semua barang dikembalikan ke rak. Tidak ada cerita \"setengah belanjaan terbeli\"."
+    },
+    {
+      "type": "theory",
+      "content": "Tiga perintah dasar transaksi:\n\n| Perintah | Artinya |\n|---|---|\n| `START TRANSACTION` | mulai transaksi (boleh juga ditulis `BEGIN`) |\n| `COMMIT` | simpan semua perubahan secara permanen |\n| `ROLLBACK` | batalkan semua perubahan sejak transaksi dimulai |\n\nTransfer saldo yang aman ditulis seperti ini:\n\n```sql\nSTART TRANSACTION;\nUPDATE rekening SET saldo = saldo - 100000 WHERE id = 1;\nUPDATE rekening SET saldo = saldo + 100000 WHERE id = 2;\nCOMMIT;\n```\n\n```mermaid\nflowchart LR\n  A[START TRANSACTION] --> B[Langkah 1]\n  B --> C[Langkah 2]\n  C --> D{Semua berhasil?}\n  D -- Ya --> E[COMMIT: simpan]\n  D -- Tidak --> F[ROLLBACK: batalkan]\n```\n\n**Autocommit.** Selama ini kamu menjalankan `UPDATE` tanpa `START TRANSACTION`, dan datanya langsung tersimpan. Itu karena MySQL punya pengaturan **autocommit** yang menyala secara bawaan (nilainya `1`). Artinya setiap statement dianggap satu transaksi kecil yang langsung di-COMMIT.\n\n`START TRANSACTION` mematikan autocommit sementara, sampai kamu menulis `COMMIT` atau `ROLLBACK`. Kalau mau mematikannya untuk seluruh sesi, pakai `SET autocommit = 0;`. Setelah itu setiap perubahan harus di-COMMIT sendiri.\n\nSatu hal lagi: perintah yang mengubah struktur seperti `CREATE TABLE`, `ALTER TABLE`, `DROP TABLE`, dan `TRUNCATE` langsung melakukan COMMIT diam-diam (*implicit commit*). Perubahan data sebelumnya ikut tersimpan dan tidak bisa di-ROLLBACK lagi. Jadi jangan mencampur perintah seperti itu di tengah transaksi."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nIni tabel `rekening` yang dipakai di dua pelajaran pertama modul ini. Perhatikan aturan `CHECK`: saldo tidak boleh negatif.\n\nPertama, kita mulai transfer lalu **membatalkannya** dengan `ROLLBACK`. Setelah itu kita lihat isi tabel.\n\n```sql\nCREATE TABLE rekening (\n  id INT PRIMARY KEY,\n  nama VARCHAR(30) NOT NULL,\n  saldo DECIMAL(12,0) NOT NULL,\n  CONSTRAINT saldo_tidak_negatif CHECK (saldo >= 0)\n);\nINSERT INTO rekening VALUES\n  (1, 'Budi', 500000),\n  (2, 'Sari', 200000),\n  (3, 'Dewi', 150000);\n```\n\n```sql\nSTART TRANSACTION;                                         -- mulai\nUPDATE rekening SET saldo = saldo - 100000 WHERE id = 1;   -- saldo Budi berkurang\nUPDATE rekening SET saldo = saldo + 100000 WHERE id = 2;   -- saldo Sari bertambah\nROLLBACK;                                                  -- batalkan semuanya\nSELECT * FROM rekening;\n```\n\nHasilnya:\n\n```text\n+----+------+--------+\n| id | nama | saldo  |\n+----+------+--------+\n|  1 | Budi | 500000 |\n|  2 | Sari | 200000 |\n|  3 | Dewi | 150000 |\n+----+------+--------+\n3 rows in set\n```\n\nSaldo Budi tetap 500000 dan saldo Sari tetap 200000. Kedua UPDATE dibatalkan sekaligus, seolah tidak pernah terjadi.\n\nSekarang transfer yang sama, tapi diakhiri `COMMIT`:\n\n```sql\nSTART TRANSACTION;                                         -- mulai\nUPDATE rekening SET saldo = saldo - 100000 WHERE id = 1;   -- saldo Budi berkurang\nUPDATE rekening SET saldo = saldo + 100000 WHERE id = 2;   -- saldo Sari bertambah\nCOMMIT;                                                    -- simpan permanen\nSELECT * FROM rekening;\n```\n\nHasilnya:\n\n```text\n+----+------+--------+\n| id | nama | saldo  |\n+----+------+--------+\n|  1 | Budi | 400000 |\n|  2 | Sari | 300000 |\n|  3 | Dewi | 150000 |\n+----+------+--------+\n3 rows in set\n```\n\nKali ini kedua perubahan tersimpan bersama. Kalau sudah memasang MySQL, kamu bisa mencoba keduanya sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa menulis COMMIT**\n\nSalah:\n\n```sql\nSTART TRANSACTION;\nUPDATE rekening SET saldo = saldo - 100000 WHERE id = 1;\nUPDATE rekening SET saldo = saldo + 100000 WHERE id = 2;\n-- aplikasi selesai, koneksi ditutup\n```\n\nBenar:\n\n```sql\nSTART TRANSACTION;\nUPDATE rekening SET saldo = saldo - 100000 WHERE id = 1;\nUPDATE rekening SET saldo = saldo + 100000 WHERE id = 2;\nCOMMIT;\n```\n\nTransaksi yang belum di-COMMIT dibatalkan otomatis saat koneksi terputus. Semua kerja keras tadi hilang.\n\n**2. ROLLBACK tanpa START TRANSACTION**\n\nSalah:\n\n```sql\nUPDATE rekening SET saldo = 0 WHERE id = 3;\nROLLBACK;   -- berharap saldo Dewi kembali\n```\n\nBenar:\n\n```sql\nSTART TRANSACTION;\nUPDATE rekening SET saldo = 0 WHERE id = 3;\nROLLBACK;\n```\n\nDengan autocommit menyala, UPDATE pertama langsung tersimpan. ROLLBACK sesudahnya tidak punya apa-apa untuk dibatalkan.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dilakukan `ROLLBACK`?",
+          "options": [
+            "Menyimpan semua perubahan secara permanen",
+            "Membatalkan semua perubahan sejak transaksi dimulai",
+            "Membatalkan hanya perubahan terakhir",
+            "Menghapus tabel yang dibuat di dalam transaksi"
+          ],
+          "answer": 1,
+          "explanation": "ROLLBACK membatalkan seluruh perubahan di transaksi itu, bukan cuma yang terakhir.",
+          "remedial": "- **Transaksi** = beberapa langkah yang dianggap satu kesatuan: semua tersimpan atau semua batal.\n- `START TRANSACTION` (atau `BEGIN`) → mulai\n- `COMMIT` → simpan permanen\n- `ROLLBACK` → batalkan semua perubahan sejak mulai\n- **Autocommit** menyala secara bawaan: tanpa `START TRANSACTION`, setiap statement langsung tersimpan dan tidak bisa di-ROLLBACK."
+        },
+        {
+          "question": "Berapa saldo Sari yang tampil?",
+          "code": "-- Tabel rekening:\n-- +----+------+--------+\n-- | id | nama | saldo  |\n-- +----+------+--------+\n-- |  1 | Budi | 500000 |\n-- |  2 | Sari | 200000 |\n-- |  3 | Dewi | 150000 |\n-- +----+------+--------+\nSTART TRANSACTION;                                         -- mulai\nUPDATE rekening SET saldo = saldo + 50000 WHERE id = 2;    -- tambah saldo Sari\nROLLBACK;                                                  -- batal\nSELECT saldo FROM rekening WHERE id = 2;",
+          "options": [
+            "250000",
+            "200000",
+            "50000",
+            "150000"
+          ],
+          "answer": 1,
+          "explanation": "ROLLBACK membatalkan UPDATE, jadi saldo Sari kembali seperti semula: 200000.",
+          "remedial": "- **Transaksi** = beberapa langkah yang dianggap satu kesatuan: semua tersimpan atau semua batal.\n- `START TRANSACTION` (atau `BEGIN`) → mulai\n- `COMMIT` → simpan permanen\n- `ROLLBACK` → batalkan semua perubahan sejak mulai\n- **Autocommit** menyala secara bawaan: tanpa `START TRANSACTION`, setiap statement langsung tersimpan dan tidak bisa di-ROLLBACK."
+        },
+        {
+          "question": "Di MySQL, autocommit menyala secara bawaan. Apa artinya?",
+          "options": [
+            "Setiap statement langsung disimpan permanen, kecuali dijalankan di dalam START TRANSACTION",
+            "Semua perubahan disimpan otomatis setiap satu jam",
+            "MySQL otomatis menulis START TRANSACTION sebelum setiap query",
+            "Perubahan hanya tersimpan kalau kita menulis COMMIT"
+          ],
+          "answer": 0,
+          "explanation": "Dengan autocommit, setiap statement adalah transaksi kecil yang langsung di-COMMIT.",
+          "remedial": "- **Transaksi** = beberapa langkah yang dianggap satu kesatuan: semua tersimpan atau semua batal.\n- `START TRANSACTION` (atau `BEGIN`) → mulai\n- `COMMIT` → simpan permanen\n- `ROLLBACK` → batalkan semua perubahan sejak mulai\n- **Autocommit** menyala secara bawaan: tanpa `START TRANSACTION`, setiap statement langsung tersimpan dan tidak bisa di-ROLLBACK."
+        },
+        {
+          "question": "Berapa saldo Budi yang tampil?",
+          "code": "-- Tabel rekening:\n-- +----+------+--------+\n-- | id | nama | saldo  |\n-- +----+------+--------+\n-- |  1 | Budi | 500000 |\n-- |  2 | Sari | 200000 |\n-- |  3 | Dewi | 150000 |\n-- +----+------+--------+\nSTART TRANSACTION;                                         -- mulai\nUPDATE rekening SET saldo = saldo - 200000 WHERE id = 1;   -- kurangi saldo Budi\nCOMMIT;                                                    -- simpan\nSELECT saldo FROM rekening WHERE id = 1;",
+          "options": [
+            "500000",
+            "700000",
+            "300000",
+            "200000"
+          ],
+          "answer": 2,
+          "explanation": "Perubahan di-COMMIT, jadi saldo Budi tersimpan menjadi 500000 - 200000 = 300000.",
+          "remedial": "- **Transaksi** = beberapa langkah yang dianggap satu kesatuan: semua tersimpan atau semua batal.\n- `START TRANSACTION` (atau `BEGIN`) → mulai\n- `COMMIT` → simpan permanen\n- `ROLLBACK` → batalkan semua perubahan sejak mulai\n- **Autocommit** menyala secara bawaan: tanpa `START TRANSACTION`, setiap statement langsung tersimpan dan tidak bisa di-ROLLBACK."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Berapa saldo Dewi yang tampil? (autocommit menyala)",
+      "code": "-- Tabel rekening:\n-- +----+------+--------+\n-- | id | nama | saldo  |\n-- +----+------+--------+\n-- |  1 | Budi | 500000 |\n-- |  2 | Sari | 200000 |\n-- |  3 | Dewi | 150000 |\n-- +----+------+--------+\nUPDATE rekening SET saldo = 0 WHERE id = 3;                -- tanpa START TRANSACTION\nROLLBACK;                                                  -- coba batalkan\nSELECT saldo FROM rekening WHERE id = 3;",
+      "options": [
+        "150000",
+        "0",
+        "NULL",
+        "Error karena tidak ada transaksi"
+      ],
+      "answer": 1,
+      "explanation": "Tanpa START TRANSACTION, UPDATE langsung di-COMMIT oleh autocommit. ROLLBACK tidak membatalkan apa pun dan juga tidak error, jadi saldo Dewi tetap 0."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Transfer aman: mulai transaksi, jalankan dua UPDATE, lalu simpan permanen\n-- Tabel rekening:\n-- +----+------+--------+\n-- | id | nama | saldo  |\n-- +----+------+--------+\n-- |  1 | Budi | 500000 |\n-- |  2 | Sari | 200000 |\n-- |  3 | Dewi | 150000 |\n-- +----+------+--------+\n___ TRANSACTION;\nUPDATE rekening SET saldo = saldo - 100000 WHERE id = 1;\nUPDATE rekening SET saldo = saldo + 100000 WHERE id = 2;\n___;\nSELECT * FROM rekening;",
+      "answers": [
+        "START|start|Start",
+        "COMMIT|commit|Commit"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Transaksi membuat beberapa langkah menjadi satu kesatuan: semua tersimpan atau semua batal.",
+        "START TRANSACTION memulai, COMMIT menyimpan, ROLLBACK membatalkan.",
+        "Autocommit menyala secara bawaan: tanpa transaksi, setiap statement langsung tersimpan.",
+        "Transaksi yang belum di-COMMIT dibatalkan saat koneksi terputus.",
+        "CREATE, ALTER, DROP, dan TRUNCATE melakukan COMMIT diam-diam."
+      ]
+    }
+  ]
+}

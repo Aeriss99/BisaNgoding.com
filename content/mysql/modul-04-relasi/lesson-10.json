@@ -1,0 +1,111 @@
+{
+  "id": "mysql-relasi-10",
+  "moduleId": "mysql-relasi",
+  "order": 10,
+  "title": "Index",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Bayangkan tabel `pesanan` berisi dua juta baris, lalu kamu menjalankan:\n\n```sql\nSELECT * FROM pesanan WHERE tanggal = '2024-05-01';\n```\n\nTanpa bantuan, MySQL harus memeriksa **setiap** baris satu per satu, dari baris pertama sampai terakhir. Ini disebut *full table scan*. Di tabel kecil tidak terasa, di tabel besar bisa lambat sekali.\n\n**Index** adalah struktur tambahan yang membantu MySQL menemukan baris dengan cepat tanpa membaca semuanya.\n\nIndex persis seperti **indeks di bagian belakang buku**. Mau mencari halaman yang membahas \"foreign key\"? Kamu tidak membaca buku dari halaman pertama. Kamu buka indeks yang tersusun urut abjad, temukan katanya, lalu langsung loncat ke halaman 87. Tapi indeks juga makan halaman, dan setiap kali isi buku berubah, indeksnya harus ikut diperbarui."
+    },
+    {
+      "type": "theory",
+      "content": "Membuat dan menghapus index:\n\n```sql\nCREATE INDEX idx_tanggal ON pesanan (tanggal);\nCREATE INDEX idx_kota_nama ON pelanggan (kota, nama);   -- index gabungan\nCREATE UNIQUE INDEX idx_email ON pelanggan (email);     -- index sekaligus UNIQUE\nDROP INDEX idx_tanggal ON pesanan;\n```\n\nIndex ini **sudah dibuat otomatis** oleh MySQL, tidak perlu dibuat lagi:\n\n- `PRIMARY KEY` → index bernama `PRIMARY`\n- `UNIQUE` → index unik\n- `FOREIGN KEY` → index di kolom foreign key (kalau belum ada)\n\n| Kapan index membantu | Kapan kurang berguna |\n|---|---|\n| kolom yang sering dipakai di `WHERE` | tabel kecil (puluhan atau ratusan baris) |\n| kolom penghubung di `JOIN` | kolom yang jarang dicari |\n| kolom di `ORDER BY` pada tabel besar | kolom yang nilainya hampir sama semua |\n\nHarga yang dibayar:\n\n- **INSERT, UPDATE, DELETE lebih lambat**, karena setiap index ikut diperbarui.\n- **Makan ruang penyimpanan** tambahan.\n\nIndex **tidak mengubah hasil query**, hanya kecepatannya. Untuk melihat apakah MySQL memakai index, taruh `EXPLAIN` di depan query. Kolom `key` di hasilnya menunjukkan index yang dipakai:\n\n```sql\nEXPLAIN SELECT * FROM pesanan WHERE tanggal = '2024-05-01';\n```\n\nKamu belum perlu membaca hasil EXPLAIN secara detail sekarang. Cukup tahu alat ini ada."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `pelanggan` punya PRIMARY KEY, dan `pesanan` punya PRIMARY KEY serta FOREIGN KEY ke pelanggan. Kita tambahkan satu index di kolom `tanggal`, lalu melihat daftar index tabel `pesanan`:\n\n```sql\nCREATE TABLE pelanggan (\n  id INT PRIMARY KEY,\n  nama VARCHAR(50) NOT NULL,\n  kota VARCHAR(30)\n);\nCREATE TABLE pesanan (\n  id INT PRIMARY KEY,\n  pelanggan_id INT NOT NULL,\n  tanggal DATE NOT NULL,\n  FOREIGN KEY (pelanggan_id) REFERENCES pelanggan (id)\n);\nINSERT INTO pelanggan VALUES\n  (1, 'Budi', 'Bandung'),\n  (2, 'Sari', 'Jakarta'),\n  (3, 'Rina', 'Surabaya'),\n  (4, 'Dewi', 'Bandung');\nINSERT INTO pesanan VALUES\n  (101, 1, '2024-05-01'),\n  (102, 2, '2024-05-02'),\n  (103, 1, '2024-05-03');\n```\n\n```sql\nCREATE INDEX idx_tanggal ON pesanan (tanggal);\nSELECT INDEX_NAME AS nama_index, COLUMN_NAME AS kolom,\n       NON_UNIQUE AS tidak_unik\nFROM information_schema.STATISTICS\nWHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pesanan'\nORDER BY NON_UNIQUE, INDEX_NAME;\n```\n\nHasilnya:\n\n```text\n+--------------+--------------+------------+\n| nama_index   | kolom        | tidak_unik |\n+--------------+--------------+------------+\n| PRIMARY      | id           |          0 |\n| idx_tanggal  | tanggal      |          1 |\n| pelanggan_id | pelanggan_id |          1 |\n+--------------+--------------+------------+\n3 rows in set\n```\n\nAda tiga index: `PRIMARY` dari primary key, `pelanggan_id` yang dibuat otomatis untuk foreign key, dan `idx_tanggal` buatan kita. Nilai `tidak_unik = 0` berarti index itu juga menjamin nilai unik.\n\n`information_schema` adalah database bawaan MySQL yang berisi keterangan tentang semua tabel. Cara yang lebih singkat adalah `SHOW INDEX FROM pesanan;`, tapi hasilnya punya belasan kolom."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memasang index di semua kolom**\n\nSalah:\n\n```sql\nCREATE INDEX idx1 ON pesanan (tanggal);\nCREATE INDEX idx2 ON pesanan (catatan);\nCREATE INDEX idx3 ON pesanan (ongkir);\n-- dan seterusnya untuk setiap kolom\n```\n\nBenar:\n\n```sql\n-- hanya kolom yang sering dicari atau dipakai JOIN\nCREATE INDEX idx_tanggal ON pesanan (tanggal);\n```\n\nSetiap index membuat INSERT, UPDATE, dan DELETE lebih lambat dan makan ruang. Pasang index berdasarkan query yang benar-benar sering dijalankan.\n\n**2. Membungkus kolom ber-index dengan fungsi**\n\nSalah:\n\n```sql\nSELECT * FROM pesanan\nWHERE YEAR(tanggal) = 2024;\n```\n\nBenar:\n\n```sql\nSELECT * FROM pesanan\nWHERE tanggal >= '2024-01-01'\n  AND tanggal < '2025-01-01';\n```\n\nIndex idx_tanggal menyimpan tanggal apa adanya, bukan hasil YEAR(tanggal). Dengan fungsi, MySQL biasanya tidak bisa memakai index biasa. Rentang tanggal hasilnya sama dan bisa memakai index.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Constraint mana yang otomatis membuat index di MySQL?",
+          "options": [
+            "Hanya PRIMARY KEY",
+            "PRIMARY KEY, UNIQUE, dan FOREIGN KEY",
+            "NOT NULL dan DEFAULT",
+            "CHECK"
+          ],
+          "answer": 1,
+          "explanation": "Ketiganya butuh pencarian cepat untuk menjaga aturannya, jadi MySQL membuat index otomatis.",
+          "remedial": "- **Index** membantu MySQL menemukan baris tanpa membaca seluruh tabel, seperti indeks buku.\n- Buat dengan `CREATE INDEX nama ON tabel (kolom);`, hapus dengan `DROP INDEX nama ON tabel;`.\n- PRIMARY KEY, UNIQUE, dan FOREIGN KEY otomatis punya index.\n- Harganya: INSERT/UPDATE/DELETE lebih lambat dan makan ruang.\n- Index tidak mengubah hasil query, hanya kecepatannya."
+        },
+        {
+          "question": "Apa harga yang dibayar saat menambah index?",
+          "options": [
+            "SELECT menjadi lebih lambat",
+            "Data di tabel berubah urutan dan isinya",
+            "INSERT, UPDATE, DELETE lebih lambat dan butuh ruang tambahan",
+            "Tabel tidak bisa punya foreign key lagi"
+          ],
+          "answer": 2,
+          "explanation": "Setiap perubahan data harus ikut memperbarui index, dan index disimpan sebagai data tambahan.",
+          "remedial": "- **Index** membantu MySQL menemukan baris tanpa membaca seluruh tabel, seperti indeks buku.\n- Buat dengan `CREATE INDEX nama ON tabel (kolom);`, hapus dengan `DROP INDEX nama ON tabel;`.\n- PRIMARY KEY, UNIQUE, dan FOREIGN KEY otomatis punya index.\n- Harganya: INSERT/UPDATE/DELETE lebih lambat dan makan ruang.\n- Index tidak mengubah hasil query, hanya kecepatannya."
+        },
+        {
+          "question": "Tabel pelanggan punya index di kolom kota. Query mana yang paling bisa memanfaatkan index itu?",
+          "options": [
+            "SELECT * FROM pelanggan WHERE kota = 'Bandung';",
+            "SELECT * FROM pelanggan WHERE nama = 'Budi';",
+            "SELECT * FROM pelanggan WHERE UPPER(kota) = 'BANDUNG';",
+            "SELECT COUNT(*) FROM pesanan;"
+          ],
+          "answer": 0,
+          "explanation": "Index di kota membantu pencarian langsung ke kolom kota. Membungkus kota dengan fungsi seperti UPPER biasanya membuat index biasa tidak terpakai.",
+          "remedial": "- **Index** membantu MySQL menemukan baris tanpa membaca seluruh tabel, seperti indeks buku.\n- Buat dengan `CREATE INDEX nama ON tabel (kolom);`, hapus dengan `DROP INDEX nama ON tabel;`.\n- PRIMARY KEY, UNIQUE, dan FOREIGN KEY otomatis punya index.\n- Harganya: INSERT/UPDATE/DELETE lebih lambat dan makan ruang.\n- Index tidak mengubah hasil query, hanya kecepatannya."
+        },
+        {
+          "question": "Tabel pesanan berisi jutaan baris dan halaman \"riwayat pesanan\" selalu mencari berdasarkan pelanggan_id. Apa yang paling tepat?",
+          "options": [
+            "Tidak perlu apa-apa, pelanggan_id sudah foreign key sehingga sudah punya index",
+            "Buat index di semua kolom pesanan",
+            "Ubah pelanggan_id menjadi PRIMARY KEY",
+            "Hapus foreign key supaya lebih cepat"
+          ],
+          "answer": 0,
+          "explanation": "MySQL otomatis membuat index untuk kolom foreign key, jadi pencarian berdasarkan pelanggan_id sudah terbantu.",
+          "remedial": "- **Index** membantu MySQL menemukan baris tanpa membaca seluruh tabel, seperti indeks buku.\n- Buat dengan `CREATE INDEX nama ON tabel (kolom);`, hapus dengan `DROP INDEX nama ON tabel;`.\n- PRIMARY KEY, UNIQUE, dan FOREIGN KEY otomatis punya index.\n- Harganya: INSERT/UPDATE/DELETE lebih lambat dan makan ruang.\n- Index tidak mengubah hasil query, hanya kecepatannya."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query terakhir?",
+      "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\nCREATE INDEX idx_kota ON pelanggan (kota);\nSELECT nama FROM pelanggan WHERE kota = 'Bandung' ORDER BY id;",
+      "options": [
+        "Empty set, index belum terisi",
+        "Budi, Dewi",
+        "Bandung",
+        "Budi"
+      ],
+      "answer": 1,
+      "explanation": "Index hanya mempercepat pencarian dan langsung terisi saat dibuat. Hasil query tetap sama: Budi dan Dewi."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Buat index bernama idx_kota untuk kolom kota di tabel pelanggan\n___ INDEX idx_kota ___ pelanggan (kota);",
+      "answers": [
+        "CREATE|create|Create",
+        "ON|on|On"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Index membantu MySQL menemukan baris tanpa membaca seluruh tabel.",
+        "CREATE INDEX nama ON tabel (kolom) untuk membuat, DROP INDEX untuk menghapus.",
+        "PRIMARY KEY, UNIQUE, dan FOREIGN KEY otomatis punya index.",
+        "Index mempercepat pencarian tapi memperlambat INSERT/UPDATE/DELETE dan makan ruang.",
+        "EXPLAIN menunjukkan apakah sebuah query memakai index."
+      ]
+    }
+  ]
+}

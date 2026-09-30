@@ -1,0 +1,115 @@
+{
+  "id": "mysql-dasar-08",
+  "moduleId": "mysql-dasar",
+  "order": 8,
+  "title": "Mengubah Data: UPDATE",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Data jarang diam. Harga naik, stok berkurang setiap ada pembelian, pelanggan pindah alamat. Untuk mengubah isi baris yang sudah ada, kita memakai `UPDATE`.\n\n`UPDATE` punya satu bagian yang sangat penting: `WHERE`, yang menentukan **baris mana** yang diubah.\n\nBayangkan buku catatan stok di warung. Kalau harga kopi naik, kamu menghapus angka lama di baris kopi dengan tip-ex lalu menulis angka baru. `WHERE` adalah jarimu yang menunjuk baris kopi. Tanpa menunjuk baris, kamu akan men-tip-ex **seluruh halaman**."
+    },
+    {
+      "type": "theory",
+      "content": "Bentuk umumnya:\n\n```sql\nUPDATE produk\nSET harga = 20000\nWHERE id = 1;\n```\n\n| Bagian | Artinya |\n|---|---|\n| `UPDATE produk` | tabel yang diubah |\n| `SET harga = 20000` | kolom dan nilai barunya |\n| `WHERE id = 1` | hanya baris yang id-nya 1 |\n\n`WHERE` akan dibahas lengkap di modul berikutnya. Untuk sekarang, cukup pakai bentuk `WHERE kolom = nilai`. Paling aman memakai **primary key**, karena pasti menunjuk tepat satu baris.\n\n**Mengubah beberapa kolom sekaligus**: pisahkan dengan koma.\n\n```sql\nUPDATE produk SET harga = 9000, stok = 30 WHERE id = 2;\n```\n\n**Memakai nilai lama**: kolom boleh dihitung dari isinya sendiri.\n\n```sql\nUPDATE produk SET stok = stok - 1 WHERE id = 3;\n```\n\n**Bahaya UPDATE tanpa WHERE.** `UPDATE produk SET harga = 5000;` mengubah harga **semua** produk menjadi 5000, tanpa peringatan. Kebiasaan yang baik:\n\n1. Jalankan dulu `SELECT * FROM produk WHERE id = 1;` untuk memastikan baris yang tertunjuk benar.\n2. Baru jalankan `UPDATE` dengan `WHERE` yang sama.\n\nSetelah UPDATE, client MySQL menampilkan pesan seperti `Rows matched: 1  Changed: 1`. Kalau `WHERE` tidak menemukan baris apa pun, tidak ada error, hanya `0 rows affected`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKita lihat isi tabel, ubah harga Kopi Susu, lalu ubah harga dan stok Teh Manis sekaligus.\n\n```sql\nSELECT * FROM produk;\nUPDATE produk SET harga = 20000 WHERE id = 1;\nUPDATE produk SET harga = 9000, stok = stok + 10 WHERE id = 2;\nSELECT * FROM produk;\n```\n\nHasilnya:\n\n```text\n+----+------------+----------+------+\n| id | nama       | harga    | stok |\n+----+------------+----------+------+\n|  1 | Kopi Susu  | 18000.00 |   20 |\n|  2 | Teh Manis  |  8000.00 |   25 |\n|  3 | Roti Bakar | 15000.00 |   10 |\n+----+------------+----------+------+\n3 rows in set\n\n+----+------------+----------+------+\n| id | nama       | harga    | stok |\n+----+------------+----------+------+\n|  1 | Kopi Susu  | 20000.00 |   20 |\n|  2 | Teh Manis  |  9000.00 |   35 |\n|  3 | Roti Bakar | 15000.00 |   10 |\n+----+------------+----------+------+\n3 rows in set\n```\n\nHanya baris id 1 dan id 2 yang berubah. Stok Teh Manis menjadi 35 karena dihitung dari nilai lamanya (25 + 10). Roti Bakar tidak tersentuh karena tidak ditunjuk `WHERE`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. UPDATE tanpa WHERE**\n\nSalah:\n\n```sql\nUPDATE produk SET harga = 5000;\n```\n\nBenar:\n\n```sql\nUPDATE produk SET harga = 5000 WHERE id = 3;\n```\n\nTanpa WHERE, semua baris berubah dan tidak ada tombol undo. Selalu tulis WHERE dulu sebelum menjalankan UPDATE.\n\n**2. Memakai AND untuk memisahkan kolom di SET**\n\nSalah:\n\n```sql\nUPDATE produk SET harga = 9000 AND stok = 30 WHERE id = 2;\n```\n\nBenar:\n\n```sql\nUPDATE produk SET harga = 9000, stok = 30 WHERE id = 2;\n```\n\nIni tidak error, tapi hasilnya kacau. MySQL membacanya sebagai `harga = (9000 AND stok = 30)`, yaitu perbandingan yang hasilnya 1 atau 0. Harga menjadi 0 atau 1, dan stok tidak berubah. Pemisah kolom di SET adalah koma.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa akibat query ini?",
+          "code": "-- Tabel produk:\n-- +----+------------+----------+------+\n-- | id | nama       | harga    | stok |\n-- +----+------------+----------+------+\n-- |  1 | Kopi Susu  | 18000.00 |   20 |\n-- |  2 | Teh Manis  |  8000.00 |   25 |\n-- |  3 | Roti Bakar | 15000.00 |   10 |\n-- +----+------------+----------+------+\nUPDATE produk SET stok = 0;\nSELECT nama, stok FROM produk;",
+          "options": [
+            "Hanya baris pertama yang stoknya menjadi 0",
+            "Stok semua produk menjadi 0",
+            "Error karena UPDATE wajib memakai WHERE",
+            "Tidak ada yang berubah"
+          ],
+          "answer": 1,
+          "explanation": "Tanpa WHERE, UPDATE berlaku untuk semua baris, dan MySQL tidak memberi peringatan.",
+          "remedial": "- Bentuk: `UPDATE tabel SET kolom = nilai WHERE kondisi;`\n- Beberapa kolom dipisah **koma**, bukan AND.\n- Nilai baru boleh dihitung dari nilai lama: `stok = stok - 1`.\n- Tanpa WHERE, **semua** baris ikut berubah.\n- Cek dulu dengan SELECT memakai WHERE yang sama sebelum UPDATE."
+        },
+        {
+          "question": "Berapa stok Teh Manis setelah query ini?",
+          "code": "-- Tabel produk:\n-- +----+------------+----------+------+\n-- | id | nama       | harga    | stok |\n-- +----+------------+----------+------+\n-- |  1 | Kopi Susu  | 18000.00 |   20 |\n-- |  2 | Teh Manis  |  8000.00 |   25 |\n-- |  3 | Roti Bakar | 15000.00 |   10 |\n-- +----+------------+----------+------+\nUPDATE produk SET stok = stok - 2 WHERE id = 2;\nSELECT stok FROM produk WHERE id = 2;",
+          "options": [
+            "2",
+            "25",
+            "23",
+            "-2"
+          ],
+          "answer": 2,
+          "explanation": "Nilai baru dihitung dari nilai lama: 25 - 2 = 23.",
+          "remedial": "- Bentuk: `UPDATE tabel SET kolom = nilai WHERE kondisi;`\n- Beberapa kolom dipisah **koma**, bukan AND.\n- Nilai baru boleh dihitung dari nilai lama: `stok = stok - 1`.\n- Tanpa WHERE, **semua** baris ikut berubah.\n- Cek dulu dengan SELECT memakai WHERE yang sama sebelum UPDATE."
+        },
+        {
+          "question": "Apa kebiasaan yang baik sebelum menjalankan UPDATE?",
+          "options": [
+            "Menjalankan SELECT dengan WHERE yang sama untuk memastikan baris yang akan berubah",
+            "Menghapus WHERE supaya lebih cepat",
+            "Menjalankan DROP TABLE dulu",
+            "Mengubah semua baris lalu memperbaiki yang salah"
+          ],
+          "answer": 0,
+          "explanation": "SELECT dengan WHERE yang sama memperlihatkan persis baris mana yang akan terkena UPDATE.",
+          "remedial": "- Bentuk: `UPDATE tabel SET kolom = nilai WHERE kondisi;`\n- Beberapa kolom dipisah **koma**, bukan AND.\n- Nilai baru boleh dihitung dari nilai lama: `stok = stok - 1`.\n- Tanpa WHERE, **semua** baris ikut berubah.\n- Cek dulu dengan SELECT memakai WHERE yang sama sebelum UPDATE."
+        },
+        {
+          "question": "Berapa harga Teh Manis setelah query ini?",
+          "code": "-- Tabel produk:\n-- +----+------------+----------+------+\n-- | id | nama       | harga    | stok |\n-- +----+------------+----------+------+\n-- |  1 | Kopi Susu  | 18000.00 |   20 |\n-- |  2 | Teh Manis  |  8000.00 |   25 |\n-- |  3 | Roti Bakar | 15000.00 |   10 |\n-- +----+------------+----------+------+\nUPDATE produk SET harga = 9000 AND stok = 30 WHERE id = 2;\nSELECT harga FROM produk WHERE id = 2;",
+          "options": [
+            "9000.00",
+            "8000.00",
+            "Error karena AND tidak boleh di SET",
+            "0.00"
+          ],
+          "answer": 3,
+          "explanation": "MySQL membacanya sebagai harga = (9000 AND stok = 30). Stok Teh Manis 25, bukan 30, jadi hasilnya 0. Pemisah kolom di SET seharusnya koma.",
+          "remedial": "- Bentuk: `UPDATE tabel SET kolom = nilai WHERE kondisi;`\n- Beberapa kolom dipisah **koma**, bukan AND.\n- Nilai baru boleh dihitung dari nilai lama: `stok = stok - 1`.\n- Tanpa WHERE, **semua** baris ikut berubah.\n- Cek dulu dengan SELECT memakai WHERE yang sama sebelum UPDATE."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa isi tabel setelah UPDATE?",
+      "code": "-- Tabel produk:\n-- +----+------------+----------+------+\n-- | id | nama       | harga    | stok |\n-- +----+------------+----------+------+\n-- |  1 | Kopi Susu  | 18000.00 |   20 |\n-- |  2 | Teh Manis  |  8000.00 |   25 |\n-- |  3 | Roti Bakar | 15000.00 |   10 |\n-- +----+------------+----------+------+\nUPDATE produk SET harga = 16000, stok = 12 WHERE id = 3;\nSELECT * FROM produk;",
+      "options": [
+        "Roti Bakar berubah menjadi harga 16000.00 dan stok 12, baris lain tetap",
+        "Semua produk berharga 16000.00 dan stok 12",
+        "Hanya harga Roti Bakar yang berubah, stoknya tetap 10",
+        "Error karena dua kolom diubah sekaligus"
+      ],
+      "answer": 0,
+      "explanation": "Dua kolom boleh diubah sekaligus dengan pemisah koma, dan WHERE id = 3 membatasi perubahan hanya pada Roti Bakar."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- ubah harga Kopi Susu (id 1) menjadi 20000, baris lain jangan ikut berubah\n-- Tabel produk:\n-- +----+------------+----------+------+\n-- | id | nama       | harga    | stok |\n-- +----+------------+----------+------+\n-- |  1 | Kopi Susu  | 18000.00 |   20 |\n-- |  2 | Teh Manis  |  8000.00 |   25 |\n-- |  3 | Roti Bakar | 15000.00 |   10 |\n-- +----+------------+----------+------+\n___ produk\n___ harga = 20000\n___ id = 1;\nSELECT * FROM produk;",
+      "answers": [
+        "UPDATE|update|Update",
+        "SET|set|Set",
+        "WHERE|where|Where"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "UPDATE tabel SET kolom = nilai WHERE kondisi mengubah baris yang sudah ada.",
+        "Beberapa kolom diubah sekaligus dengan pemisah koma.",
+        "Nilai baru boleh dihitung dari nilai lama, misalnya stok = stok - 1.",
+        "UPDATE tanpa WHERE mengubah semua baris.",
+        "Cek dulu dengan SELECT memakai WHERE yang sama."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "id": "db-dasar-06",
+  "moduleId": "db-dasar",
+  "order": 6,
+  "title": "Relasi Antar Tabel",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Data sekolah sudah dipecah ke tabel `siswa` dan tabel `kelas`. Tapi bagaimana database tahu Budi ada di kelas mana?\n\nCara yang tepat: tabel `siswa` punya kolom `kelas_id` yang berisi **id kelas**. Kolom yang menunjuk ke primary key tabel lain seperti ini disebut **foreign key** (kunci tamu).\n\nIngat slip peminjaman buku di perpustakaan. Petugas tidak menulis ulang nama, alamat, dan kelas peminjam di setiap slip. Cukup ditulis **nomor anggota**. Kalau butuh detailnya, tinggal cari nomor itu di buku anggota. Nomor anggota di slip itulah foreign key."
+    },
+    {
+      "type": "theory",
+      "content": "Tabel `kelas`:\n\n| id | nama_kelas |\n|---|---|\n| 1 | X-A |\n| 2 | X-B |\n\nTabel `siswa`:\n\n| id | nama | kelas_id |\n|---|---|---|\n| 1 | Budi | 1 |\n| 2 | Sari | 2 |\n| 3 | Andi | 1 |\n\n`kelas_id` Budi berisi `1`, artinya Budi di kelas X-A. Nama kelas cukup ditulis sekali di tabel `kelas`.\n\nDi MySQL, foreign key ditulis seperti ini:\n\n```sql\nCREATE TABLE siswa (\n  id INT PRIMARY KEY,\n  nama VARCHAR(100),\n  kelas_id INT,\n  FOREIGN KEY (kelas_id) REFERENCES kelas(id)\n);\n```\n\nArtinya: `kelas_id` merujuk (*references*) ke kolom `id` di tabel `kelas`. Setelah itu database menjaga dua hal:\n\n- Menolak siswa dengan `kelas_id` yang tidak ada di tabel `kelas` (tidak ada siswa \"yatim\").\n- Secara bawaan menolak penghapusan kelas yang masih punya siswa.\n\n**Tiga jenis relasi**\n\n| Relasi | Contoh | Cara membuatnya |\n|---|---|---|\n| **One-to-one** (satu ke satu) | satu siswa punya satu kartu perpustakaan | foreign key di salah satu tabel, dibuat unik |\n| **One-to-many** (satu ke banyak) | satu kelas punya banyak siswa | foreign key di tabel sisi **banyak** (`siswa.kelas_id`) |\n| **Many-to-many** (banyak ke banyak) | satu siswa ikut banyak ekskul, satu ekskul diikuti banyak siswa | butuh **tabel penghubung** |\n\nGambar rancangannya:\n\n![ERD sekolah: satu kelas punya banyak siswa, satu siswa memiliki paling banyak satu kartu perpustakaan](images/mysql/bd-relasi-sekolah.svg)\n\nGaris yang ujungnya bercabang tiga berarti \"banyak\". Cara membaca simbolnya secara lengkap ada di pelajaran berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSiswa bisa ikut beberapa ekstrakurikuler, dan setiap ekskul diikuti banyak siswa. Ini relasi **many-to-many**.\n\nMenambah kolom `ekskul_id` di tabel `siswa` tidak cukup, karena satu kolom hanya muat satu nilai. Solusinya tabel ketiga, **tabel penghubung** `siswa_ekskul`, yang setiap barisnya mencatat satu pasangan siswa dan ekskul.\n\nTabel `ekskul`:\n\n| id | nama_ekskul | hari |\n|---|---|---|\n| 1 | Basket | Senin |\n| 2 | Pramuka | Jumat |\n| 3 | Paduan Suara | Rabu |\n\nTabel `siswa_ekskul`:\n\n| siswa_id | ekskul_id |\n|---|---|\n| 1 | 1 |\n| 1 | 2 |\n| 2 | 2 |\n| 3 | 3 |\n\nCara membacanya (siswa 1 = Budi, 2 = Sari, 3 = Andi):\n\n- Budi ikut Basket dan Pramuka (dua baris dengan `siswa_id` 1)\n- Pramuka diikuti Budi dan Sari (dua baris dengan `ekskul_id` 2)\n- Andi ikut Paduan Suara\n\nKedua kolom di tabel penghubung adalah foreign key, dan gabungan keduanya menjadi primary key. Dengan begitu pasangan yang sama tidak bisa tercatat dua kali.\n\n![ERD relasi many-to-many: tabel siswa dan ekskul dihubungkan tabel penghubung siswa_ekskul](images/mysql/bd-ekskul.svg)"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis nama kelas di setiap baris siswa**\n\nSalah:\n\n```text\n| id | nama | kelas   |\n| 1  | Budi | X-A     |\n| 2  | Sari | X - A   |\n```\n\nBenar:\n\n```text\n| id | nama | kelas_id |\n| 1  | Budi | 1        |\n| 2  | Sari | 1        |\n```\n\nNama kelas yang diketik berulang mudah beda tulisan (X-A dan X - A dianggap berbeda). Kalau nama kelas diganti, semua baris siswa harus diubah. Dengan kelas_id, nama kelas cukup diubah sekali di tabel kelas.\n\n**2. Membuat kolom berulang untuk relasi many-to-many**\n\nSalah:\n\n```text\n| id | nama | ekskul1 | ekskul2 | ekskul3 |\n```\n\nBenar:\n\n```text\nTabel siswa_ekskul:\n| siswa_id | ekskul_id |\n```\n\nKolom berulang membatasi jumlah ekskul (bagaimana kalau ikut empat?) dan menyulitkan pencarian. Tabel penghubung bisa menampung berapa pun pasangan.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dimaksud dengan foreign key?",
+          "options": [
+            "Kolom yang menunjuk ke primary key di tabel lain",
+            "Primary key kedua di tabel yang sama",
+            "Kolom yang isinya selalu teks",
+            "Kolom yang boleh diisi apa saja tanpa aturan"
+          ],
+          "answer": 0,
+          "explanation": "Foreign key menghubungkan satu tabel ke tabel lain, misalnya siswa.kelas_id menunjuk ke kelas.id.",
+          "remedial": "- **Foreign key**: kolom yang menunjuk ke primary key tabel lain, misalnya `siswa.kelas_id` → `kelas.id`\n- Database menolak foreign key yang menunjuk ke data yang tidak ada\n- **One-to-one**: satu siswa, satu kartu perpustakaan\n- **One-to-many**: satu kelas, banyak siswa. Foreign key di tabel sisi banyak\n- **Many-to-many**: siswa dan ekskul. Butuh tabel penghubung"
+        },
+        {
+          "question": "Satu kelas punya banyak siswa, setiap siswa hanya di satu kelas. Di mana foreign key sebaiknya diletakkan?",
+          "options": [
+            "Kolom siswa_id di tabel kelas",
+            "Kolom kelas_id di tabel siswa",
+            "Di kedua tabel sekaligus",
+            "Tidak perlu foreign key"
+          ],
+          "answer": 1,
+          "explanation": "Foreign key ditaruh di sisi banyak. Satu kolom kelas_id di setiap siswa cukup, sedangkan tabel kelas tidak mungkin menyimpan banyak siswa_id dalam satu kolom.",
+          "remedial": "- **Foreign key**: kolom yang menunjuk ke primary key tabel lain, misalnya `siswa.kelas_id` → `kelas.id`\n- Database menolak foreign key yang menunjuk ke data yang tidak ada\n- **One-to-one**: satu siswa, satu kartu perpustakaan\n- **One-to-many**: satu kelas, banyak siswa. Foreign key di tabel sisi banyak\n- **Many-to-many**: siswa dan ekskul. Butuh tabel penghubung"
+        },
+        {
+          "question": "Satu buku bisa ditulis beberapa penulis, dan satu penulis bisa menulis banyak buku. Relasi apa ini dan apa yang dibutuhkan?",
+          "options": [
+            "One-to-one, cukup satu tabel",
+            "One-to-many, foreign key di tabel buku",
+            "Many-to-many, butuh tabel penghubung",
+            "Tidak ada relasi"
+          ],
+          "answer": 2,
+          "explanation": "Banyak di kedua sisi berarti many-to-many, dan diselesaikan dengan tabel penghubung, misalnya buku_penulis.",
+          "remedial": "- **Foreign key**: kolom yang menunjuk ke primary key tabel lain, misalnya `siswa.kelas_id` → `kelas.id`\n- Database menolak foreign key yang menunjuk ke data yang tidak ada\n- **One-to-one**: satu siswa, satu kartu perpustakaan\n- **One-to-many**: satu kelas, banyak siswa. Foreign key di tabel sisi banyak\n- **Many-to-many**: siswa dan ekskul. Butuh tabel penghubung"
+        },
+        {
+          "question": "Sari ada di kelas apa?",
+          "code": "-- Tabel kelas\n-- | id | nama_kelas |\n-- | 1  | X-A        |\n-- | 2  | X-B        |\n-- | 3  | X-C        |\n\n-- Tabel siswa\n-- | id | nama | kelas_id |\n-- | 1  | Budi | 3        |\n-- | 2  | Sari | 1        |\n-- | 3  | Andi | 2        |",
+          "options": [
+            "X-B",
+            "X-C",
+            "X-A, karena id Sari 2",
+            "X-A"
+          ],
+          "answer": 3,
+          "explanation": "Baca kolom kelas_id milik Sari, yaitu 1, lalu cari id 1 di tabel kelas: X-A. Yang dipakai kelas_id, bukan id siswa.",
+          "remedial": "- **Foreign key**: kolom yang menunjuk ke primary key tabel lain, misalnya `siswa.kelas_id` → `kelas.id`\n- Database menolak foreign key yang menunjuk ke data yang tidak ada\n- **One-to-one**: satu siswa, satu kartu perpustakaan\n- **One-to-many**: satu kelas, banyak siswa. Foreign key di tabel sisi banyak\n- **Many-to-many**: siswa dan ekskul. Butuh tabel penghubung"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Kolom `kelas_id` adalah foreign key ke `kelas(id)`. Apa yang terjadi saat perintah terakhir dijalankan?",
+      "code": "-- Tabel kelas:\n-- +----+------------+\n-- | id | nama_kelas |\n-- +----+------------+\n-- |  1 | X-A        |\n-- |  2 | X-B        |\n-- +----+------------+\n\n-- Tabel siswa:\n-- +----+------+----------+\n-- | id | nama | kelas_id |\n-- +----+------+----------+\n-- |  1 | Budi |        1 |\n-- |  2 | Sari |        2 |\n-- |  3 | Andi |        1 |\n-- +----+------+----------+\nINSERT INTO siswa (id, nama, kelas_id) VALUES (4, 'Rudi', 9);",
+      "options": [
+        "Ditolak, karena kelas dengan id 9 tidak ada",
+        "Tersimpan, dan kelas id 9 dibuat otomatis",
+        "Tersimpan dengan kelas_id diubah menjadi NULL",
+        "Tersimpan tanpa masalah"
+      ],
+      "answer": 0,
+      "explanation": "Foreign key mencegah data yatim: siswa tidak boleh menunjuk ke kelas yang tidak ada. MySQL menolaknya dengan error foreign key."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Kolom kelas_id di tabel siswa merujuk ke kolom id di tabel kelas\nCREATE TABLE siswa (\n  id INT PRIMARY KEY,\n  nama VARCHAR(100),\n  kelas_id INT,\n  ___ KEY (kelas_id) ___ kelas(id)\n);",
+      "answers": [
+        "FOREIGN|foreign|Foreign",
+        "REFERENCES|references|References"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Foreign key adalah kolom yang menunjuk ke primary key tabel lain.",
+        "Database menolak foreign key yang menunjuk ke data yang tidak ada.",
+        "One-to-many: foreign key diletakkan di tabel sisi banyak.",
+        "Many-to-many butuh tabel penghubung berisi dua foreign key.",
+        "Dengan relasi, data seperti nama kelas cukup ditulis sekali."
+      ]
+    }
+  ]
+}

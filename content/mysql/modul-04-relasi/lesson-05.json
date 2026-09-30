@@ -1,0 +1,114 @@
+{
+  "id": "mysql-relasi-05",
+  "moduleId": "mysql-relasi",
+  "order": 5,
+  "title": "INNER JOIN",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tabel `pesanan` hanya menyimpan `pelanggan_id`, misalnya angka 1. Padahal di laporan kita ingin melihat **nama** pemesannya: Budi. Nama itu ada di tabel lain, yaitu `pelanggan`.\n\n**JOIN** menggabungkan baris dari dua tabel menjadi satu hasil. Jenis yang paling dasar adalah **INNER JOIN**: hanya menampilkan baris yang **punya pasangan** di kedua tabel.\n\nBayangkan tumpukan struk belanja yang hanya mencantumkan nomor member, dan sebuah buku daftar member. Untuk tahu siapa pemilik setiap struk, kamu mencocokkan nomor di struk dengan nomor di buku. Struk tanpa nomor member tidak bisa dipasangkan, dan member yang tidak pernah belanja tidak punya struk. Keduanya tidak masuk ke daftar hasil pencocokan."
+    },
+    {
+      "type": "theory",
+      "content": "Bentuk umumnya:\n\n```sql\nSELECT ps.id, p.nama, ps.total\nFROM pesanan AS ps\nINNER JOIN pelanggan AS p\n  ON ps.pelanggan_id = p.id;\n```\n\n| Bagian | Artinya |\n|---|---|\n| `FROM pesanan AS ps` | tabel pertama, diberi alias pendek `ps` |\n| `INNER JOIN pelanggan AS p` | tabel kedua yang digabung, alias `p` |\n| `ON ps.pelanggan_id = p.id` | syarat pasangan: kolom mana yang harus sama |\n| `p.nama` | kolom `nama` milik tabel `p` |\n\nCara kerjanya: untuk setiap pesanan, MySQL mencari pelanggan yang `id`-nya sama dengan `pelanggan_id` pesanan itu. Setiap pasangan yang cocok menjadi satu baris hasil.\n\nBeberapa hal penting:\n\n- `JOIN` saja sama dengan `INNER JOIN` di MySQL.\n- Kata `AS` pada alias tabel boleh dihilangkan: `FROM pesanan ps`.\n- Kalau nama kolom ada di kedua tabel (misalnya `id`), **wajib** diberi awalan tabel atau aliasnya. Tanpa awalan, MySQL bingung:\n\n```text\nERROR 1052 (23000): Column 'id' in field list is ambiguous\n```\n\n- Baris yang **tidak punya pasangan hilang** dari hasil: pelanggan yang belum pernah memesan, dan pesanan yang `pelanggan_id`-nya NULL."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nData awal kedua tabel. Pesanan 104 dibuat oleh pembeli tamu, jadi `pelanggan_id`-nya NULL.\n\n| id | nama | kota |\n|---|---|---|\n| 1 | Budi | Bandung |\n| 2 | Sari | Jakarta |\n| 3 | Rina | Surabaya |\n| 4 | Dewi | Bandung |\n\n| id | pelanggan_id | tanggal | total |\n|---|---|---|---|\n| 101 | 1 | 2024-05-01 | 51000 |\n| 102 | 2 | 2024-05-02 | 24000 |\n| 103 | 1 | 2024-05-03 | 28000 |\n| 104 | NULL | 2024-05-04 | 15000 |\n\n```sql\nSELECT ps.id, p.nama, ps.tanggal, ps.total\nFROM pesanan AS ps\nINNER JOIN pelanggan AS p\n  ON ps.pelanggan_id = p.id\nORDER BY ps.id;\n```\n\nHasilnya:\n\n```text\n+-----+------+------------+-------+\n| id  | nama | tanggal    | total |\n+-----+------+------------+-------+\n| 101 | Budi | 2024-05-01 | 51000 |\n| 102 | Sari | 2024-05-02 | 24000 |\n| 103 | Budi | 2024-05-03 | 28000 |\n+-----+------+------------+-------+\n3 rows in set\n```\n\nBudi muncul dua kali karena punya dua pesanan. Rina dan Dewi tidak muncul karena belum pernah memesan. Pesanan 104 juga tidak muncul karena tidak punya pasangan pelanggan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa menulis ON**\n\nSalah:\n\n```sql\nSELECT ps.id, p.nama\nFROM pesanan ps\nJOIN pelanggan p;\n```\n\nBenar:\n\n```sql\nSELECT ps.id, p.nama\nFROM pesanan ps\nJOIN pelanggan p ON ps.pelanggan_id = p.id;\n```\n\nMySQL tidak menolak JOIN tanpa ON. Setiap pesanan dipasangkan dengan setiap pelanggan: 4 pesanan × 4 pelanggan = 16 baris yang tidak bermakna.\n\n**2. Nama kolom tanpa awalan tabel**\n\nSalah:\n\n```sql\nSELECT id, nama, total\nFROM pesanan ps\nJOIN pelanggan p ON ps.pelanggan_id = p.id;\n```\n\nBenar:\n\n```sql\nSELECT ps.id, p.nama, ps.total\nFROM pesanan ps\nJOIN pelanggan p ON ps.pelanggan_id = p.id;\n```\n\nKolom id ada di kedua tabel, jadi MySQL menolak dengan ERROR 1052 (ambiguous). Biasakan selalu memberi awalan alias.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi bagian ON pada JOIN?",
+          "options": [
+            "Mengurutkan hasil",
+            "Menentukan syarat pasangan: kolom mana yang harus sama di kedua tabel",
+            "Memberi nama alias pada tabel",
+            "Menyaring hasil setelah digabung"
+          ],
+          "answer": 1,
+          "explanation": "ON memberi tahu MySQL cara mencocokkan baris, misalnya ps.pelanggan_id = p.id.",
+          "remedial": "- **INNER JOIN** menggabungkan baris dua tabel yang **punya pasangan**.\n- `ON` menentukan kolom yang harus sama, biasanya foreign key = primary key.\n- Alias tabel (`pesanan AS ps`) membuat query lebih pendek. Tulis kolom sebagai `ps.id`, `p.nama`.\n- Baris tanpa pasangan **hilang** dari hasil.\n- `JOIN` = `INNER JOIN`."
+        },
+        {
+          "question": "Berapa baris hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+-------+\n-- | id  | pelanggan_id | tanggal    | total |\n-- +-----+--------------+------------+-------+\n-- | 101 |            1 | 2024-05-01 | 51000 |\n-- | 102 |            2 | 2024-05-02 | 24000 |\n-- | 103 |            1 | 2024-05-03 | 28000 |\n-- | 104 |         NULL | 2024-05-04 | 15000 |\n-- +-----+--------------+------------+-------+\nSELECT ps.id, p.nama\nFROM pesanan ps\nINNER JOIN pelanggan p ON ps.pelanggan_id = p.id;",
+          "options": [
+            "4 baris",
+            "2 baris",
+            "3 baris",
+            "8 baris"
+          ],
+          "answer": 2,
+          "explanation": "Pesanan 101, 102, dan 103 punya pasangan pelanggan. Pesanan 104 (pelanggan_id NULL) tidak punya pasangan, jadi hilang.",
+          "remedial": "- **INNER JOIN** menggabungkan baris dua tabel yang **punya pasangan**.\n- `ON` menentukan kolom yang harus sama, biasanya foreign key = primary key.\n- Alias tabel (`pesanan AS ps`) membuat query lebih pendek. Tulis kolom sebagai `ps.id`, `p.nama`.\n- Baris tanpa pasangan **hilang** dari hasil.\n- `JOIN` = `INNER JOIN`."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+-------+\n-- | id  | pelanggan_id | tanggal    | total |\n-- +-----+--------------+------------+-------+\n-- | 101 |            1 | 2024-05-01 | 51000 |\n-- | 102 |            2 | 2024-05-02 | 24000 |\n-- | 103 |            1 | 2024-05-03 | 28000 |\n-- | 104 |         NULL | 2024-05-04 | 15000 |\n-- +-----+--------------+------------+-------+\nSELECT p.nama\nFROM pelanggan p\nJOIN pesanan ps ON ps.pelanggan_id = p.id\nWHERE ps.total > 25000\nORDER BY ps.id;",
+          "options": [
+            "Budi",
+            "Budi, Sari",
+            "Budi, Budi",
+            "Budi, Rina"
+          ],
+          "answer": 2,
+          "explanation": "Pesanan di atas 25000 adalah 101 (51000) dan 103 (28000). Keduanya milik Budi, jadi Budi muncul dua kali, satu baris per pesanan.",
+          "remedial": "- **INNER JOIN** menggabungkan baris dua tabel yang **punya pasangan**.\n- `ON` menentukan kolom yang harus sama, biasanya foreign key = primary key.\n- Alias tabel (`pesanan AS ps`) membuat query lebih pendek. Tulis kolom sebagai `ps.id`, `p.nama`.\n- Baris tanpa pasangan **hilang** dari hasil.\n- `JOIN` = `INNER JOIN`."
+        },
+        {
+          "question": "Apa yang terjadi saat query ini dijalankan?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+-------+\n-- | id  | pelanggan_id | tanggal    | total |\n-- +-----+--------------+------------+-------+\n-- | 101 |            1 | 2024-05-01 | 51000 |\n-- | 102 |            2 | 2024-05-02 | 24000 |\n-- | 103 |            1 | 2024-05-03 | 28000 |\n-- | 104 |         NULL | 2024-05-04 | 15000 |\n-- +-----+--------------+------------+-------+\nSELECT id, nama\nFROM pesanan\nJOIN pelanggan ON pesanan.pelanggan_id = pelanggan.id;",
+          "options": [
+            "Error, kolom id ada di kedua tabel sehingga ambigu",
+            "Tampil id milik pesanan",
+            "Tampil id milik pelanggan",
+            "Tampil dua kolom id"
+          ],
+          "answer": 0,
+          "explanation": "MySQL tidak menebak id milik tabel mana dan menolak dengan ERROR 1052. Tulis pesanan.id atau pelanggan.id.",
+          "remedial": "- **INNER JOIN** menggabungkan baris dua tabel yang **punya pasangan**.\n- `ON` menentukan kolom yang harus sama, biasanya foreign key = primary key.\n- Alias tabel (`pesanan AS ps`) membuat query lebih pendek. Tulis kolom sebagai `ps.id`, `p.nama`.\n- Baris tanpa pasangan **hilang** dari hasil.\n- `JOIN` = `INNER JOIN`."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+-------+\n-- | id  | pelanggan_id | tanggal    | total |\n-- +-----+--------------+------------+-------+\n-- | 101 |            1 | 2024-05-01 | 51000 |\n-- | 102 |            2 | 2024-05-02 | 24000 |\n-- | 103 |            1 | 2024-05-03 | 28000 |\n-- | 104 |         NULL | 2024-05-04 | 15000 |\n-- +-----+--------------+------------+-------+\nSELECT DISTINCT p.nama\nFROM pelanggan p\nINNER JOIN pesanan ps ON ps.pelanggan_id = p.id\nORDER BY p.nama;",
+      "options": [
+        "Budi, Sari, Rina, Dewi",
+        "Budi, Sari",
+        "Budi, Budi, Sari",
+        "Budi, Sari, NULL"
+      ],
+      "answer": 1,
+      "explanation": "Hanya Budi dan Sari yang punya pesanan. DISTINCT membuang nama Budi yang dobel. Rina dan Dewi hilang karena tidak punya pasangan."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Tampilkan nomor pesanan dan nama pemesannya\n-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+-------+\n-- | id  | pelanggan_id | tanggal    | total |\n-- +-----+--------------+------------+-------+\n-- | 101 |            1 | 2024-05-01 | 51000 |\n-- | 102 |            2 | 2024-05-02 | 24000 |\n-- | 103 |            1 | 2024-05-03 | 28000 |\n-- | 104 |         NULL | 2024-05-04 | 15000 |\n-- +-----+--------------+------------+-------+\nSELECT ps.id, p.nama\nFROM pesanan AS ps\n___ JOIN pelanggan AS p\n  ___ ps.pelanggan_id = p.id\nORDER BY ps.id;",
+      "answers": [
+        "INNER|inner|Inner",
+        "ON|on|On"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "INNER JOIN menggabungkan baris dua tabel yang punya pasangan.",
+        "ON menentukan syarat pasangan, biasanya foreign key = primary key.",
+        "Pakai alias tabel dan awalan kolom (ps.id, p.nama) supaya tidak ambigu.",
+        "Baris tanpa pasangan tidak muncul di hasil INNER JOIN.",
+        "JOIN tanpa ON memasangkan semua baris dengan semua baris."
+      ]
+    }
+  ]
+}

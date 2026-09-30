@@ -1,0 +1,114 @@
+{
+  "id": "mysql-relasi-02",
+  "moduleId": "mysql-relasi",
+  "order": 2,
+  "title": "Foreign Key",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Basis Data kamu sudah berkenalan dengan **foreign key**: kolom yang menunjuk ke primary key di tabel lain. Misalnya `pesanan.pelanggan_id` menunjuk ke `pelanggan.id`.\n\nSampai sekarang, hubungan itu baru \"janji di atas kertas\". Tidak ada yang melarang kita mengisi `pelanggan_id = 99` padahal pelanggan nomor 99 tidak ada. Pesanan seperti itu disebut **data yatim**: punya \"orang tua\" yang tidak pernah ada.\n\nDi MySQL, kita bisa meminta database menjaga hubungan itu dengan constraint `FOREIGN KEY`.\n\nBayangkan kasir perpustakaan. Ia hanya mau mencatat peminjaman kalau nomor anggotanya **terdaftar**. Sebaliknya, data anggota tidak boleh dihapus selama ia masih punya pinjaman. Foreign key membuat database bertindak seperti kasir yang teliti itu."
+    },
+    {
+      "type": "theory",
+      "content": "![ERD pelanggan dan pesanan: satu pelanggan membuat nol atau banyak pesanan, kolom pesanan.pelanggan_id menunjuk ke pelanggan.id](images/mysql/relasi-pelanggan-pesanan.svg)\n\nTabel yang ditunjuk (`pelanggan`) disebut **tabel induk**. Tabel yang menunjuk (`pesanan`) disebut **tabel anak**.\n\n```sql\nCREATE TABLE pesanan (\n  id INT PRIMARY KEY,\n  pelanggan_id INT NOT NULL,\n  tanggal DATE NOT NULL,\n  FOREIGN KEY (pelanggan_id) REFERENCES pelanggan (id)\n);\n```\n\nBaca barisnya seperti kalimat: *kolom `pelanggan_id` merujuk (REFERENCES) ke kolom `id` di tabel `pelanggan`*.\n\nSetelah itu MySQL menjaga tiga hal:\n\n| Tindakan | Hasil |\n|---|---|\n| INSERT pesanan dengan pelanggan yang tidak ada | ditolak, `ERROR 1452` |\n| DELETE atau UPDATE id pelanggan yang masih punya pesanan | ditolak, `ERROR 1451` |\n| DROP TABLE pelanggan selagi masih dirujuk | ditolak, `ERROR 3730` |\n\nSyarat membuat foreign key:\n\n- Tipe kolom anak dan induk **harus sejenis** (INT dengan INT).\n- Kolom induk biasanya primary key (atau UNIQUE).\n- Tabel memakai mesin **InnoDB**, bawaan MySQL 8.\n\nKalau tidak diberi nama, MySQL menamai constraint-nya sendiri, misalnya `pesanan_ibfk_1`. Kamu juga bisa memberi nama: `CONSTRAINT fk_pesanan_pelanggan FOREIGN KEY (...) REFERENCES ...`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `pelanggan` dan `pesanan` dibuat seperti di bawah. Perhatikan urutannya: tabel induk dibuat dan diisi **lebih dulu**.\n\n```sql\nCREATE TABLE pelanggan (\n  id INT PRIMARY KEY,\n  nama VARCHAR(50) NOT NULL,\n  kota VARCHAR(30)\n);\nINSERT INTO pelanggan VALUES\n  (1, 'Budi', 'Bandung'),\n  (2, 'Sari', 'Jakarta'),\n  (3, 'Rina', 'Surabaya');\nCREATE TABLE pesanan (\n  id INT PRIMARY KEY,\n  pelanggan_id INT NOT NULL,\n  tanggal DATE NOT NULL,\n  FOREIGN KEY (pelanggan_id) REFERENCES pelanggan (id)\n);\nINSERT INTO pesanan VALUES\n  (101, 1, '2024-05-01'),\n  (102, 2, '2024-05-02'),\n  (103, 1, '2024-05-03');\n```\n\n```sql\nINSERT INTO pesanan VALUES (104, 3, '2024-05-04');\nSELECT * FROM pesanan;\n```\n\nHasilnya:\n\n```text\n+-----+--------------+------------+\n| id  | pelanggan_id | tanggal    |\n+-----+--------------+------------+\n| 101 |            1 | 2024-05-01 |\n| 102 |            2 | 2024-05-02 |\n| 103 |            1 | 2024-05-03 |\n| 104 |            3 | 2024-05-04 |\n+-----+--------------+------------+\n4 rows in set\n```\n\nRina (id 3) terdaftar, jadi pesanan 104 diterima. Sekarang coba pelanggan yang tidak ada, lalu hapus pelanggan yang masih punya pesanan:\n\n```sql\nINSERT INTO pesanan VALUES (105, 9, '2024-05-05');\n-- ERROR 1452 (23000): Cannot add or update a child row: a foreign key constraint fails\n-- (`toko`.`pesanan`, CONSTRAINT `pesanan_ibfk_1` FOREIGN KEY (`pelanggan_id`) REFERENCES `pelanggan` (`id`))\n\nDELETE FROM pelanggan WHERE id = 1;\n-- ERROR 1451 (23000): Cannot delete or update a parent row: a foreign key constraint fails\n-- (`toko`.`pesanan`, CONSTRAINT `pesanan_ibfk_1` FOREIGN KEY (`pelanggan_id`) REFERENCES `pelanggan` (`id`))\n```\n\n`toko` adalah nama database dalam contoh ini. Kalau pesanan milik Budi dihapus dulu, barulah data Budi boleh dihapus."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tipe kolom anak dan induk berbeda**\n\nSalah:\n\n```sql\nCREATE TABLE pesanan (\n  id INT PRIMARY KEY,\n  pelanggan_id VARCHAR(10),\n  FOREIGN KEY (pelanggan_id) REFERENCES pelanggan (id)\n)\n```\n\nBenar:\n\n```sql\nCREATE TABLE pesanan (\n  id INT PRIMARY KEY,\n  pelanggan_id INT,\n  FOREIGN KEY (pelanggan_id) REFERENCES pelanggan (id)\n)\n```\n\npelanggan.id bertipe INT, jadi pelanggan_id juga harus INT. Kalau tipenya berbeda, MySQL menolak membuat foreign key.\n\n**2. Mengisi tabel anak sebelum tabel induk**\n\nSalah:\n\n```sql\nINSERT INTO pesanan VALUES (101, 1, '2024-05-01');\nINSERT INTO pelanggan VALUES (1, 'Budi', 'Bandung');\n```\n\nBenar:\n\n```sql\nINSERT INTO pelanggan VALUES (1, 'Budi', 'Bandung');\nINSERT INTO pesanan VALUES (101, 1, '2024-05-01');\n```\n\nSaat pesanan dimasukkan, pelanggan 1 belum ada, jadi ditolak dengan ERROR 1452. Isi induk dulu, baru anak. Menghapus kebalikannya: anak dulu, baru induk.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dimaksud data yatim?",
+          "options": [
+            "Baris yang semua kolomnya NULL",
+            "Baris anak yang merujuk ke baris induk yang tidak ada",
+            "Tabel yang tidak punya primary key",
+            "Baris yang dihapus tanpa WHERE"
+          ],
+          "answer": 1,
+          "explanation": "Misalnya pesanan dengan pelanggan_id 99 padahal pelanggan 99 tidak pernah ada. Foreign key mencegah data seperti ini.",
+          "remedial": "- **Foreign key**: kolom di tabel anak yang merujuk ke primary key tabel induk.\n- Tulis: `FOREIGN KEY (kolom_anak) REFERENCES induk (kolom_induk)`.\n- Menolak **data yatim** (INSERT anak dengan induk yang tidak ada → `ERROR 1452`).\n- Menolak menghapus induk yang masih dipakai (`ERROR 1451`).\n- Urutan aman: isi induk dulu. Hapus anak dulu."
+        },
+        {
+          "question": "Apa yang terjadi saat query ini dijalankan?",
+          "code": "-- pesanan.pelanggan_id: FOREIGN KEY ke pelanggan(id), tanpa aturan ON DELETE\n-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+\n-- | id  | pelanggan_id | tanggal    |\n-- +-----+--------------+------------+\n-- | 101 |            1 | 2024-05-01 |\n-- | 102 |            2 | 2024-05-02 |\n-- | 103 |            1 | 2024-05-03 |\n-- +-----+--------------+------------+\nINSERT INTO pesanan VALUES (104, 7, '2024-05-04');",
+          "options": [
+            "Berhasil, pelanggan 7 dibuat otomatis",
+            "Berhasil, pelanggan_id diubah menjadi NULL",
+            "Ditolak karena pelanggan dengan id 7 tidak ada",
+            "Ditolak karena id 104 sudah dipakai"
+          ],
+          "answer": 2,
+          "explanation": "Tidak ada pelanggan dengan id 7, jadi foreign key menolak (ERROR 1452). MySQL tidak pernah membuat baris induk secara otomatis.",
+          "remedial": "- **Foreign key**: kolom di tabel anak yang merujuk ke primary key tabel induk.\n- Tulis: `FOREIGN KEY (kolom_anak) REFERENCES induk (kolom_induk)`.\n- Menolak **data yatim** (INSERT anak dengan induk yang tidak ada → `ERROR 1452`).\n- Menolak menghapus induk yang masih dipakai (`ERROR 1451`).\n- Urutan aman: isi induk dulu. Hapus anak dulu."
+        },
+        {
+          "question": "Apa yang terjadi saat query ini dijalankan?",
+          "code": "-- pesanan.pelanggan_id: FOREIGN KEY ke pelanggan(id), tanpa aturan ON DELETE\n-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+\n-- | id  | pelanggan_id | tanggal    |\n-- +-----+--------------+------------+\n-- | 101 |            1 | 2024-05-01 |\n-- | 102 |            2 | 2024-05-02 |\n-- | 103 |            1 | 2024-05-03 |\n-- +-----+--------------+------------+\nDELETE FROM pelanggan WHERE id = 2;",
+          "options": [
+            "Ditolak karena Sari masih punya pesanan",
+            "Sari terhapus, pesanan 102 ikut terhapus",
+            "Sari terhapus, pesanan 102 tetap ada",
+            "Sari terhapus, pelanggan_id pesanan 102 menjadi NULL"
+          ],
+          "answer": 0,
+          "explanation": "Pesanan 102 masih merujuk ke Sari. Tanpa aturan ON DELETE, MySQL menolak penghapusan (ERROR 1451).",
+          "remedial": "- **Foreign key**: kolom di tabel anak yang merujuk ke primary key tabel induk.\n- Tulis: `FOREIGN KEY (kolom_anak) REFERENCES induk (kolom_induk)`.\n- Menolak **data yatim** (INSERT anak dengan induk yang tidak ada → `ERROR 1452`).\n- Menolak menghapus induk yang masih dipakai (`ERROR 1451`).\n- Urutan aman: isi induk dulu. Hapus anak dulu."
+        },
+        {
+          "question": "Apa hasil query terakhir?",
+          "code": "-- pesanan.pelanggan_id: FOREIGN KEY ke pelanggan(id), tanpa aturan ON DELETE\n-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+\n-- | id  | pelanggan_id | tanggal    |\n-- +-----+--------------+------------+\n-- | 101 |            1 | 2024-05-01 |\n-- | 102 |            2 | 2024-05-02 |\n-- | 103 |            1 | 2024-05-03 |\n-- +-----+--------------+------------+\nDELETE FROM pelanggan WHERE id = 3;\nSELECT COUNT(*) FROM pelanggan;",
+          "options": [
+            "3",
+            "Error, pelanggan masih dipakai",
+            "0",
+            "2"
+          ],
+          "answer": 3,
+          "explanation": "Rina (id 3) belum punya pesanan, jadi tidak ada yang merujuk kepadanya. Penghapusan berhasil dan tersisa 2 pelanggan.",
+          "remedial": "- **Foreign key**: kolom di tabel anak yang merujuk ke primary key tabel induk.\n- Tulis: `FOREIGN KEY (kolom_anak) REFERENCES induk (kolom_induk)`.\n- Menolak **data yatim** (INSERT anak dengan induk yang tidak ada → `ERROR 1452`).\n- Menolak menghapus induk yang masih dipakai (`ERROR 1451`).\n- Urutan aman: isi induk dulu. Hapus anak dulu."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query terakhir?",
+      "code": "-- pesanan.pelanggan_id: FOREIGN KEY ke pelanggan(id), tanpa aturan ON DELETE\n-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- +----+------+----------+\n\n-- Tabel pesanan:\n-- +-----+--------------+------------+\n-- | id  | pelanggan_id | tanggal    |\n-- +-----+--------------+------------+\n-- | 101 |            1 | 2024-05-01 |\n-- | 102 |            2 | 2024-05-02 |\n-- | 103 |            1 | 2024-05-03 |\n-- +-----+--------------+------------+\nDELETE FROM pesanan WHERE pelanggan_id = 2;\nDELETE FROM pelanggan WHERE id = 2;\nSELECT nama FROM pelanggan ORDER BY id;",
+      "options": [
+        "Budi, Sari, Rina",
+        "Error pada DELETE kedua",
+        "Budi, Rina",
+        "Budi"
+      ],
+      "answer": 2,
+      "explanation": "Pesanan milik Sari dihapus dulu, jadi tidak ada lagi yang merujuk kepadanya. DELETE kedua berhasil, tersisa Budi dan Rina."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Kolom pelanggan_id merujuk ke kolom id di tabel pelanggan\nCREATE TABLE ulasan (\n  id INT PRIMARY KEY,\n  pelanggan_id INT NOT NULL,\n  isi VARCHAR(200),\n  ___ (pelanggan_id) ___ pelanggan (id)\n);",
+      "answers": [
+        "FOREIGN KEY|foreign key|Foreign Key",
+        "REFERENCES|references|References"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Foreign key menjaga hubungan antara tabel anak dan tabel induk.",
+        "Sintaksnya: FOREIGN KEY (kolom) REFERENCES induk (kolom).",
+        "Data yatim ditolak (ERROR 1452), induk yang masih dipakai tidak bisa dihapus (ERROR 1451).",
+        "Tipe kolom anak dan induk harus sejenis.",
+        "Isi induk dulu, hapus anak dulu."
+      ]
+    }
+  ]
+}

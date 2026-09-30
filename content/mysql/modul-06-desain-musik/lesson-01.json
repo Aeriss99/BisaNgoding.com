@@ -1,0 +1,112 @@
+{
+  "id": "desain-musik-01",
+  "moduleId": "desain-musik",
+  "order": 1,
+  "title": "Menentukan Kebutuhan dan Entitas",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Modul ini adalah **studi kasus**. Kita akan merancang database untuk sebuah **aplikasi streaming musik** dari nol, memakai semua yang sudah kamu pelajari: tabel, primary key, foreign key, JOIN, dan index.\n\nKesalahan paling umum saat merancang database adalah langsung menulis `CREATE TABLE`. Desain yang baik dimulai dari pertanyaan sederhana: **aplikasi ini harus bisa melakukan apa saja?**\n\n```mermaid\nflowchart LR\n    A[\"Kebutuhan (fitur)\"] --> B[\"Entitas\"]\n    B --> C[\"Relasi\"]\n    C --> D[\"Tabel (CREATE TABLE)\"]\n    D --> E[\"Query\"]\n```\n\nBayangkan membangun rumah. Arsitek yang baik bertanya dulu: berapa orang penghuninya, perlu berapa kamar, perlu garasi atau tidak. Baru setelah itu ia menggambar denah. Memindahkan dinding di atas kertas itu gampang. Memindahkan dinding rumah yang sudah dihuni itu mahal.\n\nDatabase juga begitu. Mengubah desain saat tabel masih kosong itu mudah. Mengubahnya saat sudah berisi jutaan baris jauh lebih repot."
+    },
+    {
+      "type": "theory",
+      "content": "Kita mulai dari daftar fitur yang diminta:\n\n1. Pengguna bisa mencari dan memutar **lagu**.\n2. Setiap lagu ada di sebuah **album**, dan album dirilis oleh seorang **artis**.\n3. Satu lagu bisa dinyanyikan lebih dari satu artis (duet atau *featuring*).\n4. **Pengguna** bisa membuat **playlist** dan menyusun urutan lagunya.\n5. Pengguna bisa **menyukai** lagu (tombol hati).\n6. Aplikasi mencatat lagu yang **diputar**, untuk laporan lagu terpopuler.\n\nTrik sederhana: **kata benda** biasanya jadi **entitas** (calon tabel), **kata kerja** biasanya jadi **relasi**.\n\n| Entitas | Contoh isi |\n|---|---|\n| artis | Senja Kota, Rina Lestari |\n| album | Langit Jingga (2023) |\n| lagu | Hujan di Braga, 3:35 |\n| pengguna | Budi, budi@contoh.com |\n| playlist | Teman Kerja milik Budi |\n\nLalu kita tentukan jenis hubungannya:\n\n| Hubungan | Jenis |\n|---|---|\n| artis merilis album | one-to-many |\n| album berisi lagu | one-to-many |\n| artis menyanyikan lagu | many-to-many |\n| pengguna membuat playlist | one-to-many |\n| playlist memuat lagu | many-to-many |\n| pengguna menyukai lagu | many-to-many |\n\nHasilnya kita gambar sebagai **ERD awal**. Belum ada kolom, yang penting entitas dan garis relasinya benar:\n\n![ERD awal aplikasi musik: artis, album, lagu, pengguna, dan playlist beserta garis relasinya](images/mysql/musik-erd-awal.svg)\n\nIngat aturan dari modul sebelumnya: setiap garis **many-to-many** nanti dipecah dengan **tabel penghubung**, yaitu `lagu_artis`, `playlist_lagu`, dan `suka_lagu`. Fitur nomor 6 (memutar lagu) sengaja belum digambar. Ia punya pelajarannya sendiri, karena satu orang bisa memutar lagu yang sama berkali-kali."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nApa jadinya kalau kita melewatkan langkah entitas dan menyimpan semua di satu tabel? Misalnya nama artis ditulis sebagai teks biasa, dipisah koma:\n\n```sql\nCREATE TABLE lagu_campur (id INT PRIMARY KEY, judul VARCHAR(50), artis VARCHAR(100));\nINSERT INTO lagu_campur VALUES\n  (1, 'Hujan di Braga', 'Senja Kota'),\n  (2, 'Jalan Pulang', 'Senja Kota, Rina Lestari'),\n  (3, 'Rumah', 'Rina Lestari'),\n  (4, 'Sampai Nanti', 'Rina Lestari, Dimas Arya'),\n  (5, 'Arah Angin', 'Arya');\n```\n\n```sql\nSELECT judul FROM lagu_campur WHERE artis = 'Rina Lestari';\nSELECT judul, artis FROM lagu_campur WHERE artis LIKE '%Arya%';\n```\n\nHasilnya:\n\n```text\n+-------+\n| judul |\n+-------+\n| Rumah |\n+-------+\n1 row in set\n\n+--------------+--------------------------+\n| judul        | artis                    |\n+--------------+--------------------------+\n| Sampai Nanti | Rina Lestari, Dimas Arya |\n| Arah Angin   | Arya                     |\n+--------------+--------------------------+\n2 rows in set\n```\n\nDua-duanya salah:\n\n- Query pertama hanya menemukan **Rumah**. Dua lagu duet Rina Lestari hilang karena isi kolomnya bukan persis `'Rina Lestari'`.\n- Query kedua ingin mencari lagu penyanyi bernama **Arya**, tapi lagu **Dimas Arya** ikut terbawa.\n\nMasalahnya bukan pada query, melainkan pada desainnya. Artis adalah entitas sendiri, jadi ia butuh tabel sendiri dengan `id`. Hubungan lagu dan artis disimpan di tabel penghubung. Itulah yang kita bangun di pelajaran berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan beberapa artis dalam satu kolom**\n\nSalah:\n\n```sql\nCREATE TABLE lagu (\n  id INT PRIMARY KEY,\n  judul VARCHAR(150),\n  artis VARCHAR(200)   -- 'Senja Kota, Rina Lestari'\n);\n```\n\nBenar:\n\n```sql\nCREATE TABLE lagu_artis (\n  lagu_id INT NOT NULL,\n  artis_id INT NOT NULL,\n  PRIMARY KEY (lagu_id, artis_id)\n);\n```\n\nTeks berisi daftar nama sulit dicari, sulit dihitung, dan harus diubah di banyak baris kalau nama artis berganti. Satu baris di tabel penghubung untuk setiap pasangan lagu dan artis jauh lebih rapi.\n\n**2. Membuat kolom lagu1, lagu2, lagu3 di tabel playlist**\n\nSalah:\n\n```sql\nCREATE TABLE playlist (\n  id INT PRIMARY KEY,\n  nama VARCHAR(100),\n  lagu1 INT,\n  lagu2 INT,\n  lagu3 INT\n);\n```\n\nBenar:\n\n```sql\nCREATE TABLE playlist_lagu (\n  playlist_id INT NOT NULL,\n  lagu_id INT NOT NULL,\n  urutan INT NOT NULL,\n  PRIMARY KEY (playlist_id, lagu_id)\n);\n```\n\nPlaylist bisa berisi 3 lagu atau 300 lagu. Kolom berulang membatasi jumlahnya dan membuat pencarian \"playlist mana yang memuat lagu 4\" harus memeriksa semua kolom. Ini melanggar bentuk normal pertama (1NF).\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Dari kalimat fitur \"Pengguna bisa menyukai lagu\", mana yang menjadi calon entitas?",
+          "options": [
+            "pengguna dan lagu",
+            "menyukai",
+            "bisa",
+            "pengguna, menyukai, dan lagu"
+          ],
+          "answer": 0,
+          "explanation": "Kata benda (pengguna, lagu) menjadi entitas. Kata kerja \"menyukai\" menjadi relasi di antara keduanya.",
+          "remedial": "Urutan merancang database: **kebutuhan → entitas → relasi → tabel → query**.\n\n- Kata benda di daftar fitur biasanya jadi entitas (artis, album, lagu, pengguna, playlist).\n- Kata kerja biasanya jadi relasi (merilis, berisi, menyukai).\n- Relasi many-to-many dipecah dengan tabel penghubung (lagu_artis, playlist_lagu, suka_lagu).\n- Jangan menyimpan daftar nilai dalam satu kolom teks."
+        },
+        {
+          "question": "Satu lagu bisa dinyanyikan beberapa artis, dan satu artis punya banyak lagu. Hubungan ini disebut...",
+          "options": [
+            "one-to-one",
+            "one-to-many",
+            "many-to-many",
+            "bukan relasi"
+          ],
+          "answer": 2,
+          "explanation": "Banyak di kedua sisi berarti many-to-many, jadi perlu tabel penghubung lagu_artis.",
+          "remedial": "Urutan merancang database: **kebutuhan → entitas → relasi → tabel → query**.\n\n- Kata benda di daftar fitur biasanya jadi entitas (artis, album, lagu, pengguna, playlist).\n- Kata kerja biasanya jadi relasi (merilis, berisi, menyukai).\n- Relasi many-to-many dipecah dengan tabel penghubung (lagu_artis, playlist_lagu, suka_lagu).\n- Jangan menyimpan daftar nilai dalam satu kolom teks."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel lagu_campur:\n-- +----+----------------+--------------------------+\n-- | id | judul          | artis                    |\n-- +----+----------------+--------------------------+\n-- |  1 | Hujan di Braga | Senja Kota               |\n-- |  2 | Jalan Pulang   | Senja Kota, Rina Lestari |\n-- |  3 | Rumah          | Rina Lestari             |\n-- |  4 | Sampai Nanti   | Rina Lestari, Dimas Arya |\n-- |  5 | Arah Angin     | Arya                     |\n-- +----+----------------+--------------------------+\nSELECT COUNT(*) FROM lagu_campur WHERE artis = 'Senja Kota';",
+          "options": [
+            "1",
+            "2",
+            "0",
+            "3"
+          ],
+          "answer": 0,
+          "explanation": "Hanya baris 1 yang isinya persis Senja Kota. Lagu duet Jalan Pulang tidak ikut terhitung, dan itulah kelemahan menyimpan daftar artis dalam satu kolom.",
+          "remedial": "Urutan merancang database: **kebutuhan → entitas → relasi → tabel → query**.\n\n- Kata benda di daftar fitur biasanya jadi entitas (artis, album, lagu, pengguna, playlist).\n- Kata kerja biasanya jadi relasi (merilis, berisi, menyukai).\n- Relasi many-to-many dipecah dengan tabel penghubung (lagu_artis, playlist_lagu, suka_lagu).\n- Jangan menyimpan daftar nilai dalam satu kolom teks."
+        },
+        {
+          "question": "Kenapa fitur \"memutar lagu\" tidak cukup disimpan di tabel penghubung dengan primary key (pengguna_id, lagu_id)?",
+          "options": [
+            "Karena satu pengguna bisa memutar lagu yang sama berkali-kali, dan tiap putaran perlu dicatat",
+            "Karena lagu tidak punya primary key",
+            "Karena pengguna hanya boleh memutar satu lagu",
+            "Karena tabel penghubung tidak boleh punya foreign key"
+          ],
+          "answer": 0,
+          "explanation": "Primary key gabungan (pengguna_id, lagu_id) hanya mengizinkan satu baris per pasangan. Riwayat putar butuh satu baris per putaran, jadi ia punya id sendiri.",
+          "remedial": "Urutan merancang database: **kebutuhan → entitas → relasi → tabel → query**.\n\n- Kata benda di daftar fitur biasanya jadi entitas (artis, album, lagu, pengguna, playlist).\n- Kata kerja biasanya jadi relasi (merilis, berisi, menyukai).\n- Relasi many-to-many dipecah dengan tabel penghubung (lagu_artis, playlist_lagu, suka_lagu).\n- Jangan menyimpan daftar nilai dalam satu kolom teks."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Berapa baris yang tampil?",
+      "code": "-- Tabel lagu_campur:\n-- +----+----------------+--------------------------+\n-- | id | judul          | artis                    |\n-- +----+----------------+--------------------------+\n-- |  1 | Hujan di Braga | Senja Kota               |\n-- |  2 | Jalan Pulang   | Senja Kota, Rina Lestari |\n-- |  3 | Rumah          | Rina Lestari             |\n-- |  4 | Sampai Nanti   | Rina Lestari, Dimas Arya |\n-- |  5 | Arah Angin     | Arya                     |\n-- +----+----------------+--------------------------+\nSELECT judul FROM lagu_campur WHERE artis LIKE '%Rina Lestari%';",
+      "options": [
+        "3 baris",
+        "1 baris",
+        "2 baris",
+        "0 baris"
+      ],
+      "answer": 0,
+      "explanation": "LIKE dengan % menemukan Jalan Pulang, Rumah, dan Sampai Nanti. Hasilnya benar kali ini, tapi cara ini rapuh: nama yang mirip bisa ikut terbawa, dan pencarian seperti ini tidak bisa memakai index biasa."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Satu lagu punya banyak artis, satu artis punya banyak lagu.\n-- Hubungan ini disebut many-to-___ dan dipecah dengan tabel ___",
+      "answers": [
+        "many",
+        "penghubung|perantara|junction"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Mulai desain dari daftar fitur, bukan dari CREATE TABLE.",
+        "Kata benda jadi entitas, kata kerja jadi relasi.",
+        "Gambar ERD awal dulu: entitas dan garis relasinya.",
+        "Relasi many-to-many dipecah dengan tabel penghubung.",
+        "Jangan menyimpan daftar nilai (misalnya beberapa nama artis) dalam satu kolom."
+      ]
+    }
+  ]
+}

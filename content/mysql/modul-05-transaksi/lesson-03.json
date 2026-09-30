@@ -1,0 +1,112 @@
+{
+  "id": "mysql-transaksi-03",
+  "moduleId": "mysql-transaksi",
+  "order": 3,
+  "title": "Isolation",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Database toko online tidak hanya dipakai satu orang. Dalam satu detik bisa ada ratusan transaksi yang berjalan **bersamaan**: ada yang membeli, ada yang mengubah harga, ada yang membuat laporan.\n\n**Isolation** adalah janji bahwa transaksi-transaksi itu tidak saling mengganggu. Setiap transaksi bekerja seolah-olah sedang sendirian di database.\n\nBayangkan ujian di kelas. Setiap siswa mengerjakan di kertasnya sendiri. Kamu tidak bisa melihat coretan teman sebelah yang belum selesai, apalagi yang nanti dia hapus. Jawaban baru \"resmi\" setelah kertasnya dikumpulkan (COMMIT)."
+    },
+    {
+      "type": "theory",
+      "content": "Kalau isolasinya longgar, tiga masalah bisa muncul. Misalkan ada dua transaksi, **A** dan **B**:\n\n| Masalah | Yang terjadi |\n|---|---|\n| **Dirty read** | A membaca perubahan B yang **belum di-COMMIT**. Lalu B melakukan ROLLBACK, jadi A memakai data yang tidak pernah ada. |\n| **Non-repeatable read** | A membaca satu baris dua kali. Di antaranya B mengubah baris itu dan COMMIT, jadi A mendapat nilai yang berbeda. |\n| **Phantom read** | A menghitung baris dengan syarat yang sama dua kali. Di antaranya B menambah baris baru, jadi muncul baris \"hantu\". |\n\nMakin ketat isolasinya, makin sedikit masalah, tapi transaksi lebih sering harus saling menunggu. Karena itu ada empat **isolation level** yang bisa dipilih:\n\n| Isolation level | Dirty read | Non-repeatable read | Phantom read |\n|---|---|---|---|\n| `READ UNCOMMITTED` | bisa terjadi | bisa terjadi | bisa terjadi |\n| `READ COMMITTED` | dicegah | bisa terjadi | bisa terjadi |\n| `REPEATABLE READ` | dicegah | dicegah | bisa terjadi (menurut standar SQL) |\n| `SERIALIZABLE` | dicegah | dicegah | dicegah |\n\nLevel bawaan MySQL dengan InnoDB adalah **REPEATABLE READ**. InnoDB bahkan lebih ketat dari standarnya: `SELECT` biasa di dalam satu transaksi selalu membaca dari \"foto\" data yang sama (*snapshot*), sehingga baris baru dari transaksi lain tidak tiba-tiba muncul.\n\nPerintah yang berhubungan:\n\n```sql\nSELECT @@transaction_isolation;                          -- lihat level sekarang\nSET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;  -- berlaku untuk sesi ini\nSET TRANSACTION ISOLATION LEVEL SERIALIZABLE;            -- hanya transaksi berikutnya\n```\n\nUntuk sebagian besar aplikasi, level bawaan sudah tepat. Jangan mengubahnya tanpa alasan yang jelas."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKita lihat isolation level bawaan, lalu mengubahnya untuk sesi ini saja dan melihatnya lagi. Perhatikan bahwa MySQL menulis nama level dengan tanda strip.\n\n```sql\nSELECT @@transaction_isolation;\n\nSET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;   -- ubah untuk sesi ini\nSELECT @@transaction_isolation;\n```\n\nHasilnya:\n\n```text\n+-------------------------+\n| @@transaction_isolation |\n+-------------------------+\n| REPEATABLE-READ         |\n+-------------------------+\n1 row in set\n\n+-------------------------+\n| @@transaction_isolation |\n+-------------------------+\n| READ-COMMITTED          |\n+-------------------------+\n1 row in set\n```\n\nPerilaku isolasi hanya terlihat kalau ada **dua sesi** yang berjalan bersamaan, jadi kita pakai tabel skenario. Tabel `produk` berisi Kopi Susu seharga 15000. Kasir (sesi A) membaca harga dua kali, sementara admin (sesi B) mengubahnya:\n\n| Waktu | Sesi A (kasir) | Sesi B (admin) |\n|---|---|---|\n| 1 | `START TRANSACTION;` | |\n| 2 | `SELECT harga FROM produk WHERE id = 1;` → 15000 | |\n| 3 | | `UPDATE produk SET harga = 18000 WHERE id = 1;` |\n| 4 | | `COMMIT;` |\n| 5 | `SELECT harga FROM produk WHERE id = 1;` → ? | |\n\nHasil di waktu 5 bergantung pada isolation level sesi A:\n\n| Level sesi A | Hasil di waktu 5 | Kenapa |\n|---|---|---|\n| `READ COMMITTED` | 18000 | setiap SELECT membaca data terbaru yang sudah di-COMMIT (non-repeatable read) |\n| `REPEATABLE READ` | 15000 | sepanjang transaksi A membaca snapshot yang sama |\n\nSesi A baru melihat harga 18000 di REPEATABLE READ setelah ia COMMIT dan memulai transaksi baru."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira SET TRANSACTION berlaku seterusnya**\n\nSalah:\n\n```sql\nSET TRANSACTION ISOLATION LEVEL READ COMMITTED;\n-- berharap semua transaksi berikutnya memakai READ COMMITTED\n```\n\nBenar:\n\n```sql\nSET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;\n```\n\nTanpa kata SESSION, pengaturan hanya berlaku untuk satu transaksi berikutnya. Setelah itu kembali ke level sesi.\n\n**2. Memakai READ UNCOMMITTED supaya lebih cepat**\n\nSalah:\n\n```sql\nSET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;\nSELECT SUM(saldo) FROM rekening;   -- untuk laporan keuangan\n```\n\nBenar:\n\n```sql\nSELECT SUM(saldo) FROM rekening;   -- cukup dengan level bawaan REPEATABLE READ\n```\n\nDi READ UNCOMMITTED, laporan bisa ikut menghitung perubahan yang belum di-COMMIT dan mungkin dibatalkan (dirty read). Angkanya bisa salah.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Transaksi A membaca saldo yang baru diubah transaksi B, padahal B belum COMMIT. Lalu B melakukan ROLLBACK. Masalah ini disebut...",
+          "options": [
+            "Phantom read",
+            "Non-repeatable read",
+            "Dirty read",
+            "Deadlock"
+          ],
+          "answer": 2,
+          "explanation": "Dirty read = membaca data \"kotor\" yang belum di-COMMIT dan akhirnya dibatalkan.",
+          "remedial": "**Isolation** = transaksi bersamaan tidak saling mengganggu.\n\n- **Dirty read**: membaca data yang belum di-COMMIT\n- **Non-repeatable read**: membaca baris yang sama dua kali, nilainya berbeda\n- **Phantom read**: menghitung baris dua kali, muncul baris baru\n\nLevel dari paling longgar: `READ UNCOMMITTED` → `READ COMMITTED` → `REPEATABLE READ` → `SERIALIZABLE`.\n\nBawaan MySQL InnoDB: **REPEATABLE READ**. Lihat dengan `SELECT @@transaction_isolation;`."
+        },
+        {
+          "question": "Apa isolation level bawaan MySQL dengan InnoDB?",
+          "options": [
+            "READ UNCOMMITTED",
+            "READ COMMITTED",
+            "REPEATABLE READ",
+            "SERIALIZABLE"
+          ],
+          "answer": 2,
+          "explanation": "InnoDB memakai REPEATABLE READ secara bawaan.",
+          "remedial": "**Isolation** = transaksi bersamaan tidak saling mengganggu.\n\n- **Dirty read**: membaca data yang belum di-COMMIT\n- **Non-repeatable read**: membaca baris yang sama dua kali, nilainya berbeda\n- **Phantom read**: menghitung baris dua kali, muncul baris baru\n\nLevel dari paling longgar: `READ UNCOMMITTED` → `READ COMMITTED` → `REPEATABLE READ` → `SERIALIZABLE`.\n\nBawaan MySQL InnoDB: **REPEATABLE READ**. Lihat dengan `SELECT @@transaction_isolation;`."
+        },
+        {
+          "question": "Di dalam satu transaksi, `SELECT COUNT(*) FROM pesanan WHERE status = 'baru'` menghasilkan 5. Transaksi lain menambah satu pesanan baru dan COMMIT. Kalau hitungan kedua menjadi 6, masalah apa yang terjadi?",
+          "options": [
+            "Phantom read",
+            "Dirty read",
+            "Non-repeatable read",
+            "Lost update"
+          ],
+          "answer": 0,
+          "explanation": "Baris baru yang muncul di tengah transaksi disebut phantom (hantu).",
+          "remedial": "**Isolation** = transaksi bersamaan tidak saling mengganggu.\n\n- **Dirty read**: membaca data yang belum di-COMMIT\n- **Non-repeatable read**: membaca baris yang sama dua kali, nilainya berbeda\n- **Phantom read**: menghitung baris dua kali, muncul baris baru\n\nLevel dari paling longgar: `READ UNCOMMITTED` → `READ COMMITTED` → `REPEATABLE READ` → `SERIALIZABLE`.\n\nBawaan MySQL InnoDB: **REPEATABLE READ**. Lihat dengan `SELECT @@transaction_isolation;`."
+        },
+        {
+          "question": "Apa hasil query terakhir?",
+          "code": "SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;   -- ubah untuk sesi ini\nSELECT @@transaction_isolation;",
+          "options": [
+            "REPEATABLE-READ",
+            "SERIALIZABLE",
+            "READ-COMMITTED",
+            "SESSION"
+          ],
+          "answer": 1,
+          "explanation": "SET SESSION mengubah level untuk sesi ini, jadi hasilnya SERIALIZABLE.",
+          "remedial": "**Isolation** = transaksi bersamaan tidak saling mengganggu.\n\n- **Dirty read**: membaca data yang belum di-COMMIT\n- **Non-repeatable read**: membaca baris yang sama dua kali, nilainya berbeda\n- **Phantom read**: menghitung baris dua kali, muncul baris baru\n\nLevel dari paling longgar: `READ UNCOMMITTED` → `READ COMMITTED` → `REPEATABLE READ` → `SERIALIZABLE`.\n\nBawaan MySQL InnoDB: **REPEATABLE READ**. Lihat dengan `SELECT @@transaction_isolation;`."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Sesi A memakai level bawaan REPEATABLE READ. Berapa harga yang dibaca sesi A di waktu 5?",
+      "code": "-- Tabel produk: id = 1, nama = Kopi Susu, harga = 15000\n-- Waktu 1  sesi A: START TRANSACTION\n-- Waktu 2  sesi A: SELECT harga FROM produk WHERE id = 1   (hasil: 15000)\n-- Waktu 3  sesi B: UPDATE produk SET harga = 18000 WHERE id = 1\n-- Waktu 4  sesi B: COMMIT\n-- Waktu 5  sesi A: SELECT harga FROM produk WHERE id = 1",
+      "options": [
+        "18000",
+        "15000",
+        "Error karena data berubah",
+        "Menunggu sampai sesi B selesai"
+      ],
+      "answer": 1,
+      "explanation": "Di REPEATABLE READ, SELECT biasa dalam satu transaksi membaca snapshot yang sama. Sesi A tetap melihat 15000 sampai ia COMMIT. Tidak ada yang perlu ditunggu karena B sudah COMMIT dan SELECT biasa tidak mengunci."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Ubah isolation level untuk seluruh sesi ini menjadi READ COMMITTED, lalu periksa\nSET ___ TRANSACTION ISOLATION ___ READ COMMITTED;   -- khusus sesi ini\nSELECT @@transaction_isolation;",
+      "answers": [
+        "SESSION|session|Session",
+        "LEVEL|level|Level"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Isolation menjaga transaksi bersamaan supaya tidak saling mengganggu.",
+        "Tiga masalah: dirty read, non-repeatable read, phantom read.",
+        "Empat level: READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ, SERIALIZABLE.",
+        "Bawaan MySQL InnoDB adalah REPEATABLE READ.",
+        "SET SESSION untuk seluruh sesi, SET TRANSACTION tanpa SESSION hanya untuk transaksi berikutnya."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "id": "mysql-query-08",
+  "moduleId": "mysql-query",
+  "order": 8,
+  "title": "Fungsi Tanggal dan Kondisi",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Hampir setiap aplikasi menyimpan tanggal: tanggal pesan, tanggal lahir, tanggal jatuh tempo. Pertanyaan yang sering muncul: \"pesanan bulan Maret ada berapa?\", \"berapa hari barangnya sampai?\", \"kapan batas pengembalian barang?\".\n\nDi pelajaran ini kita belajar fungsi tanggal, lalu dua cara membuat **kondisi** di dalam hasil query: `IF` dan `CASE WHEN`. Keduanya mirip `if-else` di bahasa pemrograman.\n\nFungsi tanggal itu seperti kalender meja: kamu bisa melihat bulan dan tahunnya, menghitung jarak dua tanggal, atau melompat 7 hari ke depan.\n\n`CASE WHEN` itu seperti kasir yang memberi stempel pada struk: \"belanja di atas 100 ribu dapat stempel emas, di atas 50 ribu stempel perak, selain itu stempel biasa\". Kasir memeriksa dari aturan paling atas, dan berhenti di aturan pertama yang cocok."
+    },
+    {
+      "type": "theory",
+      "content": "Format tanggal di MySQL adalah `'YYYY-MM-DD'`, contohnya `'2024-03-05'`.\n\n**Fungsi tanggal**\n\n| Fungsi | Artinya | Contoh | Hasil |\n|---|---|---|---|\n| `YEAR(t)`, `MONTH(t)`, `DAY(t)` | ambil tahun, bulan, tanggal | `MONTH('2024-03-05')` | `3` |\n| `DATE_FORMAT(t, format)` | ubah tampilan tanggal | `DATE_FORMAT('2024-03-05', '%d/%m/%Y')` | `05/03/2024` |\n| `DATEDIFF(a, b)` | selisih hari: **a dikurangi b** | `DATEDIFF('2024-03-07', '2024-03-05')` | `2` |\n| `DATE_ADD(t, INTERVAL n satuan)` | tambah waktu | `DATE_ADD('2024-03-05', INTERVAL 7 DAY)` | `2024-03-12` |\n\nSatuan `INTERVAL` antara lain `DAY`, `MONTH`, dan `YEAR`. Untuk mengurangi, pakai `DATE_SUB` dengan cara yang sama.\n\nKode format yang sering dipakai di `DATE_FORMAT`:\n\n| Kode | Arti | Contoh |\n|---|---|---|\n| `%d` | tanggal 2 digit | `05` |\n| `%m` | bulan 2 digit | `03` |\n| `%Y` | tahun 4 digit | `2024` |\n| `%M` | nama bulan (bahasa Inggris, bawaan MySQL) | `March` |\n| `%H:%i` | jam dan menit | `14:05` |\n\nMySQL juga punya `CURDATE()` (tanggal hari ini) dan `NOW()` (tanggal dan jam sekarang). Hasilnya berubah setiap hari, jadi di pelajaran ini kita memakai tanggal yang tetap.\n\n```sql\nSELECT CURDATE(), NOW();\n```\n\n**Kondisi**\n\n```sql\nIF(syarat, nilai_kalau_benar, nilai_kalau_salah)\n\nCASE\n  WHEN syarat1 THEN hasil1\n  WHEN syarat2 THEN hasil2\n  ELSE hasil_lain\nEND\n```\n\n`IF` cocok untuk dua pilihan. `CASE` cocok untuk banyak pilihan. `CASE` diperiksa dari atas ke bawah dan berhenti di `WHEN` pertama yang benar. Kalau tidak ada yang benar dan tidak ada `ELSE`, hasilnya `NULL`. Jangan lupa menutup dengan `END`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `pesanan` sebuah toko online. `tgl_tiba` masih NULL kalau barang belum sampai:\n\n| id | pelanggan | tgl_pesan | tgl_tiba | total |\n|---|---|---|---|---|\n| 1 | Budi | 2024-03-05 | 2024-03-07 | 54000 |\n| 2 | Sari | 2024-03-28 | 2024-04-02 | 16000 |\n| 3 | Andi | 2024-04-10 | NULL | 120000 |\n| 4 | Dewi | 2024-12-30 | 2025-01-03 | 75000 |\n\nMemecah dan memformat tanggal:\n\n```sql\nSELECT pelanggan,\n  YEAR(tgl_pesan) AS tahun,\n  MONTH(tgl_pesan) AS bulan,\n  DAY(tgl_pesan) AS tgl,\n  DATE_FORMAT(tgl_pesan, '%d/%m/%Y') AS tanggal\nFROM pesanan;\n```\n\nHasilnya:\n\n```text\n+-----------+-------+-------+-----+------------+\n| pelanggan | tahun | bulan | tgl | tanggal    |\n+-----------+-------+-------+-----+------------+\n| Budi      |  2024 |     3 |   5 | 05/03/2024 |\n| Sari      |  2024 |     3 |  28 | 28/03/2024 |\n| Andi      |  2024 |     4 |  10 | 10/04/2024 |\n| Dewi      |  2024 |    12 |  30 | 30/12/2024 |\n+-----------+-------+-------+-----+------------+\n4 rows in set\n```\n\n#### Menghitung dengan tanggal\n\nLama pengiriman dan batas pengembalian barang (7 hari setelah pesan):\n\n```sql\nSELECT pelanggan,\n  DATEDIFF(tgl_tiba, tgl_pesan) AS lama_kirim,\n  DATE_ADD(tgl_pesan, INTERVAL 7 DAY) AS batas_retur\nFROM pesanan;\n```\n\nHasilnya:\n\n```text\n+-----------+------------+-------------+\n| pelanggan | lama_kirim | batas_retur |\n+-----------+------------+-------------+\n| Budi      |          2 | 2024-03-12  |\n| Sari      |          5 | 2024-04-04  |\n| Andi      |       NULL | 2024-04-17  |\n| Dewi      |          4 | 2025-01-06  |\n+-----------+------------+-------------+\n4 rows in set\n```\n\nPesanan Dewi melewati pergantian tahun, dan `DATEDIFF` tetap menghitung 4 hari dengan benar. Pesanan Andi belum tiba, jadi `lama_kirim` bernilai NULL.\n\n#### IF dan CASE WHEN\n\nMemberi label dengan `IF` dan `CASE WHEN`:\n\n```sql\nSELECT pelanggan, total,\n  IF(total >= 100000, 'Gratis ongkir', 'Bayar ongkir') AS ongkir,\n  CASE\n    WHEN total >= 100000 THEN 'Besar'\n    WHEN total >= 50000 THEN 'Sedang'\n    ELSE 'Kecil'\n  END AS ukuran\nFROM pesanan;\n```\n\nHasilnya:\n\n```text\n+-----------+--------+---------------+--------+\n| pelanggan | total  | ongkir        | ukuran |\n+-----------+--------+---------------+--------+\n| Budi      |  54000 | Bayar ongkir  | Sedang |\n| Sari      |  16000 | Bayar ongkir  | Kecil  |\n| Andi      | 120000 | Gratis ongkir | Besar  |\n| Dewi      |  75000 | Bayar ongkir  | Sedang |\n+-----------+--------+---------------+--------+\n4 rows in set\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membalik urutan tanggal di DATEDIFF**\n\nSalah:\n\n```sql\nSELECT DATEDIFF(tgl_pesan, tgl_tiba) AS lama_kirim\nFROM pesanan;\n```\n\nBenar:\n\n```sql\nSELECT DATEDIFF(tgl_tiba, tgl_pesan) AS lama_kirim\nFROM pesanan;\n```\n\n`DATEDIFF(a, b)` menghitung a dikurangi b. Kalau tanggal yang lebih awal ditaruh di depan, hasilnya negatif (misalnya -2).\n\n**2. Menulis WHEN yang lebih longgar di atas**\n\nSalah:\n\n```sql\nCASE\n  WHEN total >= 50000 THEN 'Sedang'\n  WHEN total >= 100000 THEN 'Besar'\n  ELSE 'Kecil'\nEND\n```\n\nBenar:\n\n```sql\nCASE\n  WHEN total >= 100000 THEN 'Besar'\n  WHEN total >= 50000 THEN 'Sedang'\n  ELSE 'Kecil'\nEND\n```\n\nCASE berhenti di WHEN pertama yang benar. Total 120000 sudah lolos `>= 50000`, jadi labelnya Sedang dan Besar tidak pernah muncul. Taruh syarat yang paling ketat di atas.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel pesanan:\n-- +----+-----------+------------+------------+--------+\n-- | id | pelanggan | tgl_pesan  | tgl_tiba   | total  |\n-- +----+-----------+------------+------------+--------+\n-- |  1 | Budi      | 2024-03-05 | 2024-03-07 |  54000 |\n-- |  2 | Sari      | 2024-03-28 | 2024-04-02 |  16000 |\n-- |  3 | Andi      | 2024-04-10 | NULL       | 120000 |\n-- |  4 | Dewi      | 2024-12-30 | 2025-01-03 |  75000 |\n-- +----+-----------+------------+------------+--------+\nSELECT DATEDIFF(tgl_tiba, tgl_pesan) FROM pesanan WHERE id = 4;",
+          "options": [
+            "-4",
+            "3",
+            "4",
+            "1"
+          ],
+          "answer": 2,
+          "explanation": "Dari 30 Desember 2024 ke 3 Januari 2025 ada 4 hari. DATEDIFF menghitung dengan benar walau melewati pergantian tahun.",
+          "remedial": "- `YEAR`, `MONTH`, `DAY` mengambil bagian tanggal\n- `DATE_FORMAT(t, '%d/%m/%Y')` mengubah tampilan\n- `DATEDIFF(a, b)` = a dikurangi b, dalam hari\n- `DATE_ADD(t, INTERVAL 7 DAY)` menambah waktu, `DATE_SUB` mengurangi\n- `IF(syarat, benar, salah)` untuk dua pilihan\n- `CASE WHEN ... THEN ... ELSE ... END` untuk banyak pilihan, diperiksa dari atas, berhenti di yang pertama benar"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "SELECT DATE_FORMAT('2024-08-17', '%d-%m-%Y');",
+          "options": [
+            "2024-08-17",
+            "17-08-2024",
+            "08-17-2024",
+            "17 Agustus 2024"
+          ],
+          "answer": 1,
+          "explanation": "`%d` tanggal, `%m` bulan, `%Y` tahun, dipisah tanda strip sesuai format.",
+          "remedial": "- `YEAR`, `MONTH`, `DAY` mengambil bagian tanggal\n- `DATE_FORMAT(t, '%d/%m/%Y')` mengubah tampilan\n- `DATEDIFF(a, b)` = a dikurangi b, dalam hari\n- `DATE_ADD(t, INTERVAL 7 DAY)` menambah waktu, `DATE_SUB` mengurangi\n- `IF(syarat, benar, salah)` untuk dua pilihan\n- `CASE WHEN ... THEN ... ELSE ... END` untuk banyak pilihan, diperiksa dari atas, berhenti di yang pertama benar"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel pesanan:\n-- +----+-----------+------------+------------+--------+\n-- | id | pelanggan | tgl_pesan  | tgl_tiba   | total  |\n-- +----+-----------+------------+------------+--------+\n-- |  1 | Budi      | 2024-03-05 | 2024-03-07 |  54000 |\n-- |  2 | Sari      | 2024-03-28 | 2024-04-02 |  16000 |\n-- |  3 | Andi      | 2024-04-10 | NULL       | 120000 |\n-- |  4 | Dewi      | 2024-12-30 | 2025-01-03 |  75000 |\n-- +----+-----------+------------+------------+--------+\nSELECT CASE WHEN total >= 50000 THEN 'Sedang' WHEN total >= 100000 THEN 'Besar' ELSE 'Kecil' END FROM pesanan WHERE id = 3;",
+          "options": [
+            "Besar",
+            "Kecil",
+            "NULL",
+            "Sedang"
+          ],
+          "answer": 3,
+          "explanation": "Total pesanan id 3 adalah 120000. WHEN pertama (>= 50000) sudah benar, jadi CASE berhenti di sana.",
+          "remedial": "- `YEAR`, `MONTH`, `DAY` mengambil bagian tanggal\n- `DATE_FORMAT(t, '%d/%m/%Y')` mengubah tampilan\n- `DATEDIFF(a, b)` = a dikurangi b, dalam hari\n- `DATE_ADD(t, INTERVAL 7 DAY)` menambah waktu, `DATE_SUB` mengurangi\n- `IF(syarat, benar, salah)` untuk dua pilihan\n- `CASE WHEN ... THEN ... ELSE ... END` untuk banyak pilihan, diperiksa dari atas, berhenti di yang pertama benar"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "SELECT DATE_ADD('2024-01-31', INTERVAL 1 MONTH);",
+          "options": [
+            "2024-02-29",
+            "2024-03-02",
+            "2024-02-31",
+            "2024-03-01"
+          ],
+          "answer": 0,
+          "explanation": "Tanggal 31 Februari tidak ada, jadi MySQL memakai hari terakhir bulan Februari. Tahun 2024 adalah tahun kabisat, jadi hasilnya 29 Februari.",
+          "remedial": "- `YEAR`, `MONTH`, `DAY` mengambil bagian tanggal\n- `DATE_FORMAT(t, '%d/%m/%Y')` mengubah tampilan\n- `DATEDIFF(a, b)` = a dikurangi b, dalam hari\n- `DATE_ADD(t, INTERVAL 7 DAY)` menambah waktu, `DATE_SUB` mengurangi\n- `IF(syarat, benar, salah)` untuk dua pilihan\n- `CASE WHEN ... THEN ... ELSE ... END` untuk banyak pilihan, diperiksa dari atas, berhenti di yang pertama benar"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel pesanan:\n-- +----+-----------+------------+------------+--------+\n-- | id | pelanggan | tgl_pesan  | tgl_tiba   | total  |\n-- +----+-----------+------------+------------+--------+\n-- |  1 | Budi      | 2024-03-05 | 2024-03-07 |  54000 |\n-- |  2 | Sari      | 2024-03-28 | 2024-04-02 |  16000 |\n-- |  3 | Andi      | 2024-04-10 | NULL       | 120000 |\n-- |  4 | Dewi      | 2024-12-30 | 2025-01-03 |  75000 |\n-- +----+-----------+------------+------------+--------+\nSELECT pelanggan FROM pesanan WHERE MONTH(tgl_pesan) = 3;",
+      "options": [
+        "Budi",
+        "Budi, Sari",
+        "Sari, Andi",
+        "Budi, Sari, Andi"
+      ],
+      "answer": 1,
+      "explanation": "Pesanan bulan Maret (bulan 3) adalah milik Budi dan Sari. Andi memesan bulan April."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Beri status: 'Dalam perjalanan' kalau tgl_tiba masih kosong, selain itu 'Sudah tiba'\n-- Tabel pesanan:\n-- +----+-----------+------------+------------+--------+\n-- | id | pelanggan | tgl_pesan  | tgl_tiba   | total  |\n-- +----+-----------+------------+------------+--------+\n-- |  1 | Budi      | 2024-03-05 | 2024-03-07 |  54000 |\n-- |  2 | Sari      | 2024-03-28 | 2024-04-02 |  16000 |\n-- |  3 | Andi      | 2024-04-10 | NULL       | 120000 |\n-- |  4 | Dewi      | 2024-12-30 | 2025-01-03 |  75000 |\n-- +----+-----------+------------+------------+--------+\nSELECT pelanggan, CASE WHEN tgl_tiba ___ THEN 'Dalam perjalanan' ELSE 'Sudah tiba' ___ AS status FROM pesanan;",
+      "answers": [
+        "IS NULL|is null|Is Null",
+        "END|end|End"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "YEAR, MONTH, DAY mengambil bagian tanggal. DATE_FORMAT mengubah tampilannya.",
+        "DATEDIFF(a, b) menghitung a dikurangi b dalam hari.",
+        "DATE_ADD dan DATE_SUB menambah atau mengurangi waktu dengan INTERVAL.",
+        "IF untuk dua pilihan, CASE WHEN untuk banyak pilihan.",
+        "CASE berhenti di WHEN pertama yang benar dan ditutup dengan END."
+      ]
+    }
+  ]
+}

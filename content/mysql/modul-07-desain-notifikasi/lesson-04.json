@@ -1,0 +1,112 @@
+{
+  "id": "desain-notifikasi-04",
+  "moduleId": "desain-notifikasi",
+  "order": 4,
+  "title": "Menampilkan dan Merapikan",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saat pengguna mengetuk ikon lonceng, aplikasi menampilkan **satu daftar**: notifikasi pribadi dan massal bercampur, yang terbaru di atas, dimuat sedikit demi sedikit (misalnya 20 per halaman).\n\nPadahal datanya ada di dua tabel. Pelajaran ini menyatukannya dengan `UNION ALL`, memotongnya per halaman dengan `LIMIT`, memilih index yang tepat, dan membersihkan notifikasi lama.\n\nBayangkan kamu menumpuk surat dari loker dan salinan pengumuman dari papan menjadi **satu tumpukan**, lalu mengurutkannya dari tanggal terbaru. Kamu membacanya 20 lembar dulu, sisanya nanti.\n\nSetiap beberapa bulan, surat yang sudah sangat lama dibuang supaya lokernya tidak penuh. Itulah bagian \"merapikan\"."
+    },
+    {
+      "type": "theory",
+      "content": "```mermaid\nflowchart LR\n    A[\"notifikasi pribadi milik Budi\"] --> C[\"UNION ALL\"]\n    B[\"notifikasi_massal + status baca Budi\"] --> C\n    C --> D[\"ORDER BY dibuat_pada DESC\"]\n    D --> E[\"LIMIT 20 OFFSET 0\"]\n```\n\n**Menggabungkan dengan UNION ALL.** Kedua SELECT harus punya jumlah kolom yang sama dengan urutan yang sama. Tambahkan kolom `asal` berisi `'pribadi'` atau `'massal'`. Tanpa kolom itu, aplikasi tidak tahu notifikasi dengan `id` 3 berasal dari tabel mana, padahal saat diketuk ia harus menandai dibaca di tabel yang benar.\n\nKenapa `UNION ALL`, bukan `UNION`? `UNION` membuang baris yang sama persis, dan untuk itu MySQL harus membandingkan semua baris. Di sini tidak mungkin ada baris dobel karena kolom `asal` berbeda, jadi pekerjaan itu sia-sia. `UNION ALL` langsung menyambung hasilnya.\n\n**Halaman dengan LIMIT.** `ORDER BY` dan `LIMIT` di akhir berlaku untuk **seluruh** hasil gabungan:\n\n| Halaman (20 per halaman) | Klausa |\n|---|---|\n| 1 | `LIMIT 20 OFFSET 0` |\n| 2 | `LIMIT 20 OFFSET 20` |\n| 3 | `LIMIT 20 OFFSET 40` |\n\nRumusnya `OFFSET = (halaman - 1) × 20`. Tambahkan kolom penentu di ORDER BY supaya urutan tetap sama walau ada dua notifikasi dengan waktu yang persis sama. Tanpa itu, satu notifikasi bisa muncul di dua halaman. Karena `id` pribadi dan `id` massal bisa kembar, penentu yang benar-benar pasti adalah pasangan `asal` dan `id`: `ORDER BY dibuat_pada DESC, asal, id DESC`.\n\nGabungan juga boleh dibungkus sebagai subquery di `FROM`, lalu `ORDER BY` dan `LIMIT` ditulis di luarnya. Artinya sama, dan bagi sebagian orang lebih mudah dibaca:\n\n```sql\nSELECT * FROM (\n  SELECT ... FROM notifikasi WHERE pengguna_id = 1\n  UNION ALL\n  SELECT ... FROM notifikasi_massal ...\n) AS semua\nORDER BY dibuat_pada DESC\nLIMIT 20 OFFSET 20;\n```\n\n**Index.** Query daftar notifikasi dan angka lonceng dijalankan setiap kali aplikasi dibuka, jadi harus cepat:\n\n```sql\nCREATE INDEX idx_pengguna_waktu ON notifikasi (pengguna_id, dibuat_pada);\nCREATE INDEX idx_waktu ON notifikasi_massal (dibuat_pada);\n```\n\n| Index | Dipakai untuk |\n|---|---|\n| `idx_pengguna_waktu` | bagian pribadi: saring `pengguna_id`, urutkan `dibuat_pada`, juga membantu menghitung yang belum dibaca |\n| `idx_waktu` | mengurutkan dan membersihkan notifikasi massal |\n| PRIMARY KEY `notifikasi_dibaca (pengguna_id, massal_id)` | sudah menjadi index, cocok untuk LEFT JOIN status baca |\n\nJangan membuat index untuk semua kolom. Tabel `notifikasi` ditulisi setiap ada pesanan, dan setiap index ikut diperbarui di setiap INSERT.\n\n**Merapikan.** Notifikasi berumur beberapa bulan jarang dibuka. Program terjadwal (misalnya tiap malam) bisa menghapusnya sedikit demi sedikit:\n\n```sql\nDELETE FROM notifikasi\nWHERE dibuat_pada < DATE_SUB(NOW(), INTERVAL 90 DAY)\nLIMIT 1000;\n```\n\n`LIMIT` pada DELETE (boleh di MySQL untuk satu tabel) menghapus paling banyak 1.000 baris sekali jalan. Perintah diulang sampai tidak ada lagi yang terhapus, supaya tabel tidak sibuk terlalu lama. Menghapus baris `notifikasi_massal` otomatis menghapus catatan bacanya di `notifikasi_dibaca`, berkat `ON DELETE CASCADE`. Berapa lama notifikasi disimpan adalah keputusan bisnis: 30 hari, 90 hari, atau setahun."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nData lengkap dari pelajaran sebelumnya, ditambah dua index. Query berikut membuat **halaman 1** daftar notifikasi Budi, 4 baris per halaman:\n\n```sql\nSELECT 'pribadi' AS asal, n.id, n.judul, n.dibuat_pada, n.dibaca_pada\nFROM notifikasi n\nWHERE n.pengguna_id = 1\nUNION ALL\nSELECT 'massal', m.id, m.judul, m.dibuat_pada, d.dibaca_pada\nFROM notifikasi_massal m\nLEFT JOIN notifikasi_dibaca d\n       ON d.massal_id = m.id AND d.pengguna_id = 1\nORDER BY dibuat_pada DESC, asal, id DESC\nLIMIT 4 OFFSET 0;\n```\n\nHasilnya:\n\n```text\n+---------+----+---------------------------+---------------------+---------------------+\n| asal    | id | judul                     | dibuat_pada         | dibaca_pada         |\n+---------+----+---------------------------+---------------------+---------------------+\n| pribadi |  6 | Voucer ongkir untukmu     | 2026-09-23 19:00:00 | NULL                |\n| massal  |  3 | Gratis Ongkir Akhir Pekan | 2026-09-22 18:00:00 | NULL                |\n| pribadi |  4 | Login dari perangkat baru | 2026-09-21 07:30:00 | 2026-09-21 07:31:00 |\n| pribadi |  3 | Pesanan tiba              | 2026-09-20 16:05:00 | NULL                |\n+---------+----+---------------------------+---------------------+---------------------+\n4 rows in set\n```\n\nNotifikasi pribadi dan massal bercampur rapi menurut waktu. Kolom `dibaca_pada` yang `NULL` bisa ditampilkan tebal di aplikasi sebagai tanda belum dibaca. Untuk halaman 2, cukup ganti baris terakhir menjadi `LIMIT 4 OFFSET 4`, hasilnya Promo Gajian, Pesanan dikirim, dan Pemeliharaan server.\n\n### Contoh: membersihkan data lama\n\nSekarang merapikan. Supaya hasilnya tetap sama setiap hari, tanggal \"hari ini\" ditulis langsung sebagai `'2026-09-30'`. Di aplikasi sungguhan, tulis `NOW()`. Kita hapus notifikasi massal yang lebih tua dari 14 hari, lalu melihat sisa isi `notifikasi_dibaca`:\n\n```sql\nDELETE FROM notifikasi_massal\nWHERE dibuat_pada < DATE_SUB('2026-09-30', INTERVAL 14 DAY);\n\nSELECT * FROM notifikasi_dibaca;\n```\n\nHasilnya:\n\n```text\n+-------------+-----------+---------------------+\n| pengguna_id | massal_id | dibaca_pada         |\n+-------------+-----------+---------------------+\n|           1 |         2 | 2026-09-19 12:30:00 |\n+-------------+-----------+---------------------+\n1 row in set\n```\n\n`DATE_SUB('2026-09-30', INTERVAL 14 DAY)` menghasilkan 16 September, jadi pengumuman pemeliharaan (15 September) terhapus. Dua baris `notifikasi_dibaca` untuk pesan itu (milik Budi dan Sari) ikut hilang karena `ON DELETE CASCADE`. Tidak ada catatan yatim yang tertinggal."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menggabung tanpa kolom asal**\n\nSalah:\n\n```sql\nSELECT id, judul, dibuat_pada FROM notifikasi WHERE pengguna_id = 1\nUNION ALL\nSELECT id, judul, dibuat_pada FROM notifikasi_massal\nORDER BY dibuat_pada DESC;\n```\n\nBenar:\n\n```sql\nSELECT 'pribadi' AS asal, id, judul, dibuat_pada FROM notifikasi WHERE pengguna_id = 1\nUNION ALL\nSELECT 'massal', id, judul, dibuat_pada FROM notifikasi_massal\nORDER BY dibuat_pada DESC;\n```\n\nKedua tabel punya id sendiri-sendiri, jadi id 3 bisa ada di keduanya. Tanpa kolom asal, aplikasi tidak tahu harus menjalankan UPDATE notifikasi atau INSERT ke notifikasi_dibaca saat pengguna mengetuknya.\n\n**2. Mengambil semua notifikasi sekaligus**\n\nSalah:\n\n```sql\nSELECT * FROM notifikasi\nWHERE pengguna_id = 1\nORDER BY dibuat_pada DESC;\n```\n\nBenar:\n\n```sql\nSELECT * FROM notifikasi\nWHERE pengguna_id = 1\nORDER BY dibuat_pada DESC\nLIMIT 20 OFFSET 0;\n```\n\nPengguna lama bisa punya ribuan notifikasi, padahal yang dilihat di layar hanya belasan. Mengambil semuanya membuang waktu database, jaringan, dan memori HP. Ambil per halaman dengan LIMIT.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa daftar notifikasi memakai UNION ALL, bukan UNION?",
+          "options": [
+            "Karena UNION tidak bisa dipakai bersama ORDER BY",
+            "Karena tidak ada baris dobel yang perlu dibuang, jadi pemeriksaan dobel oleh UNION sia-sia",
+            "Karena UNION ALL otomatis mengurutkan hasil",
+            "Karena UNION hanya untuk tabel yang sama"
+          ],
+          "answer": 1,
+          "explanation": "UNION membandingkan semua baris untuk membuang yang sama. Kolom asal membuat baris dari dua tabel tidak mungkin sama, jadi UNION ALL lebih hemat.",
+          "remedial": "- Daftar notifikasi = bagian pribadi `UNION ALL` bagian massal, lalu `ORDER BY dibuat_pada DESC` dan `LIMIT`.\n- Kedua bagian harus punya jumlah dan urutan kolom yang sama. Tambahkan kolom `asal`.\n- `UNION ALL` lebih tepat dari `UNION` karena tidak ada baris dobel yang perlu dibuang.\n- Halaman ke-h dengan n baris: `LIMIT n OFFSET (h - 1) × n`.\n- Index `(pengguna_id, dibuat_pada)` untuk bagian pribadi. Hapus data lama bertahap dengan `DELETE ... LIMIT`."
+        },
+        {
+          "question": "Satu halaman berisi 20 notifikasi. Klausa apa untuk menampilkan halaman 3?",
+          "options": [
+            "LIMIT 20 OFFSET 60",
+            "LIMIT 3 OFFSET 20",
+            "LIMIT 20 OFFSET 40",
+            "LIMIT 60"
+          ],
+          "answer": 2,
+          "explanation": "Halaman 1 melewati 0 baris, halaman 2 melewati 20, halaman 3 melewati 40. Rumusnya (3 - 1) × 20 = 40.",
+          "remedial": "- Daftar notifikasi = bagian pribadi `UNION ALL` bagian massal, lalu `ORDER BY dibuat_pada DESC` dan `LIMIT`.\n- Kedua bagian harus punya jumlah dan urutan kolom yang sama. Tambahkan kolom `asal`.\n- `UNION ALL` lebih tepat dari `UNION` karena tidak ada baris dobel yang perlu dibuang.\n- Halaman ke-h dengan n baris: `LIMIT n OFFSET (h - 1) × n`.\n- Index `(pengguna_id, dibuat_pada)` untuk bagian pribadi. Hapus data lama bertahap dengan `DELETE ... LIMIT`."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel notifikasi:\n-- +----+-------------+---------------------+---------------------+\n-- | id | pengguna_id | judul               | dibuat_pada         |\n-- +----+-------------+---------------------+---------------------+\n-- |  1 |           1 | Pesanan dikirim     | 2026-09-18 09:15:00 |\n-- |  2 |           2 | Pembayaran diterima | 2026-09-18 13:40:00 |\n-- |  3 |           1 | Pesanan tiba        | 2026-09-20 16:05:00 |\n-- |  4 |           1 | Voucer ongkir       | 2026-09-23 19:00:00 |\n-- +----+-------------+---------------------+---------------------+\n\n-- Tabel notifikasi_massal:\n-- +----+---------------------+---------------------+\n-- | id | judul               | dibuat_pada         |\n-- +----+---------------------+---------------------+\n-- |  1 | Pemeliharaan server | 2026-09-15 08:00:00 |\n-- |  2 | Promo Gajian        | 2026-09-19 12:00:00 |\n-- |  3 | Gratis Ongkir       | 2026-09-22 18:00:00 |\n-- +----+---------------------+---------------------+\nSELECT COUNT(*) FROM (\n  SELECT id FROM notifikasi WHERE pengguna_id = 2\n  UNION ALL\n  SELECT id FROM notifikasi_massal\n) AS semua;",
+          "options": [
+            "1",
+            "3",
+            "7",
+            "4"
+          ],
+          "answer": 3,
+          "explanation": "Pengguna 2 punya 1 notifikasi pribadi, ditambah 3 notifikasi massal. UNION ALL tidak membuang apa pun, jadi totalnya 4.",
+          "remedial": "- Daftar notifikasi = bagian pribadi `UNION ALL` bagian massal, lalu `ORDER BY dibuat_pada DESC` dan `LIMIT`.\n- Kedua bagian harus punya jumlah dan urutan kolom yang sama. Tambahkan kolom `asal`.\n- `UNION ALL` lebih tepat dari `UNION` karena tidak ada baris dobel yang perlu dibuang.\n- Halaman ke-h dengan n baris: `LIMIT n OFFSET (h - 1) × n`.\n- Index `(pengguna_id, dibuat_pada)` untuk bagian pribadi. Hapus data lama bertahap dengan `DELETE ... LIMIT`."
+        },
+        {
+          "question": "Bagian pribadi query daftar notifikasi berbunyi WHERE pengguna_id = 1 ORDER BY dibuat_pada DESC. Index mana yang paling membantu?",
+          "options": [
+            "(pengguna_id, dibuat_pada) di tabel notifikasi",
+            "(judul) di tabel notifikasi",
+            "(dibaca_pada) di tabel notifikasi_dibaca",
+            "Index di setiap kolom tabel notifikasi"
+          ],
+          "answer": 0,
+          "explanation": "Kolom yang disaring (pengguna_id) di depan, lalu kolom yang diurutkan (dibuat_pada). Index di semua kolom justru memperlambat INSERT.",
+          "remedial": "- Daftar notifikasi = bagian pribadi `UNION ALL` bagian massal, lalu `ORDER BY dibuat_pada DESC` dan `LIMIT`.\n- Kedua bagian harus punya jumlah dan urutan kolom yang sama. Tambahkan kolom `asal`.\n- `UNION ALL` lebih tepat dari `UNION` karena tidak ada baris dobel yang perlu dibuang.\n- Halaman ke-h dengan n baris: `LIMIT n OFFSET (h - 1) × n`.\n- Index `(pengguna_id, dibuat_pada)` untuk bagian pribadi. Hapus data lama bertahap dengan `DELETE ... LIMIT`."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel notifikasi:\n-- +----+-------------+---------------------+---------------------+\n-- | id | pengguna_id | judul               | dibuat_pada         |\n-- +----+-------------+---------------------+---------------------+\n-- |  1 |           1 | Pesanan dikirim     | 2026-09-18 09:15:00 |\n-- |  2 |           2 | Pembayaran diterima | 2026-09-18 13:40:00 |\n-- |  3 |           1 | Pesanan tiba        | 2026-09-20 16:05:00 |\n-- |  4 |           1 | Voucer ongkir       | 2026-09-23 19:00:00 |\n-- +----+-------------+---------------------+---------------------+\n\n-- Tabel notifikasi_massal:\n-- +----+---------------------+---------------------+\n-- | id | judul               | dibuat_pada         |\n-- +----+---------------------+---------------------+\n-- |  1 | Pemeliharaan server | 2026-09-15 08:00:00 |\n-- |  2 | Promo Gajian        | 2026-09-19 12:00:00 |\n-- |  3 | Gratis Ongkir       | 2026-09-22 18:00:00 |\n-- +----+---------------------+---------------------+\nSELECT judul FROM (\n  SELECT judul, dibuat_pada FROM notifikasi WHERE pengguna_id = 1\n  UNION ALL\n  SELECT judul, dibuat_pada FROM notifikasi_massal\n) AS semua\nORDER BY dibuat_pada DESC\nLIMIT 2 OFFSET 2;",
+      "options": [
+        "Voucer ongkir, Gratis Ongkir",
+        "Pesanan tiba, Promo Gajian",
+        "Promo Gajian, Pesanan dikirim",
+        "Pesanan tiba, Pesanan dikirim"
+      ],
+      "answer": 1,
+      "explanation": "Urutan gabungan dari yang terbaru: Voucer ongkir, Gratis Ongkir, Pesanan tiba, Promo Gajian, Pesanan dikirim, Pemeliharaan server. OFFSET 2 melewati dua yang pertama, LIMIT 2 mengambil dua berikutnya."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Gabungkan notifikasi pribadi pengguna 1 dengan notifikasi massal TANPA memeriksa baris dobel, ambil 3 teratas\n-- Tabel notifikasi:\n-- +----+-------------+---------------------+---------------------+\n-- | id | pengguna_id | judul               | dibuat_pada         |\n-- +----+-------------+---------------------+---------------------+\n-- |  1 |           1 | Pesanan dikirim     | 2026-09-18 09:15:00 |\n-- |  2 |           2 | Pembayaran diterima | 2026-09-18 13:40:00 |\n-- |  3 |           1 | Pesanan tiba        | 2026-09-20 16:05:00 |\n-- |  4 |           1 | Voucer ongkir       | 2026-09-23 19:00:00 |\n-- +----+-------------+---------------------+---------------------+\n\n-- Tabel notifikasi_massal:\n-- +----+---------------------+---------------------+\n-- | id | judul               | dibuat_pada         |\n-- +----+---------------------+---------------------+\n-- |  1 | Pemeliharaan server | 2026-09-15 08:00:00 |\n-- |  2 | Promo Gajian        | 2026-09-19 12:00:00 |\n-- |  3 | Gratis Ongkir       | 2026-09-22 18:00:00 |\n-- +----+---------------------+---------------------+\nSELECT judul, dibuat_pada FROM notifikasi WHERE pengguna_id = 1\nUNION ___\nSELECT judul, dibuat_pada FROM notifikasi_massal\nORDER BY dibuat_pada DESC\nLIMIT ___;",
+      "answers": [
+        "ALL|all|All",
+        "3"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Gabungkan notifikasi pribadi dan massal dengan UNION ALL, beri kolom asal.",
+        "ORDER BY dan LIMIT di akhir berlaku untuk seluruh hasil gabungan.",
+        "Halaman ke-h: LIMIT n OFFSET (h - 1) × n, dengan urutan yang pasti (tambah asal dan id di ORDER BY).",
+        "Buat index sesuai query yang sering jalan, misalnya (pengguna_id, dibuat_pada).",
+        "Bersihkan notifikasi lama secara bertahap dengan DELETE ... LIMIT, ON DELETE CASCADE membereskan catatan bacanya."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "id": "mysql-query-10",
+  "moduleId": "mysql-query",
+  "order": 10,
+  "title": "GROUP BY dan HAVING",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Fungsi agregat menghasilkan satu angka untuk seluruh tabel. Tapi pemilik usaha biasanya ingin rincian: \"omzet **per cabang** berapa?\", \"menu apa yang terjual paling banyak?\".\n\n**`GROUP BY`** mengelompokkan baris yang nilainya sama, lalu fungsi agregat dihitung **untuk setiap kelompok**. Setelah itu, **`HAVING`** bisa menyaring kelompok berdasarkan hasil agregatnya.\n\nBayangkan tumpukan struk dari semua cabang kafe. Pertama, kamu memilah struk ke beberapa kotak: kotak Bandung, kotak Bogor, kotak Depok. Itu `GROUP BY cabang`. Lalu kamu menjumlahkan isi setiap kotak. Itu `SUM(total)`. Terakhir, kamu hanya melaporkan kotak yang totalnya di atas 50 ribu. Itu `HAVING`."
+    },
+    {
+      "type": "theory",
+      "content": "Bentuk umumnya:\n\n```sql\nSELECT cabang, SUM(total) AS omzet\nFROM penjualan\nGROUP BY cabang;\n```\n\nHasilnya satu baris untuk setiap cabang. Aturan penting di MySQL 8: kolom di `SELECT` harus berupa **kolom yang ada di `GROUP BY`** atau **berada di dalam fungsi agregat**. Kalau tidak, query ditolak.\n\n**WHERE vs HAVING**\n\n| | `WHERE` | `HAVING` |\n|---|---|---|\n| Menyaring | baris | kelompok |\n| Dikerjakan | **sebelum** dikelompokkan | **sesudah** dikelompokkan |\n| Boleh memakai agregat? | tidak | ya |\n| Contoh | `WHERE cabang <> 'Depok'` | `HAVING SUM(total) > 50000` |\n\n**Urutan penulisan klausa** (wajib seperti ini):\n\n```sql\nSELECT ... FROM ... WHERE ... GROUP BY ... HAVING ... ORDER BY ... LIMIT ...\n```\n\nSedangkan **urutan MySQL mengerjakannya** berbeda:\n\n```mermaid\nflowchart LR\n  A[FROM] --> B[WHERE] --> C[GROUP BY] --> D[HAVING] --> E[SELECT] --> F[ORDER BY] --> G[LIMIT]\n```\n\nUrutan inilah yang menjelaskan banyak aturan sebelumnya. `WHERE` tidak bisa memakai agregat karena kelompok belum dibuat. `ORDER BY` bisa memakai alias karena `SELECT` sudah selesai."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `penjualan` dari tiga cabang kafe:\n\n| id | cabang | menu | jumlah | total |\n|---|---|---|---|---|\n| 1 | Bandung | Kopi Susu | 2 | 36000 |\n| 2 | Bogor | Teh Manis | 3 | 24000 |\n| 3 | Bandung | Roti Bakar | 1 | 15000 |\n| 4 | Depok | Kopi Susu | 1 | 18000 |\n| 5 | Bogor | Kopi Susu | 4 | 72000 |\n| 6 | Bandung | Teh Manis | 2 | 16000 |\n\nJumlah transaksi dan omzet per cabang:\n\n```sql\nSELECT cabang, COUNT(*) AS transaksi, SUM(total) AS omzet\nFROM penjualan\nGROUP BY cabang\nORDER BY cabang;\n```\n\nHasilnya:\n\n```text\n+---------+-----------+-------+\n| cabang  | transaksi | omzet |\n+---------+-----------+-------+\n| Bandung |         3 | 67000 |\n| Bogor   |         2 | 96000 |\n| Depok   |         1 | 18000 |\n+---------+-----------+-------+\n3 rows in set\n```\n\n#### Menyaring kelompok dengan HAVING\n\nHanya cabang yang omzetnya di atas 50000, diurutkan dari omzet terbesar:\n\n```sql\nSELECT cabang, SUM(total) AS omzet\nFROM penjualan\nGROUP BY cabang\nHAVING SUM(total) > 50000\nORDER BY omzet DESC;\n```\n\nHasilnya:\n\n```text\n+---------+-------+\n| cabang  | omzet |\n+---------+-------+\n| Bogor   | 96000 |\n| Bandung | 67000 |\n+---------+-------+\n2 rows in set\n```\n\n#### WHERE dan HAVING bersama\n\n`WHERE` dan `HAVING` bisa dipakai bersamaan. Di sini cabang Depok dibuang dulu (WHERE), lalu porsi dijumlah per menu, dan hanya menu yang terjual lebih dari 1 porsi yang ditampilkan (HAVING):\n\n```sql\nSELECT menu, SUM(jumlah) AS porsi\nFROM penjualan\nWHERE cabang <> 'Depok'\nGROUP BY menu\nHAVING SUM(jumlah) > 1\nORDER BY porsi DESC;\n```\n\nHasilnya:\n\n```text\n+-----------+-------+\n| menu      | porsi |\n+-----------+-------+\n| Kopi Susu |     6 |\n| Teh Manis |     5 |\n+-----------+-------+\n2 rows in set\n```\n\nKopi Susu mendapat 6 porsi (2 dari Bandung + 4 dari Bogor). Roti Bakar hanya 1 porsi, jadi dibuang oleh HAVING."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai agregat di WHERE**\n\nSalah:\n\n```sql\nSELECT cabang, SUM(total)\nFROM penjualan\nWHERE SUM(total) > 50000\nGROUP BY cabang;\n```\n\nBenar:\n\n```sql\nSELECT cabang, SUM(total)\nFROM penjualan\nGROUP BY cabang\nHAVING SUM(total) > 50000;\n```\n\nWHERE dikerjakan sebelum kelompok dibuat, jadi belum ada SUM yang bisa diperiksa. MySQL menolak: `ERROR 1111 (HY000): Invalid use of group function`. Syarat berdasarkan agregat ditulis di HAVING.\n\n**2. Menampilkan kolom yang tidak dikelompokkan**\n\nSalah:\n\n```sql\nSELECT cabang, menu, SUM(total)\nFROM penjualan\nGROUP BY cabang;\n```\n\nBenar:\n\n```sql\nSELECT cabang, menu, SUM(total)\nFROM penjualan\nGROUP BY cabang, menu;\n```\n\nSatu cabang punya beberapa menu, jadi MySQL tidak tahu menu mana yang harus ditampilkan. MySQL 8 menolak dengan `ERROR 1055 (42000): Expression #2 of SELECT list is not in GROUP BY clause ...`. Masukkan kolom itu ke GROUP BY, atau bungkus dengan fungsi agregat.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel penjualan:\n-- +----+---------+------------+--------+-------+\n-- | id | cabang  | menu       | jumlah | total |\n-- +----+---------+------------+--------+-------+\n-- |  1 | Bandung | Kopi Susu  |      2 | 36000 |\n-- |  2 | Bogor   | Teh Manis  |      3 | 24000 |\n-- |  3 | Bandung | Roti Bakar |      1 | 15000 |\n-- |  4 | Depok   | Kopi Susu  |      1 | 18000 |\n-- |  5 | Bogor   | Kopi Susu  |      4 | 72000 |\n-- |  6 | Bandung | Teh Manis  |      2 | 16000 |\n-- +----+---------+------------+--------+-------+\nSELECT menu FROM penjualan GROUP BY menu HAVING COUNT(*) >= 2 ORDER BY menu;",
+          "options": [
+            "Kopi Susu",
+            "Kopi Susu, Teh Manis",
+            "Kopi Susu, Roti Bakar, Teh Manis",
+            "Roti Bakar"
+          ],
+          "answer": 1,
+          "explanation": "Kopi Susu muncul 3 kali, Teh Manis 2 kali, Roti Bakar hanya 1 kali.",
+          "remedial": "- `GROUP BY kolom` mengelompokkan baris yang nilainya sama\n- Agregat dihitung per kelompok\n- Kolom di SELECT harus ada di GROUP BY atau di dalam agregat\n- `WHERE` menyaring baris sebelum dikelompokkan, `HAVING` menyaring kelompok sesudahnya\n- Agregat hanya boleh di HAVING, bukan di WHERE\n- Urutan tulis: SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT"
+        },
+        {
+          "question": "Apa perbedaan utama `WHERE` dan `HAVING`?",
+          "options": [
+            "Tidak ada, keduanya bisa saling menggantikan",
+            "WHERE untuk angka, HAVING untuk teks",
+            "HAVING harus ditulis sebelum GROUP BY",
+            "WHERE menyaring baris sebelum dikelompokkan, HAVING menyaring kelompok sesudahnya"
+          ],
+          "answer": 3,
+          "explanation": "Karena HAVING dikerjakan setelah pengelompokan, hanya HAVING yang boleh memakai fungsi agregat.",
+          "remedial": "- `GROUP BY kolom` mengelompokkan baris yang nilainya sama\n- Agregat dihitung per kelompok\n- Kolom di SELECT harus ada di GROUP BY atau di dalam agregat\n- `WHERE` menyaring baris sebelum dikelompokkan, `HAVING` menyaring kelompok sesudahnya\n- Agregat hanya boleh di HAVING, bukan di WHERE\n- Urutan tulis: SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT"
+        },
+        {
+          "question": "Urutan penulisan klausa mana yang benar?",
+          "options": [
+            "SELECT, FROM, GROUP BY, WHERE, ORDER BY",
+            "SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY",
+            "SELECT, FROM, WHERE, HAVING, GROUP BY, ORDER BY",
+            "SELECT, WHERE, FROM, GROUP BY, HAVING, ORDER BY"
+          ],
+          "answer": 1,
+          "explanation": "WHERE sebelum GROUP BY, HAVING sesudah GROUP BY, ORDER BY menjelang akhir.",
+          "remedial": "- `GROUP BY kolom` mengelompokkan baris yang nilainya sama\n- Agregat dihitung per kelompok\n- Kolom di SELECT harus ada di GROUP BY atau di dalam agregat\n- `WHERE` menyaring baris sebelum dikelompokkan, `HAVING` menyaring kelompok sesudahnya\n- Agregat hanya boleh di HAVING, bukan di WHERE\n- Urutan tulis: SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT"
+        },
+        {
+          "question": "Berapa baris yang tampil?",
+          "code": "-- Tabel penjualan:\n-- +----+---------+------------+--------+-------+\n-- | id | cabang  | menu       | jumlah | total |\n-- +----+---------+------------+--------+-------+\n-- |  1 | Bandung | Kopi Susu  |      2 | 36000 |\n-- |  2 | Bogor   | Teh Manis  |      3 | 24000 |\n-- |  3 | Bandung | Roti Bakar |      1 | 15000 |\n-- |  4 | Depok   | Kopi Susu  |      1 | 18000 |\n-- |  5 | Bogor   | Kopi Susu  |      4 | 72000 |\n-- |  6 | Bandung | Teh Manis  |      2 | 16000 |\n-- +----+---------+------------+--------+-------+\nSELECT cabang, COUNT(*) FROM penjualan WHERE total > 20000 GROUP BY cabang;",
+          "options": [
+            "2 baris",
+            "3 baris",
+            "6 baris",
+            "1 baris"
+          ],
+          "answer": 0,
+          "explanation": "WHERE menyisakan transaksi 36000 (Bandung), 24000 dan 72000 (Bogor). Depok (18000) terbuang sebelum dikelompokkan, jadi hanya ada kelompok Bandung dan Bogor.",
+          "remedial": "- `GROUP BY kolom` mengelompokkan baris yang nilainya sama\n- Agregat dihitung per kelompok\n- Kolom di SELECT harus ada di GROUP BY atau di dalam agregat\n- `WHERE` menyaring baris sebelum dikelompokkan, `HAVING` menyaring kelompok sesudahnya\n- Agregat hanya boleh di HAVING, bukan di WHERE\n- Urutan tulis: SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel penjualan:\n-- +----+---------+------------+--------+-------+\n-- | id | cabang  | menu       | jumlah | total |\n-- +----+---------+------------+--------+-------+\n-- |  1 | Bandung | Kopi Susu  |      2 | 36000 |\n-- |  2 | Bogor   | Teh Manis  |      3 | 24000 |\n-- |  3 | Bandung | Roti Bakar |      1 | 15000 |\n-- |  4 | Depok   | Kopi Susu  |      1 | 18000 |\n-- |  5 | Bogor   | Kopi Susu  |      4 | 72000 |\n-- |  6 | Bandung | Teh Manis  |      2 | 16000 |\n-- +----+---------+------------+--------+-------+\nSELECT cabang, SUM(jumlah) AS porsi FROM penjualan GROUP BY cabang ORDER BY porsi DESC LIMIT 1;",
+      "options": [
+        "Bandung, 5",
+        "Bogor, 96000",
+        "Bogor, 7",
+        "Depok, 1"
+      ],
+      "answer": 2,
+      "explanation": "Porsi per cabang: Bandung 2 + 1 + 2 = 5, Bogor 3 + 4 = 7, Depok 1. Yang terbesar Bogor dengan 7 porsi."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Tampilkan omzet per cabang, hanya cabang yang omzetnya lebih dari 50000\n-- Tabel penjualan:\n-- +----+---------+------------+--------+-------+\n-- | id | cabang  | menu       | jumlah | total |\n-- +----+---------+------------+--------+-------+\n-- |  1 | Bandung | Kopi Susu  |      2 | 36000 |\n-- |  2 | Bogor   | Teh Manis  |      3 | 24000 |\n-- |  3 | Bandung | Roti Bakar |      1 | 15000 |\n-- |  4 | Depok   | Kopi Susu  |      1 | 18000 |\n-- |  5 | Bogor   | Kopi Susu  |      4 | 72000 |\n-- |  6 | Bandung | Teh Manis  |      2 | 16000 |\n-- +----+---------+------------+--------+-------+\nSELECT cabang, SUM(total) AS omzet FROM penjualan ___ cabang ___ SUM(total) > 50000 ORDER BY cabang;",
+      "answers": [
+        "GROUP BY|group by|Group By",
+        "HAVING|having|Having"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "GROUP BY mengelompokkan baris, agregat dihitung per kelompok.",
+        "Kolom di SELECT harus ada di GROUP BY atau di dalam agregat.",
+        "WHERE menyaring baris sebelum dikelompokkan, HAVING menyaring kelompok.",
+        "Agregat hanya boleh di HAVING, tidak di WHERE.",
+        "Urutan tulis: SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT."
+      ]
+    }
+  ]
+}

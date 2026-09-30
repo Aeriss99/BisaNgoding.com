@@ -1,0 +1,114 @@
+{
+  "id": "mysql-relasi-01",
+  "moduleId": "mysql-relasi",
+  "order": 1,
+  "title": "Constraint: UNIQUE dan CHECK",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul MySQL Dasar kamu sudah kenal dua aturan tabel: `PRIMARY KEY` dan `NOT NULL`. Aturan seperti ini disebut **constraint**. Constraint ditempel di tabel, lalu **database sendiri** yang menjaganya. Data yang melanggar langsung ditolak, dari aplikasi mana pun datangnya.\n\nPelajaran ini menambah dua constraint baru:\n\n- **UNIQUE**: nilai di kolom itu tidak boleh dobel, misalnya email pelanggan.\n- **CHECK**: nilai harus memenuhi syarat tertentu, misalnya harga harus lebih dari 0.\n\nBayangkan petugas pendaftaran anggota perpustakaan. Ia punya dua aturan: satu email hanya boleh dipakai satu anggota (**UNIQUE**), dan umur pendaftar minimal 10 tahun (**CHECK**). Siapa pun yang datang, aturannya sama. Petugas tidak peduli kamu mendaftar lewat loket, lewat website, atau lewat aplikasi di HP."
+    },
+    {
+      "type": "theory",
+      "content": "Cara menulisnya di `CREATE TABLE`:\n\n```sql\nCREATE TABLE produk (\n  id INT PRIMARY KEY,\n  kode VARCHAR(10) UNIQUE,\n  nama VARCHAR(50) NOT NULL,\n  harga INT,\n  stok INT,\n  CONSTRAINT harga_positif CHECK (harga > 0),\n  CONSTRAINT stok_aman CHECK (stok >= 0)\n);\n```\n\n`CONSTRAINT harga_positif` memberi **nama** pada aturan. Nama ini muncul di pesan error, jadi kamu langsung tahu aturan mana yang dilanggar. Kalau tidak diberi nama, MySQL membuat nama sendiri seperti `produk_chk_1`.\n\n| | PRIMARY KEY | UNIQUE | CHECK |\n|---|---|---|---|\n| Tugas | identitas baris | mencegah nilai dobel | memeriksa syarat nilai |\n| Jumlah per tabel | hanya satu | boleh banyak | boleh banyak |\n| Boleh NULL? | tidak | boleh, bahkan beberapa baris | NULL lolos pemeriksaan |\n\nKalau aturan dilanggar, MySQL 8 menolak dengan pesan seperti ini:\n\n```text\nERROR 1062 (23000): Duplicate entry 'KP-01' for key 'produk.kode'\nERROR 3819 (HY000): Check constraint 'harga_positif' is violated.\n```\n\nDua hal yang perlu diingat:\n\n- **CHECK baru benar-benar dijalankan sejak MySQL 8.0.16.** Versi lama menerima tulisan CHECK tapi diam-diam mengabaikannya.\n- UNIQUE bisa untuk **gabungan kolom**, misalnya `UNIQUE (kelas, no_absen)`: nomor absen 5 boleh ada di kelas lain, tapi tidak boleh dua kali di kelas yang sama.\n\nConstraint juga bisa ditambah setelah tabel jadi:\n\n```sql\nALTER TABLE pelanggan ADD CONSTRAINT email_unik UNIQUE (email);\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKita buat tabel `produk` dengan aturan UNIQUE dan CHECK, lalu isi tiga produk yang semuanya memenuhi aturan.\n\n```sql\nCREATE TABLE produk (\n  id INT PRIMARY KEY,\n  kode VARCHAR(10) UNIQUE,\n  nama VARCHAR(50) NOT NULL,\n  harga INT,\n  stok INT,\n  CONSTRAINT harga_positif CHECK (harga > 0),\n  CONSTRAINT stok_aman CHECK (stok >= 0)\n);\n```\n\n```sql\nINSERT INTO produk VALUES\n  (1, 'KP-01', 'Kopi Susu', 18000, 20),\n  (2, 'TH-01', 'Teh Manis', 8000, 35),\n  (3, 'RT-01', 'Roti Bakar', 15000, 6);\nSELECT * FROM produk;\n```\n\nHasilnya:\n\n```text\n+----+-------+------------+-------+------+\n| id | kode  | nama       | harga | stok |\n+----+-------+------------+-------+------+\n|  1 | KP-01 | Kopi Susu  | 18000 |   20 |\n|  2 | TH-01 | Teh Manis  |  8000 |   35 |\n|  3 | RT-01 | Roti Bakar | 15000 |    6 |\n+----+-------+------------+-------+------+\n3 rows in set\n```\n\nSekarang coba tiga INSERT yang melanggar aturan. Ketiganya ditolak dan tabel tetap berisi tiga baris:\n\n```sql\nINSERT INTO produk VALUES (4, 'KP-01', 'Kopi Hitam', 12000, 10);\n-- ERROR 1062 (23000): Duplicate entry 'KP-01' for key 'produk.kode'\n\nINSERT INTO produk VALUES (4, 'KP-02', 'Kopi Hitam', 0, 10);\n-- ERROR 3819 (HY000): Check constraint 'harga_positif' is violated.\n\nINSERT INTO produk VALUES (4, 'KP-02', 'Kopi Hitam', 12000, -3);\n-- ERROR 3819 (HY000): Check constraint 'stok_aman' is violated.\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira CHECK otomatis menolak NULL**\n\nSalah:\n\n```sql\nstok INT,\nCONSTRAINT stok_aman CHECK (stok >= 0)\n-- INSERT dengan stok NULL tetap diterima\n```\n\nBenar:\n\n```sql\nstok INT NOT NULL,\nCONSTRAINT stok_aman CHECK (stok >= 0)\n```\n\nCHECK hanya menolak kalau hasil syaratnya salah. Untuk NULL hasilnya \"tidak diketahui\", jadi baris tetap lolos. Kalau kolom wajib diisi, tambahkan NOT NULL.\n\n**2. Menjaga keunikan hanya di kode aplikasi**\n\nSalah:\n\n```sql\n-- aplikasi mengecek dulu\nSELECT id FROM pelanggan WHERE email = 'budi@contoh.com';\n-- kalau kosong, langsung INSERT\n```\n\nBenar:\n\n```sql\nALTER TABLE pelanggan\n  ADD CONSTRAINT email_unik UNIQUE (email);\n```\n\nDua orang bisa mendaftar dengan email yang sama di detik yang sama, dan keduanya lolos pengecekan. UNIQUE di database tetap menolak salah satunya.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Mana perbedaan yang benar antara PRIMARY KEY dan UNIQUE?",
+          "options": [
+            "Satu tabel hanya punya satu PRIMARY KEY, tapi boleh punya banyak kolom UNIQUE",
+            "UNIQUE tidak boleh NULL, PRIMARY KEY boleh NULL",
+            "PRIMARY KEY boleh berisi nilai dobel, UNIQUE tidak",
+            "UNIQUE hanya bisa dipakai untuk kolom angka"
+          ],
+          "answer": 0,
+          "explanation": "PRIMARY KEY adalah identitas baris, jadi hanya satu dan tidak boleh NULL. UNIQUE boleh ada di banyak kolom dan boleh NULL.",
+          "remedial": "- **Constraint** = aturan di tabel yang dijaga database sendiri.\n- **UNIQUE**: nilai tidak boleh dobel. Boleh banyak per tabel, dan NULL boleh lebih dari satu.\n- **CHECK (syarat)**: menolak nilai yang membuat syarat salah. NULL tetap lolos.\n- CHECK baru ditegakkan sejak **MySQL 8.0.16**.\n- Pelanggaran UNIQUE → `ERROR 1062`, pelanggaran CHECK → `ERROR 3819`."
+        },
+        {
+          "question": "Apa yang terjadi saat query ini dijalankan?",
+          "code": "-- Kolom email: VARCHAR(100) UNIQUE\n-- Tabel pelanggan:\n-- +----+------+-----------------+\n-- | id | nama | email           |\n-- +----+------+-----------------+\n-- |  1 | Budi | budi@contoh.com |\n-- |  2 | Sari | sari@contoh.com |\n-- |  3 | Rina | NULL            |\n-- +----+------+-----------------+\nINSERT INTO pelanggan VALUES (4, 'Dewi', 'sari@contoh.com');",
+          "options": [
+            "Berhasil, Dewi tersimpan dengan email yang sama",
+            "Ditolak karena email sari@contoh.com sudah dipakai",
+            "Berhasil, tapi data Sari tertimpa oleh Dewi",
+            "Berhasil, tapi email Dewi otomatis dikosongkan"
+          ],
+          "answer": 1,
+          "explanation": "Email sari@contoh.com sudah ada, jadi UNIQUE menolak dengan ERROR 1062. Tidak ada data yang berubah.",
+          "remedial": "- **Constraint** = aturan di tabel yang dijaga database sendiri.\n- **UNIQUE**: nilai tidak boleh dobel. Boleh banyak per tabel, dan NULL boleh lebih dari satu.\n- **CHECK (syarat)**: menolak nilai yang membuat syarat salah. NULL tetap lolos.\n- CHECK baru ditegakkan sejak **MySQL 8.0.16**.\n- Pelanggaran UNIQUE → `ERROR 1062`, pelanggaran CHECK → `ERROR 3819`."
+        },
+        {
+          "question": "Apa hasil query terakhir?",
+          "code": "-- Kolom email: VARCHAR(100) UNIQUE\n-- Tabel pelanggan:\n-- +----+------+-----------------+\n-- | id | nama | email           |\n-- +----+------+-----------------+\n-- |  1 | Budi | budi@contoh.com |\n-- |  2 | Sari | sari@contoh.com |\n-- |  3 | Rina | NULL            |\n-- +----+------+-----------------+\nINSERT INTO pelanggan VALUES (4, 'Dewi', NULL);\nSELECT COUNT(*) FROM pelanggan;",
+          "options": [
+            "3",
+            "Error, email NULL sudah dipakai Rina",
+            "4",
+            "0"
+          ],
+          "answer": 2,
+          "explanation": "UNIQUE mengizinkan NULL lebih dari satu, karena NULL berarti \"belum diketahui\", bukan nilai yang sama. INSERT berhasil dan jumlah baris menjadi 4.",
+          "remedial": "- **Constraint** = aturan di tabel yang dijaga database sendiri.\n- **UNIQUE**: nilai tidak boleh dobel. Boleh banyak per tabel, dan NULL boleh lebih dari satu.\n- **CHECK (syarat)**: menolak nilai yang membuat syarat salah. NULL tetap lolos.\n- CHECK baru ditegakkan sejak **MySQL 8.0.16**.\n- Pelanggaran UNIQUE → `ERROR 1062`, pelanggaran CHECK → `ERROR 3819`."
+        },
+        {
+          "question": "Apa yang terjadi saat query ini dijalankan?",
+          "code": "-- Aturan tabel produk:\n--   kode UNIQUE\n--   CONSTRAINT harga_positif CHECK (harga > 0)\n--   CONSTRAINT stok_aman CHECK (stok >= 0)\n-- Tabel produk:\n-- +----+-------+------------+-------+------+\n-- | id | kode  | nama       | harga | stok |\n-- +----+-------+------------+-------+------+\n-- |  1 | KP-01 | Kopi Susu  | 18000 |   20 |\n-- |  2 | TH-01 | Teh Manis  |  8000 |   35 |\n-- |  3 | RT-01 | Roti Bakar | 15000 |    6 |\n-- +----+-------+------------+-------+------+\nINSERT INTO produk VALUES (4, 'DN-01', 'Donat', 0, 12);",
+          "options": [
+            "Berhasil, harga 0 dianggap gratis",
+            "Berhasil, harga otomatis diubah menjadi NULL",
+            "Ditolak karena kode DN-01 dobel",
+            "Ditolak karena melanggar CHECK harga_positif"
+          ],
+          "answer": 3,
+          "explanation": "Syarat harga > 0 salah untuk harga 0, jadi MySQL 8 menolak dengan ERROR 3819. Kode DN-01 belum dipakai, jadi bukan masalah UNIQUE.",
+          "remedial": "- **Constraint** = aturan di tabel yang dijaga database sendiri.\n- **UNIQUE**: nilai tidak boleh dobel. Boleh banyak per tabel, dan NULL boleh lebih dari satu.\n- **CHECK (syarat)**: menolak nilai yang membuat syarat salah. NULL tetap lolos.\n- CHECK baru ditegakkan sejak **MySQL 8.0.16**.\n- Pelanggaran UNIQUE → `ERROR 1062`, pelanggaran CHECK → `ERROR 3819`."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query terakhir?",
+      "code": "-- Aturan tabel produk:\n--   kode UNIQUE\n--   CONSTRAINT harga_positif CHECK (harga > 0)\n--   CONSTRAINT stok_aman CHECK (stok >= 0)\n-- Tabel produk:\n-- +----+-------+------------+-------+------+\n-- | id | kode  | nama       | harga | stok |\n-- +----+-------+------------+-------+------+\n-- |  1 | KP-01 | Kopi Susu  | 18000 |   20 |\n-- |  2 | TH-01 | Teh Manis  |  8000 |   35 |\n-- |  3 | RT-01 | Roti Bakar | 15000 |    6 |\n-- +----+-------+------------+-------+------+\nINSERT INTO produk VALUES (4, 'DN-01', 'Donat', 7000, 0);\nSELECT nama FROM produk WHERE stok = 0;",
+      "options": [
+        "Donat",
+        "Error, stok 0 melanggar CHECK stok_aman",
+        "Empty set",
+        "Roti Bakar, Donat"
+      ],
+      "answer": 0,
+      "explanation": "Syaratnya stok >= 0, dan 0 memenuhi syarat itu. Donat tersimpan dan menjadi satu-satunya produk dengan stok 0."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Email tidak boleh dobel, umur anggota minimal 10 tahun\nCREATE TABLE anggota (\n  id INT PRIMARY KEY,\n  nama VARCHAR(50) NOT NULL,\n  email VARCHAR(100) ___,\n  umur INT NOT NULL,\n  CONSTRAINT umur_cukup ___ (umur >= 10)\n);",
+      "answers": [
+        "UNIQUE|unique|Unique",
+        "CHECK|check|Check"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Constraint adalah aturan tabel yang dijaga oleh database sendiri.",
+        "UNIQUE mencegah nilai dobel; NULL boleh lebih dari satu.",
+        "CHECK menolak nilai yang membuat syarat salah, dan baru ditegakkan sejak MySQL 8.0.16.",
+        "Beri nama constraint supaya pesan error mudah dipahami.",
+        "CHECK meloloskan NULL, jadi tambahkan NOT NULL kalau kolom wajib diisi."
+      ]
+    }
+  ]
+}

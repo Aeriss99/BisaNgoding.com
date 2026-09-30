@@ -1,0 +1,113 @@
+{
+  "id": "desain-musik-02",
+  "moduleId": "desain-musik",
+  "order": 2,
+  "title": "Artis, Album, dan Lagu",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Bagian pertama yang kita bangun adalah **katalog**: daftar artis, album, dan lagu. Data ini diisi oleh tim aplikasi, bukan oleh pengguna, dan dibaca jutaan kali setiap hari.\n\nSebelum menulis tabel, ada beberapa keputusan yang harus diambil: album milik siapa, bagaimana mencatat duet, bagaimana menyimpan durasi, dan bagaimana menjaga urutan lagu di album.\n\nAmbil sebuah kaset atau CD. Di sampul depan tertulis judul album dan nama artisnya. Di sampul belakang ada daftar lagu bernomor 1, 2, 3, lengkap dengan durasinya. Kalau ada penyanyi tamu, namanya ditulis di samping judul, misalnya \"feat. Rina Lestari\". Tabel kita meniru sampul itu."
+    },
+    {
+      "type": "theory",
+      "content": "Keputusan desainnya:\n\n| Pertanyaan | Keputusan | Alasan |\n|---|---|---|\n| Album milik siapa? | kolom `album.artis_id` | album dirilis atas nama satu artis utama |\n| Lagu ada di album apa? | kolom `lagu.album_id` | lagu tunggal (*single*) dicatat sebagai album berisi satu lagu |\n| Siapa penyanyinya? | tabel `lagu_artis` + kolom `peran` | untuk duet dan penyanyi tamu |\n| Urutan lagu? | `nomor_trek` + `UNIQUE (album_id, nomor_trek)` | tidak boleh ada dua lagu di nomor yang sama dalam satu album |\n| Durasi? | `durasi_detik INT` | mudah dijumlah dan dibandingkan |\n\n![ERD katalog musik: artis, album, lagu, dan tabel penghubung lagu_artis](images/mysql/musik-katalog.svg)\n\n```sql\nCREATE TABLE artis (\n  id   INT AUTO_INCREMENT PRIMARY KEY,\n  nama VARCHAR(100) NOT NULL\n);\n\nCREATE TABLE album (\n  id          INT AUTO_INCREMENT PRIMARY KEY,\n  artis_id    INT NOT NULL,\n  judul       VARCHAR(150) NOT NULL,\n  tahun_rilis SMALLINT NOT NULL,\n  FOREIGN KEY (artis_id) REFERENCES artis(id)\n);\n\nCREATE TABLE lagu (\n  id           INT AUTO_INCREMENT PRIMARY KEY,\n  album_id     INT NOT NULL,\n  nomor_trek   INT NOT NULL,\n  judul        VARCHAR(150) NOT NULL,\n  durasi_detik INT NOT NULL,\n  FOREIGN KEY (album_id) REFERENCES album(id),\n  CONSTRAINT uq_album_trek UNIQUE (album_id, nomor_trek),\n  CHECK (durasi_detik > 0)\n);\n\nCREATE TABLE lagu_artis (\n  lagu_id  INT NOT NULL,\n  artis_id INT NOT NULL,\n  peran    ENUM('utama', 'tamu') NOT NULL DEFAULT 'utama',\n  PRIMARY KEY (lagu_id, artis_id),\n  FOREIGN KEY (lagu_id) REFERENCES lagu(id),\n  FOREIGN KEY (artis_id) REFERENCES artis(id)\n);\n```\n\nPerhatikan dua hal kecil yang penting:\n\n- **Durasi disimpan dalam detik.** `215` detik mudah dijumlah untuk total durasi album. Tampilan `3:35` dibuat saat menampilkan: menit = `FLOOR(215 / 60)` = 3, sisa detik = `215 % 60` = 35.\n- **UNIQUE gabungan.** Setiap album punya trek nomor 1, jadi `nomor_trek` sendirian tidak boleh unik. Yang unik adalah **pasangan** album dan nomor trek."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel di atas sudah diisi 3 artis, 2 album, dan 5 lagu. Lagu **Jalan Pulang** dinyanyikan Senja Kota bersama Rina Lestari sebagai tamu. Query pertama menampilkan daftar lagu album *Langit Jingga* seperti di sampul belakang CD:\n\n```sql\nSELECT l.nomor_trek, l.judul,\n       CONCAT(FLOOR(l.durasi_detik / 60), ':', LPAD(l.durasi_detik % 60, 2, '0')) AS durasi\nFROM lagu l\nJOIN album a ON a.id = l.album_id\nWHERE a.judul = 'Langit Jingga'\nORDER BY l.nomor_trek;\n\nSELECT l.judul,\n       GROUP_CONCAT(ar.nama ORDER BY la.peran SEPARATOR ', ') AS penyanyi\nFROM lagu l\nJOIN lagu_artis la ON la.lagu_id = l.id\nJOIN artis ar ON ar.id = la.artis_id\nWHERE l.album_id = 1\nGROUP BY l.id, l.judul, l.nomor_trek\nORDER BY l.nomor_trek;\n```\n\nHasilnya:\n\n```text\n+------------+----------------+--------+\n| nomor_trek | judul          | durasi |\n+------------+----------------+--------+\n|          1 | Hujan di Braga | 3:35   |\n|          2 | Kopi Pagi      | 3:09   |\n|          3 | Jalan Pulang   | 4:02   |\n+------------+----------------+--------+\n3 rows in set\n\n+----------------+--------------------------+\n| judul          | penyanyi                 |\n+----------------+--------------------------+\n| Hujan di Braga | Senja Kota               |\n| Kopi Pagi      | Senja Kota               |\n| Jalan Pulang   | Senja Kota, Rina Lestari |\n+----------------+--------------------------+\n3 rows in set\n```\n\n`LPAD(..., 2, '0')` menambahkan nol di depan supaya 9 detik tampil sebagai `09`, bukan `9`.\n\nQuery kedua memakai `GROUP_CONCAT`, fungsi agregat yang menggabungkan beberapa nilai dalam satu kelompok menjadi satu teks. `ORDER BY la.peran` menaruh artis utama di depan, karena ENUM diurutkan menurut urutan saat didefinisikan (`'utama'` dulu, baru `'tamu'`), bukan menurut abjad."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan durasi sebagai teks**\n\nSalah:\n\n```sql\ndurasi VARCHAR(5) NOT NULL   -- '3:35'\n```\n\nBenar:\n\n```sql\ndurasi_detik INT NOT NULL    -- 215\n```\n\nTeks tidak bisa dijumlah untuk total durasi album. Teks juga dibandingkan huruf per huruf, sehingga '10:05' dianggap lebih kecil dari '9:30'. Simpan angka, format saat ditampilkan.\n\n**2. Memberi UNIQUE pada nomor_trek saja**\n\nSalah:\n\n```sql\nnomor_trek INT NOT NULL UNIQUE\n```\n\nBenar:\n\n```sql\nnomor_trek INT NOT NULL,\nCONSTRAINT uq_album_trek UNIQUE (album_id, nomor_trek)\n```\n\nDengan UNIQUE di satu kolom, hanya satu lagu di seluruh aplikasi yang boleh bernomor trek 1. Yang harus unik adalah pasangan album_id dan nomor_trek.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa durasi lagu disimpan sebagai jumlah detik (INT)?",
+          "options": [
+            "Supaya mudah dijumlah dan dibandingkan",
+            "Karena MySQL tidak punya tipe teks",
+            "Supaya tampilannya langsung 3:35",
+            "Karena INT selalu lebih hemat dari tipe lain mana pun"
+          ],
+          "answer": 0,
+          "explanation": "Angka detik bisa langsung dipakai SUM, AVG, dan perbandingan. Format tampilan dibuat saat query atau di aplikasi.",
+          "remedial": "- `album.artis_id` → album milik satu artis utama (one-to-many).\n- `lagu.album_id` → lagu ada di satu album. Lagu tunggal = album berisi satu lagu.\n- `lagu_artis (lagu_id, artis_id, peran)` → duet dan penyanyi tamu (many-to-many).\n- `durasi_detik INT` → mudah dijumlah. Format `m:ss` dibuat dengan `FLOOR(d / 60)` dan `d % 60`.\n- `UNIQUE (album_id, nomor_trek)` → nomor trek unik **per album**."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel lagu:\n-- +----+----------+------------+----------------+--------------+\n-- | id | album_id | nomor_trek | judul          | durasi_detik |\n-- +----+----------+------------+----------------+--------------+\n-- |  1 |        1 |          2 | Kopi Pagi      |          189 |\n-- |  2 |        1 |          1 | Hujan di Braga |          215 |\n-- |  3 |        1 |          3 | Jalan Pulang   |          242 |\n-- |  4 |        2 |          2 | Sampai Nanti   |          230 |\n-- |  5 |        2 |          1 | Rumah          |          201 |\n-- +----+----------+------------+----------------+--------------+\nSELECT SUM(durasi_detik) FROM lagu WHERE album_id = 1;",
+          "options": [
+            "646",
+            "215",
+            "3",
+            "1077"
+          ],
+          "answer": 0,
+          "explanation": "189 + 215 + 242 = 646 detik, atau 10 menit 46 detik.",
+          "remedial": "- `album.artis_id` → album milik satu artis utama (one-to-many).\n- `lagu.album_id` → lagu ada di satu album. Lagu tunggal = album berisi satu lagu.\n- `lagu_artis (lagu_id, artis_id, peran)` → duet dan penyanyi tamu (many-to-many).\n- `durasi_detik INT` → mudah dijumlah. Format `m:ss` dibuat dengan `FLOOR(d / 60)` dan `d % 60`.\n- `UNIQUE (album_id, nomor_trek)` → nomor trek unik **per album**."
+        },
+        {
+          "question": "Bagian mana dari desain yang memungkinkan satu lagu dinyanyikan dua artis?",
+          "options": [
+            "Kolom artis_id di tabel album",
+            "Tabel lagu_artis dengan primary key (lagu_id, artis_id)",
+            "Kolom nomor_trek di tabel lagu",
+            "UNIQUE (album_id, nomor_trek)"
+          ],
+          "answer": 1,
+          "explanation": "Setiap pasangan lagu dan artis menjadi satu baris di lagu_artis, jadi satu lagu boleh punya banyak baris.",
+          "remedial": "- `album.artis_id` → album milik satu artis utama (one-to-many).\n- `lagu.album_id` → lagu ada di satu album. Lagu tunggal = album berisi satu lagu.\n- `lagu_artis (lagu_id, artis_id, peran)` → duet dan penyanyi tamu (many-to-many).\n- `durasi_detik INT` → mudah dijumlah. Format `m:ss` dibuat dengan `FLOOR(d / 60)` dan `d % 60`.\n- `UNIQUE (album_id, nomor_trek)` → nomor trek unik **per album**."
+        },
+        {
+          "question": "Tabel lagu punya UNIQUE (album_id, nomor_trek). Apa yang terjadi saat INSERT ini dijalankan?",
+          "code": "-- Tabel lagu:\n-- +----+----------+------------+----------------+--------------+\n-- | id | album_id | nomor_trek | judul          | durasi_detik |\n-- +----+----------+------------+----------------+--------------+\n-- |  1 |        1 |          2 | Kopi Pagi      |          189 |\n-- |  2 |        1 |          1 | Hujan di Braga |          215 |\n-- |  3 |        1 |          3 | Jalan Pulang   |          242 |\n-- |  4 |        2 |          2 | Sampai Nanti   |          230 |\n-- |  5 |        2 |          1 | Rumah          |          201 |\n-- +----+----------+------------+----------------+--------------+\nINSERT INTO lagu VALUES (6, 1, 3, 'Senja Terakhir', 250);",
+          "options": [
+            "Ditolak dengan error, karena album 1 sudah punya trek nomor 3",
+            "Berhasil, karena id 6 belum dipakai",
+            "Berhasil, dan lagu Jalan Pulang otomatis pindah ke nomor 4",
+            "Berhasil, tapi nomor_trek diisi NULL"
+          ],
+          "answer": 0,
+          "explanation": "Pasangan (1, 3) sudah dipakai Jalan Pulang. MySQL menolak dengan error Duplicate entry untuk key uq_album_trek.",
+          "remedial": "- `album.artis_id` → album milik satu artis utama (one-to-many).\n- `lagu.album_id` → lagu ada di satu album. Lagu tunggal = album berisi satu lagu.\n- `lagu_artis (lagu_id, artis_id, peran)` → duet dan penyanyi tamu (many-to-many).\n- `durasi_detik INT` → mudah dijumlah. Format `m:ss` dibuat dengan `FLOOR(d / 60)` dan `d % 60`.\n- `UNIQUE (album_id, nomor_trek)` → nomor trek unik **per album**."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel lagu:\n-- +----+----------+------------+----------------+--------------+\n-- | id | album_id | nomor_trek | judul          | durasi_detik |\n-- +----+----------+------------+----------------+--------------+\n-- |  1 |        1 |          2 | Kopi Pagi      |          189 |\n-- |  2 |        1 |          1 | Hujan di Braga |          215 |\n-- |  3 |        1 |          3 | Jalan Pulang   |          242 |\n-- |  4 |        2 |          2 | Sampai Nanti   |          230 |\n-- |  5 |        2 |          1 | Rumah          |          201 |\n-- +----+----------+------------+----------------+--------------+\nSELECT CONCAT(FLOOR(durasi_detik / 60), ':', LPAD(durasi_detik % 60, 2, '0')) AS durasi\nFROM lagu WHERE id = 3;",
+      "options": [
+        "4:02",
+        "4:2",
+        "242",
+        "4.03"
+      ],
+      "answer": 0,
+      "explanation": "242 dibagi 60 = 4 sisa 2. LPAD menambahkan nol di depan, jadi hasilnya 4:02."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Tampilkan lagu album 1 sesuai urutan trek (nomor kecil dulu)\n-- Tabel lagu:\n-- +----+----------+------------+----------------+--------------+\n-- | id | album_id | nomor_trek | judul          | durasi_detik |\n-- +----+----------+------------+----------------+--------------+\n-- |  1 |        1 |          2 | Kopi Pagi      |          189 |\n-- |  2 |        1 |          1 | Hujan di Braga |          215 |\n-- |  3 |        1 |          3 | Jalan Pulang   |          242 |\n-- |  4 |        2 |          2 | Sampai Nanti   |          230 |\n-- |  5 |        2 |          1 | Rumah          |          201 |\n-- +----+----------+------------+----------------+--------------+\nSELECT nomor_trek, judul\nFROM lagu\nWHERE ___ = 1\nORDER BY ___;",
+      "answers": [
+        "album_id",
+        "nomor_trek|nomor_trek ASC"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Album punya artis_id, lagu punya album_id: dua relasi one-to-many.",
+        "Duet dan penyanyi tamu dicatat di tabel penghubung lagu_artis dengan kolom peran.",
+        "Simpan durasi dalam detik, format m:ss saat ditampilkan.",
+        "UNIQUE (album_id, nomor_trek) menjaga urutan lagu per album.",
+        "Tampilkan daftar lagu album dengan JOIN dan ORDER BY nomor_trek."
+      ]
+    }
+  ]
+}

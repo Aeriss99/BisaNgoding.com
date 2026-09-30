@@ -1,0 +1,113 @@
+{
+  "id": "mysql-relasi-09",
+  "moduleId": "mysql-relasi",
+  "order": 9,
+  "title": "UNION",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "JOIN menggabung tabel **ke samping**: kolom dari tabel lain ditempel di sebelah kanan. Kadang kita butuh penggabungan **ke bawah**: baris dari satu query disambung dengan baris dari query lain.\n\nContohnya daftar kontak toko. Nama pelanggan ada di tabel `pelanggan`, nama pemasok ada di tabel `pemasok`. Kita ingin satu daftar berisi keduanya. Itulah tugas **UNION**.\n\nBayangkan dua lembar daftar hadir: satu dari kelas pagi, satu dari kelas sore. Kamu menempelkan lembar kedua di bawah lembar pertama supaya jadi satu daftar panjang. Syaratnya, kedua lembar harus punya kolom yang sama, misalnya Nama lalu Kota. Kalau satu lembar punya kolom tambahan, tempelannya tidak nyambung."
+    },
+    {
+      "type": "theory",
+      "content": "```sql\nSELECT nama, kota FROM pelanggan\nUNION\nSELECT nama_toko, kota FROM pemasok;\n```\n\n| | `UNION` | `UNION ALL` |\n|---|---|---|\n| Baris dobel | dibuang, sisa satu | tetap ditampilkan semua |\n| Kecepatan | lebih lambat (harus mencari dobel) | lebih cepat |\n| Kapan dipakai | butuh daftar unik | tahu tidak ada dobel, atau dobel memang perlu |\n\nSyarat UNION:\n\n- **Jumlah kolom sama** di setiap SELECT. Kalau berbeda: `ERROR 1222 (21000): The used SELECT statements have a different number of columns`.\n- **Urutan kolom** dicocokkan berdasarkan posisi, bukan nama. Kolom pertama disambung dengan kolom pertama, dan seterusnya.\n- **Nama kolom hasil** diambil dari SELECT pertama.\n- `ORDER BY` ditulis **sekali di paling akhir**, dan berlaku untuk seluruh hasil gabungan.\n\nTrik yang sering dipakai: tambahkan kolom teks tetap untuk menandai asal baris, misalnya `'Pelanggan' AS jenis`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nData awal:\n\n| id | nama | kota |\n|---|---|---|\n| 1 | Budi | Bandung |\n| 2 | Sari | Jakarta |\n| 3 | Rina | Surabaya |\n| 4 | Dewi | Bandung |\n\n| id | nama_toko | kota |\n|---|---|---|\n| 1 | Kopi Nusantara | Bandung |\n| 2 | Roti Enak | Semarang |\n| 3 | Susu Segar | Jakarta |\n\nDaftar kontak gabungan, ditandai asalnya:\n\n```sql\nSELECT nama, kota, 'Pelanggan' AS jenis FROM pelanggan\nUNION ALL\nSELECT nama_toko, kota, 'Pemasok' FROM pemasok\nORDER BY kota, nama;\n```\n\nHasilnya:\n\n```text\n+----------------+----------+-----------+\n| nama           | kota     | jenis     |\n+----------------+----------+-----------+\n| Budi           | Bandung  | Pelanggan |\n| Dewi           | Bandung  | Pelanggan |\n| Kopi Nusantara | Bandung  | Pemasok   |\n| Sari           | Jakarta  | Pelanggan |\n| Susu Segar     | Jakarta  | Pemasok   |\n| Roti Enak      | Semarang | Pemasok   |\n| Rina           | Surabaya | Pelanggan |\n+----------------+----------+-----------+\n7 rows in set\n```\n\nKolom hasil bernama `nama`, `kota`, dan `jenis`, sesuai SELECT pertama, walaupun kolom di tabel pemasok bernama `nama_toko`.\n\n### Contoh kedua\n\nDaftar kota tempat toko punya kontak. Bandung ada tiga kali dan Jakarta dua kali di kedua tabel, tapi UNION hanya menyisakan satu:\n\n```sql\nSELECT kota FROM pelanggan\nUNION\nSELECT kota FROM pemasok\nORDER BY kota;\n```\n\nHasilnya:\n\n```text\n+----------+\n| kota     |\n+----------+\n| Bandung  |\n| Jakarta  |\n| Semarang |\n| Surabaya |\n+----------+\n4 rows in set\n```\n\nDengan `UNION ALL`, hasilnya 7 baris karena tidak ada yang dibuang."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Urutan kolom tertukar**\n\nSalah:\n\n```sql\nSELECT nama, kota FROM pelanggan\nUNION\nSELECT kota, nama_toko FROM pemasok;\n```\n\nBenar:\n\n```sql\nSELECT nama, kota FROM pelanggan\nUNION\nSELECT nama_toko, kota FROM pemasok;\n```\n\nMySQL mencocokkan kolom berdasarkan posisi. Tanpa pesan error, nama kota akan muncul di kolom nama dan sebaliknya.\n\n**2. ORDER BY di tengah UNION**\n\nSalah:\n\n```sql\nSELECT kota FROM pelanggan ORDER BY kota\nUNION\nSELECT kota FROM pemasok;\n```\n\nBenar:\n\n```sql\nSELECT kota FROM pelanggan\nUNION\nSELECT kota FROM pemasok\nORDER BY kota;\n```\n\nORDER BY di SELECT pertama membuat MySQL menolak query-nya. Tulis ORDER BY sekali di paling akhir, dan ia mengurutkan seluruh hasil gabungan.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa perbedaan UNION dan UNION ALL?",
+          "options": [
+            "UNION membuang baris dobel, UNION ALL menampilkan semuanya",
+            "UNION ALL membuang baris dobel, UNION tidak",
+            "UNION untuk dua tabel, UNION ALL untuk lebih dari dua tabel",
+            "Tidak ada bedanya"
+          ],
+          "answer": 0,
+          "explanation": "UNION menyisakan satu dari setiap baris yang sama. UNION ALL tidak membuang apa pun, jadi lebih cepat.",
+          "remedial": "- **UNION** menyambung hasil beberapa SELECT ke bawah.\n- `UNION` membuang baris dobel, `UNION ALL` menyimpan semuanya.\n- Jumlah kolom harus sama; kolom dicocokkan berdasarkan **posisi**.\n- Nama kolom hasil diambil dari SELECT pertama.\n- `ORDER BY` sekali di paling akhir."
+        },
+        {
+          "question": "Berapa baris hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pemasok:\n-- +----+----------------+----------+\n-- | id | nama_toko      | kota     |\n-- +----+----------------+----------+\n-- |  1 | Kopi Nusantara | Bandung  |\n-- |  2 | Roti Enak      | Semarang |\n-- |  3 | Susu Segar     | Jakarta  |\n-- +----+----------------+----------+\nSELECT kota FROM pelanggan\nUNION\nSELECT kota FROM pemasok;",
+          "options": [
+            "7 baris",
+            "3 baris",
+            "5 baris",
+            "4 baris"
+          ],
+          "answer": 3,
+          "explanation": "Kota yang berbeda hanya Bandung, Jakarta, Surabaya, dan Semarang. UNION membuang sisanya.",
+          "remedial": "- **UNION** menyambung hasil beberapa SELECT ke bawah.\n- `UNION` membuang baris dobel, `UNION ALL` menyimpan semuanya.\n- Jumlah kolom harus sama; kolom dicocokkan berdasarkan **posisi**.\n- Nama kolom hasil diambil dari SELECT pertama.\n- `ORDER BY` sekali di paling akhir."
+        },
+        {
+          "question": "Berapa baris hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pemasok:\n-- +----+----------------+----------+\n-- | id | nama_toko      | kota     |\n-- +----+----------------+----------+\n-- |  1 | Kopi Nusantara | Bandung  |\n-- |  2 | Roti Enak      | Semarang |\n-- |  3 | Susu Segar     | Jakarta  |\n-- +----+----------------+----------+\nSELECT kota FROM pelanggan WHERE kota = 'Bandung'\nUNION ALL\nSELECT kota FROM pemasok WHERE kota = 'Bandung';",
+          "options": [
+            "1 baris",
+            "3 baris",
+            "2 baris",
+            "0 baris"
+          ],
+          "answer": 1,
+          "explanation": "Dua pelanggan dan satu pemasok di Bandung. UNION ALL tidak membuang yang dobel, jadi 3 baris.",
+          "remedial": "- **UNION** menyambung hasil beberapa SELECT ke bawah.\n- `UNION` membuang baris dobel, `UNION ALL` menyimpan semuanya.\n- Jumlah kolom harus sama; kolom dicocokkan berdasarkan **posisi**.\n- Nama kolom hasil diambil dari SELECT pertama.\n- `ORDER BY` sekali di paling akhir."
+        },
+        {
+          "question": "Apa yang terjadi saat query ini dijalankan?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pemasok:\n-- +----+----------------+----------+\n-- | id | nama_toko      | kota     |\n-- +----+----------------+----------+\n-- |  1 | Kopi Nusantara | Bandung  |\n-- |  2 | Roti Enak      | Semarang |\n-- |  3 | Susu Segar     | Jakarta  |\n-- +----+----------------+----------+\nSELECT nama, kota FROM pelanggan\nUNION\nSELECT nama_toko FROM pemasok;",
+          "options": [
+            "Tampil 7 baris, kota pemasok diisi NULL",
+            "Error, jumlah kolom kedua SELECT berbeda",
+            "Tampil nama saja",
+            "Tampil 4 baris dari pelanggan saja"
+          ],
+          "answer": 1,
+          "explanation": "SELECT pertama punya 2 kolom, SELECT kedua hanya 1. MySQL menolak dengan ERROR 1222.",
+          "remedial": "- **UNION** menyambung hasil beberapa SELECT ke bawah.\n- `UNION` membuang baris dobel, `UNION ALL` menyimpan semuanya.\n- Jumlah kolom harus sama; kolom dicocokkan berdasarkan **posisi**.\n- Nama kolom hasil diambil dari SELECT pertama.\n- `ORDER BY` sekali di paling akhir."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pemasok:\n-- +----+----------------+----------+\n-- | id | nama_toko      | kota     |\n-- +----+----------------+----------+\n-- |  1 | Kopi Nusantara | Bandung  |\n-- |  2 | Roti Enak      | Semarang |\n-- |  3 | Susu Segar     | Jakarta  |\n-- +----+----------------+----------+\nSELECT nama FROM pelanggan WHERE kota = 'Jakarta'\nUNION\nSELECT nama_toko FROM pemasok WHERE kota = 'Jakarta'\nORDER BY nama;",
+      "options": [
+        "Sari",
+        "Susu Segar, Sari",
+        "Sari, Susu Segar",
+        "Jakarta, Jakarta"
+      ],
+      "answer": 2,
+      "explanation": "Dari pelanggan: Sari. Dari pemasok: Susu Segar. Kolom hasil bernama nama (dari SELECT pertama), lalu diurutkan abjad."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Gabungkan semua kota, yang dobel tetap ditampilkan, lalu urutkan\n-- Tabel pelanggan:\n-- +----+------+----------+\n-- | id | nama | kota     |\n-- +----+------+----------+\n-- |  1 | Budi | Bandung  |\n-- |  2 | Sari | Jakarta  |\n-- |  3 | Rina | Surabaya |\n-- |  4 | Dewi | Bandung  |\n-- +----+------+----------+\n\n-- Tabel pemasok:\n-- +----+----------------+----------+\n-- | id | nama_toko      | kota     |\n-- +----+----------------+----------+\n-- |  1 | Kopi Nusantara | Bandung  |\n-- |  2 | Roti Enak      | Semarang |\n-- |  3 | Susu Segar     | Jakarta  |\n-- +----+----------------+----------+\nSELECT kota FROM pelanggan\nUNION ___\nSELECT kota FROM pemasok\n___ kota;",
+      "answers": [
+        "ALL|all|All",
+        "ORDER BY|order by|Order By"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "UNION menyambung hasil beberapa SELECT ke bawah.",
+        "UNION membuang baris dobel; UNION ALL menyimpan semua dan lebih cepat.",
+        "Jumlah kolom harus sama, dan kolom dicocokkan berdasarkan posisi.",
+        "Nama kolom hasil diambil dari SELECT pertama; ORDER BY ditulis sekali di akhir."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "id": "mysql-dasar-09",
+  "moduleId": "mysql-dasar",
+  "order": 9,
+  "title": "Menghapus Data: DELETE",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ada kalanya baris harus dibuang: pesanan batal yang tidak perlu disimpan, akun percobaan, atau data yang salah input. Perintahnya adalah `DELETE`.\n\nSama seperti UPDATE, bagian terpenting dari DELETE adalah `WHERE`. Data yang sudah dihapus **tidak bisa dikembalikan**, kecuali kamu punya cadangan (backup).\n\nBayangkan daftar peserta lomba di selembar kertas. Mencoret satu nama peserta yang mengundurkan diri: itu `DELETE ... WHERE`. Mencoret **semua** nama: itu `DELETE` tanpa WHERE. Kertas dan judul kolomnya tetap ada, tapi isinya kosong."
+    },
+    {
+      "type": "theory",
+      "content": "Bentuk umumnya:\n\n```sql\nDELETE FROM pelanggan WHERE id = 3;\n```\n\n| Bagian | Artinya |\n|---|---|\n| `DELETE FROM pelanggan` | hapus baris dari tabel pelanggan |\n| `WHERE id = 3` | hanya baris yang id-nya 3 |\n\nTidak ada nama kolom di DELETE, karena yang dihapus selalu **satu baris utuh**. Untuk mengosongkan satu kolom saja, pakai `UPDATE ... SET kolom = NULL`.\n\n**Tanpa WHERE, semua baris terhapus.** `DELETE FROM pelanggan;` mengosongkan tabel (tabelnya tetap ada). Sama seperti UPDATE, jalankan dulu `SELECT` dengan `WHERE` yang sama untuk memastikan baris yang akan hilang.\n\n**Soft delete (hapus lunak).** Banyak aplikasi tidak benar-benar menghapus data. Mereka menambah kolom penanda, lalu \"menghapus\" dengan mengubah penandanya:\n\n```sql\nUPDATE produk SET dihapus = TRUE WHERE id = 2;\n```\n\nSaat menampilkan data, aplikasi hanya mengambil yang `dihapus = FALSE`.\n\n| | Hapus biasa (DELETE) | Soft delete |\n|---|---|---|\n| Data | hilang dari tabel | masih ada, hanya ditandai |\n| Bisa dipulihkan | tidak (kecuali dari backup) | bisa, cukup ubah penandanya |\n| Kekurangan | riwayat hilang | tabel terus membesar, setiap query harus ingat menyaring penanda |\n\nSelain BOOLEAN, penanda juga sering berupa kolom tanggal seperti `dihapus_pada`, supaya tercatat kapan data dihapus."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nHapus pelanggan dengan id 3:\n\n```sql\nCREATE TABLE pelanggan (\n  id INT PRIMARY KEY,\n  nama VARCHAR(30),\n  kota VARCHAR(30)\n);\nINSERT INTO pelanggan VALUES (1, 'Budi', 'Bandung'), (2, 'Sari', 'Solo'), (3, 'Rina', 'Bandung'), (4, 'Tono', 'Malang');\n```\n\n```sql\nDELETE FROM pelanggan WHERE id = 3;\nSELECT * FROM pelanggan;\n```\n\nHasilnya:\n\n```text\n+----+------+---------+\n| id | nama | kota    |\n+----+------+---------+\n|  1 | Budi | Bandung |\n|  2 | Sari | Solo    |\n|  4 | Tono | Malang  |\n+----+------+---------+\n3 rows in set\n```\n\nRina (id 3) hilang, tiga pelanggan lain tetap ada.\n\n### Contoh 2\n\nSekarang soft delete. Tabel `produk` punya kolom `dihapus` yang bawaannya FALSE (0). Kita \"hapus\" Teh Manis, lalu tampilkan daftar untuk pembeli dan isi tabel sebenarnya.\n\n```sql\nUPDATE produk SET dihapus = TRUE WHERE id = 2;\nSELECT id, nama FROM produk WHERE dihapus = FALSE;\nSELECT * FROM produk;\n```\n\nHasilnya:\n\n```text\n+----+------------+\n| id | nama       |\n+----+------------+\n|  1 | Kopi Susu  |\n|  3 | Roti Bakar |\n+----+------------+\n2 rows in set\n\n+----+------------+---------+\n| id | nama       | dihapus |\n+----+------------+---------+\n|  1 | Kopi Susu  |       0 |\n|  2 | Teh Manis  |       1 |\n|  3 | Roti Bakar |       0 |\n+----+------------+---------+\n3 rows in set\n```\n\nPembeli tidak lagi melihat Teh Manis, tapi barisnya masih tersimpan dengan `dihapus = 1`. Kalau ternyata salah hapus, cukup ubah kembali menjadi FALSE."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. DELETE tanpa WHERE**\n\nSalah:\n\n```sql\nDELETE FROM pelanggan;\n```\n\nBenar:\n\n```sql\nDELETE FROM pelanggan WHERE id = 4;\n```\n\nTanpa WHERE, semua pelanggan terhapus. Tulis WHERE lebih dulu, dan periksa dengan SELECT sebelum menghapus.\n\n**2. Menulis bintang seperti SELECT**\n\nSalah:\n\n```sql\nDELETE * FROM pelanggan WHERE id = 3;\n```\n\nBenar:\n\n```sql\nDELETE FROM pelanggan WHERE id = 3;\n```\n\nDELETE selalu menghapus baris utuh, jadi tidak ada daftar kolom. Menulis `*` membuat MySQL menolak dengan `ERROR 1064 (42000)`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Berapa baris yang tersisa di tabel?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+---------+\n-- | id | nama | kota    |\n-- +----+------+---------+\n-- |  1 | Budi | Bandung |\n-- |  2 | Sari | Solo    |\n-- |  3 | Rina | Bandung |\n-- |  4 | Tono | Malang  |\n-- +----+------+---------+\nDELETE FROM pelanggan WHERE kota = 'Bandung';\nSELECT * FROM pelanggan;",
+          "options": [
+            "3 baris",
+            "2 baris",
+            "0 baris",
+            "1 baris"
+          ],
+          "answer": 1,
+          "explanation": "Dua pelanggan dari Bandung (Budi dan Rina) terhapus. Tersisa Sari dan Tono.",
+          "remedial": "- Bentuk: `DELETE FROM tabel WHERE kondisi;`\n- DELETE menghapus baris utuh, tanpa daftar kolom dan tanpa `*`.\n- Tanpa WHERE, semua baris terhapus (tabelnya tetap ada).\n- Data yang dihapus tidak bisa dikembalikan tanpa backup.\n- Soft delete: tandai dengan kolom seperti `dihapus`, lalu saring saat menampilkan."
+        },
+        {
+          "question": "Apa hasil SELECT setelah DELETE ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+---------+\n-- | id | nama | kota    |\n-- +----+------+---------+\n-- |  1 | Budi | Bandung |\n-- |  2 | Sari | Solo    |\n-- |  3 | Rina | Bandung |\n-- |  4 | Tono | Malang  |\n-- +----+------+---------+\nDELETE FROM pelanggan;\nSELECT * FROM pelanggan;",
+          "options": [
+            "Error: tabel pelanggan tidak ditemukan",
+            "Masih 4 baris karena DELETE butuh WHERE",
+            "Empty set: semua baris terhapus, tapi tabelnya masih ada",
+            "Hanya baris pertama yang terhapus"
+          ],
+          "answer": 2,
+          "explanation": "DELETE tanpa WHERE menghapus semua baris. Struktur tabel tetap ada, jadi SELECT berhasil dengan hasil kosong.",
+          "remedial": "- Bentuk: `DELETE FROM tabel WHERE kondisi;`\n- DELETE menghapus baris utuh, tanpa daftar kolom dan tanpa `*`.\n- Tanpa WHERE, semua baris terhapus (tabelnya tetap ada).\n- Data yang dihapus tidak bisa dikembalikan tanpa backup.\n- Soft delete: tandai dengan kolom seperti `dihapus`, lalu saring saat menampilkan."
+        },
+        {
+          "question": "Apa yang dimaksud soft delete?",
+          "options": [
+            "Menghapus data secara perlahan",
+            "Menandai data sebagai terhapus lewat sebuah kolom, tanpa benar-benar membuang barisnya",
+            "Menghapus data yang ukurannya kecil",
+            "Menghapus tabel lalu membuatnya lagi"
+          ],
+          "answer": 1,
+          "explanation": "Soft delete memakai UPDATE pada kolom penanda, sehingga data masih bisa dipulihkan.",
+          "remedial": "- Bentuk: `DELETE FROM tabel WHERE kondisi;`\n- DELETE menghapus baris utuh, tanpa daftar kolom dan tanpa `*`.\n- Tanpa WHERE, semua baris terhapus (tabelnya tetap ada).\n- Data yang dihapus tidak bisa dikembalikan tanpa backup.\n- Soft delete: tandai dengan kolom seperti `dihapus`, lalu saring saat menampilkan."
+        },
+        {
+          "question": "Kamu ingin menghapus hanya pesanan yang berstatus batal. Perintah mana yang tepat?",
+          "options": [
+            "TRUNCATE TABLE pesanan WHERE status = 'batal';",
+            "DROP TABLE pesanan WHERE status = 'batal';",
+            "DELETE * FROM pesanan WHERE status = 'batal';",
+            "DELETE FROM pesanan WHERE status = 'batal';"
+          ],
+          "answer": 3,
+          "explanation": "Hanya DELETE yang bisa memilih baris dengan WHERE, dan DELETE ditulis tanpa `*`. TRUNCATE dan DROP tidak mengenal WHERE.",
+          "remedial": "- Bentuk: `DELETE FROM tabel WHERE kondisi;`\n- DELETE menghapus baris utuh, tanpa daftar kolom dan tanpa `*`.\n- Tanpa WHERE, semua baris terhapus (tabelnya tetap ada).\n- Data yang dihapus tidak bisa dikembalikan tanpa backup.\n- Soft delete: tandai dengan kolom seperti `dihapus`, lalu saring saat menampilkan."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil SELECT terakhir?",
+      "code": "-- Tabel produk:\n-- +----+------------+---------+\n-- | id | nama       | dihapus |\n-- +----+------------+---------+\n-- |  1 | Kopi Susu  |       0 |\n-- |  2 | Teh Manis  |       0 |\n-- |  3 | Roti Bakar |       0 |\n-- +----+------------+---------+\nUPDATE produk SET dihapus = TRUE WHERE id = 1;\nSELECT nama FROM produk WHERE dihapus = FALSE;",
+      "options": [
+        "Kopi Susu, Teh Manis, Roti Bakar",
+        "Kopi Susu",
+        "Teh Manis, Roti Bakar",
+        "Empty set"
+      ],
+      "answer": 2,
+      "explanation": "Kopi Susu ditandai terhapus, jadi tidak lolos saringan dihapus = FALSE. Barisnya tetap ada di tabel."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- hapus pelanggan dengan id 4 saja\n-- Tabel pelanggan:\n-- +----+------+---------+\n-- | id | nama | kota    |\n-- +----+------+---------+\n-- |  1 | Budi | Bandung |\n-- |  2 | Sari | Solo    |\n-- |  3 | Rina | Bandung |\n-- |  4 | Tono | Malang  |\n-- +----+------+---------+\n___ ___ pelanggan\n___ id = 4;\nSELECT * FROM pelanggan;",
+      "answers": [
+        "DELETE|delete|Delete",
+        "FROM|from|From",
+        "WHERE|where|Where"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "DELETE FROM tabel WHERE kondisi menghapus baris yang dipilih.",
+        "DELETE menghapus baris utuh, tanpa daftar kolom.",
+        "Tanpa WHERE semua baris terhapus, dan data tidak bisa dikembalikan tanpa backup.",
+        "Soft delete menandai data dengan kolom penanda sehingga masih bisa dipulihkan."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "id": "mysql-dasar-05",
+  "moduleId": "mysql-dasar",
+  "order": 5,
+  "title": "Mengubah dan Menghapus Tabel",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi terus berkembang. Hari ini tabel pelanggan cukup berisi nama dan kota. Bulan depan butuh kolom email, nama kolom perlu diganti, atau ukuran kolom perlu diperbesar.\n\nKita tidak perlu membuat tabel dari awal. Struktur tabel bisa diubah dengan `ALTER TABLE`, walaupun tabelnya sudah berisi data.\n\nBayangkan merenovasi rumah. Menambah kamar atau mengganti pintu tidak perlu merobohkan rumah: itu `ALTER TABLE`. Mengeluarkan semua perabot tapi bangunannya tetap berdiri: itu `TRUNCATE`. Merobohkan rumah sampai rata dengan tanah: itu `DROP TABLE`."
+    },
+    {
+      "type": "theory",
+      "content": "Bentuk-bentuk `ALTER TABLE`:\n\n| Perintah | Kegunaan |\n|---|---|\n| `ALTER TABLE pelanggan ADD COLUMN email VARCHAR(100);` | menambah kolom (di posisi paling akhir) |\n| `ALTER TABLE pelanggan MODIFY COLUMN nama VARCHAR(150) NOT NULL;` | mengubah tipe atau aturan kolom |\n| `ALTER TABLE pelanggan RENAME COLUMN kota TO kota_asal;` | mengganti nama kolom |\n| `ALTER TABLE pelanggan DROP COLUMN email;` | menghapus kolom beserta isinya |\n| `RENAME TABLE pelanggan TO member;` | mengganti nama tabel |\n\nDua hal penting:\n\n- Kolom baru yang ditambahkan ke tabel berisi data akan terisi `NULL` di baris lama, atau nilai `DEFAULT`-nya kalau ada.\n- `MODIFY` menulis ulang **seluruh** definisi kolom. Aturan seperti `NOT NULL` atau `DEFAULT` yang tidak ditulis ulang akan hilang.\n\nUntuk menghapus, ada tiga perintah yang sering tertukar:\n\n| | `DELETE FROM t;` | `TRUNCATE TABLE t;` | `DROP TABLE t;` |\n|---|---|---|---|\n| Data | terhapus (boleh sebagian dengan `WHERE`) | semua terhapus | semua terhapus |\n| Struktur tabel | tetap ada | tetap ada | **ikut hilang** |\n| Nomor AUTO_INCREMENT | melanjutkan | kembali ke 1 | tidak relevan |\n| Bisa dibatalkan dalam transaksi | bisa | tidak | tidak |\n\n`DELETE` dibahas lengkap di pelajaran 9, dan transaksi di modul Transaksi."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `pelanggan` sudah berisi 3 baris. Kita tambah kolom email, ganti nama kolom kota, dan perbesar kolom nama.\n\n```sql\nALTER TABLE pelanggan ADD COLUMN email VARCHAR(100);\nALTER TABLE pelanggan RENAME COLUMN kota TO kota_asal;\nALTER TABLE pelanggan MODIFY COLUMN nama VARCHAR(150) NOT NULL;\nDESCRIBE pelanggan;\nSELECT * FROM pelanggan;\n```\n\nHasilnya:\n\n```text\n+-----------+--------------+------+-----+---------+----------------+\n| Field     | Type         | Null | Key | Default | Extra          |\n+-----------+--------------+------+-----+---------+----------------+\n| id        | int          | NO   | PRI | NULL    | auto_increment |\n| nama      | varchar(150) | NO   |     | NULL    |                |\n| kota_asal | varchar(50)  | YES  |     | NULL    |                |\n| email     | varchar(100) | YES  |     | NULL    |                |\n+-----------+--------------+------+-----+---------+----------------+\n4 rows in set\n\n+----+------+-----------+-------+\n| id | nama | kota_asal | email |\n+----+------+-----------+-------+\n|  1 | Budi | Bandung   | NULL  |\n|  2 | Sari | Medan     | NULL  |\n|  3 | Rina | Surabaya  | NULL  |\n+----+------+-----------+-------+\n3 rows in set\n```\n\nData lama tetap aman. Kolom `email` yang baru berisi `NULL` di semua baris lama karena belum pernah diisi.\n\n### Contoh 2\n\nSekarang bandingkan `DELETE` dan `TRUNCATE` pada tabel antrean yang berisi nomor 1, 2, 3. Setelah dikosongkan, kita tambah satu orang dan lihat nomor yang ia dapat.\n\n```sql\nDELETE FROM antrean;\nINSERT INTO antrean (nama) VALUES ('Dewi');\nSELECT * FROM antrean;\nTRUNCATE TABLE antrean;\nINSERT INTO antrean (nama) VALUES ('Eko');\nSELECT * FROM antrean;\n```\n\nHasilnya:\n\n```text\n+-------+------+\n| nomor | nama |\n+-------+------+\n|     4 | Dewi |\n+-------+------+\n1 row in set\n\n+-------+------+\n| nomor | nama |\n+-------+------+\n|     1 | Eko  |\n+-------+------+\n1 row in set\n```\n\nSetelah `DELETE`, Dewi mendapat nomor **4** karena hitungan AUTO_INCREMENT melanjutkan. Setelah `TRUNCATE`, Eko mendapat nomor **1** karena tabel benar-benar diatur ulang."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa menulis ulang aturan saat MODIFY**\n\nSalah:\n\n```sql\nALTER TABLE produk MODIFY COLUMN nama VARCHAR(150);\n```\n\nBenar:\n\n```sql\nALTER TABLE produk MODIFY COLUMN nama VARCHAR(150) NOT NULL;\n```\n\nMODIFY mengganti seluruh definisi kolom. Tanpa `NOT NULL`, kolom nama yang tadinya wajib diisi sekarang boleh kosong.\n\n**2. Memakai DROP TABLE untuk mengosongkan data**\n\nSalah:\n\n```sql\nDROP TABLE pesanan;\n```\n\nBenar:\n\n```sql\nTRUNCATE TABLE pesanan;\n```\n\nDROP TABLE ikut menghapus struktur tabel. Kalau tujuannya hanya mengosongkan isi, pakai TRUNCATE (atau DELETE kalau ingin memilih baris tertentu).\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Perintah apa yang dipakai untuk menambah kolom `email` ke tabel pelanggan yang sudah ada?",
+          "options": [
+            "ALTER TABLE pelanggan ADD COLUMN email VARCHAR(100);",
+            "UPDATE TABLE pelanggan ADD email VARCHAR(100);",
+            "INSERT INTO pelanggan COLUMN email VARCHAR(100);",
+            "CREATE TABLE pelanggan ADD email VARCHAR(100);"
+          ],
+          "answer": 0,
+          "explanation": "Mengubah struktur tabel selalu memakai ALTER TABLE.",
+          "remedial": "- `ALTER TABLE ... ADD COLUMN` menambah, `MODIFY COLUMN` mengubah, `RENAME COLUMN ... TO` mengganti nama, `DROP COLUMN` menghapus kolom.\n- `MODIFY` harus menulis ulang semua aturan kolom (NOT NULL, DEFAULT).\n- `DROP TABLE` menghapus tabel beserta strukturnya.\n- `TRUNCATE` mengosongkan semua data dan mengembalikan AUTO_INCREMENT ke 1. `DELETE` tanpa WHERE juga mengosongkan, tapi nomornya melanjutkan."
+        },
+        {
+          "question": "Apa perbedaan TRUNCATE TABLE dan DROP TABLE?",
+          "options": [
+            "Tidak ada bedanya",
+            "TRUNCATE menghapus struktur, DROP hanya menghapus data",
+            "TRUNCATE mengosongkan data tapi tabelnya tetap ada, DROP menghapus tabel beserta strukturnya",
+            "TRUNCATE hanya menghapus baris pertama"
+          ],
+          "answer": 2,
+          "explanation": "Setelah TRUNCATE, tabel masih bisa diisi lagi. Setelah DROP, tabel harus dibuat ulang.",
+          "remedial": "- `ALTER TABLE ... ADD COLUMN` menambah, `MODIFY COLUMN` mengubah, `RENAME COLUMN ... TO` mengganti nama, `DROP COLUMN` menghapus kolom.\n- `MODIFY` harus menulis ulang semua aturan kolom (NOT NULL, DEFAULT).\n- `DROP TABLE` menghapus tabel beserta strukturnya.\n- `TRUNCATE` mengosongkan semua data dan mengembalikan AUTO_INCREMENT ke 1. `DELETE` tanpa WHERE juga mengosongkan, tapi nomornya melanjutkan."
+        },
+        {
+          "question": "Berapa nomor yang didapat Nina?",
+          "code": "-- Tabel antrean:\n-- +-------+-------+\n-- | nomor | nama  |\n-- +-------+-------+\n-- |     1 | Adi   |\n-- |     2 | Bima  |\n-- |     3 | Citra |\n-- +-------+-------+\nDELETE FROM antrean;\nINSERT INTO antrean (nama) VALUES ('Nina');\nSELECT nomor FROM antrean;",
+          "options": [
+            "1",
+            "0",
+            "3",
+            "4"
+          ],
+          "answer": 3,
+          "explanation": "DELETE menghapus baris, tapi hitungan AUTO_INCREMENT tetap melanjutkan dari 3, jadi Nina mendapat 4.",
+          "remedial": "- `ALTER TABLE ... ADD COLUMN` menambah, `MODIFY COLUMN` mengubah, `RENAME COLUMN ... TO` mengganti nama, `DROP COLUMN` menghapus kolom.\n- `MODIFY` harus menulis ulang semua aturan kolom (NOT NULL, DEFAULT).\n- `DROP TABLE` menghapus tabel beserta strukturnya.\n- `TRUNCATE` mengosongkan semua data dan mengembalikan AUTO_INCREMENT ke 1. `DELETE` tanpa WHERE juga mengosongkan, tapi nomornya melanjutkan."
+        },
+        {
+          "question": "Apa isi kolom diskon untuk baris-baris lama?",
+          "code": "-- Tabel menu:\n-- +----+------+\n-- | id | nama |\n-- +----+------+\n-- |  1 | Kopi |\n-- |  2 | Teh  |\n-- +----+------+\nALTER TABLE menu ADD COLUMN diskon INT DEFAULT 0;\nSELECT nama, diskon FROM menu;",
+          "options": [
+            "NULL untuk semua baris",
+            "0 untuk semua baris",
+            "Error karena tabel sudah berisi data",
+            "Kolom diskon hanya muncul di baris baru"
+          ],
+          "answer": 1,
+          "explanation": "Kolom baru langsung terisi nilai DEFAULT-nya di semua baris lama.",
+          "remedial": "- `ALTER TABLE ... ADD COLUMN` menambah, `MODIFY COLUMN` mengubah, `RENAME COLUMN ... TO` mengganti nama, `DROP COLUMN` menghapus kolom.\n- `MODIFY` harus menulis ulang semua aturan kolom (NOT NULL, DEFAULT).\n- `DROP TABLE` menghapus tabel beserta strukturnya.\n- `TRUNCATE` mengosongkan semua data dan mengembalikan AUTO_INCREMENT ke 1. `DELETE` tanpa WHERE juga mengosongkan, tapi nomornya melanjutkan."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Berapa nomor yang didapat Nina?",
+      "code": "-- Tabel antrean:\n-- +-------+-------+\n-- | nomor | nama  |\n-- +-------+-------+\n-- |     1 | Adi   |\n-- |     2 | Bima  |\n-- |     3 | Citra |\n-- +-------+-------+\nTRUNCATE TABLE antrean;\nINSERT INTO antrean (nama) VALUES ('Nina');\nSELECT nomor FROM antrean;",
+      "options": [
+        "4",
+        "1",
+        "3",
+        "0"
+      ],
+      "answer": 1,
+      "explanation": "TRUNCATE mengatur ulang tabel, termasuk hitungan AUTO_INCREMENT, sehingga nomor kembali mulai dari 1."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- ganti nama kolom telp menjadi no_hp\n-- Tabel kontak:\n-- +----+------+--------+\n-- | id | nama | telp   |\n-- +----+------+--------+\n-- |  1 | Budi | 081234 |\n-- |  2 | Sari | 085678 |\n-- +----+------+--------+\nALTER TABLE kontak ___ COLUMN telp ___ no_hp;\nSELECT nama, no_hp FROM kontak;",
+      "answers": [
+        "RENAME|rename|Rename",
+        "TO|to|To"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "ALTER TABLE mengubah struktur tabel tanpa menghapus datanya.",
+        "ADD COLUMN, MODIFY COLUMN, RENAME COLUMN ... TO, dan DROP COLUMN.",
+        "MODIFY harus menulis ulang semua aturan kolom.",
+        "TRUNCATE mengosongkan data dan mereset AUTO_INCREMENT, DROP TABLE menghapus tabelnya."
+      ]
+    }
+  ]
+}

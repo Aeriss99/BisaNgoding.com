@@ -1,0 +1,111 @@
+{
+  "id": "mysql-transaksi-04",
+  "moduleId": "mysql-transaksi",
+  "order": 4,
+  "title": "Durability dan Locking",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Huruf terakhir ACID adalah **D**, **Durability**: begitu MySQL menjawab bahwa COMMIT berhasil, data itu aman. Walaupun listrik padam sedetik kemudian, datanya tetap ada saat server menyala lagi.\n\nCaranya, InnoDB mencatat setiap perubahan ke sebuah buku catatan di disk bernama **redo log** sebelum melaporkan COMMIT berhasil. Kalau server mati mendadak, saat menyala lagi InnoDB membaca catatan itu dan menyelesaikan perubahan yang sudah di-COMMIT.\n\nDi pelajaran ini kita juga membahas **locking** (penguncian), cara MySQL mencegah dua transaksi mengubah data yang sama dengan cara yang saling merusak.\n\nDurability itu seperti nota kasir yang sudah dicetak dan dicatat di buku kas. Kalau lampu toko padam, catatan di buku kas tidak ikut hilang.\n\nLocking itu seperti ruang pas di toko baju. Satu orang masuk dan mengunci pintunya. Orang berikutnya menunggu di luar sampai pintunya dibuka lagi."
+    },
+    {
+      "type": "theory",
+      "content": "**Masalah dua kasir.** Stok Kopi Susu tinggal 1. Dua kasir melayani pembeli pada waktu yang sama:\n\n| Waktu | Kasir A | Kasir B |\n|---|---|---|\n| 1 | baca stok → 1, \"masih ada\" | |\n| 2 | | baca stok → 1, \"masih ada\" |\n| 3 | buat pesanan, kurangi stok | |\n| 4 | | buat pesanan, kurangi stok |\n\nDua pembeli membayar untuk satu barang yang sama. Solusinya: kunci baris produk saat membacanya dengan `SELECT ... FOR UPDATE`, **di dalam transaksi**:\n\n```sql\nSTART TRANSACTION;\nSELECT stok FROM produk WHERE id = 1 FOR UPDATE;   -- kunci baris ini\n-- aplikasi memeriksa: stok masih ada?\nINSERT INTO pesanan (produk_id, jumlah) VALUES (1, 1);\nUPDATE produk SET stok = stok - 1 WHERE id = 1;\nCOMMIT;                                            -- kunci dilepas\n```\n\nDengan FOR UPDATE, ceritanya berubah:\n\n| Waktu | Kasir A | Kasir B |\n|---|---|---|\n| 1 | `SELECT ... FOR UPDATE` → stok 1, baris terkunci | |\n| 2 | | `SELECT ... FOR UPDATE` → **menunggu** |\n| 3 | buat pesanan, stok jadi 0, `COMMIT` | |\n| 4 | | kunci terbuka → stok 0, \"habis\", `ROLLBACK` |\n\nHal yang perlu diingat:\n\n- Kunci dilepas saat transaksi selesai: `COMMIT` atau `ROLLBACK`.\n- `SELECT` biasa tanpa FOR UPDATE tidak menunggu. Ia tetap membaca snapshot.\n- Kalau menunggu terlalu lama (bawaan 50 detik), MySQL menyerah dengan `ERROR 1205 (HY000): Lock wait timeout exceeded`.\n- Kalau dua transaksi saling menunggu (*deadlock*), InnoDB membatalkan **seluruh** transaksi salah satunya dengan `ERROR 1213 (40001)`. Aplikasi cukup mengulang transaksi itu dari awal.\n\nCara lain yang juga aman untuk kasus sederhana: kurangi stok dengan syarat dalam satu statement, lalu periksa `ROW_COUNT()`.\n\n```sql\nUPDATE produk SET stok = stok - 1 WHERE id = 1 AND stok >= 1;\n```\n\nSaat UPDATE berjalan, InnoDB mengunci baris itu, jadi dua UPDATE seperti ini tidak bisa sama-sama berhasil mengambil stok terakhir."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKasir menjual 2 Teh Tarik: pesanan dibuat dan stok dikurangi dalam satu transaksi, lalu di-COMMIT.\n\nSetelah itu kedua tabel dibaca lagi dengan SELECT terpisah, masing-masing dari **koneksi baru**. Data yang sudah di-COMMIT tetap ada.\n\n```sql\nCREATE TABLE produk (\n  id INT PRIMARY KEY,\n  nama VARCHAR(30) NOT NULL,\n  stok INT NOT NULL,\n  CONSTRAINT stok_tidak_negatif CHECK (stok >= 0)\n);\nINSERT INTO produk VALUES\n  (1, 'Kopi Susu', 1),\n  (2, 'Teh Tarik', 5),\n  (3, 'Roti Bakar', 8);\nCREATE TABLE pesanan (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  produk_id INT NOT NULL,\n  jumlah INT NOT NULL,\n  FOREIGN KEY (produk_id) REFERENCES produk(id)\n);\nINSERT INTO pesanan (produk_id, jumlah) VALUES (2, 1);\n```\n\n```sql\nSTART TRANSACTION;                                                 -- mulai\nINSERT INTO pesanan (produk_id, jumlah) VALUES (2, 2);             -- catat pesanan\nUPDATE produk SET stok = stok - 2 WHERE id = 2 AND stok >= 2;      -- kurangi stok\nCOMMIT;\n\nSELECT * FROM produk;\nSELECT * FROM pesanan;\n```\n\nHasilnya:\n\n```text\n+----+------------+------+\n| id | nama       | stok |\n+----+------------+------+\n|  1 | Kopi Susu  |    1 |\n|  2 | Teh Tarik  |    3 |\n|  3 | Roti Bakar |    8 |\n+----+------------+------+\n3 rows in set\n\n+----+-----------+--------+\n| id | produk_id | jumlah |\n+----+-----------+--------+\n|  1 |         2 |      1 |\n|  2 |         2 |      2 |\n+----+-----------+--------+\n2 rows in set\n```\n\nStok Teh Tarik turun dari 5 menjadi 3 dan pesanan nomor 2 tercatat. Keduanya tersimpan bersama dan tetap ada untuk koneksi mana pun. Itulah durability.\n\nSekarang dua penjualan Kopi Susu (stok tinggal 1) dengan UPDATE bersyarat:\n\n```sql\nUPDATE produk SET stok = stok - 1 WHERE id = 1 AND stok >= 1;      -- penjualan pertama\nUPDATE produk SET stok = stok - 1 WHERE id = 1 AND stok >= 1;      -- penjualan kedua\nSELECT ROW_COUNT();\n```\n\nHasilnya:\n\n```text\n+-------------+\n| ROW_COUNT() |\n+-------------+\n|           0 |\n+-------------+\n1 row in set\n```\n\nPenjualan kedua tidak mengubah baris apa pun (ROW_COUNT = 0), jadi aplikasi tahu stoknya sudah habis. Stok tidak pernah menjadi -1."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai FOR UPDATE tanpa transaksi**\n\nSalah:\n\n```sql\nSELECT stok FROM produk WHERE id = 1 FOR UPDATE;\nUPDATE produk SET stok = stok - 1 WHERE id = 1;\n```\n\nBenar:\n\n```sql\nSTART TRANSACTION;\nSELECT stok FROM produk WHERE id = 1 FOR UPDATE;\nUPDATE produk SET stok = stok - 1 WHERE id = 1;\nCOMMIT;\n```\n\nDengan autocommit, SELECT itu adalah transaksi kecil yang langsung selesai, jadi kuncinya langsung dilepas. Kasir lain tetap bisa menyerobot.\n\n**2. Membiarkan transaksi terbuka sambil menunggu pengguna**\n\nSalah:\n\n```sql\nSTART TRANSACTION;\nSELECT stok FROM produk WHERE id = 1 FOR UPDATE;\n-- menunggu pembeli mengisi alamat dan memilih kurir (5 menit)\nUPDATE produk SET stok = stok - 1 WHERE id = 1;\nCOMMIT;\n```\n\nBenar:\n\n```sql\n-- kumpulkan dulu semua data dari pembeli, baru:\nSTART TRANSACTION;\nSELECT stok FROM produk WHERE id = 1 FOR UPDATE;\nUPDATE produk SET stok = stok - 1 WHERE id = 1;\nCOMMIT;\n```\n\nSelama baris terkunci, semua transaksi lain yang butuh baris itu ikut menunggu dan bisa kena lock wait timeout. Buat transaksi sesingkat mungkin.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti **durability**?",
+          "options": [
+            "Transaksi tidak boleh berjalan lebih dari satu menit",
+            "Data yang sudah di-COMMIT tetap ada walaupun server mati mendadak",
+            "Semua langkah transaksi berhasil atau dibatalkan semua",
+            "Data tidak bisa dihapus sama sekali"
+          ],
+          "answer": 1,
+          "explanation": "Durability menjamin hasil COMMIT tidak hilang. InnoDB mencatatnya di redo log di disk.",
+          "remedial": "- **Durability**: data yang sudah di-COMMIT tetap ada walau server mati. InnoDB mencatatnya di redo log dulu.\n- `SELECT ... FOR UPDATE` mengunci baris yang dibaca. Transaksi lain yang ingin mengunci baris yang sama harus **menunggu**.\n- Kunci dilepas saat `COMMIT` atau `ROLLBACK`, jadi FOR UPDATE harus dipakai **di dalam transaksi**.\n- Buat transaksi sesingkat mungkin.\n- Alternatif sederhana: `UPDATE ... SET stok = stok - 1 WHERE id = ? AND stok >= 1`, lalu cek `ROW_COUNT()`."
+        },
+        {
+          "question": "Kasir A sudah menjalankan `SELECT stok FROM produk WHERE id = 1 FOR UPDATE` di dalam transaksi dan belum COMMIT. Apa yang terjadi saat kasir B menjalankan query yang sama?",
+          "options": [
+            "Kasir B langsung mendapat stok yang sama",
+            "Kasir B mendapat error Duplicate entry",
+            "Transaksi kasir A dibatalkan otomatis",
+            "Kasir B menunggu sampai transaksi kasir A selesai"
+          ],
+          "answer": 3,
+          "explanation": "Baris itu sedang dikunci kasir A. Kasir B menunggu sampai A menjalankan COMMIT atau ROLLBACK.",
+          "remedial": "- **Durability**: data yang sudah di-COMMIT tetap ada walau server mati. InnoDB mencatatnya di redo log dulu.\n- `SELECT ... FOR UPDATE` mengunci baris yang dibaca. Transaksi lain yang ingin mengunci baris yang sama harus **menunggu**.\n- Kunci dilepas saat `COMMIT` atau `ROLLBACK`, jadi FOR UPDATE harus dipakai **di dalam transaksi**.\n- Buat transaksi sesingkat mungkin.\n- Alternatif sederhana: `UPDATE ... SET stok = stok - 1 WHERE id = ? AND stok >= 1`, lalu cek `ROW_COUNT()`."
+        },
+        {
+          "question": "Kapan kunci dari `SELECT ... FOR UPDATE` dilepas?",
+          "options": [
+            "Setelah SELECT selesai",
+            "Setelah 50 detik",
+            "Saat transaksi di-COMMIT atau di-ROLLBACK",
+            "Saat server dimatikan"
+          ],
+          "answer": 2,
+          "explanation": "Kunci dipegang sampai transaksi selesai. 50 detik adalah batas waktu menunggu bagi transaksi lain, bukan waktu lepasnya kunci.",
+          "remedial": "- **Durability**: data yang sudah di-COMMIT tetap ada walau server mati. InnoDB mencatatnya di redo log dulu.\n- `SELECT ... FOR UPDATE` mengunci baris yang dibaca. Transaksi lain yang ingin mengunci baris yang sama harus **menunggu**.\n- Kunci dilepas saat `COMMIT` atau `ROLLBACK`, jadi FOR UPDATE harus dipakai **di dalam transaksi**.\n- Buat transaksi sesingkat mungkin.\n- Alternatif sederhana: `UPDATE ... SET stok = stok - 1 WHERE id = ? AND stok >= 1`, lalu cek `ROW_COUNT()`."
+        },
+        {
+          "question": "Berapa stok Kopi Susu yang tampil?",
+          "code": "-- Tabel produk:\n-- +----+------------+------+\n-- | id | nama       | stok |\n-- +----+------------+------+\n-- |  1 | Kopi Susu  |    1 |\n-- |  2 | Teh Tarik  |    5 |\n-- |  3 | Roti Bakar |    8 |\n-- +----+------------+------+\nUPDATE produk SET stok = stok - 1 WHERE id = 1 AND stok >= 1;   -- pembeli 1\nUPDATE produk SET stok = stok - 1 WHERE id = 1 AND stok >= 1;   -- pembeli 2\nSELECT stok FROM produk WHERE id = 1;",
+          "options": [
+            "0",
+            "-1",
+            "1",
+            "Error karena stok habis"
+          ],
+          "answer": 0,
+          "explanation": "UPDATE pertama mengubah stok 1 menjadi 0. UPDATE kedua tidak memenuhi syarat stok >= 1, jadi tidak mengubah apa pun (dan tidak error).",
+          "remedial": "- **Durability**: data yang sudah di-COMMIT tetap ada walau server mati. InnoDB mencatatnya di redo log dulu.\n- `SELECT ... FOR UPDATE` mengunci baris yang dibaca. Transaksi lain yang ingin mengunci baris yang sama harus **menunggu**.\n- Kunci dilepas saat `COMMIT` atau `ROLLBACK`, jadi FOR UPDATE harus dipakai **di dalam transaksi**.\n- Buat transaksi sesingkat mungkin.\n- Alternatif sederhana: `UPDATE ... SET stok = stok - 1 WHERE id = ? AND stok >= 1`, lalu cek `ROW_COUNT()`."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Berapa stok Roti Bakar yang tampil?",
+      "code": "-- Tabel produk:\n-- +----+------------+------+\n-- | id | nama       | stok |\n-- +----+------------+------+\n-- |  1 | Kopi Susu  |    1 |\n-- |  2 | Teh Tarik  |    5 |\n-- |  3 | Roti Bakar |    8 |\n-- +----+------------+------+\nSTART TRANSACTION;                                          -- mulai\nUPDATE produk SET stok = stok - 3 WHERE id = 3;             -- jual 3\nCOMMIT;                                                     -- simpan\nROLLBACK;                                                   -- terlambat\nSELECT stok FROM produk WHERE id = 3;",
+      "options": [
+        "8",
+        "11",
+        "0",
+        "5"
+      ],
+      "answer": 3,
+      "explanation": "Setelah COMMIT, perubahan sudah permanen. ROLLBACK sesudahnya tidak punya transaksi untuk dibatalkan, jadi stok tetap 8 - 3 = 5."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Di dalam transaksi, baca stok sambil mengunci barisnya supaya kasir lain menunggu\n-- Tabel produk:\n-- +----+------------+------+\n-- | id | nama       | stok |\n-- +----+------------+------+\n-- |  1 | Kopi Susu  |    1 |\n-- |  2 | Teh Tarik  |    5 |\n-- |  3 | Roti Bakar |    8 |\n-- +----+------------+------+\nSTART TRANSACTION;                                          -- mulai\nSELECT stok FROM produk WHERE id = 1 FOR ___;",
+      "answers": [
+        "UPDATE|update|Update"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Durability: data yang sudah di-COMMIT tetap ada walau server mati.",
+        "SELECT ... FOR UPDATE mengunci baris, transaksi lain yang ingin menguncinya menunggu.",
+        "Kunci dilepas saat COMMIT atau ROLLBACK, jadi pakai FOR UPDATE di dalam transaksi.",
+        "Buat transaksi sesingkat mungkin supaya tidak ada yang menunggu lama.",
+        "UPDATE bersyarat (AND stok >= 1) plus ROW_COUNT() juga mencegah stok terjual dua kali."
+      ]
+    }
+  ]
+}

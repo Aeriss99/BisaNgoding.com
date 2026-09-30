@@ -1,0 +1,113 @@
+{
+  "id": "mysql-query-07",
+  "moduleId": "mysql-query",
+  "order": 7,
+  "title": "Fungsi Teks dan Angka",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Data di tabel tidak selalu siap ditampilkan. Nama perlu digabung dengan kode, berat dalam gram perlu diubah ke kilogram, harga perlu dibulatkan.\n\nMySQL punya banyak **fungsi** bawaan untuk mengolah nilai langsung di dalam query. Fungsi ditulis dengan nama lalu kurung: `UPPER(nama)`. Nilai di dalam kurung disebut **argumen**. Sama seperti alias, fungsi hanya mengubah **hasil tampilan**, isi tabel tetap.\n\nFungsi itu seperti mesin di dapur. Masukkan jeruk ke mesin peras, keluar jus. Masukkan teks ke `UPPER`, keluar teks huruf besar. Jeruk di keranjang (data di tabel) tidak berubah, kamu hanya mengolah salinannya."
+    },
+    {
+      "type": "theory",
+      "content": "**Fungsi teks**\n\n| Fungsi | Artinya | Contoh | Hasil |\n|---|---|---|---|\n| `CONCAT(a, b, ...)` | menggabung teks | `CONCAT('Rp', 5000)` | `Rp5000` |\n| `UPPER(t)` / `LOWER(t)` | huruf besar / kecil semua | `UPPER('kopi')` | `KOPI` |\n| `CHAR_LENGTH(t)` | jumlah **karakter** | `CHAR_LENGTH('Café')` | `4` |\n| `LENGTH(t)` | jumlah **byte** | `LENGTH('Café')` | `5` |\n| `SUBSTRING(t, mulai, panjang)` | potong teks, posisi mulai dari **1** | `SUBSTRING('Bandung', 1, 3)` | `Ban` |\n\n`LENGTH` dan `CHAR_LENGTH` sama untuk huruf biasa, tapi berbeda untuk huruf seperti `é` yang disimpan dalam 2 byte. Untuk menghitung huruf, pakai `CHAR_LENGTH`. Satu lagi: `CONCAT` dengan salah satu argumen `NULL` menghasilkan `NULL`.\n\n**Operator dan fungsi angka**\n\n| Penulisan | Artinya | Contoh | Hasil |\n|---|---|---|---|\n| `+ - *` | tambah, kurang, kali | `3 * 4` | `12` |\n| `/` | bagi, hasilnya desimal | `17 / 5` | `3.4000` |\n| `DIV` | bagi, ambil bilangan bulatnya | `17 DIV 5` | `3` |\n| `MOD(a, b)` atau `a % b` | sisa bagi | `17 MOD 5` | `2` |\n| `ROUND(x, d)` | bulatkan ke `d` angka di belakang koma | `ROUND(3.456, 2)` | `3.46` |\n| `CEIL(x)` | bulatkan ke **atas** | `CEIL(4.1)` | `5` |\n| `FLOOR(x)` | bulatkan ke **bawah** | `FLOOR(4.9)` | `4` |\n\nContoh penggunaan nyata: ongkos kirim biasanya dihitung per kilogram yang **dibulatkan ke atas**. Paket 1,2 kg dihitung 2 kg, jadi pakai `CEIL`. `MOD` sering dipakai untuk mengecek ganjil-genap: angka genap kalau `MOD(angka, 2) = 0`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `barang` di toko kelontong. Berat disimpan dalam gram:\n\n| id | kode | nama | harga | berat |\n|---|---|---|---|---|\n| 1 | SBK-01 | Beras Pandan | 72000 | 5000 |\n| 2 | SBK-02 | Gula Pasir | 17500 | 1000 |\n| 3 | MNM-01 | Kopi Bubuk | 23000 | 200 |\n| 4 | MNM-02 | Teh Celup | 9500 | 50 |\n| 5 | SBK-03 | Minyak Goreng | 38000 | 1800 |\n\nMengolah teks: label gabungan, huruf besar, jumlah karakter, dan tiga huruf pertama kode:\n\n```sql\nSELECT CONCAT(nama, ' (', kode, ')') AS label,\n  UPPER(nama) AS besar,\n  CHAR_LENGTH(nama) AS panjang,\n  SUBSTRING(kode, 1, 3) AS jenis\nFROM barang;\n```\n\nHasilnya:\n\n```text\n+------------------------+---------------+---------+-------+\n| label                  | besar         | panjang | jenis |\n+------------------------+---------------+---------+-------+\n| Beras Pandan (SBK-01)  | BERAS PANDAN  |      12 | SBK   |\n| Gula Pasir (SBK-02)    | GULA PASIR    |      10 | SBK   |\n| Kopi Bubuk (MNM-01)    | KOPI BUBUK    |      10 | MNM   |\n| Teh Celup (MNM-02)     | TEH CELUP     |       9 | MNM   |\n| Minyak Goreng (SBK-03) | MINYAK GORENG |      13 | SBK   |\n+------------------------+---------------+---------+-------+\n5 rows in set\n```\n\n#### Fungsi angka\n\nMengolah angka: berat dalam kilogram, berat untuk ongkir (dibulatkan ke atas), dan harga dalam ribuan:\n\n```sql\nSELECT nama,\n  berat / 1000 AS kg,\n  CEIL(berat / 1000) AS kg_ongkir,\n  ROUND(harga / 1000, 1) AS ribu\nFROM barang;\n```\n\nHasilnya:\n\n```text\n+---------------+--------+-----------+------+\n| nama          | kg     | kg_ongkir | ribu |\n+---------------+--------+-----------+------+\n| Beras Pandan  | 5.0000 |         5 | 72.0 |\n| Gula Pasir    | 1.0000 |         1 | 17.5 |\n| Kopi Bubuk    | 0.2000 |         1 | 23.0 |\n| Teh Celup     | 0.0500 |         1 |  9.5 |\n| Minyak Goreng | 1.8000 |         2 | 38.0 |\n+---------------+--------+-----------+------+\n5 rows in set\n```\n\nPerhatikan `/` selalu menghasilkan desimal (5.0000), sementara `CEIL` membuat Teh Celup yang hanya 50 gram tetap dihitung 1 kg.\n\n#### Tanpa tabel\n\nFungsi juga bisa dipakai tanpa tabel, cocok untuk mencoba-coba:\n\n```sql\nSELECT 17 / 5, 17 DIV 5, 17 MOD 5, LENGTH('Café'), CHAR_LENGTH('Café');\n```\n\nHasilnya:\n\n```text\n+--------+----------+----------+----------------+---------------------+\n| 17 / 5 | 17 DIV 5 | 17 MOD 5 | LENGTH('Café') | CHAR_LENGTH('Café') |\n+--------+----------+----------+----------------+---------------------+\n| 3.4000 |        3 |        2 |              5 |                   4 |\n+--------+----------+----------+----------------+---------------------+\n1 row in set\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira posisi SUBSTRING dimulai dari 0**\n\nSalah:\n\n```sql\n-- Maksudnya mengambil 'SBK'\nSELECT SUBSTRING(kode, 0, 3) FROM barang;\n```\n\nBenar:\n\n```sql\nSELECT SUBSTRING(kode, 1, 3) FROM barang;\n```\n\nDi Java dan JavaScript posisi karakter dimulai dari 0, tapi di MySQL dimulai dari **1**. `SUBSTRING(kode, 0, 3)` menghasilkan teks kosong.\n\n**2. Menggabung teks dengan +**\n\nSalah:\n\n```sql\nSELECT 'Rp' + harga FROM barang;\n```\n\nBenar:\n\n```sql\nSELECT CONCAT('Rp', harga) FROM barang;\n```\n\nDi MySQL, `+` hanya untuk angka. Teks `'Rp'` diubah jadi angka 0, sehingga hasilnya cuma angka harga, tanpa pesan error. Untuk menggabung teks pakai `CONCAT`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel barang:\n-- +----+--------+---------------+-------+-------+\n-- | id | kode   | nama          | harga | berat |\n-- +----+--------+---------------+-------+-------+\n-- |  1 | SBK-01 | Beras Pandan  | 72000 |  5000 |\n-- |  2 | SBK-02 | Gula Pasir    | 17500 |  1000 |\n-- |  3 | MNM-01 | Kopi Bubuk    | 23000 |   200 |\n-- |  4 | MNM-02 | Teh Celup     |  9500 |    50 |\n-- |  5 | SBK-03 | Minyak Goreng | 38000 |  1800 |\n-- +----+--------+---------------+-------+-------+\nSELECT SUBSTRING(kode, 5, 2) FROM barang WHERE id = 3;",
+          "options": [
+            "MN",
+            "-0",
+            "01",
+            "MNM-0"
+          ],
+          "answer": 2,
+          "explanation": "Kode barang id 3 adalah MNM-01. Karakter ke-5 adalah 0, lalu ambil 2 karakter: 01.",
+          "remedial": "- `CONCAT` menggabung teks (bukan `+`), hasilnya NULL kalau ada argumen NULL\n- `UPPER`/`LOWER` mengubah huruf besar/kecil\n- `CHAR_LENGTH` = jumlah karakter, `LENGTH` = jumlah byte\n- `SUBSTRING(teks, mulai, panjang)`, posisi mulai dari 1\n- `/` hasilnya desimal, `DIV` bilangan bulat, `MOD` atau `%` sisa bagi\n- `ROUND` bulatkan biasa, `CEIL` ke atas, `FLOOR` ke bawah"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel barang:\n-- +----+--------+---------------+-------+-------+\n-- | id | kode   | nama          | harga | berat |\n-- +----+--------+---------------+-------+-------+\n-- |  1 | SBK-01 | Beras Pandan  | 72000 |  5000 |\n-- |  2 | SBK-02 | Gula Pasir    | 17500 |  1000 |\n-- |  3 | MNM-01 | Kopi Bubuk    | 23000 |   200 |\n-- |  4 | MNM-02 | Teh Celup     |  9500 |    50 |\n-- |  5 | SBK-03 | Minyak Goreng | 38000 |  1800 |\n-- +----+--------+---------------+-------+-------+\nSELECT CEIL(berat / 1000) FROM barang WHERE nama = 'Minyak Goreng';",
+          "options": [
+            "1",
+            "2",
+            "1.8",
+            "1.8000"
+          ],
+          "answer": 1,
+          "explanation": "1800 / 1000 = 1.8, lalu CEIL membulatkan ke atas menjadi 2.",
+          "remedial": "- `CONCAT` menggabung teks (bukan `+`), hasilnya NULL kalau ada argumen NULL\n- `UPPER`/`LOWER` mengubah huruf besar/kecil\n- `CHAR_LENGTH` = jumlah karakter, `LENGTH` = jumlah byte\n- `SUBSTRING(teks, mulai, panjang)`, posisi mulai dari 1\n- `/` hasilnya desimal, `DIV` bilangan bulat, `MOD` atau `%` sisa bagi\n- `ROUND` bulatkan biasa, `CEIL` ke atas, `FLOOR` ke bawah"
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "SELECT CONCAT('Halo ', NULL);",
+          "options": [
+            "Halo ",
+            "Halo NULL",
+            "Error",
+            "NULL"
+          ],
+          "answer": 3,
+          "explanation": "Kalau salah satu argumen CONCAT bernilai NULL, seluruh hasilnya NULL.",
+          "remedial": "- `CONCAT` menggabung teks (bukan `+`), hasilnya NULL kalau ada argumen NULL\n- `UPPER`/`LOWER` mengubah huruf besar/kecil\n- `CHAR_LENGTH` = jumlah karakter, `LENGTH` = jumlah byte\n- `SUBSTRING(teks, mulai, panjang)`, posisi mulai dari 1\n- `/` hasilnya desimal, `DIV` bilangan bulat, `MOD` atau `%` sisa bagi\n- `ROUND` bulatkan biasa, `CEIL` ke atas, `FLOOR` ke bawah"
+        },
+        {
+          "question": "Sebuah kolom berisi teks `'Café'`. Fungsi mana yang menghasilkan 4, sesuai jumlah hurufnya?",
+          "options": [
+            "CHAR_LENGTH",
+            "LENGTH",
+            "SUBSTRING",
+            "ROUND"
+          ],
+          "answer": 0,
+          "explanation": "`CHAR_LENGTH` menghitung karakter. `LENGTH` menghitung byte, dan `é` memakai 2 byte, jadi hasilnya 5.",
+          "remedial": "- `CONCAT` menggabung teks (bukan `+`), hasilnya NULL kalau ada argumen NULL\n- `UPPER`/`LOWER` mengubah huruf besar/kecil\n- `CHAR_LENGTH` = jumlah karakter, `LENGTH` = jumlah byte\n- `SUBSTRING(teks, mulai, panjang)`, posisi mulai dari 1\n- `/` hasilnya desimal, `DIV` bilangan bulat, `MOD` atau `%` sisa bagi\n- `ROUND` bulatkan biasa, `CEIL` ke atas, `FLOOR` ke bawah"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel barang:\n-- +----+--------+---------------+-------+-------+\n-- | id | kode   | nama          | harga | berat |\n-- +----+--------+---------------+-------+-------+\n-- |  1 | SBK-01 | Beras Pandan  | 72000 |  5000 |\n-- |  2 | SBK-02 | Gula Pasir    | 17500 |  1000 |\n-- |  3 | MNM-01 | Kopi Bubuk    | 23000 |   200 |\n-- |  4 | MNM-02 | Teh Celup     |  9500 |    50 |\n-- |  5 | SBK-03 | Minyak Goreng | 38000 |  1800 |\n-- +----+--------+---------------+-------+-------+\nSELECT UPPER(SUBSTRING(nama, 1, 4)) FROM barang WHERE id = 2;",
+      "options": [
+        "Gula",
+        "GULA PASIR",
+        "ULA ",
+        "GULA"
+      ],
+      "answer": 3,
+      "explanation": "Barang id 2 adalah Gula Pasir. SUBSTRING mengambil 4 karakter pertama (Gula), lalu UPPER mengubahnya jadi GULA."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Gabungkan nama dan kode jadi satu teks, contoh: Gula Pasir - SBK-02\n-- Tabel barang:\n-- +----+--------+---------------+-------+-------+\n-- | id | kode   | nama          | harga | berat |\n-- +----+--------+---------------+-------+-------+\n-- |  1 | SBK-01 | Beras Pandan  | 72000 |  5000 |\n-- |  2 | SBK-02 | Gula Pasir    | 17500 |  1000 |\n-- |  3 | MNM-01 | Kopi Bubuk    | 23000 |   200 |\n-- |  4 | MNM-02 | Teh Celup     |  9500 |    50 |\n-- |  5 | SBK-03 | Minyak Goreng | 38000 |  1800 |\n-- +----+--------+---------------+-------+-------+\nSELECT ___(nama, ' - ', kode) AS label FROM barang WHERE id = 2;",
+      "answers": [
+        "CONCAT|concat|Concat"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Fungsi mengolah nilai di hasil query tanpa mengubah isi tabel.",
+        "CONCAT menggabung teks, SUBSTRING memotong teks mulai posisi 1.",
+        "CHAR_LENGTH menghitung karakter, LENGTH menghitung byte.",
+        "/ menghasilkan desimal, DIV bilangan bulat, MOD sisa bagi.",
+        "ROUND membulatkan biasa, CEIL ke atas, FLOOR ke bawah."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "id": "desain-notifikasi-02",
+  "moduleId": "desain-notifikasi",
+  "order": 2,
+  "title": "Tabel Notifikasi dan Kategori",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sekarang kita bangun tabel utama: `notifikasi`, yaitu notifikasi **pribadi** untuk satu pengguna. Pertanyaannya: kolom apa saja yang dibutuhkan, dan bagaimana menyimpan **kategori**?\n\nUntuk kategori ada dua pilihan populer di MySQL: kolom `ENUM`, atau tabel kategori tersendiri. Keduanya benar. Yang penting kamu tahu untung-ruginya.\n\nBayangkan formulir kertas. **ENUM** itu seperti kotak centang yang sudah dicetak: \"Pesanan / Promo / Sistem\". Rapi dan tidak bisa salah tulis, tapi kalau butuh pilihan baru, formulirnya harus dicetak ulang.\n\n**Tabel kategori** itu seperti daftar di papan tulis kantor. Mau menambah pilihan tinggal ditulis, dan di sebelah tiap pilihan bisa ditambah catatan, misalnya \"boleh dimatikan pengguna\"."
+    },
+    {
+      "type": "theory",
+      "content": "Kolom tabel `notifikasi`:\n\n| Kolom | Tipe | Alasan |\n|---|---|---|\n| `id` | `BIGINT AUTO_INCREMENT` | setiap pesanan bisa memicu beberapa notifikasi, jadi jumlahnya cepat menjadi sangat banyak |\n| `pengguna_id` | `INT NOT NULL` | penerima notifikasi |\n| `kategori_id` | `INT NOT NULL` | pesanan, promo, atau sistem |\n| `judul` | `VARCHAR(100)` | pendek, tampil tebal di daftar |\n| `isi` | `VARCHAR(500)` | notifikasi memang singkat, tidak perlu `TEXT` |\n| `tautan` | `VARCHAR(255) NULL` | halaman yang dibuka saat notifikasi diketuk. Boleh kosong. |\n| `dibuat_pada` | `DATETIME NOT NULL` | untuk mengurutkan dari yang terbaru |\n| `dibaca_pada` | `DATETIME NULL` | `NULL` berarti belum dibaca (pelajaran 3) |\n\nSekarang soal kategori:\n\n| | `ENUM('pesanan','promo','sistem')` | Tabel `kategori_notifikasi` |\n|---|---|---|\n| Menolak nilai yang salah | ya | ya, lewat foreign key |\n| Menambah kategori baru | harus `ALTER TABLE`, dikerjakan programmer | cukup `INSERT` satu baris |\n| Info tambahan (nama tampilan, boleh dimatikan) | tidak bisa | bisa, tinggal tambah kolom |\n| Query | langsung terbaca, tanpa JOIN | butuh JOIN untuk mengambil nama |\n| `ORDER BY` | menurut urutan saat ENUM didefinisikan | bebas |\n\nKita memilih **tabel kategori**, karena kategori notifikasi cenderung bertambah (nanti mungkin ada \"chat\" atau \"ulasan\"), dan kita butuh kolom `bisa_dimatikan`: pengguna boleh mematikan promo, tapi tidak boleh mematikan kabar pesanan. ENUM tetap cocok untuk pilihan yang hampir tidak pernah berubah, misalnya peran `'utama'`/`'tamu'` di modul musik.\n\n![ERD tabel pengguna, kategori_notifikasi, dan notifikasi beserta kolomnya](images/mysql/notif-kategori.svg)\n\n```sql\nCREATE TABLE pengguna (\n  id   INT AUTO_INCREMENT PRIMARY KEY,\n  nama VARCHAR(100) NOT NULL\n);\n\nCREATE TABLE kategori_notifikasi (\n  id             INT AUTO_INCREMENT PRIMARY KEY,\n  kode           VARCHAR(20) NOT NULL UNIQUE,\n  nama           VARCHAR(50) NOT NULL,\n  bisa_dimatikan BOOLEAN NOT NULL DEFAULT FALSE\n);\n\nCREATE TABLE notifikasi (\n  id          BIGINT AUTO_INCREMENT PRIMARY KEY,\n  pengguna_id INT NOT NULL,\n  kategori_id INT NOT NULL,\n  judul       VARCHAR(100) NOT NULL,\n  isi         VARCHAR(500) NOT NULL,\n  tautan      VARCHAR(255) NULL,\n  dibuat_pada DATETIME NOT NULL,\n  dibaca_pada DATETIME NULL,\n  FOREIGN KEY (pengguna_id) REFERENCES pengguna(id) ON DELETE CASCADE,\n  FOREIGN KEY (kategori_id) REFERENCES kategori_notifikasi(id)\n);\n```\n\n`ON DELETE CASCADE` di `pengguna_id` berarti: kalau akun pengguna dihapus, notifikasinya ikut terhapus. Notifikasi tanpa pemilik tidak ada gunanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel di atas sudah diisi 3 pengguna, 3 kategori, dan 6 notifikasi pribadi:\n\n| id | pengguna_id | kategori_id | judul | dibuat_pada | dibaca_pada |\n|---|---|---|---|---|---|\n| 1 | 1 | 1 | Pesanan dikirim | 2026-09-18 09:15:00 | 2026-09-18 10:02:00 |\n| 2 | 2 | 1 | Pembayaran diterima | 2026-09-18 13:40:00 | NULL |\n| 3 | 1 | 1 | Pesanan tiba | 2026-09-20 16:05:00 | NULL |\n| 4 | 1 | 3 | Login dari perangkat baru | 2026-09-21 07:30:00 | 2026-09-21 07:31:00 |\n| 5 | 3 | 1 | Pesanan dikemas | 2026-09-22 11:00:00 | NULL |\n| 6 | 1 | 2 | Voucer ongkir untukmu | 2026-09-23 19:00:00 | NULL |\n\nQuery pertama mengambil 3 notifikasi terbaru milik Budi (pengguna 1) beserta nama kategorinya. Query kedua menunjukkan enaknya tabel kategori: menambah kategori baru cukup dengan `INSERT`.\n\n```sql\nSELECT n.id, k.nama AS kategori, n.judul, n.dibuat_pada\nFROM notifikasi n\nJOIN kategori_notifikasi k ON k.id = n.kategori_id\nWHERE n.pengguna_id = 1\nORDER BY n.dibuat_pada DESC\nLIMIT 3;\n\nINSERT INTO kategori_notifikasi (kode, nama, bisa_dimatikan)\nVALUES ('ulasan', 'Ulasan', TRUE);\n\nSELECT kode, nama, bisa_dimatikan FROM kategori_notifikasi ORDER BY id;\n```\n\nHasilnya:\n\n```text\n+----+-------------+---------------------------+---------------------+\n| id | kategori    | judul                     | dibuat_pada         |\n+----+-------------+---------------------------+---------------------+\n|  6 | Promo       | Voucer ongkir untukmu     | 2026-09-23 19:00:00 |\n|  4 | Info Sistem | Login dari perangkat baru | 2026-09-21 07:30:00 |\n|  3 | Pesanan     | Pesanan tiba              | 2026-09-20 16:05:00 |\n+----+-------------+---------------------------+---------------------+\n3 rows in set\n\n+---------+-------------+----------------+\n| kode    | nama        | bisa_dimatikan |\n+---------+-------------+----------------+\n| pesanan | Pesanan     |              0 |\n| promo   | Promo       |              1 |\n| sistem  | Info Sistem |              0 |\n| ulasan  | Ulasan      |              1 |\n+---------+-------------+----------------+\n4 rows in set\n```\n\n`ORDER BY n.dibuat_pada DESC` menaruh yang terbaru di atas, lalu `LIMIT 3` memotong hanya tiga baris. Notifikasi 1 milik Budi tidak tampil karena paling lama.\n\nKolom `bisa_dimatikan` tampil sebagai `1` dan `0`. Di MySQL, `BOOLEAN` sebenarnya `TINYINT(1)`: `TRUE` disimpan sebagai 1, `FALSE` sebagai 0. Kalau memakai ENUM, menambah kategori \"ulasan\" harus lewat `ALTER TABLE`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Kategori sebagai teks bebas**\n\nSalah:\n\n```sql\nkategori VARCHAR(20)   -- 'promo', 'promosi', 'Promo'\n```\n\nBenar:\n\n```sql\nkategori_id INT NOT NULL,\nFOREIGN KEY (kategori_id) REFERENCES kategori_notifikasi(id)\n```\n\nTeks bebas menerima salah ketik, dan laporan \"jumlah notifikasi promo\" jadi terpecah. Dengan foreign key (atau ENUM), database menolak kategori yang tidak terdaftar.\n\n**2. Menyimpan waktu sebagai teks**\n\nSalah:\n\n```sql\ndibuat_pada VARCHAR(20)   -- '23/09/2026 19:00'\n```\n\nBenar:\n\n```sql\ndibuat_pada DATETIME NOT NULL   -- '2026-09-23 19:00:00'\n```\n\nTeks diurutkan huruf per huruf, jadi '23/09/2026' dianggap lebih besar dari '05/10/2026' walaupun tanggalnya lebih awal. Notifikasi terbaru jadi tidak berada di atas. DATETIME diurutkan sebagai waktu.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa alasan utama kita memilih tabel kategori, bukan ENUM?",
+          "options": [
+            "Kategori baru cukup ditambah dengan INSERT, dan tiap kategori bisa punya info tambahan seperti bisa_dimatikan",
+            "ENUM tidak bisa menolak nilai yang salah",
+            "Tabel kategori tidak butuh JOIN",
+            "ENUM tidak didukung MySQL 8"
+          ],
+          "answer": 0,
+          "explanation": "ENUM juga menolak nilai yang salah dan didukung MySQL 8. Kelebihan tabel kategori adalah mudah ditambah dan bisa menyimpan kolom lain. Harganya: butuh JOIN.",
+          "remedial": "- Kolom inti `notifikasi`: `pengguna_id`, `kategori_id`, `judul`, `isi`, `tautan` (boleh NULL), `dibuat_pada`, `dibaca_pada`.\n- ENUM: sederhana, tanpa JOIN, tapi menambah pilihan harus `ALTER TABLE` dan tidak bisa menyimpan info tambahan.\n- Tabel kategori: tambah kategori cukup `INSERT`, bisa punya kolom lain seperti `bisa_dimatikan`, tapi butuh JOIN.\n- Notifikasi terbaru: `WHERE pengguna_id = ... ORDER BY dibuat_pada DESC LIMIT n`."
+        },
+        {
+          "question": "Kolom tipe bertipe ENUM('pesanan', 'promo', 'sistem'). Apa yang terjadi saat INSERT ini dijalankan di MySQL 8 dengan mode strict bawaan?",
+          "code": "-- Tabel notifikasi:\n-- +----+---------------------+---------+\n-- | id | judul               | tipe    |\n-- +----+---------------------+---------+\n-- |  1 | Pesanan dikirim     | pesanan |\n-- |  2 | Promo Gajian        | promo   |\n-- |  3 | Pemeliharaan server | sistem  |\n-- +----+---------------------+---------+\nINSERT INTO notifikasi VALUES (4, 'Diskon kilat', 'diskon');",
+          "options": [
+            "Berhasil, tipe diisi diskon",
+            "Berhasil, tipe diisi pilihan pertama",
+            "Ditolak dengan error, karena diskon tidak ada di daftar ENUM",
+            "Berhasil, tipe diisi NULL"
+          ],
+          "answer": 2,
+          "explanation": "MySQL menolak dengan pesan seperti ERROR 1265 (01000): Data truncated for column 'tipe' at row 1. Untuk menambah pilihan baru harus ALTER TABLE.",
+          "remedial": "- Kolom inti `notifikasi`: `pengguna_id`, `kategori_id`, `judul`, `isi`, `tautan` (boleh NULL), `dibuat_pada`, `dibaca_pada`.\n- ENUM: sederhana, tanpa JOIN, tapi menambah pilihan harus `ALTER TABLE` dan tidak bisa menyimpan info tambahan.\n- Tabel kategori: tambah kategori cukup `INSERT`, bisa punya kolom lain seperti `bisa_dimatikan`, tapi butuh JOIN.\n- Notifikasi terbaru: `WHERE pengguna_id = ... ORDER BY dibuat_pada DESC LIMIT n`."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel kategori_notifikasi:\n-- +----+---------+-------------+\n-- | id | kode    | nama        |\n-- +----+---------+-------------+\n-- |  1 | pesanan | Pesanan     |\n-- |  2 | promo   | Promo       |\n-- |  3 | sistem  | Info Sistem |\n-- +----+---------+-------------+\n\n-- Tabel notifikasi:\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\n-- | id | pengguna_id | kategori_id | judul                | dibuat_pada         | dibaca_pada         |\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\n-- |  1 |           1 |           1 | Pesanan dikirim      | 2026-09-18 09:15:00 | 2026-09-18 10:02:00 |\n-- |  2 |           2 |           1 | Pembayaran diterima  | 2026-09-18 13:40:00 | NULL                |\n-- |  3 |           1 |           1 | Pesanan tiba         | 2026-09-20 16:05:00 | NULL                |\n-- |  4 |           1 |           3 | Login perangkat baru | 2026-09-21 07:30:00 | 2026-09-21 07:31:00 |\n-- |  5 |           2 |           2 | Voucer ongkir        | 2026-09-22 11:00:00 | NULL                |\n-- |  6 |           1 |           2 | Diskon member        | 2026-09-23 19:00:00 | NULL                |\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\nSELECT COUNT(*)\nFROM notifikasi n\nJOIN kategori_notifikasi k ON k.id = n.kategori_id\nWHERE k.kode = 'pesanan';",
+          "options": [
+            "2",
+            "6",
+            "1",
+            "3"
+          ],
+          "answer": 3,
+          "explanation": "Kategori pesanan punya id 1. Notifikasi dengan kategori_id 1 adalah nomor 1, 2, dan 3.",
+          "remedial": "- Kolom inti `notifikasi`: `pengguna_id`, `kategori_id`, `judul`, `isi`, `tautan` (boleh NULL), `dibuat_pada`, `dibaca_pada`.\n- ENUM: sederhana, tanpa JOIN, tapi menambah pilihan harus `ALTER TABLE` dan tidak bisa menyimpan info tambahan.\n- Tabel kategori: tambah kategori cukup `INSERT`, bisa punya kolom lain seperti `bisa_dimatikan`, tapi butuh JOIN.\n- Notifikasi terbaru: `WHERE pengguna_id = ... ORDER BY dibuat_pada DESC LIMIT n`."
+        },
+        {
+          "question": "Kenapa kolom tautan dibuat boleh NULL?",
+          "options": [
+            "Supaya query lebih cepat",
+            "Karena tidak semua notifikasi punya halaman tujuan, misalnya info login dari perangkat baru",
+            "Karena VARCHAR wajib boleh NULL",
+            "Supaya tautan bisa diisi angka"
+          ],
+          "answer": 1,
+          "explanation": "NULL berarti \"tidak ada\". Notifikasi tanpa halaman tujuan cukup ditampilkan tanpa bisa diketuk ke mana-mana.",
+          "remedial": "- Kolom inti `notifikasi`: `pengguna_id`, `kategori_id`, `judul`, `isi`, `tautan` (boleh NULL), `dibuat_pada`, `dibaca_pada`.\n- ENUM: sederhana, tanpa JOIN, tapi menambah pilihan harus `ALTER TABLE` dan tidak bisa menyimpan info tambahan.\n- Tabel kategori: tambah kategori cukup `INSERT`, bisa punya kolom lain seperti `bisa_dimatikan`, tapi butuh JOIN.\n- Notifikasi terbaru: `WHERE pengguna_id = ... ORDER BY dibuat_pada DESC LIMIT n`."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel notifikasi:\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\n-- | id | pengguna_id | kategori_id | judul                | dibuat_pada         | dibaca_pada         |\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\n-- |  1 |           1 |           1 | Pesanan dikirim      | 2026-09-18 09:15:00 | 2026-09-18 10:02:00 |\n-- |  2 |           2 |           1 | Pembayaran diterima  | 2026-09-18 13:40:00 | NULL                |\n-- |  3 |           1 |           1 | Pesanan tiba         | 2026-09-20 16:05:00 | NULL                |\n-- |  4 |           1 |           3 | Login perangkat baru | 2026-09-21 07:30:00 | 2026-09-21 07:31:00 |\n-- |  5 |           2 |           2 | Voucer ongkir        | 2026-09-22 11:00:00 | NULL                |\n-- |  6 |           1 |           2 | Diskon member        | 2026-09-23 19:00:00 | NULL                |\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\nSELECT judul FROM notifikasi\nWHERE pengguna_id = 1\nORDER BY dibuat_pada DESC\nLIMIT 1;",
+      "options": [
+        "Pesanan dikirim",
+        "Diskon member",
+        "Login perangkat baru",
+        "Voucer ongkir"
+      ],
+      "answer": 1,
+      "explanation": "Notifikasi milik pengguna 1 adalah nomor 1, 3, 4, dan 6. Yang paling baru adalah nomor 6, Diskon member (23 September)."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Tampilkan 3 notifikasi TERBARU milik pengguna 1 (yang paling baru di atas)\n-- Tabel notifikasi:\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\n-- | id | pengguna_id | kategori_id | judul                | dibuat_pada         | dibaca_pada         |\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\n-- |  1 |           1 |           1 | Pesanan dikirim      | 2026-09-18 09:15:00 | 2026-09-18 10:02:00 |\n-- |  2 |           2 |           1 | Pembayaran diterima  | 2026-09-18 13:40:00 | NULL                |\n-- |  3 |           1 |           1 | Pesanan tiba         | 2026-09-20 16:05:00 | NULL                |\n-- |  4 |           1 |           3 | Login perangkat baru | 2026-09-21 07:30:00 | 2026-09-21 07:31:00 |\n-- |  5 |           2 |           2 | Voucer ongkir        | 2026-09-22 11:00:00 | NULL                |\n-- |  6 |           1 |           2 | Diskon member        | 2026-09-23 19:00:00 | NULL                |\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\nSELECT judul FROM notifikasi\nWHERE pengguna_id = 1\nORDER BY dibuat_pada ___\n___ 3;",
+      "answers": [
+        "DESC|desc|Desc",
+        "LIMIT|limit|Limit"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tabel notifikasi menyimpan penerima, kategori, judul, isi, tautan, waktu dibuat, dan waktu dibaca.",
+        "ENUM sederhana dan tanpa JOIN, tapi menambah pilihan harus ALTER TABLE.",
+        "Tabel kategori mudah ditambah dan bisa punya kolom lain, tapi butuh JOIN.",
+        "Simpan waktu sebagai DATETIME supaya urutan terbaru benar.",
+        "Notifikasi terbaru: ORDER BY dibuat_pada DESC lalu LIMIT."
+      ]
+    }
+  ]
+}

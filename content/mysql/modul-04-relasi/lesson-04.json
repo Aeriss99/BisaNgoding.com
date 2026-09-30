@@ -1,0 +1,113 @@
+{
+  "id": "mysql-relasi-04",
+  "moduleId": "mysql-relasi",
+  "order": 4,
+  "title": "Relasi One-to-Many dan Many-to-Many",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sekarang kamu sudah punya alatnya: primary key, foreign key, dan aturan hapus. Saatnya memakai alat itu untuk dua jenis relasi yang paling sering ditemui:\n\n- **One-to-many** (satu ke banyak): satu pelanggan punya banyak pesanan.\n- **Many-to-many** (banyak ke banyak): satu mahasiswa mengambil banyak mata kuliah, dan satu mata kuliah diambil banyak mahasiswa.\n\nOne-to-many itu seperti ibu dan anak-anaknya: setiap anak punya satu ibu, dan setiap anak cukup mencatat siapa ibunya. Many-to-many seperti klub dan anggotanya di sekolah: satu siswa bisa ikut beberapa klub, satu klub punya banyak siswa. Supaya rapi, sekolah membuat **buku pendaftaran** terpisah yang isinya pasangan \"siswa ini ikut klub itu\"."
+    },
+    {
+      "type": "theory",
+      "content": "**One-to-many**: foreign key selalu ditaruh di tabel sisi **banyak**. Pesanan yang menyimpan `pelanggan_id`, bukan pelanggan yang menyimpan daftar pesanan.\n\n![ERD pelanggan dan pesanan: satu pelanggan membuat nol atau banyak pesanan, kolom pesanan.pelanggan_id menunjuk ke pelanggan.id](images/mysql/relasi-pelanggan-pesanan.svg)\n\n**Many-to-many**: tidak bisa diselesaikan dengan satu foreign key. Kita butuh **tabel penghubung** (disebut juga *junction table*) yang berisi dua foreign key:\n\n![ERD many-to-many: mahasiswa dan mata_kuliah dihubungkan tabel krs yang primary key-nya gabungan mahasiswa_id dan mata_kuliah_id](images/mysql/relasi-krs.svg)\n\n```sql\nCREATE TABLE krs (\n  mahasiswa_id INT,\n  mata_kuliah_id INT,\n  semester VARCHAR(10) NOT NULL,\n  PRIMARY KEY (mahasiswa_id, mata_kuliah_id),\n  FOREIGN KEY (mahasiswa_id) REFERENCES mahasiswa (id),\n  FOREIGN KEY (mata_kuliah_id) REFERENCES mata_kuliah (id)\n);\n```\n\n`PRIMARY KEY (mahasiswa_id, mata_kuliah_id)` disebut **primary key gabungan**. Yang harus unik adalah **pasangannya**:\n\n| mahasiswa_id | mata_kuliah_id | Boleh? |\n|---|---|---|\n| 1 | 1 | ✔ |\n| 1 | 2 | ✔ (mahasiswa sama, mata kuliah lain) |\n| 2 | 1 | ✔ (mata kuliah sama, mahasiswa lain) |\n| 1 | 1 | ✘ pasangan dobel, ditolak |\n\nTabel penghubung juga tempat yang pas untuk data milik **pasangan** itu, misalnya `semester` atau nilai akhir.\n\nSekilas **one-to-one**: foreign key biasa ditambah UNIQUE, misalnya tabel `profil` dengan `pelanggan_id INT UNIQUE`, sehingga satu pelanggan hanya punya satu profil."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nData mahasiswa dan mata kuliah:\n\n| id | nama |\n|---|---|\n| 1 | Andi |\n| 2 | Sari |\n| 3 | Tono |\n\n| id | nama | sks |\n|---|---|---|\n| 1 | Basis Data | 3 |\n| 2 | Pemrograman Web | 3 |\n| 3 | Jaringan | 2 |\n\nIsi tabel penghubung `krs`, lalu jumlah peserta setiap mata kuliah:\n\n```sql\nSELECT * FROM krs;\nSELECT mata_kuliah_id, COUNT(*) AS jumlah_mahasiswa\nFROM krs\nGROUP BY mata_kuliah_id\nORDER BY mata_kuliah_id;\n```\n\nHasilnya:\n\n```text\n+--------------+----------------+----------+\n| mahasiswa_id | mata_kuliah_id | semester |\n+--------------+----------------+----------+\n|            1 |              1 | 2024-1   |\n|            1 |              2 | 2024-1   |\n|            2 |              1 | 2024-1   |\n|            3 |              2 | 2024-1   |\n|            3 |              3 | 2024-1   |\n+--------------+----------------+----------+\n5 rows in set\n\n+----------------+------------------+\n| mata_kuliah_id | jumlah_mahasiswa |\n+----------------+------------------+\n|              1 |                2 |\n|              2 |                2 |\n|              3 |                1 |\n+----------------+------------------+\n3 rows in set\n```\n\nAndi (id 1) muncul dua kali di `krs` karena mengambil dua mata kuliah. Hasilnya masih berupa angka id. Di pelajaran berikutnya, **JOIN** akan mengubah angka itu menjadi nama.\n\nMendaftarkan Andi ke Basis Data untuk kedua kalinya ditolak oleh primary key gabungan:\n\n```sql\nINSERT INTO krs VALUES (1, 1, '2024-1');\n-- ERROR 1062 (23000): Duplicate entry '1-1' for key 'krs.PRIMARY'\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan banyak nilai dalam satu kolom**\n\nSalah:\n\n```sql\nINSERT INTO mahasiswa (id, nama, mata_kuliah)\nVALUES (1, 'Andi', 'Basis Data, Pemrograman Web');\n```\n\nBenar:\n\n```sql\nINSERT INTO krs (mahasiswa_id, mata_kuliah_id, semester)\nVALUES (1, 1, '2024-1'), (1, 2, '2024-1');\n```\n\nDaftar dalam satu kolom sulit dicari, dihitung, dan tidak bisa dijaga foreign key. Satu pasangan satu baris di tabel penghubung.\n\n**2. Tabel penghubung tanpa primary key gabungan**\n\nSalah:\n\n```sql\nCREATE TABLE krs (\n  mahasiswa_id INT,\n  mata_kuliah_id INT\n)\n```\n\nBenar:\n\n```sql\nCREATE TABLE krs (\n  mahasiswa_id INT,\n  mata_kuliah_id INT,\n  PRIMARY KEY (mahasiswa_id, mata_kuliah_id)\n)\n```\n\nTanpa primary key gabungan, pasangan yang sama bisa tercatat dua kali, dan jumlah peserta jadi salah hitung.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Satu pelanggan punya banyak pesanan. Di mana foreign key ditaruh?",
+          "options": [
+            "Kolom pelanggan_id di tabel pesanan",
+            "Kolom pesanan_id di tabel pelanggan",
+            "Di kedua tabel sekaligus",
+            "Di tabel penghubung pelanggan_pesanan"
+          ],
+          "answer": 0,
+          "explanation": "Foreign key selalu di sisi banyak. Setiap pesanan cukup mencatat satu pelanggan pemiliknya.",
+          "remedial": "- **One-to-many**: foreign key di tabel sisi banyak (pesanan menyimpan pelanggan_id).\n- **Many-to-many**: butuh **tabel penghubung** berisi dua foreign key.\n- Tabel penghubung memakai **primary key gabungan** supaya pasangan tidak dobel.\n- **One-to-one**: foreign key + UNIQUE."
+        },
+        {
+          "question": "Kenapa relasi many-to-many butuh tabel penghubung?",
+          "options": [
+            "Supaya query lebih cepat",
+            "Karena MySQL tidak punya foreign key",
+            "Karena satu kolom foreign key hanya bisa menyimpan satu nilai, padahal kedua sisi punya banyak pasangan",
+            "Supaya tidak perlu primary key"
+          ],
+          "answer": 2,
+          "explanation": "Setiap baris tabel penghubung menyimpan satu pasangan, jadi berapa pun banyaknya pasangan bisa dicatat.",
+          "remedial": "- **One-to-many**: foreign key di tabel sisi banyak (pesanan menyimpan pelanggan_id).\n- **Many-to-many**: butuh **tabel penghubung** berisi dua foreign key.\n- Tabel penghubung memakai **primary key gabungan** supaya pasangan tidak dobel.\n- **One-to-one**: foreign key + UNIQUE."
+        },
+        {
+          "question": "Apa yang terjadi saat query ini dijalankan?",
+          "code": "-- krs: PRIMARY KEY (mahasiswa_id, mata_kuliah_id)\n-- krs.mahasiswa_id -> mahasiswa(id), krs.mata_kuliah_id -> mata_kuliah(id)\n-- Tabel krs:\n-- +--------------+----------------+----------+\n-- | mahasiswa_id | mata_kuliah_id | semester |\n-- +--------------+----------------+----------+\n-- |            1 |              1 | 2024-1   |\n-- |            1 |              2 | 2024-1   |\n-- |            2 |              1 | 2024-1   |\n-- |            3 |              2 | 2024-1   |\n-- |            3 |              3 | 2024-1   |\n-- +--------------+----------------+----------+\nINSERT INTO krs VALUES (3, 2, '2024-2');",
+          "options": [
+            "Berhasil, karena semesternya berbeda",
+            "Ditolak, pasangan (3, 2) sudah ada",
+            "Berhasil, baris lama tertimpa",
+            "Ditolak, mahasiswa 3 tidak ada"
+          ],
+          "answer": 1,
+          "explanation": "Primary key hanya terdiri dari mahasiswa_id dan mata_kuliah_id. Pasangan (3, 2) sudah ada, jadi ditolak walau semesternya berbeda.",
+          "remedial": "- **One-to-many**: foreign key di tabel sisi banyak (pesanan menyimpan pelanggan_id).\n- **Many-to-many**: butuh **tabel penghubung** berisi dua foreign key.\n- Tabel penghubung memakai **primary key gabungan** supaya pasangan tidak dobel.\n- **One-to-one**: foreign key + UNIQUE."
+        },
+        {
+          "question": "Apa hasil query terakhir?",
+          "code": "-- krs: PRIMARY KEY (mahasiswa_id, mata_kuliah_id)\n-- krs.mahasiswa_id -> mahasiswa(id), krs.mata_kuliah_id -> mata_kuliah(id)\n-- Tabel krs:\n-- +--------------+----------------+----------+\n-- | mahasiswa_id | mata_kuliah_id | semester |\n-- +--------------+----------------+----------+\n-- |            1 |              1 | 2024-1   |\n-- |            1 |              2 | 2024-1   |\n-- |            2 |              1 | 2024-1   |\n-- |            3 |              2 | 2024-1   |\n-- |            3 |              3 | 2024-1   |\n-- +--------------+----------------+----------+\nINSERT INTO krs VALUES (2, 3, '2024-1');\nSELECT COUNT(*) FROM krs WHERE mahasiswa_id = 2;",
+          "options": [
+            "1",
+            "Error, mahasiswa 2 sudah terdaftar",
+            "2",
+            "3"
+          ],
+          "answer": 2,
+          "explanation": "Pasangan (2, 3) belum ada, jadi diterima. Sari (id 2) sekarang punya dua baris di krs.",
+          "remedial": "- **One-to-many**: foreign key di tabel sisi banyak (pesanan menyimpan pelanggan_id).\n- **Many-to-many**: butuh **tabel penghubung** berisi dua foreign key.\n- Tabel penghubung memakai **primary key gabungan** supaya pasangan tidak dobel.\n- **One-to-one**: foreign key + UNIQUE."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel krs:\n-- +--------------+----------------+----------+\n-- | mahasiswa_id | mata_kuliah_id | semester |\n-- +--------------+----------------+----------+\n-- |            1 |              1 | 2024-1   |\n-- |            1 |              2 | 2024-1   |\n-- |            2 |              1 | 2024-1   |\n-- |            3 |              2 | 2024-1   |\n-- |            3 |              3 | 2024-1   |\n-- +--------------+----------------+----------+\nSELECT mahasiswa_id\nFROM krs\nWHERE mata_kuliah_id = 2\nORDER BY mahasiswa_id;",
+      "options": [
+        "1",
+        "1, 3",
+        "3",
+        "1, 2, 3"
+      ],
+      "answer": 1,
+      "explanation": "Mata kuliah 2 diambil oleh mahasiswa 1 dan 3."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Pasangan mahasiswa dan mata kuliah tidak boleh dobel\nCREATE TABLE krs (\n  mahasiswa_id INT,\n  mata_kuliah_id INT,\n  semester VARCHAR(10) NOT NULL,\n  ___ (mahasiswa_id, mata_kuliah_id),\n  FOREIGN KEY (mahasiswa_id) REFERENCES mahasiswa (id),\n  FOREIGN KEY (mata_kuliah_id) REFERENCES ___ (id)\n);",
+      "answers": [
+        "PRIMARY KEY|primary key|Primary Key",
+        "mata_kuliah"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "One-to-many: foreign key ditaruh di tabel sisi banyak.",
+        "Many-to-many: pakai tabel penghubung berisi dua foreign key.",
+        "Primary key gabungan mencegah pasangan yang sama tercatat dua kali.",
+        "Data milik pasangan (semester, nilai) disimpan di tabel penghubung.",
+        "One-to-one: foreign key ditambah UNIQUE."
+      ]
+    }
+  ]
+}

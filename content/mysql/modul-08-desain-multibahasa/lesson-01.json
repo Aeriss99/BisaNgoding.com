@@ -1,0 +1,110 @@
+{
+  "id": "desain-multibahasa-01",
+  "moduleId": "desain-multibahasa",
+  "order": 1,
+  "title": "Masalah Konten Banyak Bahasa",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sebuah toko online kecil di Bali mulai kedatangan pembeli dari luar negeri. Pemiliknya ingin nama dan deskripsi produk tampil dalam **bahasa Inggris** juga, dan tahun depan mungkin **bahasa Jepang**.\n\nCara pertama yang biasanya terpikir: tambah kolom saja.\n\n```sql\nCREATE TABLE produk (\n  id INT PRIMARY KEY,\n  harga DECIMAL(12,2) NOT NULL,\n  nama_id VARCHAR(100) NOT NULL,\n  nama_en VARCHAR(100)\n);\n```\n\nKolom `nama_id` untuk nama bahasa Indonesia, `nama_en` untuk bahasa Inggris. Kelihatannya beres. Tapi desain ini menyimpan masalah yang baru terasa belakangan.\n\nBayangkan papan keterangan di museum. Kalau setiap bahasa baru harus **diukir** di papan yang sama, lama-lama papannya penuh dan harus diganti semua. Museum yang cerdik membuat papan berisi nomor koleksi saja, lalu menyediakan **buku panduan terpisah** untuk tiap bahasa. Mau menambah bahasa Korea? Cetak satu buku panduan baru. Papannya tidak disentuh."
+    },
+    {
+      "type": "theory",
+      "content": "Masalah desain \"satu kolom per bahasa\":\n\n| Masalah | Akibatnya |\n|---|---|\n| Menambah bahasa = mengubah struktur tabel | Setiap bahasa baru butuh `ALTER TABLE` di **setiap** tabel yang punya teks (produk, kategori, halaman, ...) |\n| Kode aplikasi ikut berubah | Query harus memilih kolom `nama_en` atau `nama_ja` sesuai bahasa pengunjung |\n| Banyak kolom kosong | Produk yang belum diterjemahkan berisi NULL di kolom bahasa itu |\n| Tabel makin lebar | 5 bahasa × (nama, deskripsi) = 10 kolom teks |\n\n**Kebutuhan** yang kita inginkan:\n\n1. Menambah bahasa baru **tanpa mengubah struktur tabel**, cukup menambah data.\n2. Data yang sama untuk semua bahasa (harga, stok, kode barang) disimpan **sekali saja**.\n3. Kalau terjemahan belum ada, tampilkan bahasa **cadangan** (bahasa Indonesia) daripada kosong.\n4. Mudah mencari produk yang **belum diterjemahkan**.\n\nDari kebutuhan itu muncul daftar **entitas** (hal yang perlu dicatat):\n\n| Entitas | Isinya |\n|---|---|\n| `bahasa` | daftar bahasa yang didukung: `id`, `en`, ... |\n| `produk` | data yang tidak bergantung bahasa: harga, stok |\n| `produk_terjemahan` | nama dan deskripsi produk **dalam satu bahasa** |\n| `kategori` | pengelompokan produk |\n| `kategori_terjemahan` | nama kategori dalam satu bahasa |\n\nSatu terjemahan = **satu baris**, bukan satu kolom. Hubungannya terlihat di ERD awal ini:\n\n![ERD awal konten multi bahasa: tabel bahasa, produk, produk_terjemahan, kategori, dan kategori_terjemahan](images/mysql/bahasa-erd-awal.svg)\n\nTiga pelajaran berikutnya membangun tabel-tabel ini satu per satu."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nIni tabel produk dengan desain lama. Pemilik toko sekarang ingin menambah bahasa Jepang. Satu-satunya cara: ubah struktur tabel.\n\n```sql\nCREATE TABLE produk (\n  id INT PRIMARY KEY,\n  harga DECIMAL(12,2) NOT NULL,\n  nama_id VARCHAR(100) NOT NULL,\n  nama_en VARCHAR(100)\n);\nINSERT INTO produk VALUES\n  (1, 45000, 'Kopi Bubuk', 'Ground Coffee'),\n  (2, 30000, 'Teh Melati', 'Jasmine Tea'),\n  (3, 25000, 'Gula Aren', NULL),\n  (4, 60000, 'Madu Hutan', NULL);\n```\n\n```sql\nALTER TABLE produk ADD COLUMN nama_ja VARCHAR(100);\nSELECT * FROM produk;\n```\n\nHasilnya:\n\n```text\n+----+----------+------------+---------------+---------+\n| id | harga    | nama_id    | nama_en       | nama_ja |\n+----+----------+------------+---------------+---------+\n|  1 | 45000.00 | Kopi Bubuk | Ground Coffee | NULL    |\n|  2 | 30000.00 | Teh Melati | Jasmine Tea   | NULL    |\n|  3 | 25000.00 | Gula Aren  | NULL          | NULL    |\n|  4 | 60000.00 | Madu Hutan | NULL          | NULL    |\n+----+----------+------------+---------------+---------+\n4 rows in set\n```\n\nPerhatikan dua hal:\n\n- Kolom `nama_ja` kosong (NULL) untuk semua produk. Setiap kali ada bahasa baru, hal ini terulang.\n- Produk 3 dan 4 bahkan belum punya nama Inggris. Halaman berbahasa Inggris akan menampilkan nama kosong kalau aplikasi tidak menanganinya.\n\nDan ini baru satu tabel. Kalau tabel kategori, halaman, dan banner juga punya teks, semuanya harus di-`ALTER` juga."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menambah kolom untuk setiap bahasa**\n\nSalah:\n\n```sql\nALTER TABLE produk ADD COLUMN nama_ja VARCHAR(100);\nALTER TABLE produk ADD COLUMN deskripsi_ja TEXT;\n```\n\nBenar:\n\n```sql\n-- terjemahan disimpan sebagai baris di tabel terpisah\nINSERT INTO produk_terjemahan (produk_id, kode_bahasa, nama)\nVALUES (1, 'ja', 'Kōhī');\n```\n\nStruktur tabel sebaiknya stabil. Bahasa baru adalah data baru, jadi cukup ditambah dengan INSERT.\n\n**2. Menyimpan semua bahasa dalam satu kolom teks**\n\nSalah:\n\n```sql\nINSERT INTO produk (id, harga, nama)\nVALUES (1, 45000, 'id:Kopi Bubuk|en:Ground Coffee');\n```\n\nBenar:\n\n```sql\nINSERT INTO produk_terjemahan (produk_id, kode_bahasa, nama)\nVALUES (1, 'id', 'Kopi Bubuk'), (1, 'en', 'Ground Coffee');\n```\n\nTeks gabungan harus dipotong-potong oleh aplikasi, tidak bisa dicari dengan WHERE biasa, dan mudah rusak kalau ada tanda | di nama produk.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa masalah utama desain kolom `nama_id`, `nama_en`, `nama_ja` di tabel produk?",
+          "options": [
+            "Setiap bahasa baru mengharuskan struktur tabel diubah",
+            "MySQL tidak mengizinkan nama kolom yang mengandung garis bawah",
+            "Kolom VARCHAR tidak bisa menyimpan huruf Jepang",
+            "Tabel tidak boleh punya lebih dari tiga kolom teks"
+          ],
+          "answer": 0,
+          "explanation": "Bahasa baru berarti kolom baru, jadi setiap tabel yang punya teks harus di-ALTER dan kode aplikasi ikut diubah.",
+          "remedial": "- Desain **satu kolom per bahasa** (`nama_id`, `nama_en`) memaksa `ALTER TABLE` setiap kali ada bahasa baru.\n- Desain yang baik: **satu terjemahan = satu baris** di tabel terjemahan.\n- Data yang sama untuk semua bahasa (harga, stok) tetap di tabel utama.\n- Entitasnya: `bahasa`, `produk`, `produk_terjemahan`, `kategori`, `kategori_terjemahan`."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel produk:\n-- +----+----------+------------+---------------+\n-- | id | harga    | nama_id    | nama_en       |\n-- +----+----------+------------+---------------+\n-- |  1 | 45000.00 | Kopi Bubuk | Ground Coffee |\n-- |  2 | 30000.00 | Teh Melati | Jasmine Tea   |\n-- |  3 | 25000.00 | Gula Aren  | NULL          |\n-- |  4 | 60000.00 | Madu Hutan | NULL          |\n-- +----+----------+------------+---------------+\nSELECT COUNT(*) FROM produk WHERE nama_en IS NULL;",
+          "options": [
+            "0",
+            "2",
+            "4",
+            "NULL"
+          ],
+          "answer": 1,
+          "explanation": "Gula Aren dan Madu Hutan belum punya nama bahasa Inggris, jadi kolom nama_en mereka NULL.",
+          "remedial": "- Desain **satu kolom per bahasa** (`nama_id`, `nama_en`) memaksa `ALTER TABLE` setiap kali ada bahasa baru.\n- Desain yang baik: **satu terjemahan = satu baris** di tabel terjemahan.\n- Data yang sama untuk semua bahasa (harga, stok) tetap di tabel utama.\n- Entitasnya: `bahasa`, `produk`, `produk_terjemahan`, `kategori`, `kategori_terjemahan`."
+        },
+        {
+          "question": "Kolom mana yang **perlu diterjemahkan** di halaman produk?",
+          "options": [
+            "Harga",
+            "Stok",
+            "Deskripsi produk",
+            "Kode barang (SKU)"
+          ],
+          "answer": 2,
+          "explanation": "Deskripsi adalah teks yang dibaca manusia, jadi berbeda per bahasa. Harga, stok, dan kode barang sama untuk semua bahasa.",
+          "remedial": "- Desain **satu kolom per bahasa** (`nama_id`, `nama_en`) memaksa `ALTER TABLE` setiap kali ada bahasa baru.\n- Desain yang baik: **satu terjemahan = satu baris** di tabel terjemahan.\n- Data yang sama untuk semua bahasa (harga, stok) tetap di tabel utama.\n- Entitasnya: `bahasa`, `produk`, `produk_terjemahan`, `kategori`, `kategori_terjemahan`."
+        },
+        {
+          "question": "Dalam desain yang baik, nama produk \"Kopi Bubuk\" dalam bahasa Inggris disimpan sebagai...",
+          "options": [
+            "kolom baru nama_en di tabel produk",
+            "satu baris di tabel produk_terjemahan dengan kode bahasa en",
+            "satu tabel baru bernama produk_en",
+            "teks tambahan di belakang nama bahasa Indonesia"
+          ],
+          "answer": 1,
+          "explanation": "Satu terjemahan = satu baris. Tabel dan kolomnya tetap, yang bertambah hanya datanya.",
+          "remedial": "- Desain **satu kolom per bahasa** (`nama_id`, `nama_en`) memaksa `ALTER TABLE` setiap kali ada bahasa baru.\n- Desain yang baik: **satu terjemahan = satu baris** di tabel terjemahan.\n- Data yang sama untuk semua bahasa (harga, stok) tetap di tabel utama.\n- Entitasnya: `bahasa`, `produk`, `produk_terjemahan`, `kategori`, `kategori_terjemahan`."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Halaman berbahasa Inggris menjalankan query ini untuk produk 3. Apa hasilnya?",
+      "code": "-- Tabel produk:\n-- +----+----------+------------+---------------+\n-- | id | harga    | nama_id    | nama_en       |\n-- +----+----------+------------+---------------+\n-- |  1 | 45000.00 | Kopi Bubuk | Ground Coffee |\n-- |  2 | 30000.00 | Teh Melati | Jasmine Tea   |\n-- |  3 | 25000.00 | Gula Aren  | NULL          |\n-- |  4 | 60000.00 | Madu Hutan | NULL          |\n-- +----+----------+------------+---------------+\nSELECT nama_en FROM produk WHERE id = 3;",
+      "options": [
+        "Gula Aren",
+        "NULL",
+        "Empty set",
+        "Error"
+      ],
+      "answer": 1,
+      "explanation": "Barisnya ada, tapi kolom nama_en kosong. Tanpa penanganan khusus, pembeli akan melihat nama produk kosong."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Di desain lama, bahasa baru berarti mengubah STRUKTUR tabel\n-- Tabel produk:\n-- +----+----------+------------+---------------+\n-- | id | harga    | nama_id    | nama_en       |\n-- +----+----------+------------+---------------+\n-- |  1 | 45000.00 | Kopi Bubuk | Ground Coffee |\n-- |  2 | 30000.00 | Teh Melati | Jasmine Tea   |\n-- |  3 | 25000.00 | Gula Aren  | NULL          |\n-- |  4 | 60000.00 | Madu Hutan | NULL          |\n-- +----+----------+------------+---------------+\n___ TABLE produk ADD COLUMN nama_ja VARCHAR(100);\nSELECT COUNT(*) FROM produk WHERE nama_ja IS NULL;",
+      "answers": [
+        "ALTER|alter|Alter"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Kolom per bahasa (nama_id, nama_en) memaksa ALTER TABLE setiap ada bahasa baru.",
+        "Desain yang baik: satu terjemahan disimpan sebagai satu baris.",
+        "Data yang sama di semua bahasa (harga, stok) tetap di tabel utama.",
+        "Kebutuhan penting: tambah bahasa tanpa ubah tabel, bahasa cadangan, dan mudah mencari yang belum diterjemahkan."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "id": "desain-notifikasi-03",
+  "moduleId": "desain-notifikasi",
+  "order": 3,
+  "title": "Status Dibaca",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Angka merah di ikon lonceng adalah **jumlah notifikasi yang belum dibaca**. Untuk menghitungnya, database harus tahu notifikasi mana yang sudah dibuka oleh **pengguna yang sedang login**.\n\nUntuk notifikasi pribadi ini mudah, karena pemiliknya hanya satu. Untuk notifikasi massal ini lebih menantang: satu pesan, sejuta pembaca, dan masing-masing punya status sendiri.\n\nKembali ke sekolah. Surat pribadi di loker cukup dicentang oleh pemiliknya: \"sudah dibaca\".\n\nPengumuman di papan lain cerita. Sekolah tidak memfotokopi pengumuman untuk setiap siswa. Sebagai gantinya, di sebelah papan ada **lembar tanda tangan**: setiap siswa yang selesai membaca menulis namanya dan jamnya. Siswa yang namanya belum ada di lembar itu berarti belum membaca."
+    },
+    {
+      "type": "theory",
+      "content": "**Notifikasi pribadi** cukup memakai kolom `dibaca_pada` di tabel `notifikasi`:\n\n- `NULL` → belum dibaca.\n- Berisi waktu → sudah dibaca, sekaligus tahu kapan.\n\nKenapa bukan `sudah_dibaca BOOLEAN`? Karena `DATETIME` memberi informasi yang sama **ditambah** waktunya, misalnya untuk menghitung berapa lama rata-rata orang membuka kabar pesanan.\n\n```sql\n-- Budi membuka notifikasi 3\nUPDATE notifikasi SET dibaca_pada = '2026-09-24 08:00:00'\nWHERE id = 3 AND pengguna_id = 1 AND dibaca_pada IS NULL;\n```\n\n**Notifikasi massal** punya tiga pilihan desain. Misalkan satu promo dikirim ke 1 juta pengguna:\n\n| Cara | Baris yang ditulis saat promo dikirim | Masalah |\n|---|---|---|\n| A. kolom `sudah_dibaca` di `notifikasi_massal` | 1 | satu orang membuka, semua dianggap sudah membaca |\n| B. salin promo ke `notifikasi` untuk setiap pengguna | 1.000.000 | pengiriman lambat, penyimpanan boros, salah ketik harus diperbaiki di sejuta baris, pengguna yang baru mendaftar besok tidak menerimanya |\n| C. `notifikasi_massal` + `notifikasi_dibaca` | 1 | saat membaca status perlu LEFT JOIN |\n\nKita memilih **cara C**. Tabel `notifikasi_dibaca` adalah \"lembar tanda tangan\": satu baris ditulis **hanya ketika** seorang pengguna membuka pesannya. Kalau dari sejuta pengguna hanya 50.000 yang membuka, isinya 50.000 baris, bukan sejuta.\n\n![ERD status dibaca: notifikasi pribadi dengan kolom dibaca_pada, notifikasi massal dengan tabel notifikasi_dibaca per pengguna](images/mysql/notif-status-baca.svg)\n\n```sql\nCREATE TABLE notifikasi_massal (\n  id          INT AUTO_INCREMENT PRIMARY KEY,\n  kategori_id INT NOT NULL,\n  judul       VARCHAR(100) NOT NULL,\n  isi         VARCHAR(500) NOT NULL,\n  tautan      VARCHAR(255) NULL,\n  dibuat_pada DATETIME NOT NULL,\n  FOREIGN KEY (kategori_id) REFERENCES kategori_notifikasi(id)\n);\n\nCREATE TABLE notifikasi_dibaca (\n  pengguna_id INT NOT NULL,\n  massal_id   INT NOT NULL,\n  dibaca_pada DATETIME NOT NULL,\n  PRIMARY KEY (pengguna_id, massal_id),\n  FOREIGN KEY (pengguna_id) REFERENCES pengguna(id) ON DELETE CASCADE,\n  FOREIGN KEY (massal_id) REFERENCES notifikasi_massal(id) ON DELETE CASCADE\n);\n```\n\nPrimary key `(pengguna_id, massal_id)` menjamin satu pengguna hanya tercatat sekali untuk setiap pesan. Membuka pesan yang sama untuk kedua kalinya bisa ditulis dengan `INSERT IGNORE`, yang melewati baris kalau kuncinya sudah ada (hati-hati, `IGNORE` juga mengubah beberapa kesalahan lain menjadi peringatan):\n\n```sql\nINSERT IGNORE INTO notifikasi_dibaca (pengguna_id, massal_id, dibaca_pada)\nVALUES (1, 3, '2026-09-24 08:05:00');\n```\n\nLalu bagaimana mencari yang **belum** dibaca? Itu notifikasi massal yang **tidak punya pasangan** di `notifikasi_dibaca` untuk pengguna tersebut. Polanya sudah kamu kenal: `LEFT JOIN ... WHERE ... IS NULL`.\n\nAda juga aplikasi yang memakai satu tabel saja, dengan `pengguna_id` bernilai NULL untuk notifikasi massal. Itu juga bisa, tapi `pengguna_id` tidak bisa dibuat `NOT NULL` dan kolom `dibaca_pada` tidak berarti apa-apa untuk baris massal. Dua tabel terpisah lebih jelas."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nData pengguna dan notifikasi pribadi sama dengan pelajaran sebelumnya. Ditambah 3 notifikasi massal dan catatan siapa yang sudah membacanya:\n\n| id | kategori_id | judul | dibuat_pada |\n|---|---|---|---|\n| 1 | 3 | Pemeliharaan server | 2026-09-15 08:00:00 |\n| 2 | 2 | Promo Gajian | 2026-09-19 12:00:00 |\n| 3 | 2 | Gratis Ongkir Akhir Pekan | 2026-09-22 18:00:00 |\n\n| pengguna_id | massal_id | dibaca_pada |\n|---|---|---|\n| 1 | 1 | 2026-09-15 09:00:00 |\n| 1 | 2 | 2026-09-19 12:30:00 |\n| 2 | 1 | 2026-09-16 10:00:00 |\n\nQuery pertama menampilkan status baca setiap notifikasi massal **untuk Sari** (pengguna 2). Query kedua menghitung angka merah di lonceng **Budi** (pengguna 1): notifikasi pribadi yang belum dibaca ditambah notifikasi massal yang belum dibaca.\n\n```sql\nSELECT m.id, m.judul, d.dibaca_pada\nFROM notifikasi_massal m\nLEFT JOIN notifikasi_dibaca d\n       ON d.massal_id = m.id AND d.pengguna_id = 2\nORDER BY m.dibuat_pada DESC;\n\nSELECT\n  (SELECT COUNT(*) FROM notifikasi\n    WHERE pengguna_id = 1 AND dibaca_pada IS NULL)\n  +\n  (SELECT COUNT(*) FROM notifikasi_massal m\n    LEFT JOIN notifikasi_dibaca d\n           ON d.massal_id = m.id AND d.pengguna_id = 1\n    WHERE d.massal_id IS NULL) AS belum_dibaca;\n```\n\nHasilnya:\n\n```text\n+----+---------------------------+---------------------+\n| id | judul                     | dibaca_pada         |\n+----+---------------------------+---------------------+\n|  3 | Gratis Ongkir Akhir Pekan | NULL                |\n|  2 | Promo Gajian              | NULL                |\n|  1 | Pemeliharaan server       | 2026-09-16 10:00:00 |\n+----+---------------------------+---------------------+\n3 rows in set\n\n+--------------+\n| belum_dibaca |\n+--------------+\n|            3 |\n+--------------+\n1 row in set\n```\n\nDi query pertama, Sari baru membaca pengumuman pemeliharaan. Dua promo tetap tampil karena LEFT JOIN mempertahankan semua baris `notifikasi_massal`, dan `dibaca_pada` yang `NULL` berarti belum dibaca.\n\nDi query kedua, bagian pertama menemukan 2 notifikasi pribadi Budi yang belum dibaca (nomor 3 dan 6). Bagian kedua menemukan 1 notifikasi massal yang belum ia buka (Gratis Ongkir). Totalnya **3**, angka yang tampil di lonceng Budi."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menaruh syarat pengguna di WHERE, bukan di ON**\n\nSalah:\n\n```sql\nSELECT m.judul, d.dibaca_pada\nFROM notifikasi_massal m\nLEFT JOIN notifikasi_dibaca d ON d.massal_id = m.id\nWHERE d.pengguna_id = 2;\n```\n\nBenar:\n\n```sql\nSELECT m.judul, d.dibaca_pada\nFROM notifikasi_massal m\nLEFT JOIN notifikasi_dibaca d\n       ON d.massal_id = m.id AND d.pengguna_id = 2;\n```\n\nWHERE dijalankan setelah JOIN. Baris yang belum dibaca punya d.pengguna_id bernilai NULL, jadi dibuang oleh WHERE. Hasilnya hanya pesan yang **sudah** dibaca, kebalikan dari yang dibutuhkan. Syarat untuk tabel kanan LEFT JOIN ditaruh di ON.\n\n**2. Menyalin notifikasi massal ke setiap pengguna**\n\nSalah:\n\n```sql\nINSERT INTO notifikasi (pengguna_id, kategori_id, judul, isi, dibuat_pada)\nSELECT id, 2, 'Promo Gajian', 'Diskon hingga 50%', '2026-09-19 12:00:00'\nFROM pengguna;\n```\n\nBenar:\n\n```sql\nINSERT INTO notifikasi_massal (kategori_id, judul, isi, dibuat_pada)\nVALUES (2, 'Promo Gajian', 'Diskon hingga 50%', '2026-09-19 12:00:00');\n```\n\nCara pertama menulis satu baris untuk setiap pengguna. Dengan sejuta pengguna, itu sejuta baris untuk satu promo. Cara kedua cukup satu baris. Status bacanya dicatat terpisah di notifikasi_dibaca, hanya untuk yang membuka.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel notifikasi:\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\n-- | id | pengguna_id | kategori_id | judul                | dibuat_pada         | dibaca_pada         |\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\n-- |  1 |           1 |           1 | Pesanan dikirim      | 2026-09-18 09:15:00 | 2026-09-18 10:02:00 |\n-- |  2 |           2 |           1 | Pembayaran diterima  | 2026-09-18 13:40:00 | NULL                |\n-- |  3 |           1 |           1 | Pesanan tiba         | 2026-09-20 16:05:00 | NULL                |\n-- |  4 |           1 |           3 | Login perangkat baru | 2026-09-21 07:30:00 | 2026-09-21 07:31:00 |\n-- |  5 |           2 |           2 | Voucer ongkir        | 2026-09-22 11:00:00 | NULL                |\n-- |  6 |           1 |           2 | Diskon member        | 2026-09-23 19:00:00 | NULL                |\n-- +----+-------------+-------------+----------------------+---------------------+---------------------+\nSELECT COUNT(*) FROM notifikasi\nWHERE pengguna_id = 1 AND dibaca_pada IS NULL;",
+          "options": [
+            "4",
+            "1",
+            "2",
+            "3"
+          ],
+          "answer": 2,
+          "explanation": "Pengguna 1 punya notifikasi 1, 3, 4, dan 6. Yang dibaca_pada-nya NULL hanya nomor 3 dan 6.",
+          "remedial": "- Notifikasi pribadi: `dibaca_pada` NULL = belum dibaca. Tandai dibaca dengan `UPDATE`.\n- Notifikasi massal: satu baris di `notifikasi_massal`, status baca di `notifikasi_dibaca (pengguna_id, massal_id, dibaca_pada)`.\n- Baris `notifikasi_dibaca` ditulis hanya saat pengguna membuka pesan. Jangan menyalin pesan untuk setiap pengguna.\n- Belum dibaca = `LEFT JOIN notifikasi_dibaca d ON d.massal_id = m.id AND d.pengguna_id = ...` lalu `WHERE d.massal_id IS NULL`.\n- Syarat pengguna ditaruh di `ON`, bukan di `WHERE`."
+        },
+        {
+          "question": "Sebuah promo dikirim sebagai notifikasi massal ke 1 juta pengguna, lalu 50.000 orang membukanya. Berapa baris yang ditulis untuk promo ini?",
+          "options": [
+            "1 baris di notifikasi_massal dan 50.000 baris di notifikasi_dibaca",
+            "1.000.000 baris di notifikasi",
+            "1 baris di notifikasi_massal saja",
+            "1.000.000 baris di notifikasi_dibaca"
+          ],
+          "answer": 0,
+          "explanation": "Pesannya disimpan sekali. Baris di notifikasi_dibaca hanya ditulis untuk pengguna yang benar-benar membuka.",
+          "remedial": "- Notifikasi pribadi: `dibaca_pada` NULL = belum dibaca. Tandai dibaca dengan `UPDATE`.\n- Notifikasi massal: satu baris di `notifikasi_massal`, status baca di `notifikasi_dibaca (pengguna_id, massal_id, dibaca_pada)`.\n- Baris `notifikasi_dibaca` ditulis hanya saat pengguna membuka pesan. Jangan menyalin pesan untuk setiap pengguna.\n- Belum dibaca = `LEFT JOIN notifikasi_dibaca d ON d.massal_id = m.id AND d.pengguna_id = ...` lalu `WHERE d.massal_id IS NULL`.\n- Syarat pengguna ditaruh di `ON`, bukan di `WHERE`."
+        },
+        {
+          "question": "Berapa notifikasi massal yang belum dibaca pengguna 3?",
+          "code": "-- Tabel notifikasi_massal:\n-- +----+-------------------------+---------------------+\n-- | id | judul                   | dibuat_pada         |\n-- +----+-------------------------+---------------------+\n-- |  1 | Pemeliharaan server     | 2026-09-15 08:00:00 |\n-- |  2 | Promo Gajian            | 2026-09-19 12:00:00 |\n-- |  3 | Gratis Ongkir           | 2026-09-22 18:00:00 |\n-- |  4 | Fitur baru: lacak paket | 2026-09-24 10:00:00 |\n-- +----+-------------------------+---------------------+\n\n-- Tabel notifikasi_dibaca:\n-- +-------------+-----------+\n-- | pengguna_id | massal_id |\n-- +-------------+-----------+\n-- |           1 |         1 |\n-- |           1 |         2 |\n-- |           1 |         4 |\n-- |           2 |         1 |\n-- |           3 |         3 |\n-- +-------------+-----------+\nSELECT COUNT(*)\nFROM notifikasi_massal m\nLEFT JOIN notifikasi_dibaca d\n       ON d.massal_id = m.id AND d.pengguna_id = 3\nWHERE d.massal_id IS NULL;",
+          "options": [
+            "1",
+            "3",
+            "4",
+            "2"
+          ],
+          "answer": 1,
+          "explanation": "Pengguna 3 hanya membaca notifikasi massal 3. Notifikasi 1, 2, dan 4 tidak punya pasangan untuk pengguna 3, jadi hasilnya 3.",
+          "remedial": "- Notifikasi pribadi: `dibaca_pada` NULL = belum dibaca. Tandai dibaca dengan `UPDATE`.\n- Notifikasi massal: satu baris di `notifikasi_massal`, status baca di `notifikasi_dibaca (pengguna_id, massal_id, dibaca_pada)`.\n- Baris `notifikasi_dibaca` ditulis hanya saat pengguna membuka pesan. Jangan menyalin pesan untuk setiap pengguna.\n- Belum dibaca = `LEFT JOIN notifikasi_dibaca d ON d.massal_id = m.id AND d.pengguna_id = ...` lalu `WHERE d.massal_id IS NULL`.\n- Syarat pengguna ditaruh di `ON`, bukan di `WHERE`."
+        },
+        {
+          "question": "Apa gunanya PRIMARY KEY (pengguna_id, massal_id) di tabel notifikasi_dibaca?",
+          "options": [
+            "Supaya satu notifikasi massal hanya boleh dibaca satu pengguna",
+            "Supaya satu pengguna hanya boleh membaca satu notifikasi massal",
+            "Supaya urutan notifikasi terjaga",
+            "Supaya satu pengguna tidak tercatat dua kali untuk pesan yang sama"
+          ],
+          "answer": 3,
+          "explanation": "Yang unik adalah pasangannya. Banyak pengguna boleh membaca pesan yang sama, dan satu pengguna boleh membaca banyak pesan, tapi setiap pasangan hanya sekali.",
+          "remedial": "- Notifikasi pribadi: `dibaca_pada` NULL = belum dibaca. Tandai dibaca dengan `UPDATE`.\n- Notifikasi massal: satu baris di `notifikasi_massal`, status baca di `notifikasi_dibaca (pengguna_id, massal_id, dibaca_pada)`.\n- Baris `notifikasi_dibaca` ditulis hanya saat pengguna membuka pesan. Jangan menyalin pesan untuk setiap pengguna.\n- Belum dibaca = `LEFT JOIN notifikasi_dibaca d ON d.massal_id = m.id AND d.pengguna_id = ...` lalu `WHERE d.massal_id IS NULL`.\n- Syarat pengguna ditaruh di `ON`, bukan di `WHERE`."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel notifikasi_massal:\n-- +----+-------------------------+---------------------+\n-- | id | judul                   | dibuat_pada         |\n-- +----+-------------------------+---------------------+\n-- |  1 | Pemeliharaan server     | 2026-09-15 08:00:00 |\n-- |  2 | Promo Gajian            | 2026-09-19 12:00:00 |\n-- |  3 | Gratis Ongkir           | 2026-09-22 18:00:00 |\n-- |  4 | Fitur baru: lacak paket | 2026-09-24 10:00:00 |\n-- +----+-------------------------+---------------------+\n\n-- Tabel notifikasi_dibaca:\n-- +-------------+-----------+\n-- | pengguna_id | massal_id |\n-- +-------------+-----------+\n-- |           1 |         1 |\n-- |           1 |         2 |\n-- |           1 |         4 |\n-- |           2 |         1 |\n-- |           3 |         3 |\n-- +-------------+-----------+\nSELECT m.judul\nFROM notifikasi_massal m\nLEFT JOIN notifikasi_dibaca d\n       ON d.massal_id = m.id AND d.pengguna_id = 1\nWHERE d.massal_id IS NULL;",
+      "options": [
+        "Pemeliharaan server, Promo Gajian",
+        "Gratis Ongkir",
+        "Gratis Ongkir, Fitur baru: lacak paket",
+        "Kosong (Empty set)"
+      ],
+      "answer": 1,
+      "explanation": "Pengguna 1 sudah membaca notifikasi massal 1, 2, dan 4. Yang tidak punya pasangan hanya nomor 3, Gratis Ongkir."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Tampilkan notifikasi massal yang BELUM dibaca pengguna 2 (yang tidak punya pasangan di notifikasi_dibaca)\n-- Tabel notifikasi_massal:\n-- +----+-------------------------+---------------------+\n-- | id | judul                   | dibuat_pada         |\n-- +----+-------------------------+---------------------+\n-- |  1 | Pemeliharaan server     | 2026-09-15 08:00:00 |\n-- |  2 | Promo Gajian            | 2026-09-19 12:00:00 |\n-- |  3 | Gratis Ongkir           | 2026-09-22 18:00:00 |\n-- |  4 | Fitur baru: lacak paket | 2026-09-24 10:00:00 |\n-- +----+-------------------------+---------------------+\n\n-- Tabel notifikasi_dibaca:\n-- +-------------+-----------+\n-- | pengguna_id | massal_id |\n-- +-------------+-----------+\n-- |           1 |         1 |\n-- |           1 |         2 |\n-- |           1 |         4 |\n-- |           2 |         1 |\n-- |           3 |         3 |\n-- +-------------+-----------+\nSELECT m.judul\nFROM notifikasi_massal m\n___ JOIN notifikasi_dibaca d\n       ON d.massal_id = m.id AND d.pengguna_id = 2\nWHERE d.massal_id IS ___\nORDER BY m.id;",
+      "answers": [
+        "LEFT|LEFT OUTER|left|Left|left outer|Left Outer",
+        "NULL|null|Null"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Notifikasi pribadi: kolom dibaca_pada, NULL berarti belum dibaca.",
+        "Notifikasi massal disimpan sekali, status bacanya di tabel notifikasi_dibaca per pengguna.",
+        "Jangan menyalin notifikasi massal menjadi satu baris per pengguna.",
+        "Belum dibaca = LEFT JOIN dengan syarat pengguna di ON, lalu WHERE ... IS NULL.",
+        "Angka di lonceng = belum dibaca pribadi + belum dibaca massal."
+      ]
+    }
+  ]
+}

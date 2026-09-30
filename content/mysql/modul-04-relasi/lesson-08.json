@@ -1,0 +1,114 @@
+{
+  "id": "mysql-relasi-08",
+  "moduleId": "mysql-relasi",
+  "order": 8,
+  "title": "Subquery",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pertanyaan: \"Produk apa saja yang harganya **di atas rata-rata**?\"\n\nUntuk menjawabnya kita perlu dua langkah: hitung dulu rata-ratanya, baru cari produk yang lebih mahal. Daripada menjalankan dua query dan menyalin angkanya dengan tangan, kita bisa menaruh query pertama **di dalam** query kedua. Query di dalam query ini disebut **subquery**.\n\nBayangkan kamu bertanya ke teman: \"Siapa saja yang nilainya lebih tinggi dari rata-rata kelas?\" Temanmu tidak langsung menjawab. Ia menghitung rata-rata kelas dulu di kertas coretan, baru membandingkan setiap nilai dengan angka itu. Kertas coretan itulah subquery."
+    },
+    {
+      "type": "theory",
+      "content": "Subquery ditulis di dalam tanda kurung. Ada tiga bentuk yang paling sering dipakai:\n\n| Bentuk | Hasil subquery | Dipakai dengan |\n|---|---|---|\n| satu nilai | 1 baris 1 kolom | `=`, `>`, `<` |\n| daftar nilai | 1 kolom, banyak baris | `IN`, `NOT IN` |\n| tabel | banyak baris dan kolom | di `FROM`, wajib diberi alias |\n\n**Satu nilai:**\n\n```sql\nSELECT nama, harga FROM produk\nWHERE harga > (SELECT AVG(harga) FROM produk);\n```\n\n**Daftar nilai:** pelanggan yang pernah memesan.\n\n```sql\nSELECT nama FROM pelanggan\nWHERE id IN (SELECT pelanggan_id FROM pesanan);\n```\n\n**Tabel di FROM** (sekilas): hasil subquery dipakai seperti tabel sementara, dan harus diberi nama alias.\n\n```sql\nSELECT * FROM (\n  SELECT pelanggan_id, SUM(total) AS belanja\n  FROM pesanan GROUP BY pelanggan_id\n) AS rekap\nWHERE belanja > 50000;\n```\n\nDua peringatan:\n\n- Kalau subquery untuk `=` atau `>` ternyata menghasilkan lebih dari satu baris, MySQL menolak: `ERROR 1242 (21000): Subquery returns more than 1 row`. Pakai `IN`.\n- Hati-hati dengan `NOT IN`: kalau hasil subquery mengandung NULL, `NOT IN` tidak mengembalikan baris apa pun. Untuk mencari \"yang belum pernah\", LEFT JOIN ... IS NULL lebih aman."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nData produk:\n\n| id | nama | kategori | harga |\n|---|---|---|---|\n| 1 | Kopi Susu | Minuman | 18000 |\n| 2 | Teh Manis | Minuman | 8000 |\n| 3 | Roti Bakar | Makanan | 15000 |\n| 4 | Nasi Goreng | Makanan | 25000 |\n| 5 | Air Mineral | Minuman | 5000 |\n\nProduk yang harganya di atas rata-rata (rata-ratanya 14200):\n\n```sql\nSELECT nama, harga\nFROM produk\nWHERE harga > (SELECT AVG(harga) FROM produk)\nORDER BY harga DESC;\n```\n\nHasilnya:\n\n```text\n+-------------+-------+\n| nama        | harga |\n+-------------+-------+\n| Nasi Goreng | 25000 |\n| Kopi Susu   | 18000 |\n| Roti Bakar  | 15000 |\n+-------------+-------+\n3 rows in set\n```\n\n### Contoh kedua\n\nData pelanggan dan pesanan:\n\n| id | nama |\n|---|---|\n| 1 | Budi |\n| 2 | Sari |\n| 3 | Rina |\n| 4 | Dewi |\n\n| id | pelanggan_id | total |\n|---|---|---|\n| 101 | 1 | 51000 |\n| 102 | 2 | 24000 |\n| 103 | 1 | 28000 |\n\nPelanggan yang pernah memesan, lalu rekap belanja di atas 50000 memakai subquery di FROM:\n\n```sql\nSELECT nama FROM pelanggan\nWHERE id IN (SELECT pelanggan_id FROM pesanan)\nORDER BY id;\nSELECT * FROM (\n  SELECT pelanggan_id, SUM(total) AS belanja\n  FROM pesanan\n  GROUP BY pelanggan_id\n) AS rekap\nWHERE belanja > 50000;\n```\n\nHasilnya:\n\n```text\n+------+\n| nama |\n+------+\n| Budi |\n| Sari |\n+------+\n2 rows in set\n\n+--------------+---------+\n| pelanggan_id | belanja |\n+--------------+---------+\n|            1 |   79000 |\n+--------------+---------+\n1 row in set\n```\n\nBudi berbelanja 51000 + 28000 = 79000, satu-satunya yang di atas 50000."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai = untuk subquery yang hasilnya banyak baris**\n\nSalah:\n\n```sql\nSELECT nama FROM pelanggan\nWHERE id = (SELECT pelanggan_id FROM pesanan);\n```\n\nBenar:\n\n```sql\nSELECT nama FROM pelanggan\nWHERE id IN (SELECT pelanggan_id FROM pesanan);\n```\n\nSubquery menghasilkan beberapa pelanggan_id. Tanda = hanya bisa membandingkan dengan satu nilai, jadi MySQL menolak dengan ERROR 1242. IN menerima daftar.\n\n**2. Subquery di FROM tanpa alias**\n\nSalah:\n\n```sql\nSELECT * FROM (\n  SELECT pelanggan_id, SUM(total) AS belanja\n  FROM pesanan GROUP BY pelanggan_id\n)\nWHERE belanja > 50000;\n```\n\nBenar:\n\n```sql\nSELECT * FROM (\n  SELECT pelanggan_id, SUM(total) AS belanja\n  FROM pesanan GROUP BY pelanggan_id\n) AS rekap\nWHERE belanja > 50000;\n```\n\nMySQL mewajibkan nama untuk tabel hasil subquery: ERROR 1248 (42000): Every derived table must have its own alias.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel produk:\n-- +----+-------------+----------+-------+\n-- | id | nama        | kategori | harga |\n-- +----+-------------+----------+-------+\n-- |  1 | Kopi Susu   | Minuman  | 18000 |\n-- |  2 | Teh Manis   | Minuman  |  8000 |\n-- |  3 | Roti Bakar  | Makanan  | 15000 |\n-- |  4 | Nasi Goreng | Makanan  | 25000 |\n-- |  5 | Air Mineral | Minuman  |  5000 |\n-- +----+-------------+----------+-------+\nSELECT nama FROM produk\nWHERE harga = (SELECT MAX(harga) FROM produk);",
+          "options": [
+            "25000",
+            "Kopi Susu",
+            "Nasi Goreng",
+            "Nasi Goreng, Kopi Susu"
+          ],
+          "answer": 2,
+          "explanation": "Subquery menghasilkan harga termahal, 25000. Produk dengan harga itu adalah Nasi Goreng.",
+          "remedial": "- **Subquery** = query di dalam kurung, di dalam query lain.\n- Satu nilai → pakai `=`, `>`, `<`. Contoh: `harga > (SELECT AVG(harga) FROM produk)`.\n- Banyak nilai → pakai `IN`.\n- Subquery di `FROM` wajib diberi alias: `(...) AS rekap`.\n- `=` dengan subquery yang hasilnya banyak baris → `ERROR 1242`."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel produk:\n-- +----+-------------+----------+-------+\n-- | id | nama        | kategori | harga |\n-- +----+-------------+----------+-------+\n-- |  1 | Kopi Susu   | Minuman  | 18000 |\n-- |  2 | Teh Manis   | Minuman  |  8000 |\n-- |  3 | Roti Bakar  | Makanan  | 15000 |\n-- |  4 | Nasi Goreng | Makanan  | 25000 |\n-- |  5 | Air Mineral | Minuman  |  5000 |\n-- +----+-------------+----------+-------+\nSELECT COUNT(*) FROM produk\nWHERE harga > (SELECT AVG(harga) FROM produk);",
+          "options": [
+            "2",
+            "3",
+            "5",
+            "14200"
+          ],
+          "answer": 1,
+          "explanation": "Rata-ratanya (18000 + 8000 + 15000 + 25000 + 5000) / 5 = 14200. Yang di atasnya: Kopi Susu, Roti Bakar, Nasi Goreng. Jadi 3.",
+          "remedial": "- **Subquery** = query di dalam kurung, di dalam query lain.\n- Satu nilai → pakai `=`, `>`, `<`. Contoh: `harga > (SELECT AVG(harga) FROM produk)`.\n- Banyak nilai → pakai `IN`.\n- Subquery di `FROM` wajib diberi alias: `(...) AS rekap`.\n- `=` dengan subquery yang hasilnya banyak baris → `ERROR 1242`."
+        },
+        {
+          "question": "Apa syarat subquery yang ditaruh di FROM?",
+          "options": [
+            "Harus menghasilkan satu nilai saja",
+            "Harus diberi alias",
+            "Tidak boleh memakai GROUP BY",
+            "Harus diawali kata IN"
+          ],
+          "answer": 1,
+          "explanation": "Hasil subquery di FROM dipakai seperti tabel, jadi MySQL mewajibkan nama alias.",
+          "remedial": "- **Subquery** = query di dalam kurung, di dalam query lain.\n- Satu nilai → pakai `=`, `>`, `<`. Contoh: `harga > (SELECT AVG(harga) FROM produk)`.\n- Banyak nilai → pakai `IN`.\n- Subquery di `FROM` wajib diberi alias: `(...) AS rekap`.\n- `=` dengan subquery yang hasilnya banyak baris → `ERROR 1242`."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel pelanggan:\n-- +----+------+\n-- | id | nama |\n-- +----+------+\n-- |  1 | Budi |\n-- |  2 | Sari |\n-- |  3 | Rina |\n-- |  4 | Dewi |\n-- +----+------+\n\n-- Tabel pesanan:\n-- +-----+--------------+-------+\n-- | id  | pelanggan_id | total |\n-- +-----+--------------+-------+\n-- | 101 |            1 | 51000 |\n-- | 102 |            2 | 24000 |\n-- | 103 |            1 | 28000 |\n-- +-----+--------------+-------+\nSELECT nama FROM pelanggan\nWHERE id NOT IN (SELECT pelanggan_id FROM pesanan)\nORDER BY id;",
+          "options": [
+            "Budi, Sari",
+            "Empty set",
+            "Dewi",
+            "Rina, Dewi"
+          ],
+          "answer": 3,
+          "explanation": "Subquery menghasilkan daftar 1, 2, 1. Pelanggan yang id-nya tidak ada di daftar itu adalah Rina (3) dan Dewi (4).",
+          "remedial": "- **Subquery** = query di dalam kurung, di dalam query lain.\n- Satu nilai → pakai `=`, `>`, `<`. Contoh: `harga > (SELECT AVG(harga) FROM produk)`.\n- Banyak nilai → pakai `IN`.\n- Subquery di `FROM` wajib diberi alias: `(...) AS rekap`.\n- `=` dengan subquery yang hasilnya banyak baris → `ERROR 1242`."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel produk:\n-- +----+-------------+----------+-------+\n-- | id | nama        | kategori | harga |\n-- +----+-------------+----------+-------+\n-- |  1 | Kopi Susu   | Minuman  | 18000 |\n-- |  2 | Teh Manis   | Minuman  |  8000 |\n-- |  3 | Roti Bakar  | Makanan  | 15000 |\n-- |  4 | Nasi Goreng | Makanan  | 25000 |\n-- |  5 | Air Mineral | Minuman  |  5000 |\n-- +----+-------------+----------+-------+\nSELECT nama FROM produk\nWHERE kategori = (SELECT kategori FROM produk WHERE nama = 'Roti Bakar')\nORDER BY harga;",
+      "options": [
+        "Roti Bakar",
+        "Roti Bakar, Nasi Goreng",
+        "Nasi Goreng, Roti Bakar",
+        "Makanan"
+      ],
+      "answer": 1,
+      "explanation": "Subquery menghasilkan Makanan. Produk berkategori Makanan adalah Roti Bakar (15000) dan Nasi Goreng (25000), diurutkan dari harga termurah."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Tampilkan produk yang harganya di bawah rata-rata\n-- Tabel produk:\n-- +----+-------------+----------+-------+\n-- | id | nama        | kategori | harga |\n-- +----+-------------+----------+-------+\n-- |  1 | Kopi Susu   | Minuman  | 18000 |\n-- |  2 | Teh Manis   | Minuman  |  8000 |\n-- |  3 | Roti Bakar  | Makanan  | 15000 |\n-- |  4 | Nasi Goreng | Makanan  | 25000 |\n-- |  5 | Air Mineral | Minuman  |  5000 |\n-- +----+-------------+----------+-------+\nSELECT nama FROM produk\nWHERE harga < (___ AVG(harga) ___ produk)\nORDER BY harga;",
+      "answers": [
+        "SELECT|select|Select",
+        "FROM|from|From"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Subquery adalah query di dalam kurung yang hasilnya dipakai query luar.",
+        "Subquery satu nilai dipakai dengan =, >, <.",
+        "Subquery banyak nilai dipakai dengan IN.",
+        "Subquery di FROM wajib diberi alias.",
+        "Hati-hati NOT IN bila subquery bisa menghasilkan NULL."
+      ]
+    }
+  ]
+}

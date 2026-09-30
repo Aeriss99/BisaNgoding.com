@@ -1,0 +1,112 @@
+{
+  "id": "desain-musik-04",
+  "moduleId": "desain-musik",
+  "order": 4,
+  "title": "Riwayat Putar dan Laporan",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setiap kali sebuah lagu diputar, aplikasi menulis **satu baris** ke tabel `riwayat_putar`. Dari tabel inilah muncul fitur \"Baru saja diputar\" dan laporan lagu terpopuler.\n\nTabel ini tumbuh paling cepat. Kalau ada 1 juta pengguna yang masing-masing memutar 20 lagu sehari, tabel ini bertambah **20 juta baris setiap hari**. Desainnya harus memperhitungkan ukuran itu.\n\nTabel riwayat itu seperti tumpukan struk di mesin kasir. Setiap transaksi dicetak satu struk. Struk tidak pernah diedit, hanya ditambah. Di akhir bulan, pemilik toko menghitung barang terlaris dari tumpukan struk itu."
+    },
+    {
+      "type": "theory",
+      "content": "![ERD riwayat putar: pengguna, riwayat_putar, lagu, lagu_artis, dan artis](images/mysql/musik-riwayat.svg)\n\n```sql\nCREATE TABLE riwayat_putar (\n  id             BIGINT AUTO_INCREMENT PRIMARY KEY,\n  pengguna_id    INT NOT NULL,\n  lagu_id        INT NOT NULL,\n  diputar_pada   DATETIME NOT NULL,\n  detik_didengar INT NOT NULL,\n  FOREIGN KEY (pengguna_id) REFERENCES pengguna(id),\n  FOREIGN KEY (lagu_id) REFERENCES lagu(id),\n  INDEX idx_pengguna_waktu (pengguna_id, diputar_pada),\n  INDEX idx_waktu (diputar_pada)\n);\n```\n\n| Kolom / index | Alasan |\n|---|---|\n| `id BIGINT` | INT paling besar sekitar 2,1 miliar. Dengan 20 juta baris sehari, INT habis dalam kurang dari 4 bulan. BIGINT praktis tidak akan habis. |\n| `detik_didengar` | supaya laporan bisa memilih aturan, misalnya \"dihitung diputar kalau didengar minimal 30 detik\" |\n| `idx_pengguna_waktu (pengguna_id, diputar_pada)` | untuk \"Baru saja diputar\": cari milik satu pengguna, urutkan waktu |\n| `idx_waktu (diputar_pada)` | untuk laporan per periode, misalnya bulan September |\n\nKenapa tidak ada index khusus `lagu_id`? MySQL (InnoDB) otomatis membuat index untuk kolom foreign key yang belum punya index, jadi `lagu_id` sudah terurus.\n\nIngat juga harganya: setiap index ikut diperbarui di **setiap INSERT**. Di tabel yang ditulisi jutaan kali sehari, buat hanya index yang benar-benar dipakai query.\n\nSatu kebiasaan penting untuk laporan: saring waktu dengan **rentang**, bukan dengan fungsi.\n\n```sql\n-- index idx_waktu bisa dipakai\nWHERE diputar_pada >= '2026-09-01' AND diputar_pada < '2026-10-01'\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `riwayat_putar` berisi 11 putaran dari tiga pengguna (lagu dan artis sama dengan pelajaran sebelumnya). Beberapa putaran hanya didengar sebentar, misalnya 12 detik, lalu dilewati. Kita sepakati aturannya: **putaran dihitung kalau didengar minimal 30 detik.**\n\n| id | pengguna | lagu | diputar_pada | detik |\n|---|---|---|---|---|\n| 1 | 1 | 1 | 2026-09-01 07:00:00 | 215 |\n| 2 | 1 | 4 | 2026-09-01 07:04:00 | 201 |\n| 3 | 2 | 1 | 2026-09-02 19:10:00 | 215 |\n| 4 | 2 | 3 | 2026-09-02 19:14:00 | 12 |\n| 5 | 3 | 1 | 2026-09-03 08:00:00 | 180 |\n| 6 | 3 | 5 | 2026-09-03 08:03:00 | 230 |\n| 7 | 1 | 4 | 2026-09-05 22:00:00 | 201 |\n| 8 | 2 | 4 | 2026-09-06 06:30:00 | 95 |\n| 9 | 1 | 3 | 2026-08-30 20:00:00 | 242 |\n| 10 | 3 | 2 | 2026-09-07 12:00:00 | 20 |\n| 11 | 3 | 4 | 2026-09-08 09:00:00 | 201 |\n\nQuery pertama mencari lagu paling sering diputar pada September 2026. Query kedua mencari artis terpopuler sepanjang waktu, berdasarkan jumlah pendengar berbeda.\n\n```sql\nSELECT l.judul, COUNT(*) AS jumlah_putar\nFROM riwayat_putar r\nJOIN lagu l ON l.id = r.lagu_id\nWHERE r.diputar_pada >= '2026-09-01' AND r.diputar_pada < '2026-10-01'\n  AND r.detik_didengar >= 30\nGROUP BY l.id, l.judul\nORDER BY jumlah_putar DESC, l.judul\nLIMIT 3;\n\nSELECT ar.nama,\n       COUNT(DISTINCT r.pengguna_id) AS pendengar,\n       COUNT(*) AS jumlah_putar\nFROM riwayat_putar r\nJOIN lagu_artis la ON la.lagu_id = r.lagu_id\nJOIN artis ar ON ar.id = la.artis_id\nWHERE r.detik_didengar >= 30\nGROUP BY ar.id, ar.nama\nORDER BY pendengar DESC, jumlah_putar DESC;\n```\n\nHasilnya:\n\n```text\n+----------------+--------------+\n| judul          | jumlah_putar |\n+----------------+--------------+\n| Rumah          |            4 |\n| Hujan di Braga |            3 |\n| Sampai Nanti   |            1 |\n+----------------+--------------+\n3 rows in set\n\n+--------------+-----------+--------------+\n| nama         | pendengar | jumlah_putar |\n+--------------+-----------+--------------+\n| Rina Lestari |         3 |            6 |\n| Senja Kota   |         3 |            4 |\n| Dimas Arya   |         1 |            1 |\n+--------------+-----------+--------------+\n3 rows in set\n```\n\nDi query pertama, putaran 9 tidak dihitung karena terjadi bulan Agustus, sedangkan putaran 4 dan 10 tidak dihitung karena kurang dari 30 detik.\n\nDi query kedua, lagu duet dihitung untuk **setiap** artisnya karena JOIN ke `lagu_artis` menghasilkan satu baris per artis. `COUNT(DISTINCT r.pengguna_id)` menghitung orang, bukan putaran: Budi yang memutar lagu Rina Lestari tiga kali tetap dihitung satu pendengar."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membungkus kolom waktu dengan fungsi**\n\nSalah:\n\n```sql\nWHERE YEAR(diputar_pada) = 2026 AND MONTH(diputar_pada) = 9\n```\n\nBenar:\n\n```sql\nWHERE diputar_pada >= '2026-09-01' AND diputar_pada < '2026-10-01'\n```\n\nHasilnya sama, tapi versi pertama umumnya membuat MySQL tidak bisa memakai index idx_waktu. Ia harus menghitung YEAR dan MONTH untuk setiap baris di tabel yang berisi miliaran baris.\n\n**2. Hanya menyimpan penghitung di tabel lagu**\n\nSalah:\n\n```sql\nUPDATE lagu SET jumlah_putar = jumlah_putar + 1 WHERE id = 4;\n```\n\nBenar:\n\n```sql\nINSERT INTO riwayat_putar (pengguna_id, lagu_id, diputar_pada, detik_didengar)\nVALUES (1, 4, '2026-09-05 22:00:00', 201);\n```\n\nSatu angka penghitung tidak bisa menjawab \"terpopuler bulan ini\", \"berapa pendengar berbeda\", atau \"apa yang baru diputar Budi\". Catatan per putaran bisa menjawab semuanya. Aplikasi besar kadang menyimpan keduanya: riwayat sebagai sumber, angka ringkasan untuk tampilan cepat.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa kolom id di riwayat_putar memakai BIGINT, bukan INT?",
+          "options": [
+            "Karena jumlah barisnya bisa melewati batas INT (sekitar 2,1 miliar)",
+            "Karena BIGINT lebih cepat dibaca",
+            "Karena AUTO_INCREMENT hanya bisa dipakai dengan BIGINT",
+            "Karena id harus menyimpan tanggal"
+          ],
+          "answer": 0,
+          "explanation": "Dengan puluhan juta baris per hari, batas INT bisa habis dalam hitungan bulan.",
+          "remedial": "- `riwayat_putar` = satu baris per putaran, punya `id` sendiri (BIGINT, karena datanya sangat banyak).\n- `detik_didengar` memungkinkan aturan \"dihitung kalau minimal 30 detik\".\n- Index `(pengguna_id, diputar_pada)` untuk riwayat satu pengguna, `(diputar_pada)` untuk laporan per periode.\n- Saring periode dengan rentang `>=` dan `<`, jangan membungkus kolom dengan `MONTH()`.\n- `COUNT(*)` = jumlah putaran, `COUNT(DISTINCT pengguna_id)` = jumlah pendengar berbeda."
+        },
+        {
+          "question": "Aturan: putaran dihitung kalau didengar minimal 30 detik. Apa hasil query ini?",
+          "code": "-- Tabel riwayat_putar:\n-- +----+-------------+---------+---------------------+----------------+\n-- | id | pengguna_id | lagu_id | diputar_pada        | detik_didengar |\n-- +----+-------------+---------+---------------------+----------------+\n-- |  1 |           1 |       4 | 2026-09-01 07:04:00 |            201 |\n-- |  2 |           2 |       4 | 2026-09-02 19:14:00 |             15 |\n-- |  3 |           1 |       4 | 2026-09-05 22:00:00 |            201 |\n-- |  4 |           3 |       4 | 2026-09-06 06:30:00 |             95 |\n-- |  5 |           2 |       1 | 2026-09-06 07:00:00 |            215 |\n-- |  6 |           3 |       4 | 2026-09-30 20:15:00 |            201 |\n-- +----+-------------+---------+---------------------+----------------+\nSELECT COUNT(*) FROM riwayat_putar\nWHERE lagu_id = 4 AND detik_didengar >= 30;",
+          "options": [
+            "4",
+            "5",
+            "3",
+            "2"
+          ],
+          "answer": 0,
+          "explanation": "Lagu 4 diputar 5 kali, tapi putaran id 2 hanya 15 detik. Sisanya 4.",
+          "remedial": "- `riwayat_putar` = satu baris per putaran, punya `id` sendiri (BIGINT, karena datanya sangat banyak).\n- `detik_didengar` memungkinkan aturan \"dihitung kalau minimal 30 detik\".\n- Index `(pengguna_id, diputar_pada)` untuk riwayat satu pengguna, `(diputar_pada)` untuk laporan per periode.\n- Saring periode dengan rentang `>=` dan `<`, jangan membungkus kolom dengan `MONTH()`.\n- `COUNT(*)` = jumlah putaran, `COUNT(DISTINCT pengguna_id)` = jumlah pendengar berbeda."
+        },
+        {
+          "question": "Index mana yang paling membantu query \"10 lagu terakhir yang diputar pengguna 1\"?",
+          "options": [
+            "(pengguna_id, diputar_pada)",
+            "(detik_didengar)",
+            "(lagu_id, detik_didengar)",
+            "Tidak perlu index apa pun"
+          ],
+          "answer": 0,
+          "explanation": "Query menyaring pengguna_id lalu mengurutkan diputar_pada. Index gabungan dengan urutan kolom yang sama paling cocok.",
+          "remedial": "- `riwayat_putar` = satu baris per putaran, punya `id` sendiri (BIGINT, karena datanya sangat banyak).\n- `detik_didengar` memungkinkan aturan \"dihitung kalau minimal 30 detik\".\n- Index `(pengguna_id, diputar_pada)` untuk riwayat satu pengguna, `(diputar_pada)` untuk laporan per periode.\n- Saring periode dengan rentang `>=` dan `<`, jangan membungkus kolom dengan `MONTH()`.\n- `COUNT(*)` = jumlah putaran, `COUNT(DISTINCT pengguna_id)` = jumlah pendengar berbeda."
+        },
+        {
+          "question": "Apa hasil query ini?",
+          "code": "-- Tabel riwayat_putar:\n-- +----+-------------+---------+---------------------+----------------+\n-- | id | pengguna_id | lagu_id | diputar_pada        | detik_didengar |\n-- +----+-------------+---------+---------------------+----------------+\n-- |  1 |           1 |       4 | 2026-09-01 07:04:00 |            201 |\n-- |  2 |           2 |       4 | 2026-09-02 19:14:00 |             15 |\n-- |  3 |           1 |       4 | 2026-09-05 22:00:00 |            201 |\n-- |  4 |           3 |       4 | 2026-09-06 06:30:00 |             95 |\n-- |  5 |           2 |       1 | 2026-09-06 07:00:00 |            215 |\n-- |  6 |           3 |       4 | 2026-09-30 20:15:00 |            201 |\n-- +----+-------------+---------+---------------------+----------------+\nSELECT COUNT(DISTINCT pengguna_id) FROM riwayat_putar\nWHERE lagu_id = 4;",
+          "options": [
+            "3",
+            "5",
+            "4",
+            "1"
+          ],
+          "answer": 0,
+          "explanation": "Lagu 4 diputar oleh pengguna 1, 2, dan 3. DISTINCT menghitung setiap pengguna sekali saja.",
+          "remedial": "- `riwayat_putar` = satu baris per putaran, punya `id` sendiri (BIGINT, karena datanya sangat banyak).\n- `detik_didengar` memungkinkan aturan \"dihitung kalau minimal 30 detik\".\n- Index `(pengguna_id, diputar_pada)` untuk riwayat satu pengguna, `(diputar_pada)` untuk laporan per periode.\n- Saring periode dengan rentang `>=` dan `<`, jangan membungkus kolom dengan `MONTH()`.\n- `COUNT(*)` = jumlah putaran, `COUNT(DISTINCT pengguna_id)` = jumlah pendengar berbeda."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil query ini?",
+      "code": "-- Tabel riwayat_putar:\n-- +----+-------------+---------+---------------------+----------------+\n-- | id | pengguna_id | lagu_id | diputar_pada        | detik_didengar |\n-- +----+-------------+---------+---------------------+----------------+\n-- |  1 |           1 |       4 | 2026-09-01 07:04:00 |            201 |\n-- |  2 |           2 |       4 | 2026-09-02 19:14:00 |             15 |\n-- |  3 |           1 |       4 | 2026-09-05 22:00:00 |            201 |\n-- |  4 |           3 |       4 | 2026-09-06 06:30:00 |             95 |\n-- |  5 |           2 |       1 | 2026-09-06 07:00:00 |            215 |\n-- |  6 |           3 |       4 | 2026-09-30 20:15:00 |            201 |\n-- +----+-------------+---------+---------------------+----------------+\nSELECT lagu_id\nFROM riwayat_putar\nWHERE detik_didengar >= 30\nGROUP BY lagu_id\nORDER BY COUNT(*) DESC\nLIMIT 1;",
+      "options": [
+        "4",
+        "1",
+        "2",
+        "3"
+      ],
+      "answer": 0,
+      "explanation": "Lagu 4 punya 4 putaran yang dihitung, lagu 1 hanya 1."
+    },
+    {
+      "type": "fill_blank",
+      "code": "-- Hitung pendengar berbeda (setiap pengguna dihitung sekali) untuk lagu 4\n-- Tabel riwayat_putar:\n-- +----+-------------+---------+---------------------+----------------+\n-- | id | pengguna_id | lagu_id | diputar_pada        | detik_didengar |\n-- +----+-------------+---------+---------------------+----------------+\n-- |  1 |           1 |       4 | 2026-09-01 07:04:00 |            201 |\n-- |  2 |           2 |       4 | 2026-09-02 19:14:00 |             15 |\n-- |  3 |           1 |       4 | 2026-09-05 22:00:00 |            201 |\n-- |  4 |           3 |       4 | 2026-09-06 06:30:00 |             95 |\n-- |  5 |           2 |       1 | 2026-09-06 07:00:00 |            215 |\n-- |  6 |           3 |       4 | 2026-09-30 20:15:00 |            201 |\n-- +----+-------------+---------+---------------------+----------------+\nSELECT COUNT(___ pengguna_id) AS pendengar\nFROM riwayat_putar\nWHERE lagu_id = 4;",
+      "answers": [
+        "DISTINCT|distinct|Distinct"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Riwayat putar menyimpan satu baris per putaran dan tumbuh sangat cepat.",
+        "Pakai BIGINT untuk id tabel yang barisnya bisa miliaran.",
+        "Buat index sesuai query: (pengguna_id, diputar_pada) dan (diputar_pada).",
+        "Saring periode dengan rentang >= dan <, bukan dengan MONTH() atau YEAR().",
+        "COUNT(*) menghitung putaran, COUNT(DISTINCT pengguna_id) menghitung pendengar."
+      ]
+    }
+  ]
+}
