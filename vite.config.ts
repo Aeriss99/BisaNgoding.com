@@ -14,7 +14,7 @@ export default defineConfig({
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
-        maximumFileSizeToCacheInBytes: 5000000,
+        maximumFileSizeToCacheInBytes: 8000000,
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.includes('/audio/en/'),
