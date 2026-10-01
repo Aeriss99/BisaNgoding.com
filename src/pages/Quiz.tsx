@@ -283,7 +283,7 @@ export default function QuizPage() {
                 <button
                   key={i}
                   onClick={() => handleSelect(i)}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-colors whitespace-pre-wrap break-words ${
                     isSelected
                       ? 'border-blue-500 bg-blue-50 text-blue-800 font-medium'
                       : 'border-gray-200 hover:border-blue-300'

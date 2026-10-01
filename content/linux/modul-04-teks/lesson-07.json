@@ -1,0 +1,113 @@
+{
+  "id": "linux-teks-07",
+  "moduleId": "linux-teks",
+  "order": 7,
+  "title": "Pipe dan Studi Kasus Membaca Log",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kamu sudah melihat tanda `|` sekilas di pelajaran `sort` dan `uniq`. Namanya **pipe** (pipa). Pipe meneruskan output satu perintah langsung menjadi input perintah berikutnya, tanpa file perantara.\n\n```bash\ngrep kopi belanja.txt | wc -l\n```\n\n`grep` mencari baris berisi `kopi`, lalu hasilnya tidak ditampilkan, melainkan dikirim ke `wc -l` untuk dihitung. Yang tampil di layar hanya hasil perintah terakhir.\n\nBedanya dengan redirect: `>` mengirim output ke **file**, `|` mengirim output ke **perintah lain**.\n\nPipe seperti ban berjalan di pabrik. Setiap pekerja hanya punya satu tugas kecil: yang pertama memilah, yang kedua mengurutkan, yang ketiga menghitung. Barang mengalir dari satu pekerja ke pekerja berikutnya, dan di ujung ban keluar hasil jadi."
+    },
+    {
+      "type": "theory",
+      "content": "Perintah kecil yang sudah kamu pelajari bisa dirangkai sepanjang apa pun:\n\n```bash\ncat akses.log | grep POST | wc -l\n```\n\n(Untuk kasus ini `grep -c POST akses.log` juga bisa. Pipe berguna saat langkahnya lebih banyak.)\n\n**Mengambil satu kolom dengan cut**\n\n| Perintah | Artinya |\n|---|---|\n| `cut -d' ' -f1 file` | kolom ke-1, kolom dipisah spasi |\n| `cut -d' ' -f4 file` | kolom ke-4 |\n\n`-d` = *delimiter* (pemisah kolom). `' '` berarti pemisahnya spasi. `-f` = *field* (kolom). Kalau `-d` tidak ditulis, `cut` memakai Tab sebagai pemisah, sehingga baris yang dipisah spasi keluar utuh.\n\n**Resep \"paling sering muncul\"**\n\n```bash\ncut -d' ' -f1 akses.log | sort | uniq -c | sort -rn | head -n 3\n```\n\nBaca dari kiri: ambil kolom 1, urutkan supaya yang sama berkumpul, hitung tiap nilai, urutkan dari jumlah terbesar, ambil 3 teratas.\n\nPipe hanya meneruskan **output biasa**. Pesan error tetap muncul di layar dan tidak masuk ke perintah berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSari mengelola toko online kecil. `akses.log` adalah catatan akses web versi sederhana, 10 baris. Setiap baris adalah satu *request* (permintaan halaman) dengan format `IP METODE HALAMAN STATUS`. **IP** adalah alamat komputer pengunjung. **Metode** `GET` berarti membuka halaman, `POST` berarti mengirim data (misalnya formulir login). **Status** adalah kode jawaban server: `200` berarti berhasil, `403` dilarang, `404` halaman tidak ditemukan, `500` server error. Sari ingin tahu berapa request yang error dan IP mana yang paling sering datang.\n\n```bash\ncat akses.log\nwc -l akses.log\ncut -d' ' -f4 akses.log | sort | uniq -c\ncut -d' ' -f4 akses.log | grep -v 200 | wc -l\ncut -d' ' -f1 akses.log | sort | uniq -c | sort -rn\ngrep 404 akses.log | cut -d' ' -f3\nls hilang.log | wc -l\n```\n\nHasilnya:\n\n```text\n$ cat akses.log\n192.0.2.10 GET /index.html 200\n198.51.100.7 GET /produk 200\n192.0.2.10 GET /keranjang 200\n203.0.113.25 GET /admin 403\n192.0.2.10 POST /login 200\n198.51.100.7 GET /gambar/logo.png 404\n203.0.113.25 GET /admin 403\n192.0.2.10 POST /bayar 500\n192.0.2.10 GET /produk/12 200\n203.0.113.25 GET /config.php 404\n$ wc -l akses.log\n10 akses.log\n$ cut -d' ' -f4 akses.log | sort | uniq -c\n      5 200\n      2 403\n      2 404\n      1 500\n$ cut -d' ' -f4 akses.log | grep -v 200 | wc -l\n5\n$ cut -d' ' -f1 akses.log | sort | uniq -c | sort -rn\n      5 192.0.2.10\n      3 203.0.113.25\n      2 198.51.100.7\n$ grep 404 akses.log | cut -d' ' -f3\n/gambar/logo.png\n/config.php\n$ ls hilang.log | wc -l\nls: cannot access 'hilang.log': No such file or directory\n0\n```\n\n- Ada 10 request. Statusnya: 5 berhasil (`200`) dan 5 error (`403`, `404`, `500`).\n- IP `192.0.2.10` paling sering datang (5 kali). IP `203.0.113.25` mencoba membuka `/admin` dan `/config.php`, pola yang patut dicurigai.\n- `grep 404 ... | cut` menampilkan halaman yang tidak ditemukan.\n- Baris terakhir: pesan error `ls` tetap tampil di layar, sedangkan `wc -l` menerima input kosong dan mencetak `0`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa sort sebelum uniq -c**\n\nSalah:\n\n```bash\ncut -d' ' -f1 akses.log | uniq -c\n```\n\nBenar:\n\n```bash\ncut -d' ' -f1 akses.log | sort | uniq -c\n```\n\nTanpa `sort`, IP yang sama tapi tidak bersebelahan dihitung terpisah, sehingga jumlahnya salah.\n\n**2. Memakai > padahal maksudnya pipe**\n\nSalah:\n\n```bash\ncut -d' ' -f1 akses.log > sort\n```\n\nBenar:\n\n```bash\ncut -d' ' -f1 akses.log | sort\n```\n\n`>` menyimpan output ke file bernama `sort` di folder kerja. Perintah `sort` tidak pernah dijalankan. Untuk meneruskan ke perintah lain, pakai `|`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi tanda `|` di antara dua perintah?",
+          "options": [
+            "menyimpan output ke file",
+            "meneruskan output perintah kiri menjadi input perintah kanan",
+            "menjalankan dua perintah bersamaan tanpa hubungan",
+            "membuang pesan error"
+          ],
+          "answer": 1,
+          "explanation": "Pipe menyambung output satu perintah ke input perintah berikutnya.",
+          "remedial": "- `a | b`: output `a` menjadi input `b`\n- `>` ke file, `|` ke perintah lain\n- `cut -d' ' -f1`: ambil kolom ke-1 yang dipisah spasi\n- Resep terbanyak: `sort | uniq -c | sort -rn | head -n 3`\n- Pipe hanya meneruskan output biasa; pesan error tetap ke layar"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi file pesanan.txt:\n#   es teh\n#   kopi\n#   teh hangat\n#   jus\ngrep teh pesanan.txt | wc -l",
+          "options": [
+            "4",
+            "2",
+            "es teh\nteh hangat",
+            "2 pesanan.txt"
+          ],
+          "answer": 1,
+          "explanation": "`grep` menemukan 2 baris, lalu `wc -l` menghitungnya. Karena input datang lewat pipe, nama file tidak ditampilkan.",
+          "remedial": "- `a | b`: output `a` menjadi input `b`\n- `>` ke file, `|` ke perintah lain\n- `cut -d' ' -f1`: ambil kolom ke-1 yang dipisah spasi\n- Resep terbanyak: `sort | uniq -c | sort -rn | head -n 3`\n- Pipe hanya meneruskan output biasa; pesan error tetap ke layar"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi file nilai.txt:\n#   budi 80\n#   sari 92\ncut -d' ' -f2 nilai.txt",
+          "options": [
+            "budi\nsari",
+            "80\n92",
+            "budi 80\nsari 92",
+            "2"
+          ],
+          "answer": 1,
+          "explanation": "`-d' '` memisah kolom dengan spasi, `-f2` mengambil kolom kedua, yaitu nilainya.",
+          "remedial": "- `a | b`: output `a` menjadi input `b`\n- `>` ke file, `|` ke perintah lain\n- `cut -d' ' -f1`: ambil kolom ke-1 yang dipisah spasi\n- Resep terbanyak: `sort | uniq -c | sort -rn | head -n 3`\n- Pipe hanya meneruskan output biasa; pesan error tetap ke layar"
+        },
+        {
+          "question": "Kamu ingin tahu IP mana yang paling sering muncul di kolom pertama `akses.log`. Rangkaian yang tepat...",
+          "options": [
+            "cut -d' ' -f1 akses.log | uniq -c | head -n 1",
+            "cut -d' ' -f1 akses.log | sort | uniq -c | sort -rn | head -n 1",
+            "sort akses.log | head -n 1",
+            "cut -d' ' -f1 akses.log | sort -rn | head -n 1"
+          ],
+          "answer": 1,
+          "explanation": "Urutkan dulu supaya IP yang sama berkumpul, hitung dengan `uniq -c`, urutkan jumlahnya dari terbesar, ambil yang teratas.",
+          "remedial": "- `a | b`: output `a` menjadi input `b`\n- `>` ke file, `|` ke perintah lain\n- `cut -d' ' -f1`: ambil kolom ke-1 yang dipisah spasi\n- Resep terbanyak: `sort | uniq -c | sort -rn | head -n 3`\n- Pipe hanya meneruskan output biasa; pesan error tetap ke layar"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "# Isi file web.log:\n#   192.0.2.4 GET /produk 200\n#   198.51.100.9 GET /login 200\n#   192.0.2.4 GET /produk 200\n#   203.0.113.8 GET /produk 404\ncut -d' ' -f3 web.log | sort | uniq -c | sort -rn | head -n 1",
+      "options": [
+        "      3 /produk",
+        "      1 /login",
+        "      2 /produk",
+        "192.0.2.4"
+      ],
+      "answer": 0,
+      "explanation": "Kolom ke-3 adalah halaman. `/produk` muncul 3 kali, `/login` 1 kali. Setelah `sort -rn`, `/produk` paling atas."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Ambil kolom ke-1 (IP), urutkan supaya yang sama berkumpul, lalu hitung\n# Isi file akses.log:\n#   192.0.2.10 GET /index.html 200\n#   198.51.100.7 GET /produk 200\n#   192.0.2.10 GET /keranjang 200\n#   203.0.113.25 GET /admin 403\n#   192.0.2.10 POST /login 200\n#   198.51.100.7 GET /gambar/logo.png 404\n#   203.0.113.25 GET /admin 403\n#   192.0.2.10 POST /bayar 500\n#   192.0.2.10 GET /produk/12 200\n#   203.0.113.25 GET /config.php 404\ncut -d' ' ___ akses.log | ___ | uniq -c",
+      "answers": [
+        "-f1|-f 1|--fields=1",
+        "sort"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Pipe | meneruskan output satu perintah menjadi input perintah berikutnya.",
+        "> mengirim output ke file, | mengirim output ke perintah lain.",
+        "cut -d' ' -f1 mengambil kolom pertama dari baris yang dipisah spasi.",
+        "Resep data terbanyak: sort | uniq -c | sort -rn | head -n 3.",
+        "Pipe hanya meneruskan output biasa; pesan error tetap tampil di layar."
+      ]
+    }
+  ]
+}

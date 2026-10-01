@@ -85,6 +85,8 @@ export default function CourseDetail() {
     jenisKelas = 'Latihan jalan di browser';
   } else if (course.language === 'english') {
     jenisKelas = '5 menit sehari';
+  } else if (course.language === 'bash') {
+    jenisKelas = 'Teori + latihan soal';
   }
 
   const courseColor = WARNA_KELAS[course.id as keyof typeof WARNA_KELAS] || 'var(--color-primary)';
