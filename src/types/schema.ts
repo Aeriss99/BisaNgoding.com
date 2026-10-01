@@ -36,6 +36,8 @@ export interface ItemJalur {
   sebagian?: string;
   /** Modul tujuan saat kartu diklik (halaman kelas dibuka di modul ini). */
   modul?: string;
+  /** Bagian kelas ini belum ada walaupun kelasnya sudah dibuka (kartu tampil "Segera hadir"). */
+  segera?: boolean;
   /** Khusus Fondasi: bagian kelas yang dipakai semua jalur, contoh "Dasar". */
   bagian?: string;
 }
