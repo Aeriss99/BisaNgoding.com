@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams, Navigate, Link } from 'react-router-dom';
 import {
   getLesson,
   getModule,
@@ -9,7 +9,7 @@ import {
 import type { Card } from '../types/schema';
 import { Check, Lock, X } from 'lucide-react';
 import { Ikon } from '../components/ui/IkonDesain';
-import { infoMateri, labelKartu } from '../lib/materi';
+import { infoMateri, labelKartu, langkahBerikutnya } from '../lib/materi';
 import MenuRamping from '../components/layout/MenuRamping';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -444,13 +444,15 @@ export default function LessonPage() {
   };
 
   if (isLessonFinished) {
+    const nextStep = langkahBerikutnya(lesson);
+    const info = infoMateri(lesson);
 
     return (
       <div className="min-h-dvh flex flex-col bg-[var(--color-bg-base)] leading-[normal]">
         <MenuRamping 
-          kembaliKe={infoMateri(lesson).kembaliKe} 
-          kembaliLabel={infoMateri(lesson).judulModul} 
-          judul={infoMateri(lesson).nomor ? `${infoMateri(lesson).nomor} · ${lesson.title}` : lesson.title}
+          kembaliKe={info.kembaliKe} 
+          kembaliLabel={info.judulModul} 
+          judul={info.nomor ? `${info.nomor} · ${lesson.title}` : lesson.title}
           posisi={lesson.cards.length - 1} 
           total={lesson.cards.length} 
         />
@@ -461,8 +463,8 @@ export default function LessonPage() {
           >
             <circle cx="50vw" cy="50vh" r="40vw" fill="var(--color-success)" />
           </svg>
-          <div className="brutal-card p-8 rounded-2xl max-w-sm w-full space-y-6">
-            <div className="flex justify-center mb-2">
+          <div className="brutal-card p-4 md:p-8 rounded-2xl max-w-md w-full flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
+            <div className="flex justify-center mb-6">
               <img
                 src={`${import.meta.env.BASE_URL}illustrations/undraw_done_erdp.svg`}
                 alt=""
@@ -472,10 +474,46 @@ export default function LessonPage() {
                 onError={(e) => (e.currentTarget.style.display = 'none')}
               />
             </div>
-            <div>
-              <h2 className="text-2xl font-bold mb-2">Pelajaran Selesai!</h2>
-              <p className="text-gray-600 font-bold">+10 XP</p>
+            
+            <h2 className="font-space font-bold text-[24px] md:text-[26px] mb-3 mt-0">Pelajaran selesai!</h2>
+            
+            <div className="flex items-center gap-2 mb-8 flex-wrap justify-center">
+              <span className="text-[14px] font-bold text-[#5a5a5a]">{info.nomor ? `${info.nomor} · ${lesson.title}` : lesson.title}</span>
+              <span className="px-2 py-0.5 border-2 border-[var(--color-text-main)] rounded-full bg-[var(--color-primary-light)] font-mono font-bold text-[13px] whitespace-nowrap">+10 XP</span>
             </div>
+
+            <Link
+              to={nextStep.url}
+              autoFocus
+              className="w-full min-h-[56px] py-1.5 border-[3px] border-[var(--color-text-main)] rounded-xl bg-[var(--color-primary)] shadow-[4px_4px_0_var(--color-text-main)] flex flex-col items-center justify-center text-[var(--color-text-main)] no-underline transition-[transform,box-shadow] duration-150 motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[6px_6px_0_var(--color-text-main)] motion-safe:active:translate-x-[3px] motion-safe:active:translate-y-[3px] motion-safe:active:shadow-[1px_1px_0_var(--color-text-main)] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--color-text-main)] mb-3"
+            >
+              <div className="flex items-center gap-2 font-space font-bold text-[18px]">
+                {nextStep.judul} <Ikon nama="arrow" ukuran={20} tebal={2.5} />
+              </div>
+              <span className="font-sans font-normal text-[14px] leading-tight mt-0.5">{nextStep.keterangan}</span>
+            </Link>
+
+            {nextStep.jenis !== 'kelas' && (
+              <Link
+                to={info.kembaliKe}
+                className="w-full h-[52px] border-2 border-[var(--color-text-main)] rounded-xl bg-white flex items-center justify-center font-bold text-[16px] text-[var(--color-text-main)] no-underline transition-[transform,box-shadow] duration-150 motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[6px_6px_0_var(--color-text-main)] motion-safe:active:translate-x-[3px] motion-safe:active:translate-y-[3px] motion-safe:active:shadow-[1px_1px_0_var(--color-text-main)] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--color-text-main)] mb-2"
+              >
+                Kembali ke kelas
+              </Link>
+            )}
+
+            <button
+              onClick={() => {
+                setIsLessonFinished(false);
+                setCurrentCardIndex(0);
+                setChallengePassed(false);
+                setShowExplanation(false);
+                setIsAnswerCorrect(null);
+              }}
+              className="text-[14px] text-[#5a5a5a] hover:text-[var(--color-text-main)] underline mt-4 bg-transparent border-none p-0 cursor-pointer font-medium"
+            >
+              Ulangi materi ini
+            </button>
           </div>
         </div>
       </div>
@@ -513,7 +551,7 @@ export default function LessonPage() {
           <div className="lg:hidden text-[13px] text-[#5a5a5a]">{info.judulModul}{info.nomor ? ` · ${info.nomor}` : ''}</div>
           <div className="font-mono text-[13px] font-bold tracking-[1px] text-[#5a5a5a]">{labelKartu(card.type)}</div>
           <h2 className="m-0 font-space font-bold text-[24px] leading-[30px] lg:text-[30px] lg:leading-9">{lesson.title}</h2>
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
+          <div key={currentCardIndex} className="motion-safe:animate-in fade-in slide-in-from-bottom-4 duration-300 w-full">
             <ErrorBoundary>{renderCardContent(card)}</ErrorBoundary>
           </div>
         </article>
@@ -524,7 +562,7 @@ export default function LessonPage() {
         <button
           onClick={prevCard}
           disabled={currentCardIndex === 0}
-          className="hidden lg:flex w-[180px] h-[52px] border-2 border-[var(--color-text-main)] rounded-xl bg-white items-center justify-center font-bold text-[16px] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="hidden lg:flex w-[180px] h-[52px] border-2 border-[var(--color-text-main)] rounded-xl bg-white items-center justify-center font-bold text-[16px] disabled:opacity-40 disabled:cursor-not-allowed transition-[transform,background-color] duration-150 hover:bg-[var(--color-bg-base)] motion-safe:active:translate-y-[2px] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--color-text-main)] disabled:hover:bg-white disabled:active:translate-y-0"
         >
           Sebelumnya
         </button>
@@ -532,7 +570,7 @@ export default function LessonPage() {
           <button 
             aria-label="Kartu sebelumnya"
             onClick={prevCard}
-            className="lg:hidden w-14 h-14 shrink-0 border-2 border-[var(--color-text-main)] rounded-xl bg-white flex items-center justify-center"
+            className="lg:hidden w-14 h-14 shrink-0 border-2 border-[var(--color-text-main)] rounded-xl bg-white flex items-center justify-center transition-[transform,background-color] duration-150 hover:bg-[var(--color-bg-base)] motion-safe:active:translate-y-[2px] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--color-text-main)] disabled:hover:bg-white disabled:active:translate-y-0"
           >
             <Ikon nama="back" ukuran={22} tebal={2.5} />
           </button>
@@ -541,7 +579,7 @@ export default function LessonPage() {
         {showFooterNextButton ? (
           <button
             onClick={nextCard}
-            className="flex-1 lg:flex-none lg:w-[400px] h-14 lg:h-[52px] border-[3px] border-[var(--color-text-main)] rounded-xl bg-[var(--color-primary)] shadow-[4px_4px_0_var(--color-text-main)] flex items-center justify-center gap-2 font-space font-bold text-[18px]"
+            className="flex-1 lg:flex-none lg:w-[400px] h-14 lg:h-[52px] border-[3px] border-[var(--color-text-main)] rounded-xl bg-[var(--color-primary)] shadow-[4px_4px_0_var(--color-text-main)] flex items-center justify-center gap-2 font-space font-bold text-[18px] transition-[transform,box-shadow] duration-150 motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[6px_6px_0_var(--color-text-main)] motion-safe:active:translate-x-[3px] motion-safe:active:translate-y-[3px] motion-safe:active:shadow-[1px_1px_0_var(--color-text-main)] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--color-text-main)]"
           >
             {currentCardIndex === lesson.cards.length - 1 ? 'Selesai' : 'Lanjut'}
             {currentCardIndex === lesson.cards.length - 1 ? (
