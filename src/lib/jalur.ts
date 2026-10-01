@@ -40,11 +40,12 @@ function namaKelas(c: Course | undefined, id: string): string {
 }
 
 /** Status kartu kelas di jalur karier, fondasi, dan halaman Semua Kelas. */
-export function statusKartu(item: Pick<ItemJalur, 'kelas' | 'nama' | 'meta' | 'sebagian' | 'modul'>): StatusKartu {
+export function statusKartu(item: Pick<ItemJalur, 'kelas' | 'nama' | 'meta' | 'sebagian' | 'modul' | 'segera'>): StatusKartu {
   const c = coursesData.find((x) => x.id === item.kelas);
   const nama = item.nama ?? namaKelas(c, item.kelas);
   const kode = c?.short ?? item.kelas.slice(0, 3).toUpperCase();
   const n = jumlahModulTersedia(item.kelas);
+  if (item.segera) return { jenis: 'segera', teks: 'Segera hadir', nama, kode };
   if (c && c.status !== 'soon' && n > 0) {
     const url = item.modul ? `/kelas/${c.id}?modul=${item.modul}` : `/kelas/${c.id}`;
     if (item.sebagian) return { jenis: 'sebagian', teks: `${n} modul · ${item.sebagian}`, url, nama, kode };

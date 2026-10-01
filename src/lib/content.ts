@@ -6,8 +6,9 @@ import jsModules from '../../content/javascript/modules.json';
 import englishModules from '../../content/english/modules.json';
 import gitModules from '../../content/git/modules.json';
 import mysqlModules from '../../content/mysql/modules.json';
+import linuxModules from '../../content/linux/modules.json';
 
-export const modulesData = [...javaModules, ...jsModules, ...englishModules, ...gitModules, ...mysqlModules] as Module[];
+export const modulesData = [...javaModules, ...jsModules, ...englishModules, ...gitModules, ...mysqlModules, ...linuxModules] as Module[];
 export const coursesData = coursesJson as Course[];
 
 /**

@@ -133,7 +133,7 @@ export function UnderstandingCheckCardComponent({
                 key={i}
                 disabled={showResult}
                 onClick={() => handleSelect(i)}
-                className={`w-full text-left p-4 rounded-xl transition-all font-sans font-medium text-base brutal-btn bg-white ${btnClass}`}
+                className={`w-full text-left p-4 rounded-xl transition-all font-sans font-medium text-base brutal-btn bg-white whitespace-pre-wrap break-words ${btnClass}`}
               >
                 {opt}
               </button>
@@ -379,7 +379,7 @@ export function PredictOutputCardComponent({
               key={i}
               disabled={showExplanation && isSuccess}
               onClick={() => handleSelect(i)}
-              className={`w-full text-left p-4 rounded-xl transition-colors font-mono text-sm brutal-btn bg-white ${btnClass}`}
+              className={`w-full text-left p-4 rounded-xl transition-colors font-mono text-sm brutal-btn bg-white whitespace-pre-wrap break-words ${btnClass}`}
             >
               {opt}
             </button>

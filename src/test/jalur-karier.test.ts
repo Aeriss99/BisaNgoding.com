@@ -63,8 +63,17 @@ describe('statusKartu', () => {
     expect(statusKartu({ kelas: 'javascript', sebagian: 'DOM segera' })).toMatchObject({ jenis: 'sebagian', teks: `${n} modul · DOM segera` });
   });
 
+  it('Linux sudah dibuka: bagian yang belum ada tampil segera', () => {
+    const n = jumlahModulTersedia('linux');
+    expect(n).toBe(4);
+    expect(statusKartu({ kelas: 'linux' })).toMatchObject({ jenis: 'tersedia', teks: 'Tersedia · 4 modul', url: '/kelas/linux' });
+    expect(statusKartu({ kelas: 'linux', sebagian: 'server segera' })).toMatchObject({ jenis: 'sebagian', teks: '4 modul · server segera' });
+    const lanjutan = statusKartu({ kelas: 'linux', nama: 'Linux Lanjutan', segera: true });
+    expect(lanjutan).toMatchObject({ jenis: 'segera', teks: 'Segera hadir', nama: 'Linux Lanjutan' });
+    expect(lanjutan.url).toBeUndefined();
+  });
+
   it('kelas baru: ungu dan membuka halaman rencana; kelas segera: tidak bisa diklik', () => {
-    expect(statusKartu({ kelas: 'linux' })).toMatchObject({ jenis: 'baru', teks: 'Segera · Kelas baru', url: '/kelas/linux' });
     expect(statusKartu({ kelas: 'devops', nama: 'DevOps: Docker' })).toMatchObject({ jenis: 'baru', nama: 'DevOps: Docker' });
     const sb = statusKartu({ kelas: 'spring-boot' });
     expect(sb).toMatchObject({ jenis: 'segera', teks: 'Segera hadir', nama: 'Spring Boot' });
@@ -96,9 +105,8 @@ describe('formatTahap dan pemakaianKelas', () => {
 });
 
 describe('Kelas baru punya rencana modul', () => {
-  it('Linux 12 modul, DevOps 9 modul', () => {
+  it('DevOps 9 modul', () => {
     const jml = (id: string) => (coursesData.find((c) => c.id === id)?.rencana ?? []).reduce((t, b) => t + b.modul.length, 0);
-    expect(jml('linux')).toBe(12);
     expect(jml('devops')).toBe(9);
     for (const c of coursesData.filter((x) => x.baru)) expect(c.status).toBe('soon');
   });
