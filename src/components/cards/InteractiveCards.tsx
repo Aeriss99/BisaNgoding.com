@@ -116,7 +116,8 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
           extensions={[
             ...ekstensiBahasa(language), 
             EditorView.lineWrapping, 
-            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
+            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } }),
+            EditorView.contentAttributes.of({ spellcheck: "false", autocorrect: "off", autocapitalize: "off" })
           ]}
           theme="light"
           onChange={(val) => setCode(val)}
@@ -455,7 +456,8 @@ export function CodeChallengeCardComponent({
           extensions={[
             ...ekstensiBahasa(language), 
             EditorView.lineWrapping, 
-            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } })
+            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } }),
+            EditorView.contentAttributes.of({ spellcheck: "false", autocorrect: "off", autocapitalize: "off" })
           ]}
           theme="light"
           onChange={(val) => setCode(val)}
