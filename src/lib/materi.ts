@@ -1,5 +1,6 @@
 import type { Card, Lesson } from '../types/schema';
-import { coursesData, getModule, getVisibleLessons, modulesData, nomorModul } from './content';
+import { coursesData, getModule, getVisibleLessons, modulesData, nomorModul, getQuizQuestions } from './content';
+import { PASSING_SCORE } from './quizLogic';
 
 /** Label kecil di atas judul kartu (huruf besar, sesuai desain). */
 const LABEL_KARTU: Record<Card['type'], string> = {
@@ -46,5 +47,58 @@ export function infoMateri(lesson: Lesson): InfoMateri {
     nomor: posisiModul && urutan > 0 ? `${posisiModul.nomor}.${urutan}` : '',
     judulModul: mod.title,
     kembaliKe: `/kelas/${course?.id ?? 'java'}?modul=${mod.id}`,
+  };
+}
+export interface LangkahBerikutnya {
+  jenis: 'materi' | 'quiz' | 'kelas';
+  url: string;        // '/lesson/<id>' | '/quiz/<moduleId resmi>' | kembaliKe dari infoMateri
+  judul: string;      // judul materi berikutnya | 'Quiz <judul modul>' | 'Kembali ke kelas'
+  keterangan: string; // contoh '1.2 · Distro Linux' | '20 soal · lulus kalau skor ≥ 70' | judul modul
+}
+
+export function langkahBerikutnya(lesson: Lesson): LangkahBerikutnya {
+  const mod =
+    getModule(lesson.moduleId) ?? modulesData.find((m) => getVisibleLessons(m.id).some((l) => l.id === lesson.id));
+  const info = infoMateri(lesson);
+
+  if (!mod) {
+    return {
+      jenis: 'kelas',
+      url: info.kembaliKe,
+      judul: 'Kembali ke kelas',
+      keterangan: info.judulModul,
+    };
+  }
+
+  const lessons = getVisibleLessons(mod.id);
+  const currentIndex = lessons.findIndex((l) => l.id === lesson.id);
+
+  if (currentIndex !== -1 && currentIndex < lessons.length - 1) {
+    const nextLesson = lessons[currentIndex + 1];
+    const nextInfo = infoMateri(nextLesson);
+    const keterangan = nextInfo.nomor ? `${nextInfo.nomor} · ${nextLesson.title}` : nextLesson.title;
+    return {
+      jenis: 'materi',
+      url: `/lesson/${nextLesson.id}`,
+      judul: 'Materi berikutnya',
+      keterangan,
+    };
+  }
+
+  const quizQs = getQuizQuestions(mod.id);
+  if (quizQs && quizQs.length > 0) {
+    return {
+      jenis: 'quiz',
+      url: `/quiz/${mod.id}`,
+      judul: `Quiz ${mod.title}`,
+      keterangan: `${quizQs.length} soal · lulus kalau skor ≥ ${PASSING_SCORE}`,
+    };
+  }
+
+  return {
+    jenis: 'kelas',
+    url: info.kembaliKe,
+    judul: 'Kembali ke kelas',
+    keterangan: info.judulModul,
   };
 }

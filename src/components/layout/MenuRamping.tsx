@@ -73,11 +73,11 @@ export default function MenuRamping({ kembaliKe, kembaliLabel, judul, posisi, to
     <>
       {/* Desktop (>= 1024px) */}
       <header className="hidden lg:flex sticky top-0 z-40 h-16 shrink-0 items-center gap-5 px-8 bg-[var(--color-bg-base)] border-b-[3px] border-[var(--color-text-main)] leading-[normal]">
-        <Link to={kembaliKe} className="flex items-center gap-2 h-11 pl-2.5 pr-3.5 border-2 rounded-[10px] bg-white font-bold text-[15px] shrink-0 max-w-[260px] text-[var(--color-text-main)] no-underline">
+        <Link to={kembaliKe} title={`Kembali ke ${kembaliLabel}`} className="flex items-center gap-2 h-11 pl-2.5 pr-3.5 border-2 rounded-[10px] bg-white font-bold text-[15px] shrink-0 max-w-[260px] text-[var(--color-text-main)] no-underline transition-[transform,background-color] duration-150 hover:bg-[var(--color-primary-light)] motion-safe:active:translate-y-[2px] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--color-text-main)]">
           <Ikon nama="back" ukuran={18} tebal={2.5} />
           <span className="truncate">{kembaliLabel}</span>
         </Link>
-        <Link to="/" className="font-bungee text-[16px] px-1 bg-[var(--color-primary)] shrink-0 no-underline text-[var(--color-text-main)]">
+        <Link to="/" title="Ke beranda" className="font-bungee text-[16px] px-1 bg-[var(--color-primary)] shrink-0 no-underline text-[var(--color-text-main)] transition-transform duration-150 motion-safe:hover:-rotate-2 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--color-text-main)]">
           BISANGODING
         </Link>
         <div className="flex-1 min-w-0 max-w-[640px] mx-auto flex flex-col gap-1.5">
@@ -97,7 +97,7 @@ export default function MenuRamping({ kembaliKe, kembaliLabel, judul, posisi, to
             aria-label="Menu profil" 
             aria-haspopup="menu" 
             aria-expanded={menuProfilBuka}
-            className="w-11 h-11 rounded-full flex items-center justify-center border-none p-0 cursor-pointer"
+            className="w-11 h-11 rounded-full flex items-center justify-center border-none p-0 cursor-pointer transition-transform duration-150 motion-safe:hover:scale-105 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--color-text-main)]"
             onClick={() => setMenuProfilBuka(!menuProfilBuka)}
           >
             <Avatar ukuran={44} />
@@ -118,7 +118,7 @@ export default function MenuRamping({ kembaliKe, kembaliLabel, judul, posisi, to
 
       {/* Mobile/Tablet (< 1024px) */}
       <header className="lg:hidden flex sticky top-0 z-40 h-[60px] shrink-0 items-center gap-2.5 px-3 bg-[var(--color-bg-base)] border-b-[3px] border-[var(--color-text-main)] leading-[normal]">
-        <Link to={kembaliKe} aria-label={`Kembali ke ${kembaliLabel}`} className="w-11 h-11 shrink-0 border-2 rounded-[10px] bg-white flex items-center justify-center text-[var(--color-text-main)]">
+        <Link to={kembaliKe} aria-label={`Kembali ke ${kembaliLabel}`} className="w-11 h-11 shrink-0 border-2 rounded-[10px] bg-white flex items-center justify-center text-[var(--color-text-main)] transition-[transform,background-color] duration-150 hover:bg-[var(--color-primary-light)] motion-safe:active:translate-y-[2px] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--color-text-main)]">
           <Ikon nama="close" ukuran={22} tebal={2.2} />
         </Link>
         <div className="flex-1 min-w-0">
