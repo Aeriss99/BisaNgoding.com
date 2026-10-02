@@ -147,7 +147,15 @@ export type Card =
   | TranslateTilesCard
   | ListenTilesCard
   | MatchPairsCard
-  | TypeTranslationCard;
+  | TypeTranslationCard
+  | HtmlCssPreviewCard;
+
+export interface HtmlCssPreviewCard {
+  type: 'html_css_preview';
+  prompt?: string;
+  html: string;
+  css: string;
+}
 
 export interface TheoryCard {
   type: 'theory';
