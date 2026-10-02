@@ -84,6 +84,12 @@ const CardSchema = z.union([
       })
     ),
   }),
+  z.object({
+    type: z.literal('html_css_preview'),
+    prompt: z.string().optional(),
+    html: z.string(),
+    css: z.string(),
+  }),
 ]);
 
 const LessonSchema = z.object({
