@@ -148,13 +148,12 @@ export type Card =
   | ListenTilesCard
   | MatchPairsCard
   | TypeTranslationCard
-  | HtmlCssPreviewCard;
+  | HtmlPreviewCard;
 
-export interface HtmlCssPreviewCard {
-  type: 'html_css_preview';
-  prompt?: string;
+export interface HtmlPreviewCard {
+  type: 'html_preview';
+  prompt: string;
   html: string;
-  css: string;
 }
 
 export interface TheoryCard {

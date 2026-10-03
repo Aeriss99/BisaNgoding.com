@@ -223,4 +223,23 @@ describe('Bagian 6 - Cek Pemahaman & Challenge Flow', () => {
     // It shouldn't be the same if it was updated, but the component keeps one state
     // Just verifying it doesn't crash and changes
   });
+
+  it('user mengetik -- value editor CodeChallenge tetap -- (behavior verbatim input)', () => {
+    const card = {
+      type: 'code_challenge',
+      prompt: 'Test prompt',
+      starterCode: 'public class Main {}',
+      tests: [],
+      hints: [],
+    };
+    render(
+      <CodeChallengeCardComponent
+        card={card}
+        onSuccess={vi.fn()}
+      />
+    );
+    const textarea = screen.getByTestId('codemirror-mock');
+    fireEvent.change(textarea, { target: { value: '--' } });
+    expect(textarea).toHaveValue('--');
+  });
 });
