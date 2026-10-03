@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import type { RunnableCard, CodeChallengeCard } from '../../types/schema';
-import CodeMirror from '@uiw/react-codemirror';
-import { ekstensiBahasa } from '../../lib/editorBahasa';
-import { EditorView } from '@codemirror/view';
+import { CodeEditor } from './CodeEditor';
+import { HtmlResult } from './HtmlPreviewCard';
+import { checkHtmlChallenge } from '../../lib/htmlChallenge';
+import ReactMarkdown from 'react-markdown';
 import { Play, Loader2, CheckCircle, RefreshCw } from 'lucide-react';
 import { getErrorHint } from '../../lib/errorHints';
 import { runJavaCode } from '../../lib/javaRunner';
@@ -111,20 +112,7 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
       )}
 
       <div className="brutal-border rounded-xl overflow-hidden bg-white">
-        <CodeMirror
-          value={code}
-          extensions={[
-            ...ekstensiBahasa(language), 
-            EditorView.lineWrapping, 
-            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6", fontVariantLigatures: "none" } }),
-            EditorView.contentAttributes.of({ spellcheck: "false", autocorrect: "off", autocapitalize: "off" })
-          ]}
-          theme="light"
-          onChange={(val) => setCode(val)}
-          basicSetup={{ lineNumbers: true }}
-          minHeight="240px"
-          maxHeight="70vh"
-        />
+        <CodeEditor value={code} onChange={setCode} language={language} />
       </div>
 
       {card.html && language === 'javascript' && (
@@ -267,13 +255,14 @@ export function CodeChallengeCardComponent({
   onRequireRecheck,
   language = 'java'
 }: { 
-  card: CodeChallengeCard, 
+  card: CodeChallengeCard,
   onSuccess: (attempts: number) => void,
   onNavigateToTheory?: () => void,
   onRequireRecheck?: () => void,
   language?: string
 }) {
   const [code, setCode] = useState(card.starterCode);
+  const [resetKey, setResetKey] = useState(0);
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [attempts, setAttempts] = useState(0);
@@ -360,7 +349,13 @@ export function CodeChallengeCardComponent({
       let allPassed = true;
       let finalOutput = '';
 
-      for (let i = 0; i < card.tests.length; i++) {
+      if (language === 'html') {
+        const result = checkHtmlChallenge(code, card);
+        allPassed = result.passed;
+        finalOutput = result.messages.join('\n');
+      }
+
+      for (let i = 0; language !== 'html' && i < card.tests.length; i++) {
         const test = card.tests[i];
         const res = language === 'javascript'
           ? await runJsCode(code, card.html, (s) => setStatusText(s))
@@ -415,7 +410,9 @@ export function CodeChallengeCardComponent({
 
   return (
     <div className="flex flex-col space-y-4 w-full">
-      <h3 className="font-bold text-lg">{card.prompt}</h3>
+      {language === 'html'
+        ? <div className="font-bold text-lg [&_p]:mb-3 [&_pre]:whitespace-pre-wrap [&_code]:break-words"><ReactMarkdown>{card.prompt}</ReactMarkdown></div>
+        : <h3 className="font-bold text-lg">{card.prompt}</h3>}
       
       {card.steps && showSteps && (
         <div className="brutal-card bg-[var(--color-primary-light)] p-4 rounded-xl space-y-2">
@@ -451,21 +448,21 @@ export function CodeChallengeCardComponent({
           showToast("Ketik sendiri ya. Jari yang mengetik, otak yang ingat.");
         }}
       >
-        <CodeMirror
-          value={code}
-          extensions={[
-            ...ekstensiBahasa(language), 
-            EditorView.lineWrapping, 
-            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6", fontVariantLigatures: "none" } }),
-            EditorView.contentAttributes.of({ spellcheck: "false", autocorrect: "off", autocapitalize: "off" })
-          ]}
-          theme="light"
-          onChange={(val) => setCode(val)}
-          basicSetup={{ lineNumbers: true }}
-          minHeight="240px"
-          maxHeight="70vh"
-        />
+        <CodeEditor value={code} onChange={setCode} language={language} resetKey={resetKey} />
       </div>
+
+      {language === 'html' && (
+        <>
+          <button type="button" className="text-sm font-bold text-[var(--color-primary)] underline self-end" onClick={() => {
+            setCode(card.starterCode);
+            setResetKey(k => k + 1);
+            setOutput('');
+            setLastAttemptCode('');
+            // Keep success/attempt history: resetting must not award XP twice or bypass reflection.
+          }}>Kembalikan Kode Awal</button>
+          <HtmlResult html={code} />
+        </>
+      )}
 
       {card.html && language === 'javascript' && (
         <div id="js-dom-output-container" className="mt-4 brutal-border bg-white rounded-xl overflow-hidden min-h-[200px]" style={{ width: '100%', height: '300px' }}>
@@ -485,7 +482,7 @@ export function CodeChallengeCardComponent({
           {isRunning ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : 
            isSuccess ? <CheckCircle className="w-5 h-5 shrink-0" /> : 
            <Play className="w-5 h-5 shrink-0" />}
-          {isRunning ? statusText : isSuccess ? 'Berhasil!' : 'Cek Jawaban'}
+          {isRunning ? (language === 'html' ? 'Memeriksa HTML' : statusText) : isSuccess ? 'Berhasil!' : 'Cek Jawaban'}
         </button>
         {timedOut && (
           <button
@@ -510,15 +507,21 @@ export function CodeChallengeCardComponent({
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 bg-[#1E1F22] rounded-xl border-2 border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)] overflow-hidden flex flex-col">
               <div className="bg-[#2B2D30] px-4 py-2 flex items-center gap-2 text-[#DFE1E5] text-xs font-mono border-b border-[#111]">
-                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {language === 'javascript' ? 'Script' : 'Main'}
+                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {language === 'html' ? 'HTML' : language === 'javascript' ? 'Script' : 'Main'}
               </div>
               <div className="p-4 font-mono text-[14px] leading-[1.6] whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] text-[#DFE1E5]">
-                <div className="text-[#6F737A] mb-2">{language === 'javascript' ? 'node script.js' : 'java Main'}</div>
-                {formatOutput(output)}
+                <div className="text-[#6F737A] mb-2">{language === 'html' ? 'Pemeriksaan struktur HTML' : language === 'javascript' ? 'node script.js' : 'java Main'}</div>
+                {language === 'html' ? output : formatOutput(output)}
+                {language === 'html' ? (
+                  <p className={`mt-2 font-bold ${isSuccess ? 'text-[var(--color-success)]' : 'text-[#F75464]'}`}>
+                    {isSuccess ? 'Semua kriteria terpenuhi.' : 'Periksa kembali kode sesuai petunjuk di atas.'}
+                  </p>
+                ) : (
                 <div className="text-[#6F737A] mt-2 flex items-center gap-1.5">
                   <div className={`w-2 h-2 rounded-full ${output.includes('Error:') || output.includes('Gagal:') || output.includes('Exception') ? 'bg-[#F75464]' : 'bg-[#6F737A]'}`} />
                   Process finished with exit code {output.includes('Error:') || output.includes('Gagal:') || output.includes('Exception') ? '1' : '0'}
                 </div>
+                )}
               </div>
             </div>
 

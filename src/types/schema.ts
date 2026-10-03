@@ -148,12 +148,32 @@ export type Card =
   | ListenTilesCard
   | MatchPairsCard
   | TypeTranslationCard
+  | HtmlCssPreviewCard
   | HtmlPreviewCard;
 
 export interface HtmlPreviewCard {
   type: 'html_preview';
   prompt: string;
   html: string;
+}
+
+export interface HtmlCheck {
+  selector: string;
+  message: string;
+  count?: number;
+  min?: number;
+  text?: string;
+  notText?: string;
+  attribute?: string;
+  value?: string;
+}
+
+
+export interface HtmlCssPreviewCard {
+  type: 'html_css_preview';
+  prompt?: string;
+  html: string;
+  css: string;
 }
 
 export interface TheoryCard {
@@ -192,6 +212,8 @@ export interface FillBlankCard {
 
 export interface CodeChallengeCard {
   type: 'code_challenge';
+  htmlChecks?: HtmlCheck[];
+  fullDocument?: boolean;
   html?: string;
   prompt: string;
   starterCode: string;
