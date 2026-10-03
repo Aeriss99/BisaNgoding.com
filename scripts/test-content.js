@@ -85,6 +85,11 @@ const CardSchema = z.union([
     ),
   }),
   z.object({
+    type: z.literal('html_preview'),
+    prompt: z.string(),
+    html: z.string(),
+  }),
+  z.object({
     type: z.literal('html_css_preview'),
     prompt: z.string().optional(),
     html: z.string(),

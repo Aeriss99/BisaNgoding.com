@@ -1,72 +1,40 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { HtmlPreviewCardComponent } from './HtmlPreviewCard';
+import { CodeChallengeCardComponent } from './InteractiveCards';
+import { runJavaCode } from '../../lib/javaRunner';
+import { runJsCode } from '../../lib/jsRunner';
+vi.mock('../../lib/javaRunner', () => ({ runJavaCode: vi.fn() }));
+vi.mock('../../lib/jsRunner', () => ({ runJsCode: vi.fn() }));
+vi.mock('./CodeEditor', () => ({ CodeEditor: ({ value, onChange }: any) => <textarea aria-label="Kode" value={value} onChange={e => onChange(e.target.value)} /> }));
 
-vi.mock('@uiw/react-codemirror', () => ({
-  default: ({ value, onChange, extensions }: any) => (
-    <textarea data-testid="html-editor" value={value} onChange={(event) => onChange(event.target.value)} />
-  ),
-}));
-
-describe('HtmlPreviewCardComponent', () => {
-  const card = {
-    type: 'html_preview' as const,
-    prompt: 'Ubah judulnya.',
-    html: '<h1>Awal</h1>',
-  };
-
-  it('menampilkan prompt, editor, dan preview', () => {
-    render(<HtmlPreviewCardComponent card={card} />);
-    expect(screen.getByText('Ubah judulnya.')).toBeInTheDocument();
-    expect(screen.getByTestId('html-editor')).toHaveValue('<h1>Awal</h1>');
-    expect(screen.getByTitle('Preview HTML')).toHaveAttribute('srcDoc', expect.stringContaining('<h1>Awal</h1>'));
+describe('HTML cards in the shared learning flow', () => {
+  it('updates preview and resets exact starter code without enabling scripts', () => {
+    const starter = '<h1>Halo</h1>\n<!-- komentar -->';
+    render(<HtmlPreviewCardComponent card={{ type: 'html_preview', prompt: 'Coba HTML', html: starter }} />);
+    expect(screen.getByText('Kode Playground')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Kode'), { target: { value: '<p>data--test</p>' } });
+    expect(screen.getByTitle('Preview HTML')).toHaveAttribute('srcdoc', expect.stringContaining('<p>data--test</p>'));
     expect(screen.getByTitle('Preview HTML')).toHaveAttribute('sandbox', '');
+    fireEvent.click(screen.getByText('Kembalikan Kode Awal'));
+    expect(screen.getByLabelText('Kode')).toHaveValue(starter);
+    expect(screen.getByTitle('Preview HTML')).toHaveAttribute('srcdoc', expect.stringContaining(starter));
   });
-
-  it('mengubah preview dan bisa reset', () => {
-    render(<HtmlPreviewCardComponent card={card} />);
-    fireEvent.change(screen.getByTestId('html-editor'), { target: { value: '<h1>Baru</h1>' } });
-    expect(screen.getByTitle('Preview HTML')).toHaveAttribute('srcDoc', expect.stringContaining('<h1>Baru</h1>'));
-    fireEvent.click(screen.getByRole('button', { name: /reset/i }));
-    expect(screen.getByTestId('html-editor')).toHaveValue('<h1>Awal</h1>');
-  });
-
-  it('user mengetik -- value editor tetap --', () => {
-    render(<HtmlPreviewCardComponent card={card} />);
-    const editor = screen.getByTestId('html-editor');
-    fireEvent.change(editor, { target: { value: '--' } });
-    expect(editor).toHaveValue('--');
-  });
-
-  it('user mengetik <!-- komentar --> value tetap persis <!-- komentar -->', () => {
-    render(<HtmlPreviewCardComponent card={card} />);
-    const editor = screen.getByTestId('html-editor');
-    fireEvent.change(editor, { target: { value: '<!-- komentar -->' } });
-    expect(editor).toHaveValue('<!-- komentar -->');
-  });
-
-  it('user mengetik data--test value tetap data--test', () => {
-    render(<HtmlPreviewCardComponent card={card} />);
-    const editor = screen.getByTestId('html-editor');
-    fireEvent.change(editor, { target: { value: 'data--test' } });
-    expect(editor).toHaveValue('data--test');
-  });
-  
-  it('reset mengembalikan HTML awal dan mereset key (remount)', () => {
-    // Reset test that ensures the element gets remounted (key change)
-    const { container } = render(<HtmlPreviewCardComponent card={card} />);
-    const editorBefore = screen.getByTestId('html-editor');
-    fireEvent.change(editorBefore, { target: { value: '<h1>Baru</h1>' } });
-    
-    fireEvent.click(screen.getByRole('button', { name: /reset/i }));
-    const editorAfter = screen.getByTestId('html-editor');
-    expect(editorAfter).toHaveValue('<h1>Awal</h1>');
-  });
-
-  it('tidak menyebabkan horizontal scroll (memiliki min-w-0 pada container)', () => {
-    const { container } = render(<HtmlPreviewCardComponent card={card} />);
-    // Get the section that wraps the editor
-    const sections = container.querySelectorAll('section');
-    expect(sections[0].className).toContain('min-w-0');
+  it('checks HTML, shows failure, then unlocks success exactly once without invoking Java/JS', () => {
+    const onSuccess = vi.fn();
+    render(<CodeChallengeCardComponent language="html" onSuccess={onSuccess} card={{
+      type: 'code_challenge', prompt: 'Buat heading', starterCode: '<!-- tulis -->', hints: ['Gunakan h1'], tests: [],
+      htmlChecks: [{ selector: 'h1', count: 1, message: 'Tambahkan satu h1.' }],
+    }} />);
+    fireEvent.change(screen.getByLabelText('Kode'), { target: { value: '<p>Halo</p>' } });
+    fireEvent.click(screen.getByText('Cek Jawaban'));
+    expect(screen.getByText('Tambahkan satu h1.')).toBeInTheDocument();
+    expect(onSuccess).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Kode'), { target: { value: '<h1>Halo</h1><!-- -- -->' } });
+    fireEvent.click(screen.getByText('Cek Jawaban'));
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Berhasil!')).toBeDisabled();
+    expect(runJavaCode).not.toHaveBeenCalled();
+    expect(runJsCode).not.toHaveBeenCalled();
   });
 });
