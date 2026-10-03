@@ -17,7 +17,7 @@ const LABEL_KARTU: Record<Card['type'], string> = {
   listen_tiles: 'LATIHAN',
   match_pairs: 'LATIHAN',
   type_translation: 'LATIHAN',
-  html_css_preview: 'PREVIEW HTML & CSS',
+  html_preview: 'COBA HTML',
 };
 
 export function labelKartu(type: Card['type']): string {

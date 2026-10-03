@@ -116,7 +116,7 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
           extensions={[
             ...ekstensiBahasa(language), 
             EditorView.lineWrapping, 
-            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } }),
+            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6", fontVariantLigatures: "none" } }),
             EditorView.contentAttributes.of({ spellcheck: "false", autocorrect: "off", autocapitalize: "off" })
           ]}
           theme="light"
@@ -267,7 +267,7 @@ export function CodeChallengeCardComponent({
   onRequireRecheck,
   language = 'java'
 }: { 
-  card: CodeChallengeCard,
+  card: CodeChallengeCard, 
   onSuccess: (attempts: number) => void,
   onNavigateToTheory?: () => void,
   onRequireRecheck?: () => void,
@@ -294,7 +294,7 @@ export function CodeChallengeCardComponent({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3000);
   };
-  
+
   const formatOutput = (outputStr: string) => {
     // If it's a compiler error, we should limit to 5 errors.
     // Javac outputs errors starting with file name, e.g. "Main.java:..."
@@ -456,7 +456,7 @@ export function CodeChallengeCardComponent({
           extensions={[
             ...ekstensiBahasa(language), 
             EditorView.lineWrapping, 
-            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6" } }),
+            EditorView.theme({ "&": { fontSize: "14px", lineHeight: "1.6", fontVariantLigatures: "none" } }),
             EditorView.contentAttributes.of({ spellcheck: "false", autocorrect: "off", autocapitalize: "off" })
           ]}
           theme="light"
