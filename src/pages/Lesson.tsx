@@ -25,7 +25,7 @@ import {
   ReorderCardComponent,
   UnderstandingCheckCardComponent,
 } from '../components/cards/QuizCards';
-import { HtmlCssPreviewCardComponent } from '../components/cards/HtmlCssPreviewCard';
+import { HtmlPreviewCardComponent } from '../components/cards/HtmlPreviewCard';
 
 const Mermaid = lazy(() =>
   import('../components/ui/Mermaid').then((m) => ({ default: m.Mermaid }))
@@ -298,8 +298,8 @@ export default function LessonPage() {
       case 'runnable':
         return <RunnableCardComponent card={c} language={language} lessonRunnable={lesson.runnable !== false} />;
 
-      case 'html_css_preview':
-        return <HtmlCssPreviewCardComponent card={c} />;
+      case 'html_preview':
+        return <HtmlPreviewCardComponent card={c} />;
 
       case 'understanding_check':
         return (
