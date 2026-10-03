@@ -14,7 +14,7 @@ const CARD_ORDER = [
   'theory',
   'understanding_check',
   'multiple_choice',
-  'html_preview',
+  'code_challenge',
   'summary',
 ];
 
@@ -27,7 +27,7 @@ describe('HTML Dasar', () => {
   const quiz = JSON.parse(fs.readFileSync(path.join(MOD, 'quiz.json'), 'utf8'));
 
   it('label kartu preview mengikuti UI materi', () => {
-    expect(labelKartu('html_preview')).toBe('COBA HTML');
+    expect(labelKartu('html_preview')).toBe('CONTOH KODE');
   });
 
   it('punya satu modul HTML Dasar dengan 8 materi', () => {
@@ -53,7 +53,7 @@ describe('HTML Dasar', () => {
   it('kartu HTML preview punya prompt dan HTML awal', () => {
     for (const lesson of lessons) {
       const previews = lesson.cards.filter((card: { type: string }) => card.type === 'html_preview');
-      expect(previews, lesson.id).toHaveLength(2);
+      expect(previews, lesson.id).toHaveLength(1);
       for (const card of previews) {
         expect(card.prompt.trim().length, lesson.id).toBeGreaterThan(0);
         expect(card.html.trim().length, lesson.id).toBeGreaterThan(0);
