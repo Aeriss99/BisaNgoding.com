@@ -64,12 +64,12 @@ function CodeBlockWithCopy({ children, className, ...props }: any) {
 }
 
 export default function LessonPage() {
-  useEffect(() => {
-    initCheerpJ().catch(console.error);
-  }, []);
-
   const { lessonId } = useParams();
   const lesson = getLesson(lessonId || '');
+  const module = lesson ? getModule(lesson.moduleId) : undefined;
+  useEffect(() => {
+    if (module?.courseId === 'java') initCheerpJ().catch(console.error);
+  }, [module?.courseId]);
   const {
     progress,
     markLessonCompleted,

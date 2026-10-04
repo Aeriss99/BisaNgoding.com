@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import type { HtmlCssPreviewCard } from '../../types/schema';
 import { CodeEditor } from './CodeEditor';
 import { RefreshCw } from 'lucide-react';
-import { buildPreviewDocument } from '../../lib/htmlCssPreview';
+import { HtmlResult } from './HtmlPreviewCard';
 import ReactMarkdown from 'react-markdown';
 
 export function HtmlCssPreviewCardComponent({ card }: { card: HtmlCssPreviewCard }) {
@@ -24,10 +24,6 @@ export function HtmlCssPreviewCardComponent({ card }: { card: HtmlCssPreviewCard
     return () => clearTimeout(handler);
   }, [htmlCode, cssCode]);
 
-  const previewDocument = useMemo(() => {
-    return buildPreviewDocument(debouncedHtml, debouncedCss);
-  }, [debouncedHtml, debouncedCss]);
-
   const handleReset = () => {
     setHtmlCode(card.html);
     setCssCode(card.css);
@@ -44,11 +40,25 @@ export function HtmlCssPreviewCardComponent({ card }: { card: HtmlCssPreviewCard
         </div>
       )}
 
-      <div className="flex flex-col border-[3px] border-[var(--color-text-main)] rounded-xl overflow-hidden bg-[var(--color-bg-base)] w-full">
-        <div className="flex items-center justify-between border-b-[3px] border-[var(--color-text-main)] bg-white px-2">
+      <div className="flex justify-between items-center gap-3">
+        <p className="font-bold text-gray-700 font-space text-xl">Kode Playground</p>
+        <button
+          type="button"
+          onClick={handleReset}
+          className="flex items-center gap-1.5 text-sm font-bold text-[var(--color-primary)] underline"
+        >
+          <RefreshCw size={14} strokeWidth={2.5} />
+          Kembalikan Kode Awal
+        </button>
+      </div>
+
+      <div className="brutal-border rounded-xl overflow-hidden bg-white min-w-0">
+        <div className="flex border-b-2 border-[var(--color-text-main)] bg-[var(--color-bg-base)] px-2">
           <div className="flex">
             <button
+              type="button"
               onClick={() => setActiveTab('html')}
+              aria-pressed={activeTab === 'html'}
               className={`px-4 py-3 font-bold text-[14px] lg:text-[16px] font-space cursor-pointer transition-colors ${
                 activeTab === 'html'
                   ? 'text-[var(--color-text-main)] border-b-[3px] border-[var(--color-primary)]'
@@ -58,7 +68,9 @@ export function HtmlCssPreviewCardComponent({ card }: { card: HtmlCssPreviewCard
               HTML
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('css')}
+              aria-pressed={activeTab === 'css'}
               className={`px-4 py-3 font-bold text-[14px] lg:text-[16px] font-space cursor-pointer transition-colors ${
                 activeTab === 'css'
                   ? 'text-[var(--color-text-main)] border-b-[3px] border-[var(--color-primary)]'
@@ -68,37 +80,17 @@ export function HtmlCssPreviewCardComponent({ card }: { card: HtmlCssPreviewCard
               CSS
             </button>
           </div>
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 mr-1 text-[13px] font-bold text-[#5a5a5a] hover:text-[var(--color-text-main)] hover:bg-gray-100 rounded-lg transition-colors"
-            title="Kembalikan kode awal"
-          >
-            <RefreshCw size={14} strokeWidth={2.5} />
-            <span className="hidden sm:inline">Reset</span>
-          </button>
         </div>
 
-        <div className="bg-white min-w-0">
+        <div className="min-w-0">
           <CodeEditor key={activeTab} value={activeTab === 'html' ? htmlCode : cssCode}
             onChange={activeTab === 'html' ? setHtmlCode : setCssCode}
             language={activeTab} resetKey={resetKey} />
         </div>
       </div>
 
-      <div className="flex flex-col border-[3px] border-[var(--color-text-main)] rounded-xl overflow-hidden bg-white w-full">
-        <div className="px-4 py-2 border-b-[3px] border-[var(--color-text-main)] bg-[var(--color-bg-base)]">
-          <span className="font-space font-bold text-[14px]">Preview</span>
-        </div>
-        <div className="w-full bg-white relative" style={{ minHeight: '200px' }}>
-          <iframe
-            title="Preview HTML dan CSS"
-            sandbox=""
-            referrerPolicy="no-referrer"
-            srcDoc={previewDocument}
-            className="w-full h-[300px] block border-none bg-white"
-          />
-        </div>
-      </div>
+      <HtmlResult html={debouncedHtml} css={debouncedCss} language="HTML dan CSS" />
+      <p className="text-sm text-gray-600">Hasil diperbarui saat kamu mengetik.</p>
     </div>
   );
 }

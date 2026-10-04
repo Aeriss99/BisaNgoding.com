@@ -22,7 +22,10 @@ describe('HTML cards in the shared learning flow', () => {
     expect(screen.getByText('.box perlu color: navy;')).toBeInTheDocument();
     expect(onSuccess).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText('Kode'), { target: { value: '.box { color: navy; }' } });
-    expect(screen.getByTitle('Preview HTML dan CSS')).toHaveAttribute('srcdoc', expect.stringContaining('.box { color: navy; }'));
+    const preview = screen.getByTitle('Preview HTML dan CSS');
+    expect(preview).toHaveAttribute('srcdoc', expect.stringContaining('.box { color: navy; }'));
+    expect(preview).toHaveAttribute('srcdoc', expect.stringContaining('<article class="box">CSS</article>'));
+    expect(preview.getAttribute('srcdoc')).not.toContain('img { max-width: 100%');
     expect(screen.getByTitle('Preview HTML dan CSS')).toHaveAttribute('sandbox', '');
     fireEvent.click(screen.getByText('Cek Jawaban'));
     expect(onSuccess).toHaveBeenCalledTimes(1);
