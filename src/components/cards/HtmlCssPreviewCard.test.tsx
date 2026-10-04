@@ -52,6 +52,14 @@ describe('HtmlCssPreviewCardComponent', () => {
     expect(iframe).toHaveAttribute('srcDoc', expect.stringContaining('h1 { color: red; }'));
     expect(iframe).toHaveAttribute('sandbox', '');
   });
+  it('opens new CSS lessons on the CSS tab and updates the isolated preview', () => {
+    render(<HtmlCssPreviewCardComponent card={{ ...mockCard, initialTab: 'css' }} />);
+    expect(screen.getByTestId('mock-codemirror')).toHaveValue(mockCard.css);
+    fireEvent.change(screen.getByTestId('mock-codemirror'), { target: { value: 'h1 { color: navy; }' } });
+    fireEvent.click(screen.getByText('Reset'));
+    expect(screen.getByTitle('Preview HTML dan CSS')).toHaveAttribute('srcDoc', expect.stringContaining(mockCard.css));
+    expect(screen.getByTestId('mock-codemirror')).toHaveValue(mockCard.css);
+  });
 
   it('switches tabs and updates code', async () => {
     render(<HtmlCssPreviewCardComponent card={mockCard} />);

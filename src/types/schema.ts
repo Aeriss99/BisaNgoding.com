@@ -73,7 +73,7 @@ export interface Module {
   status?: 'ready' | 'draft';
   requires?: string;
   estimatedHours?: number;
-  language?: 'java' | 'javascript';
+  language?: 'java' | 'javascript' | 'html' | 'css';
 }
 
 export interface Lesson {
@@ -171,6 +171,7 @@ export interface HtmlCheck {
 
 export interface HtmlCssPreviewCard {
   type: 'html_css_preview';
+  initialTab?: 'html' | 'css';
   prompt?: string;
   html: string;
   css: string;
@@ -213,6 +214,7 @@ export interface FillBlankCard {
 export interface CodeChallengeCard {
   type: 'code_challenge';
   htmlChecks?: HtmlCheck[];
+  cssChecks?: { selector: string; property: string; value: string; media?: string }[];
   fullDocument?: boolean;
   html?: string;
   prompt: string;
