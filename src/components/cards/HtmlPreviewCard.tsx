@@ -4,11 +4,11 @@ import type { HtmlPreviewCard } from '../../types/schema';
 import { buildHtmlPreviewDocument } from '../../lib/htmlPreview';
 import { CodeEditor } from './CodeEditor';
 
-export function HtmlResult({ html }: { html: string }) {
+export function HtmlResult({ html, language = 'HTML' }: { html: string; language?: string }) {
   const document = useMemo(() => buildHtmlPreviewDocument(html), [html]);
   return <section className="w-full min-w-0 brutal-border rounded-xl overflow-hidden bg-white">
-    <div className="px-4 py-2 border-b-2 border-[var(--color-text-main)] bg-[var(--color-bg-base)] font-space font-bold text-sm">Hasil HTML</div>
-    <iframe title="Preview HTML" sandbox="" referrerPolicy="no-referrer" srcDoc={document}
+    <div className="px-4 py-2 border-b-2 border-[var(--color-text-main)] bg-[var(--color-bg-base)] font-space font-bold text-sm">Hasil {language}</div>
+    <iframe title={`Preview ${language}`} sandbox="" referrerPolicy="no-referrer" srcDoc={document}
       className="block h-[300px] w-full border-0 bg-white" />
   </section>;
 }

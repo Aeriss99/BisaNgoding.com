@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { RunnableCard, CodeChallengeCard } from '../../types/schema';
 import { CodeEditor } from './CodeEditor';
 import { HtmlResult } from './HtmlPreviewCard';
+import { checkCssChallenge } from '../../lib/cssChallenge';
+import { buildPreviewDocument } from '../../lib/htmlCssPreview';
 import { checkHtmlChallenge } from '../../lib/htmlChallenge';
 import ReactMarkdown from 'react-markdown';
 import { Play, Loader2, CheckCircle, RefreshCw } from 'lucide-react';
@@ -349,13 +351,13 @@ export function CodeChallengeCardComponent({
       let allPassed = true;
       let finalOutput = '';
 
-      if (language === 'html') {
-        const result = checkHtmlChallenge(code, card);
+      if ((language === 'html' || language === 'css')) {
+        const result = language === 'css' ? checkCssChallenge(code, card) : checkHtmlChallenge(code, card);
         allPassed = result.passed;
         finalOutput = result.messages.join('\n');
       }
 
-      for (let i = 0; language !== 'html' && i < card.tests.length; i++) {
+      for (let i = 0; language !== 'html' && language !== 'css' && i < card.tests.length; i++) {
         const test = card.tests[i];
         const res = language === 'javascript'
           ? await runJsCode(code, card.html, (s) => setStatusText(s))
@@ -410,7 +412,7 @@ export function CodeChallengeCardComponent({
 
   return (
     <div className="flex flex-col space-y-4 w-full">
-      {language === 'html'
+      {(language === 'html' || language === 'css')
         ? <div className="font-bold text-lg [&_p]:mb-3 [&_pre]:whitespace-pre-wrap [&_code]:break-words"><ReactMarkdown>{card.prompt}</ReactMarkdown></div>
         : <h3 className="font-bold text-lg">{card.prompt}</h3>}
       
@@ -451,7 +453,7 @@ export function CodeChallengeCardComponent({
         <CodeEditor value={code} onChange={setCode} language={language} resetKey={resetKey} />
       </div>
 
-      {language === 'html' && (
+      {(language === 'html' || language === 'css') && (
         <>
           <button type="button" className="text-sm font-bold text-[var(--color-primary)] underline self-end" onClick={() => {
             setCode(card.starterCode);
@@ -460,7 +462,13 @@ export function CodeChallengeCardComponent({
             setLastAttemptCode('');
             // Keep success/attempt history: resetting must not award XP twice or bypass reflection.
           }}>Kembalikan Kode Awal</button>
-          <HtmlResult html={code} />
+          {language === 'css' && card.html && (
+            <details className="brutal-border rounded-xl p-4 bg-white min-w-0">
+              <summary className="cursor-pointer font-bold">HTML yang diberi gaya</summary>
+              <pre className="mt-3 whitespace-pre-wrap break-words text-sm"><code>{card.html}</code></pre>
+            </details>
+          )}
+          <HtmlResult language={language === 'css' ? 'HTML dan CSS' : 'HTML'} html={language === 'css' ? buildPreviewDocument(card.html ?? '', code) : code} />
         </>
       )}
 
@@ -482,7 +490,7 @@ export function CodeChallengeCardComponent({
           {isRunning ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : 
            isSuccess ? <CheckCircle className="w-5 h-5 shrink-0" /> : 
            <Play className="w-5 h-5 shrink-0" />}
-          {isRunning ? (language === 'html' ? 'Memeriksa HTML' : statusText) : isSuccess ? 'Berhasil!' : 'Cek Jawaban'}
+          {isRunning ? ((language === 'html' || language === 'css') ? `Memeriksa ${language.toUpperCase()}` : statusText) : isSuccess ? 'Berhasil!' : 'Cek Jawaban'}
         </button>
         {timedOut && (
           <button
@@ -507,12 +515,12 @@ export function CodeChallengeCardComponent({
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 bg-[#1E1F22] rounded-xl border-2 border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)] overflow-hidden flex flex-col">
               <div className="bg-[#2B2D30] px-4 py-2 flex items-center gap-2 text-[#DFE1E5] text-xs font-mono border-b border-[#111]">
-                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {language === 'html' ? 'HTML' : language === 'javascript' ? 'Script' : 'Main'}
+                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {(language === 'html' || language === 'css') ? language.toUpperCase() : language === 'javascript' ? 'Script' : 'Main'}
               </div>
               <div className="p-4 font-mono text-[14px] leading-[1.6] whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] text-[#DFE1E5]">
-                <div className="text-[#6F737A] mb-2">{language === 'html' ? 'Pemeriksaan struktur HTML' : language === 'javascript' ? 'node script.js' : 'java Main'}</div>
-                {language === 'html' ? output : formatOutput(output)}
-                {language === 'html' ? (
+                <div className="text-[#6F737A] mb-2">{(language === 'html' || language === 'css') ? (language === 'css' ? 'Pemeriksaan aturan CSS' : 'Pemeriksaan struktur HTML') : language === 'javascript' ? 'node script.js' : 'java Main'}</div>
+                {(language === 'html' || language === 'css') ? output : formatOutput(output)}
+                {(language === 'html' || language === 'css') ? (
                   <p className={`mt-2 font-bold ${isSuccess ? 'text-[var(--color-success)]' : 'text-[#F75464]'}`}>
                     {isSuccess ? 'Semua kriteria terpenuhi.' : 'Periksa kembali kode sesuai petunjuk di atas.'}
                   </p>
