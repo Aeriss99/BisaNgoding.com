@@ -16,6 +16,20 @@ export function CodeEditor({ value, onChange, language, resetKey = 0 }: {
     EditorView.lineWrapping,
     EditorView.theme({ '&': { fontSize: '14px', lineHeight: '1.6', fontVariantLigatures: 'none' } }),
     EditorView.contentAttributes.of({ spellcheck: 'false', autocorrect: 'off', autocapitalize: 'off' }),
+    EditorView.domEventHandlers({
+      beforeinput(e, view) {
+        if (e.data === '—' || e.data === '–') {
+          e.preventDefault();
+          const { from, to } = view.state.selection.main;
+          view.dispatch({
+            changes: { from, to, insert: '--' },
+            selection: { anchor: from + 2 }
+          });
+          return true;
+        }
+        return false;
+      }
+    }),
   ], [language]);
   useEffect(() => {
     if (view.current) {
