@@ -31,8 +31,8 @@ describe('HTML Dasar', () => {
   });
 
   it('punya satu modul HTML Dasar dengan 8 materi', () => {
-    expect(modules).toHaveLength(1);
-    expect(modules[0]).toMatchObject({
+    expect(modules.filter((m: { id: string }) => m.id === 'html-dasar')).toHaveLength(1);
+    expect(modules.find((m: { id: string }) => m.id === 'html-dasar')).toMatchObject({
       id: 'html-dasar',
       courseId: 'html-css',
       title: 'HTML Dasar',
