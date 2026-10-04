@@ -1,8 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { HtmlCssPreviewCard } from '../../types/schema';
-import CodeMirror from '@uiw/react-codemirror';
-import { ekstensiBahasa } from '../../lib/editorBahasa';
-import { EditorView } from '@codemirror/view';
+import { CodeEditor } from './CodeEditor';
 import { RefreshCw } from 'lucide-react';
 import { buildPreviewDocument } from '../../lib/htmlCssPreview';
 import ReactMarkdown from 'react-markdown';
@@ -10,7 +8,9 @@ import ReactMarkdown from 'react-markdown';
 export function HtmlCssPreviewCardComponent({ card }: { card: HtmlCssPreviewCard }) {
   const [htmlCode, setHtmlCode] = useState(card.html);
   const [cssCode, setCssCode] = useState(card.css);
-  const [activeTab, setActiveTab] = useState<'html' | 'css'>('html');
+  const [activeTab, setActiveTab] = useState<'html' | 'css'>(card.initialTab ?? 'html');
+
+  const [resetKey, setResetKey] = useState(0);
 
   // Debounce changes slightly to keep typing smooth
   const [debouncedHtml, setDebouncedHtml] = useState(htmlCode);
@@ -31,6 +31,9 @@ export function HtmlCssPreviewCardComponent({ card }: { card: HtmlCssPreviewCard
   const handleReset = () => {
     setHtmlCode(card.html);
     setCssCode(card.css);
+    setDebouncedHtml(card.html);
+    setDebouncedCss(card.css);
+    setResetKey(key => key + 1);
   };
 
   return (
@@ -75,34 +78,10 @@ export function HtmlCssPreviewCardComponent({ card }: { card: HtmlCssPreviewCard
           </button>
         </div>
 
-        <div className="bg-white min-h-[150px] max-h-[300px] overflow-auto">
-          {activeTab === 'html' ? (
-            <CodeMirror
-              value={htmlCode}
-              extensions={[
-                ...ekstensiBahasa('html'),
-                EditorView.lineWrapping,
-                EditorView.theme({ '&': { fontSize: '14px', lineHeight: '1.6' } }),
-                EditorView.contentAttributes.of({ spellcheck: 'false', autocorrect: 'off', autocapitalize: 'off' }),
-              ]}
-              theme="light"
-              onChange={(val) => setHtmlCode(val)}
-              basicSetup={{ lineNumbers: true }}
-            />
-          ) : (
-            <CodeMirror
-              value={cssCode}
-              extensions={[
-                ...ekstensiBahasa('css'),
-                EditorView.lineWrapping,
-                EditorView.theme({ '&': { fontSize: '14px', lineHeight: '1.6' } }),
-                EditorView.contentAttributes.of({ spellcheck: 'false', autocorrect: 'off', autocapitalize: 'off' }),
-              ]}
-              theme="light"
-              onChange={(val) => setCssCode(val)}
-              basicSetup={{ lineNumbers: true }}
-            />
-          )}
+        <div className="bg-white min-w-0">
+          <CodeEditor key={activeTab} value={activeTab === 'html' ? htmlCode : cssCode}
+            onChange={activeTab === 'html' ? setHtmlCode : setCssCode}
+            language={activeTab} resetKey={resetKey} />
         </div>
       </div>
 

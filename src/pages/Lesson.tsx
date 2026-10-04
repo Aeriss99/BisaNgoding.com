@@ -115,7 +115,7 @@ export default function LessonPage() {
   }
 
   const course = coursesData.find((c) => c.id === (mod?.courseId || 'java'));
-  const language = course?.language || 'java';
+  const language = mod?.language || course?.language || 'java';
 
   const nextCard = () => {
     setShowExplanation(false);
