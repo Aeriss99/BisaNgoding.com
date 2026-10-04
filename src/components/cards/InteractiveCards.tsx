@@ -3,7 +3,6 @@ import type { RunnableCard, CodeChallengeCard } from '../../types/schema';
 import { CodeEditor } from './CodeEditor';
 import { HtmlResult } from './HtmlPreviewCard';
 import { checkCssChallenge } from '../../lib/cssChallenge';
-import { buildPreviewDocument } from '../../lib/htmlCssPreview';
 import { checkHtmlChallenge } from '../../lib/htmlChallenge';
 import ReactMarkdown from 'react-markdown';
 import { Play, Loader2, CheckCircle, RefreshCw } from 'lucide-react';
@@ -468,7 +467,7 @@ export function CodeChallengeCardComponent({
               <pre className="mt-3 whitespace-pre-wrap break-words text-sm"><code>{card.html}</code></pre>
             </details>
           )}
-          <HtmlResult language={language === 'css' ? 'HTML dan CSS' : 'HTML'} html={language === 'css' ? buildPreviewDocument(card.html ?? '', code) : code} />
+          <HtmlResult language={language === 'css' ? 'HTML dan CSS' : 'HTML'} html={language === 'css' ? card.html ?? '' : code} css={language === 'css' ? code : undefined} />
         </>
       )}
 
