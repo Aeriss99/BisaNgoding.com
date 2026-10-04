@@ -555,7 +555,8 @@ export default function LessonPage() {
       
       {/* Content */}
       <main className="flex-1 w-full flex flex-col items-center px-4 pt-5 pb-[110px] lg:px-8 lg:pt-12 lg:pb-12">
-        <article className="w-full flex flex-col gap-3.5 lg:max-w-[760px] lg:gap-[18px] lg:p-9 lg:border-[3px] lg:border-[var(--color-text-main)] lg:rounded-2xl lg:bg-white lg:shadow-[6px_6px_0_var(--color-text-main)]">
+        <div className="relative w-full lg:max-w-[760px]">
+        <article className="w-full flex flex-col gap-3.5 lg:gap-[18px] lg:p-9 lg:border-[3px] lg:border-[var(--color-text-main)] lg:rounded-2xl lg:bg-white lg:shadow-[6px_6px_0_var(--color-text-main)]">
           <div className="lg:hidden text-[13px] text-[#5a5a5a]">{info.judulModul}{info.nomor ? ` · ${info.nomor}` : ''}</div>
           <div className="font-mono text-[13px] font-bold tracking-[1px] text-[#5a5a5a]">{labelKartu(card.type)}</div>
           <h2 className="m-0 font-space font-bold text-[24px] leading-[30px] lg:text-[30px] lg:leading-9">{lesson.title}</h2>
@@ -563,6 +564,12 @@ export default function LessonPage() {
             <ErrorBoundary>{renderCardContent(card)}</ErrorBoundary>
           </div>
         </article>
+        {lesson.id === 'linux-pengenalan-01' && (
+          <aside aria-label="Penulis materi" className="mt-5 w-fit max-w-full rounded-xl border-2 border-[var(--color-text-main)] bg-white px-4 py-3 text-sm shadow-[3px_3px_0_var(--color-text-main)] xl:absolute xl:left-[calc(100%+24px)] xl:top-0 xl:mt-0 xl:w-[220px]">
+            <span className="font-bold">Author:</span> Lingga Ardyansyah
+          </aside>
+        )}
+        </div>
       </main>
 
       {/* Footer */}
