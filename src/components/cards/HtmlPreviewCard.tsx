@@ -2,10 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { HtmlPreviewCard } from '../../types/schema';
 import { buildHtmlPreviewDocument } from '../../lib/htmlPreview';
+import { buildPreviewDocument } from '../../lib/htmlCssPreview';
 import { CodeEditor } from './CodeEditor';
 
-export function HtmlResult({ html, language = 'HTML' }: { html: string; language?: string }) {
-  const document = useMemo(() => buildHtmlPreviewDocument(html), [html]);
+export function HtmlResult({ html, css, language = 'HTML' }: { html: string; css?: string; language?: string }) {
+  const document = useMemo(
+    () => css === undefined ? buildHtmlPreviewDocument(html) : buildPreviewDocument(html, css),
+    [html, css]
+  );
   return <section className="w-full min-w-0 brutal-border rounded-xl overflow-hidden bg-white">
     <div className="px-4 py-2 border-b-2 border-[var(--color-text-main)] bg-[var(--color-bg-base)] font-space font-bold text-sm">Hasil {language}</div>
     <iframe title={`Preview ${language}`} sandbox="" referrerPolicy="no-referrer" srcDoc={document}

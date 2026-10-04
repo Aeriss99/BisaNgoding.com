@@ -56,7 +56,7 @@ describe('HtmlCssPreviewCardComponent', () => {
     render(<HtmlCssPreviewCardComponent card={{ ...mockCard, initialTab: 'css' }} />);
     expect(screen.getByTestId('mock-codemirror')).toHaveValue(mockCard.css);
     fireEvent.change(screen.getByTestId('mock-codemirror'), { target: { value: 'h1 { color: navy; }' } });
-    fireEvent.click(screen.getByText('Reset'));
+    fireEvent.click(screen.getByText('Kembalikan Kode Awal'));
     expect(screen.getByTitle('Preview HTML dan CSS')).toHaveAttribute('srcDoc', expect.stringContaining(mockCard.css));
     expect(screen.getByTestId('mock-codemirror')).toHaveValue(mockCard.css);
   });
@@ -89,7 +89,7 @@ describe('HtmlCssPreviewCardComponent', () => {
     expect(textareaCss).toHaveValue('h2 { color: blue; }');
 
     // Reset
-    await fireEvent.click(screen.getByText('Reset'));
+    await fireEvent.click(screen.getByText('Kembalikan Kode Awal'));
 
     // Should be back to CSS initial value (since we're still on CSS tab)
     const textareaCssReset = screen.getByTestId('mock-codemirror');
