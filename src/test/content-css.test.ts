@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { checkCssChallenge } from '../lib/cssChallenge';
 import { checkModuleUnlocked, getModule, getQuizQuestions, getVisibleLessons } from '../lib/content';
 import type { CodeChallengeCard, Lesson, QuizQuestion } from '../types/schema';
+import postcss from 'postcss';
 
 for (const [moduleId, folder, count, requires] of [
   ['css-dasar', 'modul-03-css-dasar', 12, 'html-form'],
@@ -53,14 +54,28 @@ for (const [moduleId, folder, count, requires] of [
         for (const source of ['', card.starterCode, `/* ${card.solution} */`]) {
           expect(checkCssChallenge(source, card).passed).toBe(false);
         }
+        for (const check of card.cssChecks!) {
+          expect(checkCssChallenge(card.starterCode, { ...card, cssChecks: [check] }).passed, `${check.selector} ${check.property} remains in the starter`).toBe(false);
+        }
       });
       it(`${lesson.title}: catches every omitted declaration`, () => {
-        // Solutions intentionally use one declaration per rule, including media rules.
+        // Remove a required declaration from the complete stylesheet, including media rules.
         for (const check of card.cssChecks!) {
-          const rule = `${check.selector} { ${check.property}: ${check.value}; }`;
-          const source = card.solution!.replace(check.media ? `@media ${check.media} { ${rule} }` : rule, '');
+          const root = postcss.parse(card.solution!);
+          const normalize = (value: string) => value.trim().replace(/\s+/g, ' ').replace(/\s*([>+~])\s*/g, '$1').replace(/'/g, '"');
+          const normalizeMedia = (value: string) => value.trim().replace(/\s+/g, ' ').replace(/\s*([():])\s*/g, '$1');
+          root.walkRules(rule => {
+            let media = '';
+            for (let parent = rule.parent; parent && parent.type !== 'root'; parent = parent.parent) {
+              if (parent.type === 'atrule' && parent.name === 'media') { media = normalizeMedia(parent.params); break; }
+            }
+            if (normalize(rule.selector) === normalize(check.selector) && media === normalizeMedia(check.media ?? '')) {
+              rule.walkDecls(check.property, declaration => declaration.remove());
+            }
+          });
+          const source = root.toString();
           expect(source).not.toBe(card.solution);
-          expect(checkCssChallenge(source, card).passed, rule).toBe(false);
+          expect(checkCssChallenge(source, card).passed, `${check.selector} ${check.property}`).toBe(false);
         }
       });
     }
