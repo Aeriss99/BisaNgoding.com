@@ -1,0 +1,112 @@
+{
+  "id": "linux-permission-07",
+  "moduleId": "linux-permission",
+  "order": 7,
+  "title": "chown, chgrp, dan umask",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sejauh ini kita mengubah **izin**. Bagaimana kalau yang ingin diubah adalah **pemilik** atau **grup** file?\n\n- `chown` (*change owner*): mengganti pemilik (dan bisa sekalian grupnya)\n- `chgrp` (*change group*): mengganti grup saja\n\nMengganti pemilik hanya boleh dilakukan root, jadi `chown` hampir selalu dipakai dengan `sudo`. User biasa yang mencobanya akan ditolak dengan `Operation not permitted`. (Pemilik file boleh `chgrp` ke group yang ia ikuti sendiri. Selain itu, `chgrp` juga butuh `sudo`.)\n\nDi akhir pelajaran ada **umask**: pengaturan yang menentukan izin awal setiap file dan folder baru.\n\n`chown` seperti balik nama sertifikat kamar kos: hanya pengelola (root) yang boleh memindahkan kepemilikan, penghuni tidak bisa seenaknya \"menghadiahkan\" kamarnya ke orang lain. `umask` seperti aturan bawaan kos: setiap kamar baru otomatis dipasangi kunci tertentu sebelum penghuninya masuk."
+    },
+    {
+      "type": "theory",
+      "content": "| Perintah | Artinya |\n|---|---|\n| `sudo chown sari laporan.txt` | pemilik menjadi `sari` |\n| `sudo chown sari:dev laporan.txt` | pemilik `sari`, grup `dev` |\n| `sudo chown budi:budi catatan.txt` | pemilik dan grup menjadi `budi` |\n| `sudo chown -R budi:budi proyek` | folder beserta seluruh isinya |\n| `sudo chgrp dev laporan.txt` | grup menjadi `dev` |\n\nKasus yang sering terjadi: file dibuat dengan `sudo` sehingga dimiliki root, lalu Budi tidak bisa mengubahnya. Perbaikannya: `sudo chown budi:budi nama-file`. Seperti `chmod`, `chown` diam kalau berhasil. Setelah itu `ls -l` menampilkan `budi budi` di kolom pemilik dan grup.\n\n**umask** berisi izin yang **dibuang** dari setiap file dan folder baru. Titik awalnya:\n\n- file baru: `666` (`rw-rw-rw-`). File yang dibuat dengan `touch`, editor, atau `>` tidak otomatis mendapat `x`.\n- folder baru: `777` (`rwxrwxrwx`)\n\nUntuk nilai umask yang umum, cukup kurangi:\n\n| umask | File baru | Folder baru | Dipakai di |\n|---|---|---|---|\n| `0022` | `644` `-rw-r--r--` | `755` `drwxr-xr-x` | WSL Ubuntu, contoh di kelas ini |\n| `0002` | `664` `-rw-rw-r--` | `775` `drwxrwxr-x` | user biasa di Ubuntu desktop/server |\n| `0077` | `600` `-rw-------` | `700` `drwx------` | kalau ingin semua file baru pribadi |\n\nAngka `0` di depan bisa diabaikan untuk saat ini. Ketik `umask` untuk melihat nilainya, atau `umask 077` untuk mengubahnya. Perubahan itu hanya berlaku di terminal tersebut sampai terminal ditutup. umask hanya memengaruhi file **baru**, file lama tidak berubah.\n\nDi contoh berikut ada tanda `;` yang memisahkan beberapa perintah dalam satu baris. Bash menjalankannya berurutan dari kiri ke kanan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDi folder home Budi ada `catatan.txt`. Budi mencoba mengganti pemilik dan grupnya tanpa sudo, lalu mengecek umask dan membuat beberapa file serta folder baru.\n\n```bash\nls -l catatan.txt\nchown root catatan.txt\nchgrp root catatan.txt\numask\ntouch baru.txt\nmkdir folder-baru\numask 077; touch rahasia.txt; mkdir pribadi\nls -l\n```\n\nHasilnya:\n\n```text\n$ ls -l catatan.txt\n-rw-r--r-- 1 budi budi 12 Sep  1 09:00 catatan.txt\n$ chown root catatan.txt\nchown: changing ownership of 'catatan.txt': Operation not permitted\n$ chgrp root catatan.txt\nchgrp: changing group of 'catatan.txt': Operation not permitted\n$ umask\n0022\n$ touch baru.txt\n$ mkdir folder-baru\n$ umask 077; touch rahasia.txt; mkdir pribadi\n$ ls -l\ntotal 12\n-rw-r--r-- 1 budi budi    0 Sep  1 09:00 baru.txt\n-rw-r--r-- 1 budi budi   12 Sep  1 09:00 catatan.txt\ndrwxr-xr-x 2 budi budi 4096 Sep  1 09:00 folder-baru\ndrwx------ 2 budi budi 4096 Sep  1 09:00 pribadi\n-rw------- 1 budi budi    0 Sep  1 09:00 rahasia.txt\n```\n\n- Tanpa sudo, `chown` dan `chgrp` ke `root` ditolak `Operation not permitted`.\n- Dengan umask `0022`, `baru.txt` menjadi `rw-r--r--` dan `folder-baru` menjadi `rwxr-xr-x`.\n- Setelah `umask 077`, file dan folder baru hanya bisa dipakai Budi: `rw-------` dan `rwx------`.\n- `catatan.txt` tetap `rw-r--r--` karena umask tidak mengubah file lama.\n\nDi Ubuntu desktop atau server, perintah `umask` untuk user biasa biasanya menjawab `0002`, sehingga file baru menjadi `-rw-rw-r--` dan folder baru `drwxrwxr-x`. Itu aman karena grup utama budi hanya berisi budi sendiri.\n\nDengan sudo, mengganti pemilik berhasil tanpa pesan apa pun. Gambarannya:\n\n```text\nbudi@laptop:~$ sudo chown sari:sari laporan.txt\n[sudo] password for budi:\nbudi@laptop:~$\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menjalankan chown tanpa sudo**\n\nSalah:\n\n```bash\nchown sari laporan.txt\n# chown: changing ownership of 'laporan.txt':\n# Operation not permitted\n```\n\nBenar:\n\n```bash\nsudo chown sari laporan.txt\n```\n\nMengganti pemilik file hanya boleh dilakukan root. Walaupun kamu pemilik file itu, kamu tidak bisa memberikannya ke orang lain tanpa sudo.\n\n**2. Mengira umask berisi izin yang diinginkan**\n\nSalah:\n\n```bash\numask 644\n# maksudnya: file baru -rw-r--r--\n# hasilnya malah: -----w--w-\n```\n\nBenar:\n\n```bash\numask 022\n```\n\numask berisi izin yang DIBUANG, bukan izin yang diberikan. Untuk file baru `644`, buang `022` dari `666`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Budi (bukan root) menjalankan perintah ini pada file miliknya. Apa hasil perintah terakhir?",
+          "code": "# Isi folder saat ini: laporan.txt\nchown root laporan.txt",
+          "options": [
+            "chown: changing ownership of 'laporan.txt': Operation not permitted",
+            "(tidak ada output, pemilik menjadi root)",
+            "chown: laporan.txt: Permission denied",
+            "chown: invalid user: ‘laporan.txt’"
+          ],
+          "answer": 0,
+          "explanation": "Hanya root yang boleh mengganti pemilik file, jadi perintah ini harus memakai `sudo`.",
+          "remedial": "- `sudo chown user file`, `sudo chown user:grup file`, `-R` untuk folder beserta isinya\n- `chgrp grup file` mengganti grup saja\n- Tanpa sudo: `Operation not permitted`\n- umask = izin yang dibuang. File mulai dari 666, folder dari 777\n- 0022 → file 644, folder 755. 0002 (Ubuntu desktop/server) → file 664, folder 775"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "umask 022; touch data.txt\nls -l data.txt",
+          "options": [
+            "-rwxr-xr-x 1 budi budi 0 Sep  1 09:00 data.txt",
+            "-rw-rw-rw- 1 budi budi 0 Sep  1 09:00 data.txt",
+            "-rw-rw-r-- 1 budi budi 0 Sep  1 09:00 data.txt",
+            "-rw-r--r-- 1 budi budi 0 Sep  1 09:00 data.txt"
+          ],
+          "answer": 3,
+          "explanation": "File mulai dari `666`. Dibuang `022`, tinggal `644` = `rw-r--r--`. File yang dibuat dengan `touch` tidak otomatis mendapat `x`.",
+          "remedial": "- `sudo chown user file`, `sudo chown user:grup file`, `-R` untuk folder beserta isinya\n- `chgrp grup file` mengganti grup saja\n- Tanpa sudo: `Operation not permitted`\n- umask = izin yang dibuang. File mulai dari 666, folder dari 777\n- 0022 → file 644, folder 755. 0002 (Ubuntu desktop/server) → file 664, folder 775"
+        },
+        {
+          "question": "Di Ubuntu desktop, umask user biasa adalah `0002`. Izin folder yang baru dibuat dengan `mkdir` adalah...",
+          "options": [
+            "drwxr-xr-x",
+            "drwxrwxr-x",
+            "drwxrwxrwx",
+            "drwx------"
+          ],
+          "answer": 1,
+          "explanation": "Folder mulai dari `777`. Dibuang `002`, tinggal `775` = `rwxrwxr-x`.",
+          "remedial": "- `sudo chown user file`, `sudo chown user:grup file`, `-R` untuk folder beserta isinya\n- `chgrp grup file` mengganti grup saja\n- Tanpa sudo: `Operation not permitted`\n- umask = izin yang dibuang. File mulai dari 666, folder dari 777\n- 0022 → file 644, folder 755. 0002 (Ubuntu desktop/server) → file 664, folder 775"
+        },
+        {
+          "question": "Perintah untuk menjadikan `sari` sebagai pemilik DAN `dev` sebagai grup file `laporan.txt` adalah...",
+          "options": [
+            "sudo chown laporan.txt sari:dev",
+            "sudo chgrp sari:dev laporan.txt",
+            "sudo chown sari:dev laporan.txt",
+            "chmod sari:dev laporan.txt"
+          ],
+          "answer": 2,
+          "explanation": "Bentuknya `chown user:grup file`. `chgrp` hanya mengganti grup, dan `chmod` mengubah izin, bukan pemilik.",
+          "remedial": "- `sudo chown user file`, `sudo chown user:grup file`, `-R` untuk folder beserta isinya\n- `chgrp grup file` mengganti grup saja\n- Tanpa sudo: `Operation not permitted`\n- umask = izin yang dibuang. File mulai dari 666, folder dari 777\n- 0022 → file 644, folder 755. 0002 (Ubuntu desktop/server) → file 664, folder 775"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "umask 027; mkdir bersama\nls -ld bersama",
+      "options": [
+        "drwxr-xr-x 2 budi budi 4096 Sep  1 09:00 bersama",
+        "drwxr-x--- 2 budi budi 4096 Sep  1 09:00 bersama",
+        "drwx------ 2 budi budi 4096 Sep  1 09:00 bersama",
+        "drw-r----- 2 budi budi 4096 Sep  1 09:00 bersama"
+      ],
+      "answer": 1,
+      "explanation": "Folder mulai dari `777`. Dibuang `027`, tinggal `750` = `rwxr-x---`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Jadikan budi pemilik folder proyek beserta SELURUH isinya\nsudo chown ___ budi:budi proyek",
+      "answers": [
+        "-R|--recursive"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "chown mengganti pemilik (user:grup sekaligus), chgrp mengganti grup.",
+        "Mengganti pemilik butuh sudo; tanpa sudo muncul Operation not permitted.",
+        "sudo chown -R budi:budi folder memperbaiki folder beserta seluruh isinya.",
+        "umask berisi izin yang dibuang dari file baru (mulai 666) dan folder baru (mulai 777).",
+        "umask 0022 → file 644, folder 755; Ubuntu desktop/server memakai 0002 → file 664, folder 775."
+      ]
+    }
+  ]
+}

@@ -65,9 +65,9 @@ describe('statusKartu', () => {
 
   it('Linux sudah dibuka: bagian yang belum ada tampil segera', () => {
     const n = jumlahModulTersedia('linux');
-    expect(n).toBe(4);
-    expect(statusKartu({ kelas: 'linux' })).toMatchObject({ jenis: 'tersedia', teks: 'Tersedia · 4 modul', url: '/kelas/linux' });
-    expect(statusKartu({ kelas: 'linux', sebagian: 'server segera' })).toMatchObject({ jenis: 'sebagian', teks: '4 modul · server segera' });
+    expect(n).toBe(8);
+    expect(statusKartu({ kelas: 'linux' })).toMatchObject({ jenis: 'tersedia', teks: 'Tersedia · 8 modul', url: '/kelas/linux' });
+    expect(statusKartu({ kelas: 'linux', sebagian: 'server segera' })).toMatchObject({ jenis: 'sebagian', teks: '8 modul · server segera' });
     const lanjutan = statusKartu({ kelas: 'linux', nama: 'Linux Lanjutan', segera: true });
     expect(lanjutan).toMatchObject({ jenis: 'segera', teks: 'Segera hadir', nama: 'Linux Lanjutan' });
     expect(lanjutan.url).toBeUndefined();

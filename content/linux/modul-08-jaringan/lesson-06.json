@@ -1,0 +1,111 @@
+{
+  "id": "linux-jaringan-06",
+  "moduleId": "linux-jaringan",
+  "order": 6,
+  "title": "Melihat Port yang Terbuka dengan ss",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sebuah program yang siap menerima koneksi dari jaringan disebut sedang **mendengarkan** (*listen*) di sebuah port. Contohnya web server yang menunggu di port 80, atau SSH yang menunggu di port 22. Port seperti itu disebut port yang **terbuka**.\n\nPerintah **`ss`** (*socket statistics*) menampilkan daftar port itu. Dengan `ss`, kamu bisa memastikan web server benar-benar berjalan, atau mengecek apakah database tanpa sengaja bisa diakses dari luar. Perintah lama dengan fungsi serupa adalah `netstat`, yang sudah usang.\n\nBayangkan satpam gedung yang memegang daftar kamar yang pintunya sedang dibuka untuk tamu: \"Kamar 80 siap menerima tamu dari mana saja. Kamar 3306 hanya menerima tamu dari dalam gedung.\" `ss` adalah daftar milik satpam itu."
+    },
+    {
+      "type": "theory",
+      "content": "**TCP** dan **UDP** adalah dua cara mengirim data. TCP memastikan setiap data sampai (seperti paket dengan tanda terima), UDP mengirim cepat tanpa tanda terima.\n\nPerintah yang paling sering dipakai: **`ss -tuln`**. Opsinya:\n\n| Opsi | Artinya |\n|---|---|\n| `-t` | TCP (dipakai web, SSH, database) |\n| `-u` | UDP (dipakai antara lain oleh DNS) |\n| `-l` | hanya yang sedang mendengarkan (*listening*) |\n| `-n` | tampilkan angka port, bukan nama (`80`, bukan `http`) |\n| `-p` | tampilkan nama program pemilik port |\n\n**Cara membaca kolomnya:**\n\n- `Netid` = `tcp` atau `udp`.\n- `State` = `LISTEN` berarti menunggu koneksi (untuk UDP tertulis `UNCONN`).\n- `Local Address:Port` = alamat dan port tempat program menunggu. Ini kolom terpenting.\n- `Peer Address:Port` = lawan bicara; untuk port yang menunggu isinya `0.0.0.0:*` (siapa saja).\n\n**Arti alamat di kolom Local Address:**\n\n| Alamat | Artinya |\n|---|---|\n| `0.0.0.0:80` | menerima dari semua alamat, termasuk komputer lain |\n| `127.0.0.1:3306` | hanya menerima dari komputer itu sendiri |\n| `127.0.0.53%lo:53` | layanan DNS lokal Ubuntu |\n\nDi komputer asli sering muncul juga baris dengan alamat `[::]`, yaitu versi IPv6 dari `0.0.0.0`.\n\n**Nama program.** Kolom `Process` kosong di `ss -tuln`. Tambahkan `-p` dan `sudo` (`sudo ss -tulpn`) supaya kolom itu terisi nama program dan PID-nya. Tanpa `sudo`, nama program milik user lain tidak ditampilkan.\n\nHasil `ss` bisa disaring dengan `grep` dari modul 4, misalnya `ss -tuln | grep :80`. Ingat juga `grep -v`, yang menampilkan baris yang **tidak** mengandung kata yang dicari."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi memeriksa port yang terbuka di laptopnya yang sudah terpasang Nginx (web server), OpenSSH server, dan MySQL. Yang ditampilkan hanya sebagian baris. Di Ubuntu asli juga ada baris `127.0.0.54:53` (bagian dari layanan DNS lokal) dan baris beralamat `[::]` (IPv6). Angka dan daftar port di komputermu bisa berbeda.\n\n```text\nbudi@laptop:~$ ss -tuln\nNetid State  Recv-Q Send-Q Local Address:Port  Peer Address:Port Process\nudp   UNCONN 0      0      127.0.0.53%lo:53         0.0.0.0:*\ntcp   LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*\ntcp   LISTEN 0      511          0.0.0.0:80         0.0.0.0:*\ntcp   LISTEN 0      4096         0.0.0.0:22         0.0.0.0:*\ntcp   LISTEN 0      151        127.0.0.1:3306       0.0.0.0:*\n```\n\n- Dua baris port `53` di `127.0.0.53` adalah layanan DNS lokal Ubuntu (UDP dan TCP).\n- `0.0.0.0:80` = Nginx menunggu di port 80 dan bisa diakses dari komputer lain.\n- `0.0.0.0:22` = SSH server menunggu di port 22, juga bisa diakses dari luar.\n- `127.0.0.1:3306` = MySQL hanya menerima koneksi dari laptop itu sendiri. Untuk database, ini justru yang aman.\n- Kolom `Process` kosong. Dengan `sudo ss -tulpn`, kolom itu menampilkan nama program (misalnya `nginx`) dan PID-nya.\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa -l saat mencari port yang terbuka**\n\nSalah:\n\n```bash\nss -tun\n# yang tampil koneksi yang sedang berjalan,\n# bukan port yang menunggu\n```\n\nBenar:\n\n```bash\nss -tuln\n```\n\nTanpa `-l`, `ss` menampilkan koneksi yang sedang tersambung, bukan port yang sedang menunggu. Untuk melihat port terbuka, pakai `-l`.\n\n**2. Membiarkan database terbuka ke luar**\n\nSalah:\n\n```text\ntcp LISTEN 0 151 0.0.0.0:3306 0.0.0.0:*\n# \"aman-aman saja\"\n```\n\nBenar:\n\n```text\ntcp LISTEN 0 151 127.0.0.1:3306 0.0.0.0:*\n# hanya bisa diakses dari server itu sendiri\n```\n\nDatabase yang mendengarkan di `0.0.0.0` bisa dicoba diakses dari luar. Kalau tidak perlu diakses komputer lain, database sebaiknya hanya mendengarkan di `127.0.0.1`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pada `ss -tuln`, opsi `-l` berarti...",
+          "options": [
+            "hanya tampilkan port yang sedang menunggu koneksi (listening)",
+            "tampilkan dalam bentuk panjang",
+            "tampilkan log",
+            "batasi 10 baris"
+          ],
+          "answer": 0,
+          "explanation": "`-l` = *listening*. Tanpa `-l`, yang tampil adalah koneksi yang sedang tersambung.",
+          "remedial": "- `ss -tuln`: port TCP dan UDP yang sedang menunggu, ditampilkan dalam angka\n- `-t` TCP, `-u` UDP, `-l` listening, `-n` angka, `-p` nama program\n- `LISTEN` = menunggu koneksi; kolom terpenting: Local Address:Port\n- `0.0.0.0` = bisa dari luar, `127.0.0.1` = hanya dari komputer itu sendiri\n- `sudo ss -tulpn` untuk melihat nama program"
+        },
+        {
+          "question": "Apa arti baris ini?",
+          "code": "# Satu baris output ss -tuln:\ntcp   LISTEN 0      151        127.0.0.1:3306       0.0.0.0:*",
+          "options": [
+            "MySQL bisa diakses dari komputer mana saja",
+            "Port 3306 sedang diblokir",
+            "Program di port 3306 hanya menerima koneksi dari komputer itu sendiri",
+            "Ada 151 orang yang tersambung ke MySQL"
+          ],
+          "answer": 2,
+          "explanation": "`127.0.0.1` di kolom Local Address berarti hanya menerima dari komputer itu sendiri. Port 3306 biasanya MySQL.",
+          "remedial": "- `ss -tuln`: port TCP dan UDP yang sedang menunggu, ditampilkan dalam angka\n- `-t` TCP, `-u` UDP, `-l` listening, `-n` angka, `-p` nama program\n- `LISTEN` = menunggu koneksi; kolom terpenting: Local Address:Port\n- `0.0.0.0` = bisa dari luar, `127.0.0.1` = hanya dari komputer itu sendiri\n- `sudo ss -tulpn` untuk melihat nama program"
+        },
+        {
+          "question": "Tanpa opsi `-n`, kolom port di `ss` bisa tertulis `http` atau `ssh`. Dengan `-n`, kolom itu tertulis...",
+          "options": [
+            "nama program",
+            "angka port, misalnya 80 dan 22",
+            "nama user pemilik",
+            "IP publik"
+          ],
+          "answer": 1,
+          "explanation": "`-n` (*numeric*) menampilkan angka, bukan nama layanan.",
+          "remedial": "- `ss -tuln`: port TCP dan UDP yang sedang menunggu, ditampilkan dalam angka\n- `-t` TCP, `-u` UDP, `-l` listening, `-n` angka, `-p` nama program\n- `LISTEN` = menunggu koneksi; kolom terpenting: Local Address:Port\n- `0.0.0.0` = bisa dari luar, `127.0.0.1` = hanya dari komputer itu sendiri\n- `sudo ss -tulpn` untuk melihat nama program"
+        },
+        {
+          "question": "Kolom `Process` di `ss -tuln` kosong. Perintah supaya terlihat nama program pemilik setiap port adalah...",
+          "options": [
+            "ss -tuln --all",
+            "ss -tun",
+            "ss -l",
+            "sudo ss -tulpn"
+          ],
+          "answer": 3,
+          "explanation": "`-p` menampilkan program, dan `sudo` dibutuhkan supaya program milik user lain (mis. root) ikut terlihat.",
+          "remedial": "- `ss -tuln`: port TCP dan UDP yang sedang menunggu, ditampilkan dalam angka\n- `-t` TCP, `-u` UDP, `-l` listening, `-n` angka, `-p` nama program\n- `LISTEN` = menunggu koneksi; kolom terpenting: Local Address:Port\n- `0.0.0.0` = bisa dari luar, `127.0.0.1` = hanya dari komputer itu sendiri\n- `sudo ss -tulpn` untuk melihat nama program"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Budi menyimpan hasil `ss -tuln` ke file `ss.txt`. `grep -v` menampilkan baris yang TIDAK mengandung kata yang dicari. Apa hasil perintah terakhir?",
+      "code": "# Isi file ss.txt:\n#   Netid State  Recv-Q Send-Q Local Address:Port  Peer Address:Port Process\n#   udp   UNCONN 0      0      127.0.0.53%lo:53         0.0.0.0:*\n#   tcp   LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*\n#   tcp   LISTEN 0      511          0.0.0.0:80         0.0.0.0:*\n#   tcp   LISTEN 0      4096         0.0.0.0:22         0.0.0.0:*\n#   tcp   LISTEN 0      151        127.0.0.1:3306       0.0.0.0:*\ngrep LISTEN ss.txt | grep -v 127.0.0",
+      "options": [
+        "tcp   LISTEN 0      511          0.0.0.0:80         0.0.0.0:*\ntcp   LISTEN 0      4096         0.0.0.0:22         0.0.0.0:*",
+        "tcp   LISTEN 0      151        127.0.0.1:3306       0.0.0.0:*",
+        "tcp   LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*\ntcp   LISTEN 0      511          0.0.0.0:80         0.0.0.0:*\ntcp   LISTEN 0      4096         0.0.0.0:22         0.0.0.0:*\ntcp   LISTEN 0      151        127.0.0.1:3306       0.0.0.0:*",
+        "udp   UNCONN 0      0      127.0.0.53%lo:53         0.0.0.0:*"
+      ],
+      "answer": 0,
+      "explanation": "`grep LISTEN` menyisakan empat baris TCP. `grep -v 127.0.0` membuang yang alamatnya `127.0.0.x`. Yang tersisa adalah port 80 dan 22 di `0.0.0.0`, yaitu port yang bisa diakses dari luar."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan port TCP dan UDP yang sedang menunggu, port berupa angka\nss -tu___",
+      "answers": [
+        "ln|nl"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "ss -tuln menampilkan port TCP dan UDP yang sedang menunggu koneksi, dalam bentuk angka.",
+        "LISTEN berarti ada program yang menunggu di port itu.",
+        "0.0.0.0 berarti bisa diakses dari luar; 127.0.0.1 berarti hanya dari komputer itu sendiri.",
+        "sudo ss -tulpn menampilkan nama program pemilik setiap port.",
+        "Hasil ss bisa disaring dengan grep, misalnya ss -tuln | grep :80."
+      ]
+    }
+  ]
+}
