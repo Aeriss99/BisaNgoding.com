@@ -1,7 +1,6 @@
-import { serve } from "https://deno.land/std@0.192.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
   const jenis = url.searchParams.get("jenis") || "semua";
