@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProgress } from '../context/ProgressContext';
+import { supabase } from '../lib/supabase';
 import {
   Download,
   Upload,
@@ -23,6 +24,36 @@ export default function Profile() {
   const [tampilDialogBelumTersimpan, setTampilDialogBelumTersimpan] = useState(false);
   const [sedangMasuk, setSedangMasuk] = useState(false);
   const navigate = useNavigate();
+  const [notifPengingat, setNotifPengingat] = useState(true);
+  const [notifModul, setNotifModul] = useState(true);
+  const [savingNotif, setSavingNotif] = useState(false);
+
+  useEffect(() => {
+    if (isSupabaseConfigured && user && supabase) {
+      supabase.from("pengaturan_notifikasi").select("streak, modul_baru").eq("user_id", user.id).single().then(({ data }) => {
+        if (data) {
+          setNotifPengingat(data.streak);
+          setNotifModul(data.modul_baru);
+        }
+      });
+    }
+  }, [isSupabaseConfigured, user]);
+
+  const handleNotifChange = async (jenis: "streak" | "modul_baru", value: boolean) => {
+    if (!isSupabaseConfigured || !user || !supabase) return;
+    if (jenis === "streak") setNotifPengingat(value);
+    if (jenis === "modul_baru") setNotifModul(value);
+    setSavingNotif(true);
+    const { error } = await supabase.from("pengaturan_notifikasi").update({ [jenis]: value }).eq("user_id", user.id);
+    if (error) {
+      tampilkanPesan("Gagal menyimpan pengaturan notifikasi");
+      if (jenis === "streak") setNotifPengingat(!value);
+      if (jenis === "modul_baru") setNotifModul(!value);
+    } else {
+      tampilkanPesan("Pengaturan notifikasi disimpan");
+    }
+    setSavingNotif(false);
+  };
 
   const tampilkanPesan = (teks: string, ms = 3000) => {
     setMessage(teks);
@@ -200,6 +231,23 @@ export default function Profile() {
       </section>
 
       <section className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
+      {isSupabaseConfigured && user && (
+        <section className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
+          <h2 className="font-bold border-b pb-2">Notifikasi email</h2>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">Terhubung ke: <b>{user.email}</b></p>
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="font-medium text-gray-700">Pengingat streak harian</span>
+              <input type="checkbox" className="w-5 h-5 accent-[var(--color-primary)]" checked={notifPengingat} onChange={e => handleNotifChange("streak", e.target.checked)} disabled={savingNotif} />
+            </label>
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="font-medium text-gray-700">Info modul baru</span>
+              <input type="checkbox" className="w-5 h-5 accent-[var(--color-primary)]" checked={notifModul} onChange={e => handleNotifChange("modul_baru", e.target.checked)} disabled={savingNotif} />
+            </label>
+          </div>
+        </section>
+      )}
+
         <h2 className="font-bold border-b pb-2">Manajemen Progres</h2>
         <div className="space-y-3">
           {isAdmin && (
