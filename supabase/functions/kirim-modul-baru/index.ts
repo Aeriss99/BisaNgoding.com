@@ -1,11 +1,10 @@
-import { serve } from "https://deno.land/std@0.192.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { SmtpClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { modulBaru, templatModulBaru } from "../_shared/aturan.ts";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.headers.get("x-cron-secret") !== Deno.env.get("CRON_SECRET")) {
     return new Response("Unauthorized", { status: 401 });
   }
@@ -49,7 +48,8 @@ serve(async (req) => {
     .eq("modul_baru", true);
 
   if (error || !users) {
-    return new Response(JSON.stringify({ error: error?.message }), { status: 500 });
+    console.error("Query error:", error);
+    return new Response(JSON.stringify({ error: error?.message || "Query error" }), { status: 500 });
   }
 
   const { data: logSudah } = await supabase
@@ -68,16 +68,19 @@ serve(async (req) => {
     return new Response(JSON.stringify({ dipilih: users.length, terkirim: 0, gagal: 0, selesai: true }));
   }
 
-  const client = new SmtpClient();
-  await client.connectTLS({
-    hostname: "smtp.gmail.com",
-    port: 465,
-    username: gmailUser,
-    password: gmailPassword,
+  const client = new SMTPClient({
+    connection: {
+      hostname: "smtp.gmail.com",
+      port: 465,
+      tls: true,
+      auth: { username: gmailUser, password: gmailPassword }
+    }
   });
 
   let terkirim = 0;
   let gagal = 0;
+  try {
+
 
   for (const u of target) {
     const urlBerhenti = `${funcUrl}?token=${u.token_berhenti}&jenis=modul_baru`;
@@ -111,7 +114,10 @@ serve(async (req) => {
     await sleep(200);
   }
 
-  await client.close();
+
+  } finally {
+    await client.close();
+  }
 
   return new Response(JSON.stringify({ dipilih: users.length, terkirim, gagal }));
 });

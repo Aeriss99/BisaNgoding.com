@@ -1,11 +1,10 @@
-import { serve } from "https://deno.land/std@0.192.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { SmtpClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { tanggalJakarta, perluPengingat, templatPengingat } from "../_shared/aturan.ts";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.headers.get("x-cron-secret") !== Deno.env.get("CRON_SECRET")) {
     return new Response("Unauthorized", { status: 401 });
   }
@@ -24,17 +23,40 @@ serve(async (req) => {
 
   const { data: users, error } = await supabase
     .from("pengaturan_notifikasi")
-    .select("user_id, email, nama, token_berhenti, auth_users:user_id(progres(data))")
+    .select("user_id, email, nama, token_berhenti")
     .eq("streak", true);
 
   if (error || !users) {
-    return new Response(JSON.stringify({ error: error?.message }), { status: 500 });
+    console.error("Query pengaturan_notifikasi error:", error);
+    return new Response(JSON.stringify({ error: error?.message || "Query error" }), { status: 500 });
+  }
+
+  const progresMap = new Map();
+  const allUserIds = users.map((u: any) => u.user_id);
+  
+  for (let i = 0; i < allUserIds.length; i += 200) {
+    const chunk = allUserIds.slice(i, i + 200);
+    const { data: progData, error: progErr } = await supabase
+      .from("progres")
+      .select("user_id, data")
+      .in("user_id", chunk);
+      
+    if (progErr) {
+      console.error("Query progres error:", progErr);
+      return new Response(JSON.stringify({ error: progErr.message }), { status: 500 });
+    }
+    
+    if (progData) {
+      for (const p of progData) {
+        progresMap.set(p.user_id, p.data);
+      }
+    }
   }
 
   const yangButuh = users.filter((u: any) => {
-    const progresArr = u.auth_users?.progres;
-    if (!progresArr || progresArr.length === 0) return false;
-    const progData = progresArr[0].data;
+    const progData = progresMap.get(u.user_id);
+    if (!progData) return false;
+    u.progData = progData;
     return perluPengingat(progData, hariIni);
   });
 
@@ -51,20 +73,22 @@ serve(async (req) => {
     return new Response(JSON.stringify({ dipilih: yangButuh.length, terkirim: 0, gagal: 0 }));
   }
 
-  const client = new SmtpClient();
-  await client.connectTLS({
-    hostname: "smtp.gmail.com",
-    port: 465,
-    username: gmailUser,
-    password: gmailPassword,
+  const client = new SMTPClient({
+    connection: {
+      hostname: "smtp.gmail.com",
+      port: 465,
+      tls: true,
+      auth: { username: gmailUser, password: gmailPassword }
+    }
   });
 
   let terkirim = 0;
   let gagal = 0;
+  try {
+
 
   for (const u of target) {
-    const progresArr = u.auth_users?.progres;
-    const progData = progresArr[0].data;
+    const progData = u.progData;
     const urlBerhenti = `${funcUrl}?token=${u.token_berhenti}&jenis=streak`;
     const t = templatPengingat(u.nama, progData.streak, urlSitus, urlBerhenti);
 
@@ -96,7 +120,10 @@ serve(async (req) => {
     await sleep(200); // Jedaa kecil
   }
 
-  await client.close();
+
+  } finally {
+    await client.close();
+  }
 
   return new Response(JSON.stringify({ dipilih: yangButuh.length, terkirim, gagal }));
 });
