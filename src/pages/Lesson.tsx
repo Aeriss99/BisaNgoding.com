@@ -282,7 +282,7 @@ export default function LessonPage() {
                   }
                   return (
                     <code
-                      className="font-mono bg-[var(--color-primary-light)] text-[var(--color-text-main)] px-1.5 py-px border border-[var(--color-text-main)] rounded"
+                      className="font-mono bg-[var(--color-primary-light)] text-[var(--color-text-main)] px-1.5 py-px border border-[var(--color-text-main)] rounded [overflow-wrap:anywhere]"
                       {...props}
                     >
                       {children}

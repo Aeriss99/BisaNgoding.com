@@ -1,0 +1,110 @@
+{
+  "id": "linux-proses-04",
+  "moduleId": "linux-proses",
+  "order": 4,
+  "title": "Menghentikan Proses dengan kill",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kadang program macet, atau berjalan jauh lebih lama dari yang kamu mau. Untuk menghentikannya ada perintah `kill`.\n\nWalaupun namanya \"kill\" (bunuh), `kill` sebenarnya **mengirim sinyal** (*signal*) ke sebuah proses. Sinyal adalah pesan singkat dari sistem ke proses. Sinyal bawaan `kill` artinya \"tolong berhenti\".\n\nBentuk dasarnya:\n\n```bash\nkill PID\n```\n\nKalau berhasil, `kill` tidak menampilkan apa-apa.\n\nBayangkan manajer restoran dan seorang koki. **SIGTERM** itu seperti berkata, \"Tolong selesaikan pekerjaanmu, rapikan meja, lalu pulang.\" **SIGKILL** itu seperti mematikan listrik dapur: koki berhenti seketika, masakan setengah matang dibiarkan berantakan. **Ctrl+C** (SIGINT) seperti pelanggan berseru, \"Batal!\" ke koki yang sedang memasak di depannya."
+    },
+    {
+      "type": "theory",
+      "content": "Sinyal yang perlu kamu kenal:\n\n| Sinyal | Nomor | Artinya |\n|---|---|---|\n| `SIGTERM` | 15 | minta berhenti baik-baik (**bawaan** `kill`) |\n| `SIGKILL` | 9 | paksa berhenti seketika, tidak bisa ditolak |\n| `SIGINT` | 2 | interupsi, sama dengan menekan Ctrl+C |\n| `SIGHUP` | 1 | dikirim saat terminal ditutup atau koneksi terputus |\n\nPerintahnya:\n\n| Perintah | Artinya |\n|---|---|\n| `kill 4123` | kirim SIGTERM ke PID 4123 |\n| `kill -9 4123` | kirim SIGKILL (sama dengan `kill -KILL 4123`) |\n| `pkill python3` | kirim SIGTERM ke semua proses yang namanya **mengandung** `python3` |\n| `killall python3` | kirim SIGTERM ke semua proses yang namanya **persis** `python3` |\n| `kill -l` | daftar semua sinyal |\n\n**Kenapa SIGTERM dulu?** Dengan SIGTERM, program masih sempat menyimpan data dan merapikan diri. SIGKILL langsung memutusnya, sehingga file yang sedang ditulis bisa rusak. Urutan yang baik:\n\n1. `kill PID`\n2. tunggu beberapa detik, lalu cek apakah prosesnya masih ada (misalnya dengan `pgrep`)\n3. kalau masih ada, baru `kill -9 PID`\n\n**Pesan error.** Kalau PID itu tidak ada (sudah selesai atau salah ketik):\n\n```text\nbash: kill: (999999) - No such process\n```\n\n**Hanya milik sendiri.** Tanpa sudo, kamu hanya bisa menghentikan proses milikmu sendiri. Proses milik user lain atau milik `root` (misalnya proses utama Nginx) ditolak dengan pesan bahwa operasi itu tidak diizinkan. Untuk itu perlu `sudo kill PID`, dan untuk service lebih baik memakai `systemctl` (pelajaran 6).\n\n**Hati-hati dengan `pkill`.** `pkill py` mengenai semua proses yang namanya mengandung `py`. Pratinjau dulu dengan `pgrep -a` memakai pola yang sama, mirip kebiasaan `echo` sebelum `rm`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi menjalankan `python3 hitung.py` di terminal lain, dan programnya macet. Ia membuka terminal baru untuk menghentikannya. Angka PID di komputermu bisa berbeda.\n\n```text\n$ pgrep python3\n4123\n$ kill 4123\n$ pgrep python3\n$ kill 4123\nbash: kill: (4123) - No such process\n```\n\n- `pgrep python3` menemukan PID-nya: 4123.\n- `kill 4123` mengirim SIGTERM. Tidak ada pesan apa-apa, itu normal.\n- `pgrep python3` yang kedua tidak menampilkan apa-apa: prosesnya sudah berhenti.\n- `kill 4123` yang kedua gagal karena proses itu sudah tidak ada.\n\nKalau setelah `kill 4123` prosesnya masih ada, barulah Budi memakai `kill -9 4123`.\n\nDaftar sinyal bisa dilihat dengan `kill -l` (sebagian baris):\n\n```text\n$ kill -l\n 1) SIGHUP       2) SIGINT       3) SIGQUIT      4) SIGILL       5) SIGTRAP\n 6) SIGABRT      7) SIGBUS       8) SIGFPE       9) SIGKILL     10) SIGUSR1\n11) SIGSEGV     12) SIGUSR2     13) SIGPIPE     14) SIGALRM     15) SIGTERM\n```\n\nAngka di depan nama sinyal itulah yang dipakai di `kill -9` atau `kill -15`.\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Langsung memakai kill -9**\n\nSalah:\n\n```bash\nkill -9 4123\n```\n\nBenar:\n\n```bash\nkill 4123\n# tunggu beberapa detik, lalu cek\npgrep python3\n# masih ada? baru:\nkill -9 4123\n```\n\nSIGKILL tidak memberi kesempatan program menyimpan data. Mulai dari SIGTERM, dan pakai `-9` hanya sebagai pilihan terakhir.\n\n**2. Memakai pkill dengan nama terlalu pendek**\n\nSalah:\n\n```bash\npkill py\n```\n\nBenar:\n\n```bash\npgrep -a py\n# lihat dulu daftarnya, lalu sebut nama lengkap\npkill python3\n```\n\n`pkill` mengenai semua proses yang namanya mengandung pola itu. Cek dulu dengan `pgrep -a` supaya tidak ada proses lain yang ikut terhenti.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Sinyal apa yang dikirim oleh `kill 4123` (tanpa opsi)?",
+          "options": [
+            "SIGKILL (9)",
+            "SIGINT (2)",
+            "SIGHUP (1)",
+            "SIGTERM (15)"
+          ],
+          "answer": 3,
+          "explanation": "Tanpa opsi, `kill` mengirim SIGTERM: minta berhenti baik-baik.",
+          "remedial": "- `kill PID` mengirim SIGTERM (15): minta berhenti baik-baik\n- `kill -9 PID` mengirim SIGKILL: paksa, pilihan terakhir\n- Ctrl+C = SIGINT (2)\n- `pkill nama` = nama mengandung pola, `killall nama` = nama persis\n- `No such process` = PID tidak ada. Proses milik user lain butuh sudo"
+        },
+        {
+          "question": "Kapan sebaiknya memakai `kill -9`?",
+          "options": [
+            "Setiap kali ingin menghentikan proses, supaya pasti",
+            "Saat proses tidak mau berhenti dengan kill biasa",
+            "Saat ingin menghentikan proses sementara saja",
+            "Saat ingin melihat daftar sinyal"
+          ],
+          "answer": 1,
+          "explanation": "SIGKILL memutus proses tanpa kesempatan menyimpan data, jadi dipakai sebagai pilihan terakhir.",
+          "remedial": "- `kill PID` mengirim SIGTERM (15): minta berhenti baik-baik\n- `kill -9 PID` mengirim SIGKILL: paksa, pilihan terakhir\n- Ctrl+C = SIGINT (2)\n- `pkill nama` = nama mengandung pola, `killall nama` = nama persis\n- `No such process` = PID tidak ada. Proses milik user lain butuh sudo"
+        },
+        {
+          "question": "Menekan Ctrl+C saat sebuah perintah berjalan di latar depan sama dengan mengirim sinyal...",
+          "options": [
+            "SIGINT",
+            "SIGKILL",
+            "SIGTERM",
+            "SIGHUP"
+          ],
+          "answer": 0,
+          "explanation": "Ctrl+C mengirim SIGINT (nomor 2), sinyal interupsi.",
+          "remedial": "- `kill PID` mengirim SIGTERM (15): minta berhenti baik-baik\n- `kill -9 PID` mengirim SIGKILL: paksa, pilihan terakhir\n- Ctrl+C = SIGINT (2)\n- `pkill nama` = nama mengandung pola, `killall nama` = nama persis\n- `No such process` = PID tidak ada. Proses milik user lain butuh sudo"
+        },
+        {
+          "question": "Budi (user biasa, tanpa sudo) menjalankan `kill` pada PID proses utama Nginx yang dimiliki `root`. Apa yang terjadi?",
+          "options": [
+            "Nginx berhenti seperti biasa",
+            "Komputer langsung restart",
+            "Ditolak, karena proses itu bukan milik Budi",
+            "Proses Nginx pindah menjadi milik Budi"
+          ],
+          "answer": 2,
+          "explanation": "Tanpa sudo, kamu hanya boleh mengirim sinyal ke proses milikmu sendiri.",
+          "remedial": "- `kill PID` mengirim SIGTERM (15): minta berhenti baik-baik\n- `kill -9 PID` mengirim SIGKILL: paksa, pilihan terakhir\n- Ctrl+C = SIGINT (2)\n- `pkill nama` = nama mengandung pola, `killall nama` = nama persis\n- `No such process` = PID tidak ada. Proses milik user lain butuh sudo"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Proses 4123 sudah berhenti setelah perintah pertama. Apa yang tampil setelah perintah kedua?",
+      "code": "$ kill 4123\n$ kill 4123",
+      "options": [
+        "(tidak ada output)",
+        "Terminated",
+        "bash: kill: (4123) - No such process",
+        "kill: proses 4123 sudah dihentikan"
+      ],
+      "answer": 2,
+      "explanation": "Proses 4123 sudah tidak ada, jadi `kill` melapor `No such process`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Hentikan paksa proses 4123 (pilihan terakhir)\nkill ___ 4123",
+      "answers": [
+        "-9|-KILL|-SIGKILL|-s KILL|-s 9|-s SIGKILL"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "kill mengirim sinyal ke proses; tanpa opsi yang dikirim adalah SIGTERM (15).",
+        "SIGKILL (kill -9) memaksa berhenti seketika, jadi pakai sebagai pilihan terakhir.",
+        "Ctrl+C mengirim SIGINT ke proses di latar depan.",
+        "pkill memakai pola nama, killall memakai nama persis; pratinjau dengan pgrep -a.",
+        "Tanpa sudo hanya proses milik sendiri yang bisa dihentikan; PID yang tidak ada menghasilkan No such process."
+      ]
+    }
+  ]
+}

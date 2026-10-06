@@ -1,0 +1,110 @@
+{
+  "id": "linux-proses-07",
+  "moduleId": "linux-proses",
+  "order": 7,
+  "title": "Membaca Log dengan journalctl",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Service berjalan di belakang layar, tanpa jendela. Kalau ada masalah, misalnya Nginx gagal menyala, di mana kita melihat pesannya?\n\nJawabannya di **log**: catatan kejadian yang ditulis terus-menerus oleh sistem dan program. Di Ubuntu, systemd mengumpulkan log semua service di satu tempat yang disebut **journal**. Untuk membacanya, pakai `journalctl`.\n\nLog itu seperti buku catatan satpam gedung. Setiap kejadian ditulis lengkap dengan jam dan siapa yang terlibat: \"09.00 lampu lobi dinyalakan\", \"09.01 lift 2 macet\". Saat ada masalah, manajer tidak perlu menebak, cukup membaca buku catatannya."
+    },
+    {
+      "type": "theory",
+      "content": "Satu baris log terdiri dari:\n\n```text\nSep 01 09:00:12 laptop systemd[1]: Started nginx.service - ...\n```\n\n| Bagian | Artinya |\n|---|---|\n| `Sep 01 09:00:12` | tanggal dan jam kejadian |\n| `laptop` | nama komputer |\n| `systemd[1]` | program yang menulis, dan PID-nya |\n| sisanya | pesannya |\n\nOpsi `journalctl` yang paling sering dipakai:\n\n| Perintah | Artinya |\n|---|---|\n| `journalctl -u nginx` | log satu service saja (`-u` = *unit*, sebutan systemd untuk service) |\n| `journalctl -u nginx -n 20` | 20 baris terakhir |\n| `journalctl -u nginx -f` | ikuti terus baris baru; Ctrl+C untuk berhenti |\n| `journalctl --since today` | log sejak hari ini pukul 00.00 |\n| `journalctl -p err` | hanya pesan error (dan yang lebih parah) |\n| `journalctl -b` | sejak komputer terakhir dinyalakan |\n\nOpsi boleh digabung: `journalctl -u nginx --since today -p err`.\n\n- Log lama ada di atas, yang terbaru di bawah. Kalau panjang, tampilannya dibuka seperti `less`: gulir dengan panah, tekan `q` untuk keluar.\n- `-f` mirip `tail -f`: layar menunggu dan menampilkan setiap baris baru yang masuk.\n- Tingkat pesan dari yang paling parah: `emerg`, `alert`, `crit`, `err`, `warning`, `notice`, `info`, `debug`. `-p err` menampilkan `err` dan semua yang lebih parah.\n- User pertama di Ubuntu biasanya masuk group `adm`, sehingga boleh membaca log sistem. User lain mungkin hanya melihat log miliknya sendiri; tambahkan `sudo` kalau perlu.\n\n**File log biasa.** Selain journal, Ubuntu juga menyimpan log berbentuk file teks di `/var/log/`:\n\n| File | Isinya |\n|---|---|\n| `/var/log/syslog` | log sistem secara umum |\n| `/var/log/nginx/access.log` | setiap permintaan halaman ke Nginx |\n| `/var/log/nginx/error.log` | pesan error Nginx |\n\nKarena berupa teks, perintah dari modul sebelumnya langsung bisa dipakai: `tail -n 20 /var/log/syslog`, `tail -f /var/log/nginx/error.log`, atau `grep -i error /var/log/syslog`. Output `journalctl` juga bisa disaring lewat pipe, misalnya `journalctl -u nginx | grep Started`, atau disimpan ke file dengan `>`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Log satu service.** Gambaran layar di Ubuntu (tanggal dan jam di komputermu bisa berbeda):\n\n```text\n$ journalctl -u nginx\nSep 01 09:00:12 laptop systemd[1]: Starting nginx.service - A high performance web server and a reverse proxy server...\nSep 01 09:00:12 laptop systemd[1]: Started nginx.service - A high performance web server and a reverse proxy server.\n```\n\nPada 1 September pukul 09:00:12, systemd (PID 1) mulai menyalakan Nginx (`Starting ...`), lalu Nginx berhasil menyala (`Started ...`).\n\n**2. Menyaring log yang disimpan.** Budi menyimpan sebagian log hari ini ke file `hari-ini.txt` dengan `journalctl --since today > hari-ini.txt`, lalu memotongnya menjadi empat baris. Sekarang ia membacanya dengan perintah dari modul sebelumnya.\n\n```bash\ncat hari-ini.txt\ngrep mysql hari-ini.txt\nwc -l hari-ini.txt\n```\n\nHasilnya:\n\n```text\n$ cat hari-ini.txt\nSep 01 09:00:12 laptop systemd[1]: Starting nginx.service - A high performance web server and a reverse proxy server...\nSep 01 09:00:12 laptop systemd[1]: Started nginx.service - A high performance web server and a reverse proxy server.\nSep 01 09:00:13 laptop systemd[1]: Starting mysql.service - MySQL Community Server...\nSep 01 09:00:15 laptop systemd[1]: Started mysql.service - MySQL Community Server.\n$ grep mysql hari-ini.txt\nSep 01 09:00:13 laptop systemd[1]: Starting mysql.service - MySQL Community Server...\nSep 01 09:00:15 laptop systemd[1]: Started mysql.service - MySQL Community Server.\n$ wc -l hari-ini.txt\n4 hari-ini.txt\n```\n\n- Log hari ini berisi dua service yang dinyalakan saat komputer menyala: Nginx dan MySQL.\n- `grep mysql` hanya menyisakan baris tentang MySQL: mulai dinyalakan pukul 09:00:13, berhasil pukul 09:00:15.\n- Di komputer sungguhan, log satu hari bisa ribuan baris, jadi `grep`, `tail`, dan `wc` sangat membantu."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membaca seluruh journal tanpa menyaring**\n\nSalah:\n\n```bash\njournalctl\n# ribuan baris dari semua program, sulit dicari\n```\n\nBenar:\n\n```bash\njournalctl -u nginx --since today\n```\n\nJournal berisi log seluruh sistem. Persempit dengan `-u` (satu service), `--since` (waktu), `-n` (jumlah baris), atau `-p err` (hanya error).\n\n**2. Lupa menghentikan journalctl -f**\n\nSalah:\n\n```bash\njournalctl -u nginx -f\n# menunggu prompt kembali sendiri...\n```\n\nBenar:\n\n```bash\njournalctl -u nginx -f\n# tekan Ctrl+C kalau sudah selesai mengamati\n```\n\n`-f` terus menunggu baris baru dan tidak pernah selesai sendiri. Ctrl+C menghentikannya.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti `journalctl -u nginx -n 20`?",
+          "options": [
+            "Tampilkan 20 baris log terakhir dari service nginx",
+            "Tampilkan log nginx selama 20 menit terakhir",
+            "Tampilkan 20 baris pertama dari semua log",
+            "Ikuti terus log nginx selama 20 detik"
+          ],
+          "answer": 0,
+          "explanation": "`-u nginx` memilih service nginx, `-n 20` mengambil 20 baris terakhir.",
+          "remedial": "- Log = catatan kejadian. Journal = kumpulan log semua service, dibaca dengan `journalctl`\n- `-u nginx` satu service, `-n 20` 20 baris terakhir, `-f` ikuti terus (Ctrl+C berhenti)\n- `--since today` sejak hari ini, `-p err` hanya error, `-b` sejak boot terakhir\n- File log teks: `/var/log/syslog`, `/var/log/nginx/access.log` dan `error.log`\n- Saring dengan `grep`, `tail`, `wc` dari modul sebelumnya"
+        },
+        {
+          "question": "Kamu ingin melihat HANYA pesan error dari journal. Opsi yang tepat adalah...",
+          "options": [
+            "-f",
+            "-b",
+            "-p err",
+            "-n err"
+          ],
+          "answer": 2,
+          "explanation": "`-p` memilih tingkat pesan (*priority*). `-p err` menampilkan error dan yang lebih parah.",
+          "remedial": "- Log = catatan kejadian. Journal = kumpulan log semua service, dibaca dengan `journalctl`\n- `-u nginx` satu service, `-n 20` 20 baris terakhir, `-f` ikuti terus (Ctrl+C berhenti)\n- `--since today` sejak hari ini, `-p err` hanya error, `-b` sejak boot terakhir\n- File log teks: `/var/log/syslog`, `/var/log/nginx/access.log` dan `error.log`\n- Saring dengan `grep`, `tail`, `wc` dari modul sebelumnya"
+        },
+        {
+          "question": "Budi menjalankan `journalctl -u nginx -f` dan layar terus menunggu baris baru. Cara menghentikannya adalah...",
+          "options": [
+            "Mengetik exit",
+            "Menekan Ctrl+C",
+            "Menunggu sampai berhenti sendiri",
+            "Menekan Ctrl+Z"
+          ],
+          "answer": 1,
+          "explanation": "`-f` tidak pernah selesai sendiri. Ctrl+C menghentikannya. Ctrl+Z hanya menghentikan sementara.",
+          "remedial": "- Log = catatan kejadian. Journal = kumpulan log semua service, dibaca dengan `journalctl`\n- `-u nginx` satu service, `-n 20` 20 baris terakhir, `-f` ikuti terus (Ctrl+C berhenti)\n- `--since today` sejak hari ini, `-p err` hanya error, `-b` sejak boot terakhir\n- File log teks: `/var/log/syslog`, `/var/log/nginx/access.log` dan `error.log`\n- Saring dengan `grep`, `tail`, `wc` dari modul sebelumnya"
+        },
+        {
+          "question": "Di Ubuntu, log setiap permintaan halaman ke web server Nginx biasanya ada di file...",
+          "options": [
+            "/etc/nginx/nginx.conf",
+            "/home/budi/nginx.log",
+            "/usr/bin/nginx",
+            "/var/log/nginx/access.log"
+          ],
+          "answer": 3,
+          "explanation": "Log Nginx ada di `/var/log/nginx/`: `access.log` untuk permintaan, `error.log` untuk error. `/etc/nginx/nginx.conf` adalah file pengaturan.",
+          "remedial": "- Log = catatan kejadian. Journal = kumpulan log semua service, dibaca dengan `journalctl`\n- `-u nginx` satu service, `-n 20` 20 baris terakhir, `-f` ikuti terus (Ctrl+C berhenti)\n- `--since today` sejak hari ini, `-p err` hanya error, `-b` sejak boot terakhir\n- File log teks: `/var/log/syslog`, `/var/log/nginx/access.log` dan `error.log`\n- Saring dengan `grep`, `tail`, `wc` dari modul sebelumnya"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `hari-ini.txt` berisi potongan log. Apa hasil perintah terakhir?",
+      "code": "# Isi file hari-ini.txt:\n#   Sep 01 09:00:12 laptop systemd[1]: Starting nginx.service - A high performance web server and a reverse proxy server...\n#   Sep 01 09:00:12 laptop systemd[1]: Started nginx.service - A high performance web server and a reverse proxy server.\n#   Sep 01 09:00:13 laptop systemd[1]: Starting mysql.service - MySQL Community Server...\n#   Sep 01 09:00:15 laptop systemd[1]: Started mysql.service - MySQL Community Server.\ngrep nginx hari-ini.txt",
+      "options": [
+        "Sep 01 09:00:12 laptop systemd[1]: Started nginx.service - A high performance web server and a reverse proxy server.",
+        "Sep 01 09:00:12 laptop systemd[1]: Starting nginx.service - A high performance web server and a reverse proxy server...\nSep 01 09:00:12 laptop systemd[1]: Started nginx.service - A high performance web server and a reverse proxy server.",
+        "2",
+        "Sep 01 09:00:12 laptop systemd[1]: Started nginx.service - A high performance web server and a reverse proxy server.\nSep 01 09:00:15 laptop systemd[1]: Started mysql.service - MySQL Community Server."
+      ],
+      "answer": 1,
+      "explanation": "`grep nginx` menampilkan semua baris yang mengandung `nginx`: baris `Starting` dan baris `Started`. Tanpa `-c`, yang tampil barisnya, bukan jumlahnya."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan log service nginx saja\njournalctl ___ nginx",
+      "answers": [
+        "-u|--unit"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Log adalah catatan kejadian; systemd mengumpulkan log semua service di journal.",
+        "journalctl -u nama memilih satu service; -n, --since, -p err, dan -b mempersempit hasil.",
+        "journalctl -f mengikuti baris baru terus; hentikan dengan Ctrl+C.",
+        "File log teks ada di /var/log/, misalnya syslog dan nginx/access.log.",
+        "Log bisa disaring dengan grep, tail, dan wc seperti file teks biasa."
+      ]
+    }
+  ]
+}

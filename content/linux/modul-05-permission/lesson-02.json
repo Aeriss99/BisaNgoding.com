@@ -1,0 +1,112 @@
+{
+  "id": "linux-permission-02",
+  "moduleId": "linux-permission",
+  "order": 2,
+  "title": "Membaca Izin rwx",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul sebelumnya kamu sudah melihat kolom pertama `ls -l`, misalnya `-rw-r--r--`. Sekarang saatnya membacanya dengan teliti.\n\nKolom itu berisi **10 karakter**:\n\n```text\n-  rwx  r-x  r--\n│   │    │    └── lainnya (others): semua orang selain pemilik dan anggota grup\n│   │    └─────── grup (group): anggota grup file itu\n│   └──────────── pemilik (user/owner)\n└──────────────── jenis: - file, d folder, l link\n```\n\nSembilan karakter setelah jenis adalah **izin** (*permission*): siapa boleh melakukan apa terhadap file itu. Tiap kelompok selalu berurutan `r`, `w`, `x`. Tanda `-` berarti izin itu tidak diberikan.\n\nBayangkan buku catatan di kamar kos. Pemilik kamar boleh membaca dan menulis di buku itu. Teman satu lantai (grup) hanya boleh membaca. Tamu (lainnya) bahkan tidak boleh melihat. Setiap file punya aturan seperti itu, ditulis dalam tiga kelompok huruf."
+    },
+    {
+      "type": "theory",
+      "content": "Arti `r`, `w`, `x` **berbeda** untuk file dan folder:\n\n| Huruf | Pada file | Pada folder |\n|---|---|---|\n| `r` (*read*) | membaca isi file | melihat daftar nama isinya (`ls`) |\n| `w` (*write*) | mengubah isi file | membuat, menghapus, mengganti nama isinya (folder juga harus punya `x`) |\n| `x` (*execute*) | menjalankan file sebagai program | masuk (`cd`) dan membuka isi di dalamnya |\n\nPerhatikan: menghapus atau mengganti nama sebuah file diatur oleh izin `w` pada **folder** tempat file itu berada, bukan izin file itu sendiri.\n\n**Siapa memakai kelompok yang mana?** Linux memeriksa berurutan dan berhenti di yang pertama cocok:\n\n1. Kamu **pemilik** file → yang dipakai hanya kelompok pemilik.\n2. Bukan pemilik, tapi **anggota grup** file → yang dipakai kelompok grup.\n3. Selain itu → kelompok lainnya.\n\nAkibatnya bisa aneh: kalau izinnya `-r--rw-rw-`, pemiliknya justru **tidak** boleh menulis, walaupun orang lain boleh.\n\nContoh membaca beberapa baris:\n\n| Izin | Artinya |\n|---|---|\n| `-rw-r--r--` | file: pemilik baca-tulis, yang lain hanya baca |\n| `-rwxr-xr-x` | file program: semua boleh menjalankan, hanya pemilik yang boleh mengubah |\n| `-rw-------` | file rahasia: hanya pemilik |\n| `drwxr-x---` | folder: pemilik penuh, grup boleh masuk dan melihat, lainnya ditolak |\n\nIngat, root tidak terikat izin ini. Root boleh membaca dan mengubah file apa pun."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi sudah menyiapkan beberapa file dan folder dengan izin berbeda-beda: `catatan.txt`, script `halo.sh` (file berisi perintah yang bisa dijalankan, dibahas di pelajaran *Izin Folder dan Script*), `pengumuman.txt` (berisi `Rapat hari Senin`), `rahasia.txt`, folder `pribadi`, dan folder `proyek`. Ia melihat semuanya dengan `ls -l`, lalu mencoba menambah satu baris ke `pengumuman.txt`.\n\n```bash\nls -l\ncat pengumuman.txt\necho \"Bawa laptop\" >> pengumuman.txt\n```\n\nHasilnya:\n\n```text\n$ ls -l\ntotal 24\n-rw-r--r-- 1 budi budi   10 Sep  1 09:00 catatan.txt\n-rwxr-xr-x 1 budi budi   24 Sep  1 09:00 halo.sh\n-r--r--r-- 1 budi budi   17 Sep  1 09:00 pengumuman.txt\ndrwx------ 2 budi budi 4096 Sep  1 09:00 pribadi\ndrwxr-xr-x 2 budi budi 4096 Sep  1 09:00 proyek\n-rw------- 1 budi budi   20 Sep  1 09:00 rahasia.txt\n$ cat pengumuman.txt\nRapat hari Senin\n$ echo \"Bawa laptop\" >> pengumuman.txt\nbash: pengumuman.txt: Permission denied\n```\n\n- `catatan.txt` (`rw-r--r--`): Budi boleh membaca dan mengubah, grup dan lainnya hanya membaca.\n- `halo.sh` (`rwxr-xr-x`): semua boleh menjalankannya, hanya Budi yang boleh mengubahnya.\n- `pengumuman.txt` (`r--r--r--`): tidak ada yang boleh menulis, termasuk Budi (kecuali root). Membaca dengan `cat` berhasil, tetapi menambah baris dengan `>>` ditolak `Permission denied`.\n- `rahasia.txt` (`rw-------`) dan folder `pribadi` (`rwx------`): hanya Budi yang bisa memakainya.\n- Folder `proyek` (`rwxr-xr-x`): semua boleh masuk dan melihat isinya, hanya Budi yang boleh menambah atau menghapus isinya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Ikut menghitung huruf jenis sebagai izin**\n\nSalah:\n\n```text\ndrwxr-x---\n# pemilik: drw, grup: xr-, lainnya: x--\n```\n\nBenar:\n\n```text\nd  rwx  r-x  ---\n# jenis: d (folder)\n# pemilik: rwx, grup: r-x, lainnya: ---\n```\n\nKarakter pertama hanya menunjukkan jenis. Izin baru dimulai dari karakter kedua, lalu dibagi tiga-tiga.\n\n**2. Mengira x pada folder berarti menjalankan folder**\n\nSalah:\n\n```text\ndrw-r--r-- laporan\n# \"folder tidak perlu x, kan tidak dijalankan\"\n```\n\nBenar:\n\n```text\ndrwxr-xr-x laporan\n# x pada folder = boleh masuk dan membuka isinya\n```\n\nTanpa `x`, kamu tidak bisa `cd` ke folder itu dan tidak bisa membuka file di dalamnya. Folder normal hampir selalu punya `x`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Sari anggota group `dev`, tapi bukan pemilik file ini. Apa yang boleh Sari lakukan?",
+          "code": "-rw-r----- 1 andi dev 512 Sep  1 09:00 nilai.txt",
+          "options": [
+            "Membaca dan mengubah isinya",
+            "Hanya membaca isinya",
+            "Tidak boleh apa-apa",
+            "Membaca dan menjalankannya"
+          ],
+          "answer": 1,
+          "explanation": "Sari bukan pemilik tapi anggota grup `dev`, jadi yang dipakai kelompok grup: `r--`, hanya membaca.",
+          "remedial": "- 10 karakter: jenis + pemilik (3) + grup (3) + lainnya (3)\n- File: r = baca, w = ubah isi, x = jalankan\n- Folder: r = lihat daftar isi, w = buat/hapus/ganti nama isi, x = masuk dan membuka isi\n- Linux memeriksa: pemilik dulu, lalu grup, lalu lainnya. Yang pertama cocok yang dipakai\n- Root tidak terikat izin"
+        },
+        {
+          "question": "Untuk sebuah FOLDER, izin `x` berarti...",
+          "options": [
+            "Menjalankan semua file di dalamnya",
+            "Melihat daftar nama isinya",
+            "Boleh masuk (cd) dan membuka isi di dalamnya",
+            "Membuat file baru di dalamnya"
+          ],
+          "answer": 2,
+          "explanation": "Pada folder, `x` = boleh masuk dan membuka isinya. Melihat daftar nama = `r`, membuat file = `w`.",
+          "remedial": "- 10 karakter: jenis + pemilik (3) + grup (3) + lainnya (3)\n- File: r = baca, w = ubah isi, x = jalankan\n- Folder: r = lihat daftar isi, w = buat/hapus/ganti nama isi, x = masuk dan membuka isi\n- Linux memeriksa: pemilik dulu, lalu grup, lalu lainnya. Yang pertama cocok yang dipakai\n- Root tidak terikat izin"
+        },
+        {
+          "question": "Budi bukan `sari` dan bukan anggota group `dev`. Apa yang bisa Budi lakukan dengan folder ini?",
+          "code": "drwxr-x--- 2 sari dev 4096 Sep  1 09:00 proyek",
+          "options": [
+            "Masuk dan melihat isinya",
+            "Melihat isinya saja",
+            "Semua hal, karena folder tidak punya izin",
+            "Tidak bisa apa-apa"
+          ],
+          "answer": 3,
+          "explanation": "Budi termasuk \"lainnya\", dan kelompok lainnya `---`. Ia tidak bisa masuk maupun melihat isinya.",
+          "remedial": "- 10 karakter: jenis + pemilik (3) + grup (3) + lainnya (3)\n- File: r = baca, w = ubah isi, x = jalankan\n- Folder: r = lihat daftar isi, w = buat/hapus/ganti nama isi, x = masuk dan membuka isi\n- Linux memeriksa: pemilik dulu, lalu grup, lalu lainnya. Yang pertama cocok yang dipakai\n- Root tidak terikat izin"
+        },
+        {
+          "question": "Budi adalah pemilik file. Apa hasil perintah terakhir?",
+          "code": "# Isi file catatan.txt:\n#   beli kopi\n# Izin catatan.txt: --w------- (pemilik budi)\ncat catatan.txt",
+          "options": [
+            "cat: catatan.txt: Permission denied",
+            "beli kopi",
+            "(tidak ada output)",
+            "cat: catatan.txt: No such file or directory"
+          ],
+          "answer": 0,
+          "explanation": "Kelompok pemilik hanya `-w-`: boleh mengubah tapi tidak boleh membaca. `cat` ditolak.",
+          "remedial": "- 10 karakter: jenis + pemilik (3) + grup (3) + lainnya (3)\n- File: r = baca, w = ubah isi, x = jalankan\n- Folder: r = lihat daftar isi, w = buat/hapus/ganti nama isi, x = masuk dan membuka isi\n- Linux memeriksa: pemilik dulu, lalu grup, lalu lainnya. Yang pertama cocok yang dipakai\n- Root tidak terikat izin"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Budi adalah pemilik file, dan grup file adalah group budi. Apa hasil perintah terakhir?",
+      "code": "# Isi file jadwal.txt:\n#   Senin: rapat\n# Izin jadwal.txt: -r--rw-rw-\necho \"Selasa: libur\" >> jadwal.txt",
+      "options": [
+        "(tidak ada output, baris berhasil ditambahkan)",
+        "bash: jadwal.txt: Permission denied",
+        "Senin: rapat\nSelasa: libur",
+        "bash: jadwal.txt: Operation not permitted"
+      ],
+      "answer": 1,
+      "explanation": "Budi pemilik, jadi yang dipakai HANYA kelompok pemilik: `r--`. Walaupun grup dan lainnya boleh menulis, Budi sendiri ditolak."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan izin, pemilik, dan grup file nilai.txt\n# Isi folder saat ini: nilai.txt\nls ___ nilai.txt",
+      "answers": [
+        "-l|-ld|-dl|-la|-al|-lh|-hl|-lah"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Kolom izin ls -l = jenis + tiga kelompok rwx: pemilik, grup, lainnya.",
+        "Pada file: r baca, w ubah, x jalankan. Pada folder: r lihat daftar, w buat/hapus isi, x masuk.",
+        "Linux memakai kelompok pertama yang cocok: pemilik, lalu grup, lalu lainnya.",
+        "Tanda - berarti izin itu tidak diberikan; root tidak terikat izin."
+      ]
+    }
+  ]
+}

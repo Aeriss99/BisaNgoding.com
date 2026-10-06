@@ -1,0 +1,112 @@
+{
+  "id": "linux-permission-01",
+  "moduleId": "linux-permission",
+  "order": 1,
+  "title": "User dan Group",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Linux dirancang sejak awal untuk dipakai **banyak pengguna** sekaligus. Satu server bisa dipakai Budi, Sari, dan Andi, dan masing-masing punya file sendiri yang tidak boleh diutak-atik orang lain.\n\nKarena itu Linux mengenal tiga hal:\n\n- **User** (pengguna): akun yang dipakai untuk login. Setiap user punya nama (misalnya `budi`) dan nomor yang disebut **UID** (*user ID*).\n- **Group** (kelompok): kumpulan user. Satu user bisa menjadi anggota banyak group. Setiap group juga punya nomor, disebut **GID** (*group ID*).\n- **root**: user khusus dengan UID `0`. Root boleh melakukan apa saja di komputer itu. Root dibahas lebih lanjut di pelajaran *sudo dan root*.\n\nBukan hanya manusia yang punya user. Program yang berjalan terus di belakang layar juga sering diberi user sendiri. Contohnya, web server Nginx di Ubuntu bekerja sebagai user `www-data`. Kalau program itu dibobol, kerusakannya terbatas pada hak milik `www-data`.\n\nBayangkan rumah kos. Setiap penghuni (user) punya kunci kamarnya sendiri. Penghuni lantai 2 juga memegang kunci dapur bersama lantai 2 (group). Ibu kos memegang **kunci master** yang bisa membuka semua pintu: itulah root."
+    },
+    {
+      "type": "theory",
+      "content": "Tiga perintah untuk mengenal dirimu sendiri:\n\n| Perintah | Hasilnya |\n|---|---|\n| `whoami` | nama user yang sedang login |\n| `id` | UID, GID, dan semua group |\n| `groups` | daftar nama group saja |\n\nContoh hasil `id` di laptop Budi:\n\n```text\nuid=1000(budi) gid=1000(budi) groups=1000(budi),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),100(users)\n```\n\n- `uid=1000(budi)`: user `budi` bernomor 1000. User pertama yang dibuat saat instal Ubuntu biasanya mendapat UID 1000. User sistem (seperti `www-data`) biasanya bernomor di bawah 1000.\n- `gid=1000(budi)`: **group utama** budi bernama `budi` juga.\n- `groups=...`: semua group yang diikuti budi.\n\n**Kenapa group utamanya bernama sama?** Ubuntu membuat satu group pribadi untuk setiap user baru, namanya sama dengan nama user, dan anggotanya hanya user itu. Ini disebut *user private group*. Itulah sebabnya `ls -l` sering menampilkan `budi budi`: pemiliknya user `budi`, grupnya group `budi`.\n\n**Group `sudo`** istimewa: anggotanya boleh menjalankan perintah sebagai root dengan `sudo`. User pertama di Ubuntu otomatis masuk group ini.\n\nDaftar semua user tersimpan di file `/etc/passwd`, satu baris per user. Baris milik Budi:\n\n```text\nbudi:x:1000:1000:Budi Santoso,,,:/home/budi:/bin/bash\n```\n\nTujuh bagian, dipisah titik dua `:`\n\n| Bagian | Isi | Artinya |\n|---|---|---|\n| 1 | `budi` | nama user |\n| 2 | `x` | password disimpan terpisah di `/etc/shadow` |\n| 3 | `1000` | UID |\n| 4 | `1000` | GID group utama |\n| 5 | `Budi Santoso,,,` | keterangan: nama lengkap (koma = data tambahan yang dikosongkan) |\n| 6 | `/home/budi` | folder home |\n| 7 | `/bin/bash` | shell yang dijalankan saat login |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi membuka terminal, mengecek siapa dirinya, lalu membuat file dan melihat pemiliknya.\n\n```bash\nwhoami\ntouch catatan.txt\nls -l\n```\n\nHasilnya:\n\n```text\n$ whoami\nbudi\n$ touch catatan.txt\n$ ls -l\ntotal 0\n-rw-r--r-- 1 budi budi 0 Sep  1 09:00 catatan.txt\n```\n\n- `whoami` menjawab `budi`.\n- Kolom ke-3 dan ke-4 `ls -l` berisi `budi budi`: `budi` pertama adalah pemilik, `budi` kedua adalah grup. File baru dimiliki user yang membuatnya, dan grupnya adalah group utama user itu.\n\nHasil `id` dan `groups` berbeda di setiap komputer (bergantung pada group apa saja yang diikuti), jadi berikut gambarannya di laptop Budi:\n\n```text\n$ id\nuid=1000(budi) gid=1000(budi) groups=1000(budi),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),100(users)\n$ groups\nbudi adm cdrom sudo dip plugdev users\n```\n\nAngka dan nama group di komputermu bisa berbeda. Yang penting: ada `sudo` di daftar itu, artinya Budi boleh memakai `sudo`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira budi budi di ls -l adalah salah ketik**\n\nSalah:\n\n```bash\nls -l catatan.txt\n# -rw-r--r-- 1 budi budi ...\n# \"kok budi ditulis dua kali?\"\n```\n\nBenar:\n\n```bash\nid\n# gid=1000(budi): group utama budi\n# memang bernama budi\n```\n\n`budi` pertama (kolom ke-3) adalah user pemilik, `budi` kedua (kolom ke-4) adalah group. Ubuntu membuat group pribadi bernama sama untuk setiap user.\n\n**2. Mencari password di /etc/passwd**\n\nSalah:\n\n```bash\ncat /etc/passwd\n# \"password budi pasti ada di sini\"\n```\n\nBenar:\n\n```bash\ncat /etc/passwd\n# kolom kedua hanya berisi x\n# password (teracak) ada di /etc/shadow\n```\n\nWalaupun namanya `passwd`, file itu boleh dibaca semua user, jadi password tidak disimpan di sana. Password teracak disimpan di `/etc/shadow` yang hanya bisa dibaca root.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "UID milik user root adalah...",
+          "options": [
+            "0",
+            "1",
+            "1000",
+            "27"
+          ],
+          "answer": 0,
+          "explanation": "Root selalu ber-UID 0. User pertama di Ubuntu biasanya 1000, dan 27 adalah nomor group `sudo`.",
+          "remedial": "- User = akun (nama + UID), group = kumpulan user (nama + GID)\n- root = UID 0, boleh melakukan apa saja\n- `whoami` = nama user, `id` = UID, GID, dan semua group, `groups` = nama group saja\n- Setiap user punya group pribadi bernama sama (`budi budi` di `ls -l`)\n- `/etc/passwd`: nama:x:UID:GID:keterangan:home:shell"
+        },
+        {
+          "question": "Berdasarkan output `id` ini, mana yang benar?",
+          "code": "$ id\nuid=1001(sari) gid=1001(sari) groups=1001(sari),27(sudo),100(users)",
+          "options": [
+            "UID sari adalah 27",
+            "Sari anggota tiga group: sari, sudo, dan users",
+            "Sari adalah root",
+            "Group utama sari adalah sudo"
+          ],
+          "answer": 1,
+          "explanation": "`groups=` berisi tiga group. UID sari 1001, dan group utamanya (`gid=`) adalah `sari`.",
+          "remedial": "- User = akun (nama + UID), group = kumpulan user (nama + GID)\n- root = UID 0, boleh melakukan apa saja\n- `whoami` = nama user, `id` = UID, GID, dan semua group, `groups` = nama group saja\n- Setiap user punya group pribadi bernama sama (`budi budi` di `ls -l`)\n- `/etc/passwd`: nama:x:UID:GID:keterangan:home:shell"
+        },
+        {
+          "question": "Apa arti `/bin/bash` pada baris `/etc/passwd` ini?",
+          "code": "dewi:x:1002:1002:Dewi Lestari,,,:/home/dewi:/bin/bash",
+          "options": [
+            "Folder home dewi",
+            "Lokasi password dewi",
+            "Shell yang dijalankan saat dewi login",
+            "Nama group utama dewi"
+          ],
+          "answer": 2,
+          "explanation": "Bagian ketujuh adalah shell. Folder home ada di bagian keenam (`/home/dewi`).",
+          "remedial": "- User = akun (nama + UID), group = kumpulan user (nama + GID)\n- root = UID 0, boleh melakukan apa saja\n- `whoami` = nama user, `id` = UID, GID, dan semua group, `groups` = nama group saja\n- Setiap user punya group pribadi bernama sama (`budi budi` di `ls -l`)\n- `/etc/passwd`: nama:x:UID:GID:keterangan:home:shell"
+        },
+        {
+          "question": "Saat user baru `andi` dibuat di Ubuntu, biasanya ikut dibuat juga...",
+          "options": [
+            "folder /root/andi",
+            "user kedua bernama andi-admin",
+            "file /etc/andi",
+            "group bernama andi yang anggotanya hanya andi"
+          ],
+          "answer": 3,
+          "explanation": "Ini disebut *user private group*: setiap user mendapat group pribadi dengan nama yang sama.",
+          "remedial": "- User = akun (nama + UID), group = kumpulan user (nama + GID)\n- root = UID 0, boleh melakukan apa saja\n- `whoami` = nama user, `id` = UID, GID, dan semua group, `groups` = nama group saja\n- Setiap user punya group pribadi bernama sama (`budi budi` di `ls -l`)\n- `/etc/passwd`: nama:x:UID:GID:keterangan:home:shell"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Budi login lalu menjalankan perintah ini. Apa hasil perintah terakhir?",
+      "code": "touch laporan.txt\nls -l laporan.txt",
+      "options": [
+        "-rw-r--r-- 1 root root 0 Sep  1 09:00 laporan.txt",
+        "-rw-r--r-- 1 budi sudo 0 Sep  1 09:00 laporan.txt",
+        "-rw-r--r-- 1 budi budi 0 Sep  1 09:00 laporan.txt",
+        "-rw-r--r-- 1 budi users 0 Sep  1 09:00 laporan.txt"
+      ],
+      "answer": 2,
+      "explanation": "File baru dimiliki user yang membuatnya (`budi`), dan grupnya adalah group utama budi, yaitu `budi`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan nama user yang sedang login\n___",
+      "answers": [
+        "whoami|id -un|id -nu"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Linux dipakai banyak user; setiap user punya nama dan UID, setiap group punya nama dan GID.",
+        "root ber-UID 0 dan boleh melakukan apa saja.",
+        "whoami menampilkan nama user; id dan groups menampilkan group yang diikuti.",
+        "Setiap user punya group pribadi bernama sama, dan anggota group sudo boleh memakai sudo.",
+        "/etc/passwd berisi satu baris per user: nama, x, UID, GID, keterangan, home, shell."
+      ]
+    }
+  ]
+}

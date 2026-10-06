@@ -1,0 +1,112 @@
+{
+  "id": "linux-permission-04",
+  "moduleId": "linux-permission",
+  "order": 4,
+  "title": "chmod dengan Angka",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Cara kedua menulis izin adalah dengan **angka**. Setiap izin punya nilai:\n\n| Izin | Nilai |\n|---|---|\n| `r` | 4 |\n| `w` | 2 |\n| `x` | 1 |\n\nJumlahkan nilai untuk satu kelompok, lalu tulis tiga angka berurutan: pemilik, grup, lainnya.\n\n```text\nrwx  r-x  r-x\n4+2+1  4+0+1  4+0+1\n  7      5      5     →  chmod 755\n```\n\nSeperti gembok koper dengan tiga roda angka. Roda pertama untuk pemilik, roda kedua untuk grup, roda ketiga untuk lainnya. Setiap roda berisi angka 0 sampai 7, dan setiap angka punya arti yang tetap."
+    },
+    {
+      "type": "theory",
+      "content": "Delapan kemungkinan untuk satu kelompok:\n\n| Angka | Izin | Angka | Izin |\n|---|---|---|---|\n| 0 | `---` | 4 | `r--` |\n| 1 | `--x` | 5 | `r-x` |\n| 2 | `-w-` | 6 | `rw-` |\n| 3 | `-wx` | 7 | `rwx` |\n\nIzin yang paling sering dipakai:\n\n| Angka | Izin | Cocok untuk |\n|---|---|---|\n| `755` | `rwxr-xr-x` | script, program, folder biasa |\n| `644` | `rw-r--r--` | file biasa |\n| `600` | `rw-------` | file rahasia (password, kunci) |\n| `700` | `rwx------` | folder pribadi |\n| `664` | `rw-rw-r--` | file yang dikerjakan bersama grup |\n\n**Angka selalu mengatur ketiga kelompok sekaligus**, seperti `=`. Huruf cocok untuk mengubah sebagian (`u+x`), angka cocok untuk menetapkan semuanya.\n\nUntuk melihat izin dalam bentuk angka, pakai `stat`:\n\n```bash\nstat -c '%a %A' halo.sh\n```\n\n`%a` = izin dalam angka, `%A` = izin dalam huruf. Hasilnya misalnya `755 -rwxr-xr-x`.\n\n**Bahaya `777`.** `chmod 777` memberi semua izin kepada semua orang. Siapa pun di komputer itu, termasuk program web yang dibobol, bisa mengubah file itu. Kalau file itu script, orang lain bisa menyisipkan perintah jahat yang nanti kamu jalankan sendiri. Kalau muncul `Permission denied`, cari tahu izin yang benar-benar kurang (misalnya `u+x`), jangan langsung `777`.\n\nAngka di luar 0 sampai 7 ditolak, misalnya `chmod 800 file` menghasilkan `invalid mode`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDi folder home Budi ada `cadangan.sh` (script), `catatan.txt` (catatan bersama tim), `sandi.txt` (berisi password), dan folder `pribadi`. Budi memberi izin yang cocok untuk masing-masing, lalu mengeceknya.\n\n```bash\nchmod 755 cadangan.sh\nchmod 664 catatan.txt\nchmod 600 sandi.txt\nchmod 700 pribadi\nls -l\nstat -c '%a %A %n' *\nchmod 800 catatan.txt\n```\n\nHasilnya:\n\n```text\n$ chmod 755 cadangan.sh\n$ chmod 664 catatan.txt\n$ chmod 600 sandi.txt\n$ chmod 700 pribadi\n$ ls -l\ntotal 16\n-rwxr-xr-x 1 budi budi   35 Sep  1 09:00 cadangan.sh\n-rw-rw-r-- 1 budi budi   12 Sep  1 09:00 catatan.txt\ndrwx------ 2 budi budi 4096 Sep  1 09:00 pribadi\n-rw------- 1 budi budi   14 Sep  1 09:00 sandi.txt\n$ stat -c '%a %A %n' *\n755 -rwxr-xr-x cadangan.sh\n664 -rw-rw-r-- catatan.txt\n700 drwx------ pribadi\n600 -rw------- sandi.txt\n$ chmod 800 catatan.txt\nchmod: invalid mode: ‘800’\nTry 'chmod --help' for more information.\n```\n\n- `755` = `rwxr-xr-x`, `664` = `rw-rw-r--`, `600` = `rw-------`, `700` = `rwx------`.\n- `stat -c '%a %A %n' *` menampilkan izin dalam angka, dalam huruf, lalu nama (`%n`) untuk semua isi folder.\n- `800` ditolak: angka 8 tidak ada artinya, karena nilai terbesar satu kelompok adalah 4+2+1 = 7."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai 777 untuk mengatasi Permission denied**\n\nSalah:\n\n```bash\nchmod 777 cadangan.sh\n# \"biar tidak ditolak lagi\"\n```\n\nBenar:\n\n```bash\nchmod 755 cadangan.sh\n# atau cukup: chmod u+x cadangan.sh\n```\n\n`777` membuat semua orang boleh mengubah file itu. Berikan hanya izin yang memang kurang.\n\n**2. Menulis satu angka saja**\n\nSalah:\n\n```bash\nchmod 7 halo.sh\n# maksudnya: pemilik rwx\n# hasilnya: -------rwx\n```\n\nBenar:\n\n```bash\nchmod 744 halo.sh\n```\n\nAngka dibaca dari kanan. `7` sama dengan `007`: pemilik dan grup tidak punya izin apa pun, justru lainnya yang mendapat `rwx`. Selalu tulis tiga angka.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Angka untuk izin `rw-` adalah...",
+          "options": [
+            "5",
+            "3",
+            "7",
+            "6"
+          ],
+          "answer": 3,
+          "explanation": "r (4) + w (2) + tanpa x (0) = 6.",
+          "remedial": "- r = 4, w = 2, x = 1. Jumlahkan per kelompok\n- Tiga angka: pemilik, grup, lainnya. Contoh 755 = rwxr-xr-x\n- 644 file biasa, 755 script/folder, 600 file rahasia, 700 folder pribadi\n- Angka mengatur ketiga kelompok sekaligus\n- `stat -c '%a %A' file` menampilkan izin dalam angka dan huruf\n- Hindari 777"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi folder saat ini: gaji.txt\nchmod 640 gaji.txt\nls -l gaji.txt",
+          "options": [
+            "-rw-r----- 1 budi budi 0 Sep  1 09:00 gaji.txt",
+            "-rw-r--r-- 1 budi budi 0 Sep  1 09:00 gaji.txt",
+            "-r--rw---- 1 budi budi 0 Sep  1 09:00 gaji.txt",
+            "-rwxr----- 1 budi budi 0 Sep  1 09:00 gaji.txt"
+          ],
+          "answer": 0,
+          "explanation": "6 = `rw-` (pemilik), 4 = `r--` (grup), 0 = `---` (lainnya).",
+          "remedial": "- r = 4, w = 2, x = 1. Jumlahkan per kelompok\n- Tiga angka: pemilik, grup, lainnya. Contoh 755 = rwxr-xr-x\n- 644 file biasa, 755 script/folder, 600 file rahasia, 700 folder pribadi\n- Angka mengatur ketiga kelompok sekaligus\n- `stat -c '%a %A' file` menampilkan izin dalam angka dan huruf\n- Hindari 777"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi folder saat ini: kirim.sh\nchmod 750 kirim.sh\nstat -c '%a %A' kirim.sh",
+          "options": [
+            "750 -rwxr-xr-x",
+            "750 -rwxr-x---",
+            "750 -rw-r-x---",
+            "057 ----r-xrwx"
+          ],
+          "answer": 1,
+          "explanation": "7 = `rwx`, 5 = `r-x`, 0 = `---`. `stat` menampilkan angka lalu hurufnya.",
+          "remedial": "- r = 4, w = 2, x = 1. Jumlahkan per kelompok\n- Tiga angka: pemilik, grup, lainnya. Contoh 755 = rwxr-xr-x\n- 644 file biasa, 755 script/folder, 600 file rahasia, 700 folder pribadi\n- Angka mengatur ketiga kelompok sekaligus\n- `stat -c '%a %A' file` menampilkan izin dalam angka dan huruf\n- Hindari 777"
+        },
+        {
+          "question": "File pengaturan `.env` berisi password database. Hanya pemilik yang boleh membaca dan mengubahnya. Izin yang paling cocok adalah...",
+          "options": [
+            "644",
+            "777",
+            "600",
+            "755"
+          ],
+          "answer": 2,
+          "explanation": "`600` = `rw-------`: pemilik baca-tulis, grup dan lainnya tidak punya izin apa pun.",
+          "remedial": "- r = 4, w = 2, x = 1. Jumlahkan per kelompok\n- Tiga angka: pemilik, grup, lainnya. Contoh 755 = rwxr-xr-x\n- 644 file biasa, 755 script/folder, 600 file rahasia, 700 folder pribadi\n- Angka mengatur ketiga kelompok sekaligus\n- `stat -c '%a %A' file` menampilkan izin dalam angka dan huruf\n- Hindari 777"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "# Isi folder saat ini: jadwal.sh\nchmod 754 jadwal.sh\nls -l jadwal.sh",
+      "options": [
+        "-rwxr-xr-x 1 budi budi 0 Sep  1 09:00 jadwal.sh",
+        "-rwxr--r-x 1 budi budi 0 Sep  1 09:00 jadwal.sh",
+        "-rw-r-xr-- 1 budi budi 0 Sep  1 09:00 jadwal.sh",
+        "-rwxr-xr-- 1 budi budi 0 Sep  1 09:00 jadwal.sh"
+      ],
+      "answer": 3,
+      "explanation": "7 = `rwx`, 5 = `r-x`, 4 = `r--`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Atur izin: pemilik rw-, grup r--, lainnya ---\n# Isi folder saat ini: gaji.txt\nchmod ___ gaji.txt",
+      "answers": [
+        "640|0640|u=rw,g=r,o="
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Dalam angka: r = 4, w = 2, x = 1, dijumlahkan per kelompok.",
+        "Tiga angka berurutan untuk pemilik, grup, dan lainnya, misalnya 755 atau 644.",
+        "600 untuk file rahasia, 700 untuk folder pribadi, 755 untuk script dan folder biasa.",
+        "Angka mengatur ketiga kelompok sekaligus; stat -c \"%a %A\" file menampilkan izinnya.",
+        "Hindari 777: berikan hanya izin yang memang dibutuhkan."
+      ]
+    }
+  ]
+}

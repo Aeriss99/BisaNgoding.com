@@ -1,0 +1,112 @@
+{
+  "id": "linux-permission-05",
+  "moduleId": "linux-permission",
+  "order": 5,
+  "title": "Izin Folder dan Script",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pelajaran ini mempraktikkan dua hal yang paling sering membuat pemula bingung:\n\n- **Folder** tanpa izin `x` atau tanpa izin `r`.\n- **Script**: file teks berisi daftar perintah yang bisa dijalankan seperti program.\n\nKeduanya sering berakhir dengan pesan yang sama: `Permission denied` (izin ditolak).\n\nFolder seperti ruangan dengan jendela dan pintu. Izin `r` itu jendela: kamu bisa melihat daftar barang di dalamnya. Izin `x` itu pintu: kamu bisa masuk dan mengambil barang yang kamu tahu namanya. Izin `w` membolehkanmu menaruh atau membuang barang. Kalau pintunya dikunci, melihat lewat jendela pun tidak banyak gunanya."
+    },
+    {
+      "type": "theory",
+      "content": "**Izin folder dalam praktik** (untuk kelompok yang berlaku bagimu):\n\n| Izin folder | `ls folder` | `cd folder` / buka file di dalamnya |\n|---|---|---|\n| `rwx` atau `r-x` | bisa | bisa |\n| `rw-` atau `r--` (tanpa x) | nama isi bisa terlihat, sering disertai pesan error | ditolak |\n| `--x` (tanpa r) | ditolak | `cd` bisa. Membuka file di dalamnya bisa kalau tahu namanya |\n\nPesan yang muncul:\n\n```text\nbash: cd: arsip: Permission denied\nls: cannot open directory 'arsip': Permission denied\n```\n\n**Membuat script.** Script adalah file teks biasa. Contoh `halo.sh`:\n\n```bash\n#!/bin/bash\necho \"Halo, Budi!\"\n```\n\nBaris pertama `#!/bin/bash` disebut **shebang**: memberi tahu sistem bahwa file ini dijalankan oleh program `/bin/bash`. Baris berikutnya adalah perintah-perintahnya.\n\nLangkah menjalankannya:\n\n1. Beri izin jalankan: `chmod +x halo.sh` (tanpa ini muncul `Permission denied`)\n2. Jalankan dengan `./halo.sh`\n\n**Kenapa harus `./`?** Saat kamu mengetik nama perintah seperti `ls`, bash tidak mencarinya di folder kerja. Bash hanya mencari di daftar folder khusus program yang disebut `PATH`, misalnya `/usr/bin`. Folder kerjamu tidak termasuk. Karena itu `halo.sh` saja dijawab `command not found`. `./halo.sh` artinya \"file `halo.sh` di folder ini (`.`)\".\n\nCara lain: `bash halo.sh`. Di sini yang dijalankan adalah program `bash`, dan `halo.sh` hanya dibaca sebagai teks, jadi tidak butuh izin `x` (cukup `r`)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh 1: Folder\n\nBudi punya folder `arsip` berisi `catatan.txt` (isinya `rapat jam 9`). Ia mencoba mencabut izin `x`, lalu izin `r`, dari folder itu untuk dirinya sendiri.\n\n```bash\nls -ld arsip\nchmod u-x arsip\nls -ld arsip\ncd arsip\ncat arsip/catatan.txt\nchmod u+x,u-r arsip\nls -ld arsip\nls arsip\ncat arsip/catatan.txt\nchmod 755 arsip\n```\n\nHasilnya:\n\n```text\n$ ls -ld arsip\ndrwxr-xr-x 2 budi budi 4096 Sep  1 09:00 arsip\n$ chmod u-x arsip\n$ ls -ld arsip\ndrw-r-xr-x 2 budi budi 4096 Sep  1 09:00 arsip\n$ cd arsip\nbash: cd: arsip: Permission denied\n$ cat arsip/catatan.txt\ncat: arsip/catatan.txt: Permission denied\n$ chmod u+x,u-r arsip\n$ ls -ld arsip\nd-wxr-xr-x 2 budi budi 4096 Sep  1 09:00 arsip\n$ ls arsip\nls: cannot open directory 'arsip': Permission denied\n$ cat arsip/catatan.txt\nrapat jam 9\n$ chmod 755 arsip\n```\n\n- Tanpa `x` (`drw-r-xr-x`), Budi tidak bisa masuk dengan `cd` dan tidak bisa membuka `catatan.txt`, walaupun ia pemiliknya.\n- Tanpa `r` tapi dengan `x` (`d-wxr-xr-x`), `ls` ditolak, tetapi `cat arsip/catatan.txt` berhasil karena Budi sudah tahu nama filenya.\n- Terakhir Budi mengembalikan izin folder ke `755`.\n\n### Contoh 2: Script\n\nBudi membuat script `halo.sh` lalu mencoba menjalankannya.\n\n```bash\ncat halo.sh\nls -l halo.sh\n./halo.sh\nbash halo.sh\nchmod +x halo.sh\nls -l halo.sh\n./halo.sh\nwhich ls\n```\n\nHasilnya:\n\n```text\n$ cat halo.sh\n#!/bin/bash\necho \"Halo, Budi!\"\necho \"Script pertamaku jalan.\"\n$ ls -l halo.sh\n-rw-r--r-- 1 budi budi 62 Sep  1 09:00 halo.sh\n$ ./halo.sh\nbash: ./halo.sh: Permission denied\n$ bash halo.sh\nHalo, Budi!\nScript pertamaku jalan.\n$ chmod +x halo.sh\n$ ls -l halo.sh\n-rwxr-xr-x 1 budi budi 62 Sep  1 09:00 halo.sh\n$ ./halo.sh\nHalo, Budi!\nScript pertamaku jalan.\n$ which ls\n/usr/bin/ls\n```\n\n- File baru belum punya `x`, jadi `./halo.sh` ditolak `Permission denied`.\n- `bash halo.sh` tetap berhasil, karena yang dijalankan adalah `bash`.\n- Setelah `chmod +x`, izinnya `rwxr-xr-x` dan `./halo.sh` berjalan.\n- `which ls` menunjukkan bahwa perintah `ls` sebenarnya juga file program, letaknya di `/usr/bin`, salah satu folder di `PATH`.\n\nKalau Budi lupa `./` dan hanya mengetik nama script, bash tidak menemukannya:\n\n```text\n$ halo.sh\nhalo.sh: command not found\n```\n\n(Di Ubuntu lengkap, pesannya bisa berbentuk `Command 'halo.sh' not found`.)"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menjalankan script tanpa ./**\n\nSalah:\n\n```bash\nhalo.sh\n# halo.sh: command not found\n```\n\nBenar:\n\n```bash\n./halo.sh\n```\n\nBash hanya mencari perintah di folder-folder `PATH`, bukan di folder kerja. `./` menunjuk langsung ke file di folder ini.\n\n**2. Mencabut r folder dan mengira isinya sudah aman**\n\nSalah:\n\n```bash\nchmod go-r arsip\n# \"sekarang orang lain tidak bisa membuka file di arsip\"\n```\n\nBenar:\n\n```bash\nchmod go-rx arsip\n# atau: chmod 700 arsip\n```\n\nTanpa `r`, orang lain memang tidak bisa melihat daftar isinya. Tapi selama `x` masih ada, siapa pun yang tahu nama file tetap bisa membukanya. Cabut juga `x`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Budi pemilik folder `laporan`. Apa hasil perintah terakhir?",
+          "code": "# Isi folder saat ini: laporan/\n# Izin folder laporan: drw-r--r--\ncd laporan",
+          "options": [
+            "bash: cd: laporan: Not a directory",
+            "bash: cd: laporan: No such file or directory",
+            "bash: cd: laporan: Permission denied",
+            "(tidak ada output, berhasil masuk)"
+          ],
+          "answer": 2,
+          "explanation": "Kelompok pemilik `rw-` tidak punya `x`, jadi Budi tidak boleh masuk ke folder itu.",
+          "remedial": "- Folder tanpa `x`: `cd` dan membuka file di dalamnya ditolak\n- Folder tanpa `r`: `ls` ditolak, tapi file yang diketahui namanya masih bisa dibuka kalau ada `x`\n- Script: baris pertama `#!/bin/bash`, lalu `chmod +x`, lalu `./nama.sh`\n- Tanpa `x`: `Permission denied`. Tanpa `./`: `command not found`\n- `bash nama.sh` menjalankan script tanpa butuh izin `x`"
+        },
+        {
+          "question": "Budi pemilik folder `dokumen`. Apa hasil perintah terakhir?",
+          "code": "# Isi folder saat ini: dokumen/, dokumen/nilai.txt\n# Izin folder dokumen: d--x------\nls dokumen",
+          "options": [
+            "nilai.txt",
+            "ls: cannot open directory 'dokumen': Permission denied",
+            "(tidak ada output)",
+            "bash: cd: dokumen: Permission denied"
+          ],
+          "answer": 1,
+          "explanation": "Tanpa `r`, daftar isi folder tidak boleh dilihat, jadi `ls` ditolak.",
+          "remedial": "- Folder tanpa `x`: `cd` dan membuka file di dalamnya ditolak\n- Folder tanpa `r`: `ls` ditolak, tapi file yang diketahui namanya masih bisa dibuka kalau ada `x`\n- Script: baris pertama `#!/bin/bash`, lalu `chmod +x`, lalu `./nama.sh`\n- Tanpa `x`: `Permission denied`. Tanpa `./`: `command not found`\n- `bash nama.sh` menjalankan script tanpa butuh izin `x`"
+        },
+        {
+          "question": "Kenapa script di folder kerja dijalankan dengan `./halo.sh`, bukan `halo.sh`?",
+          "options": [
+            "Karena ./ memberi izin x secara otomatis",
+            "Karena bash hanya mencari perintah di folder-folder PATH, dan folder kerja tidak termasuk",
+            "Karena ./ menjalankan script sebagai root",
+            "Karena nama script harus diawali titik"
+          ],
+          "answer": 1,
+          "explanation": "`./` menunjuk langsung ke file di folder ini, sehingga bash tidak perlu mencarinya di `PATH`.",
+          "remedial": "- Folder tanpa `x`: `cd` dan membuka file di dalamnya ditolak\n- Folder tanpa `r`: `ls` ditolak, tapi file yang diketahui namanya masih bisa dibuka kalau ada `x`\n- Script: baris pertama `#!/bin/bash`, lalu `chmod +x`, lalu `./nama.sh`\n- Tanpa `x`: `Permission denied`. Tanpa `./`: `command not found`\n- `bash nama.sh` menjalankan script tanpa butuh izin `x`"
+        },
+        {
+          "question": "Apa fungsi baris pertama `#!/bin/bash` di sebuah script?",
+          "options": [
+            "Memberi tahu sistem bahwa script dijalankan oleh program /bin/bash",
+            "Komentar biasa yang tidak berarti apa-apa",
+            "Memberi izin x pada script",
+            "Menjalankan script sebagai root"
+          ],
+          "answer": 0,
+          "explanation": "Baris ini disebut *shebang*. Saat kamu menjalankan `./halo.sh`, sistem membaca baris ini untuk tahu program mana yang menjalankannya.",
+          "remedial": "- Folder tanpa `x`: `cd` dan membuka file di dalamnya ditolak\n- Folder tanpa `r`: `ls` ditolak, tapi file yang diketahui namanya masih bisa dibuka kalau ada `x`\n- Script: baris pertama `#!/bin/bash`, lalu `chmod +x`, lalu `./nama.sh`\n- Tanpa `x`: `Permission denied`. Tanpa `./`: `command not found`\n- `bash nama.sh` menjalankan script tanpa butuh izin `x`"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "# Isi file sapa.sh:\n#   #!/bin/bash\n#   echo \"Selamat pagi\"\n#   echo \"Sari\"\nchmod u+x sapa.sh\n./sapa.sh",
+      "options": [
+        "bash: ./sapa.sh: Permission denied",
+        "Selamat pagi\nSari",
+        "#!/bin/bash\necho \"Selamat pagi\"\necho \"Sari\"",
+        "Sari\nSelamat pagi"
+      ],
+      "answer": 1,
+      "explanation": "Setelah `u+x`, script bisa dijalankan. Setiap `echo` mencetak satu baris, jadi hasilnya dua baris."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Beri izin jalankan supaya script bisa dijalankan dengan ./\n# Isi file halo.sh:\n#   #!/bin/bash\n#   echo \"Halo, Budi!\"\nchmod ___ halo.sh\n./halo.sh",
+      "answers": [
+        "+x|u+x|a+x|ugo+x|u+rwx|a+rx|755|0755|775|744|700"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Folder tanpa x: tidak bisa cd dan tidak bisa membuka isinya. Folder tanpa r: ls ditolak.",
+        "Script = file teks berisi perintah, diawali shebang #!/bin/bash.",
+        "Script butuh chmod +x, lalu dijalankan dengan ./nama.sh.",
+        "Tanpa ./, bash mencari di folder-folder PATH saja, jadi muncul command not found.",
+        "bash nama.sh menjalankan script tanpa butuh izin x."
+      ]
+    }
+  ]
+}

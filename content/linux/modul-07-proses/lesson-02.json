@@ -1,0 +1,111 @@
+{
+  "id": "linux-proses-02",
+  "moduleId": "linux-proses",
+  "order": 2,
+  "title": "Melihat Proses dengan ps",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`ps` memotret daftar proses **pada saat itu juga**. Hasilnya seperti foto, bukan video: tidak bergerak.\n\n- `ps` tanpa opsi: hanya proses di terminal ini\n- `ps aux`: **semua** proses di komputer, dengan keterangan lengkap\n\nOpsi `aux` ditulis **tanpa tanda minus**. Ini gaya penulisan lama yang sampai sekarang paling sering dipakai:\n\n- `a`: proses milik semua user, bukan hanya milikmu\n- `u`: tampilan lengkap (pemilik, CPU, memori, jam mulai)\n- `x`: termasuk proses yang tidak terhubung ke terminal, misalnya service\n\nBayangkan satpam gedung yang memotret buku tamu pada jam 10.15. Di foto itu terlihat siapa saja yang ada di gedung, nomor kartu tamunya, jam masuknya, dan sedang di ruang mana. Orang yang datang semenit kemudian tidak ada di foto. Itulah `ps aux`: daftar lengkap, tapi hanya untuk satu saat."
+    },
+    {
+      "type": "theory",
+      "content": "Arti kolom `ps aux`:\n\n| Kolom | Artinya |\n|---|---|\n| `USER` | pemilik proses |\n| `PID` | nomor proses |\n| `%CPU` | persentase CPU, **rata-rata sejak proses mulai** |\n| `%MEM` | persentase memori (RAM) yang dipakai |\n| `VSZ`, `RSS` | ukuran memori dalam KiB (`RSS` = yang benar-benar ada di RAM) |\n| `TTY` | terminalnya; `?` = tidak terhubung ke terminal |\n| `STAT` | status proses (lihat tabel berikut) |\n| `START` | jam proses dimulai |\n| `TIME` | total waktu CPU yang sudah dipakai |\n| `COMMAND` | perintah yang dijalankan |\n\nHuruf **pertama** di kolom `STAT`:\n\n| Huruf | Artinya |\n|---|---|\n| `R` | sedang berjalan, atau siap berjalan |\n| `S` | tidur, menunggu sesuatu (paling banyak) |\n| `T` | dihentikan sementara |\n| `Z` | *zombie*: sudah selesai, tapi belum dibereskan induknya |\n| `D` | sedang menunggu disk atau perangkat lain, tidak bisa diganggu |\n| `I` | *thread* kernel yang sedang menganggur (banyak muncul di `ps aux`, abaikan saja) |\n\nHuruf tambahan seperti `s` (pemimpin sesi) atau `+` (proses latar depan di terminalnya) boleh diabaikan dulu.\n\n**Mencari satu program.** Daftar `ps aux` bisa ratusan baris, jadi biasanya disaring dengan `grep` lewat pipe:\n\n```bash\nps aux | grep nginx\n```\n\nHampir selalu ada satu baris tambahan di paling bawah: proses `grep` itu sendiri, misalnya `grep --color=auto nginx`. Kenapa? `ps` dan `grep` dijalankan bersamaan, jadi saat `ps` memotret, `grep` sudah berjalan, dan perintahnya mengandung kata `nginx`. Baris itu **bukan** tanda bahwa Nginx berjalan.\n\n**`pgrep`** lebih praktis: `pgrep nginx` hanya menampilkan PID proses yang namanya mengandung `nginx`, satu per baris, dan tidak ikut menampilkan dirinya sendiri. `pgrep -a nginx` menampilkan PID beserta perintah lengkapnya. Kalau tidak ada yang cocok, `pgrep` tidak menampilkan apa-apa.\n\n**Menyimpan untuk dibaca nanti.** `ps aux > proses.txt` menyimpan fotonya ke file. Setelah itu `grep`, `wc`, `head`, dan teman-temannya dari modul sebelumnya bisa dipakai seperti biasa.\n\nDi internet kamu juga akan sering melihat `ps -ef`. Isinya mirip, hanya kolomnya berbeda (salah satunya `PPID`)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Semua proses.** Gambaran layar `ps aux` di Ubuntu (sebagian baris saja; angka dan nama di komputermu bisa berbeda):\n\n```text\n$ ps aux\nUSER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\nroot           1  0.0  0.1  22392 13012 ?        Ss   09:00   0:01 /sbin/init splash\nwww-data    1238  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\nbudi        2841  0.0  0.0  11284  5248 pts/0    Ss   09:05   0:00 bash\n```\n\n- Baris-baris `ps aux` diurutkan menurut PID, dari kecil ke besar.\n- PID 1 milik `root`, tampil sebagai `/sbin/init`. Di Ubuntu, `/sbin/init` adalah systemd.\n- Proses pekerja Nginx milik user khusus `www-data` dan tidak punya terminal (`?`), karena ia service.\n- `bash` milik `budi` berjalan di terminal `pts/0`.\n\n**2. Mencari Nginx.** Saat Budi menjalankan `ps aux | grep nginx`, muncul baris-baris proses Nginx, ditambah satu baris berisi `grep --color=auto nginx` di paling bawah. Baris terakhir itu proses `grep` milik Budi sendiri. Sedangkan `pgrep nginx` hanya menampilkan PID-PID proses Nginx, satu per baris.\n\n**3. Menyaring hasil yang disimpan.** Budi menyimpan hasil `ps aux` ke `proses.txt`, lalu membuang baris lain supaya pendek. Sekarang ia bisa menyaringnya dengan perintah dari modul sebelumnya.\n\n```bash\ncat proses.txt\ngrep nginx proses.txt\ngrep -c www-data proses.txt\ngrep budi proses.txt\n```\n\nHasilnya:\n\n```text\n$ cat proses.txt\nUSER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\nroot           1  0.0  0.1  22392 13012 ?        Ss   09:00   0:01 /sbin/init splash\nroot        1237  0.0  0.0  12456  1720 ?        Ss   09:00   0:00 nginx: master process /usr/sbin/nginx -g daemon on; master_process on;\nwww-data    1238  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\nwww-data    1239  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\nbudi        2841  0.0  0.0  11284  5248 pts/0    Ss   09:05   0:00 bash\nbudi        4123 97.5  1.2 215340 98112 pts/1    R+   10:12   2:41 python3 hitung.py\nbudi        4188  0.0  0.0  13560  4480 pts/0    R+   10:15   0:00 ps aux\n$ grep nginx proses.txt\nroot        1237  0.0  0.0  12456  1720 ?        Ss   09:00   0:00 nginx: master process /usr/sbin/nginx -g daemon on; master_process on;\nwww-data    1238  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\nwww-data    1239  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\n$ grep -c www-data proses.txt\n2\n$ grep budi proses.txt\nbudi        2841  0.0  0.0  11284  5248 pts/0    Ss   09:05   0:00 bash\nbudi        4123 97.5  1.2 215340 98112 pts/1    R+   10:12   2:41 python3 hitung.py\nbudi        4188  0.0  0.0  13560  4480 pts/0    R+   10:15   0:00 ps aux\n```\n\n- `grep -c` menghitung jumlah baris yang cocok, bukan menampilkan barisnya. Ada 2 proses milik `www-data`.\n- `grep nginx` menampilkan tiga proses Nginx: satu *master* milik `root` dan dua *worker* milik `www-data`.\n- Baris `ps aux` milik `budi` ikut tersimpan, karena `ps` sendiri sedang berjalan saat memotret.\n- `python3 hitung.py` punya `%CPU` 97.5 dan status `R+`: proses ini sedang sibuk memakai CPU."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira baris grep berarti programnya berjalan**\n\nSalah:\n\n```text\nps aux | grep mysqld\n# hanya muncul: ... grep --color=auto mysqld\n# \"berarti MySQL sedang berjalan\"\n```\n\nBenar:\n\n```text\npgrep mysqld\n# tidak ada output = tidak ada proses mysqld\n```\n\nBaris yang berisi `grep ... mysqld` adalah proses `grep` itu sendiri. Kalau hanya baris itu yang muncul, artinya program yang dicari justru tidak berjalan. `pgrep` tidak menampilkan dirinya sendiri.\n\n**2. Memakai ps tanpa opsi untuk mencari service**\n\nSalah:\n\n```bash\nps\n# nginx tidak terlihat, \"berarti nginx mati\"\n```\n\nBenar:\n\n```bash\nps aux | grep nginx\n```\n\n`ps` tanpa opsi hanya menampilkan proses di terminal ini. Service seperti Nginx tidak terhubung ke terminal, jadi butuh `ps aux`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di hasil `ps aux`, kolom `TTY` sebuah proses berisi `?`. Artinya...",
+          "options": [
+            "Proses itu error",
+            "Pemilik proses tidak diketahui",
+            "Proses itu tidak terhubung ke terminal, biasanya service",
+            "Proses itu baru saja selesai"
+          ],
+          "answer": 2,
+          "explanation": "`?` berarti proses tidak berjalan dari terminal mana pun. Service seperti Nginx biasanya begitu.",
+          "remedial": "- `ps`: proses di terminal ini. `ps aux`: semua proses, keterangan lengkap\n- Kolom penting: USER (pemilik), PID, %CPU, %MEM, STAT, COMMAND\n- STAT: R berjalan, S tidur, T berhenti sementara, Z zombie\n- TTY `?` = tidak terhubung ke terminal (biasanya service)\n- `ps aux | grep nama` ikut menampilkan baris grep. `pgrep nama` hanya menampilkan PID"
+        },
+        {
+          "question": "Berdasarkan potongan output ini, proses mana yang paling banyak memakai CPU?",
+          "code": "# Output ps aux (sebagian baris):\nUSER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\nroot           1  0.0  0.1  22392 13012 ?        Ss   09:00   0:01 /sbin/init splash\nroot        1237  0.0  0.0  12456  1720 ?        Ss   09:00   0:00 nginx: master process /usr/sbin/nginx -g daemon on; master_process on;\nwww-data    1238  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\nwww-data    1239  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\nbudi        2841  0.0  0.0  11284  5248 pts/0    Ss   09:05   0:00 bash\nbudi        4123 97.5  1.2 215340 98112 pts/1    R+   10:12   2:41 python3 hitung.py\nbudi        4188  0.0  0.0  13560  4480 pts/0    R+   10:15   0:00 ps aux",
+          "options": [
+            "/sbin/init splash",
+            "python3 hitung.py",
+            "nginx: master process",
+            "ps aux"
+          ],
+          "answer": 1,
+          "explanation": "Lihat kolom `%CPU`: `python3 hitung.py` 97.5, yang lain 0.0.",
+          "remedial": "- `ps`: proses di terminal ini. `ps aux`: semua proses, keterangan lengkap\n- Kolom penting: USER (pemilik), PID, %CPU, %MEM, STAT, COMMAND\n- STAT: R berjalan, S tidur, T berhenti sementara, Z zombie\n- TTY `?` = tidak terhubung ke terminal (biasanya service)\n- `ps aux | grep nama` ikut menampilkan baris grep. `pgrep nama` hanya menampilkan PID"
+        },
+        {
+          "question": "Kenapa `ps aux | grep nginx` biasanya juga menampilkan baris berisi `grep --color=auto nginx`?",
+          "options": [
+            "Karena grep sedang berjalan saat ps memotret, dan perintahnya mengandung kata nginx",
+            "Karena Nginx menjalankan grep secara otomatis",
+            "Karena ps menampilkan setiap perintah dua kali",
+            "Karena ada proses Nginx yang rusak"
+          ],
+          "answer": 0,
+          "explanation": "`ps` dan `grep` berjalan bersamaan. `grep nginx` ikut terpotret, dan baris itu cocok dengan kata yang dicari.",
+          "remedial": "- `ps`: proses di terminal ini. `ps aux`: semua proses, keterangan lengkap\n- Kolom penting: USER (pemilik), PID, %CPU, %MEM, STAT, COMMAND\n- STAT: R berjalan, S tidur, T berhenti sementara, Z zombie\n- TTY `?` = tidak terhubung ke terminal (biasanya service)\n- `ps aux | grep nama` ikut menampilkan baris grep. `pgrep nama` hanya menampilkan PID"
+        },
+        {
+          "question": "Huruf pertama kolom `STAT` sebuah proses adalah `S`. Artinya proses itu...",
+          "options": [
+            "sedang memakai CPU",
+            "sudah selesai tapi belum dibereskan",
+            "dihentikan sementara",
+            "tidur, menunggu sesuatu"
+          ],
+          "answer": 3,
+          "explanation": "`S` = *sleeping*. Kebanyakan proses tidur menunggu sesuatu, misalnya ketikan atau data dari jaringan.",
+          "remedial": "- `ps`: proses di terminal ini. `ps aux`: semua proses, keterangan lengkap\n- Kolom penting: USER (pemilik), PID, %CPU, %MEM, STAT, COMMAND\n- STAT: R berjalan, S tidur, T berhenti sementara, Z zombie\n- TTY `?` = tidak terhubung ke terminal (biasanya service)\n- `ps aux | grep nama` ikut menampilkan baris grep. `pgrep nama` hanya menampilkan PID"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `proses.txt` berisi potongan hasil `ps aux`. Apa hasil perintah terakhir?",
+      "code": "# Isi file proses.txt:\n#   USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\n#   root           1  0.0  0.1  22392 13012 ?        Ss   09:00   0:01 /sbin/init splash\n#   root        1237  0.0  0.0  12456  1720 ?        Ss   09:00   0:00 nginx: master process /usr/sbin/nginx -g daemon on; master_process on;\n#   www-data    1238  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\n#   www-data    1239  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\n#   budi        2841  0.0  0.0  11284  5248 pts/0    Ss   09:05   0:00 bash\n#   budi        4123 97.5  1.2 215340 98112 pts/1    R+   10:12   2:41 python3 hitung.py\n#   budi        4188  0.0  0.0  13560  4480 pts/0    R+   10:15   0:00 ps aux\ngrep -c www-data proses.txt",
+      "options": [
+        "3",
+        "7",
+        "2",
+        "1"
+      ],
+      "answer": 2,
+      "explanation": "`grep -c` menghitung baris yang mengandung `www-data`. Ada dua: kedua proses *worker* Nginx."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Hitung berapa baris yang mengandung kata nginx\n# Isi file proses.txt:\n#   USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\n#   root           1  0.0  0.1  22392 13012 ?        Ss   09:00   0:01 /sbin/init splash\n#   root        1237  0.0  0.0  12456  1720 ?        Ss   09:00   0:00 nginx: master process /usr/sbin/nginx -g daemon on; master_process on;\n#   www-data    1238  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\n#   www-data    1239  0.0  0.0  13144  4752 ?        S    09:00   0:00 nginx: worker process\n#   budi        2841  0.0  0.0  11284  5248 pts/0    Ss   09:05   0:00 bash\n#   budi        4123 97.5  1.2 215340 98112 pts/1    R+   10:12   2:41 python3 hitung.py\n#   budi        4188  0.0  0.0  13560  4480 pts/0    R+   10:15   0:00 ps aux\ngrep ___ nginx proses.txt",
+      "answers": [
+        "-c|--count"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "ps memotret daftar proses saat itu; ps aux menampilkan semua proses dengan keterangan lengkap.",
+        "Kolom penting: USER, PID, %CPU, %MEM, STAT (R, S, T, Z), dan COMMAND.",
+        "TTY ? berarti proses tidak terhubung ke terminal, misalnya service.",
+        "ps aux | grep nama ikut menampilkan baris grep itu sendiri; pgrep nama hanya menampilkan PID.",
+        "Hasil ps aux bisa disimpan ke file dan disaring dengan grep, wc, dan head."
+      ]
+    }
+  ]
+}
