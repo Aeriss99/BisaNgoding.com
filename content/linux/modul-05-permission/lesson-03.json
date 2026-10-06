@@ -1,0 +1,111 @@
+{
+  "id": "linux-permission-03",
+  "moduleId": "linux-permission",
+  "order": 3,
+  "title": "Mengubah Izin dengan chmod: Huruf",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`chmod` (*change mode*) mengubah izin file atau folder. Hanya **pemilik** file (atau root) yang boleh mengubah izinnya.\n\nCara pertama memakai **huruf**. Bentuknya:\n\n```text\nchmod SIAPA OPERASI IZIN nama-file\n```\n\nDitulis rapat tanpa spasi, misalnya `chmod u+x halo.sh`: untuk pemilik (`u`), tambahkan (`+`) izin jalankan (`x`).\n\nSeperti `mkdir` dan `cp`, `chmod` diam kalau berhasil. Cek hasilnya dengan `ls -l`.\n\nBayangkan ibu kos menulis aturan di papan: \"Penghuni lantai 2: TAMBAH akses dapur.\" \"Tamu: CABUT akses ruang jemur.\" Setiap aturan menyebut siapa, tambah atau cabut, dan aksesnya apa. `chmod` dengan huruf bekerja persis seperti itu."
+    },
+    {
+      "type": "theory",
+      "content": "| Siapa | Artinya |\n|---|---|\n| `u` | *user*: pemilik |\n| `g` | *group*: grup |\n| `o` | *others*: lainnya |\n| `a` | *all*: ketiganya |\n\n| Operasi | Artinya |\n|---|---|\n| `+` | tambahkan izin |\n| `-` | cabut izin |\n| `=` | atur persis: untuk kelompok yang disebut, izin yang tidak ditulis dicabut. Kelompok lain tidak disentuh |\n\nContoh:\n\n| Perintah | Hasilnya |\n|---|---|\n| `chmod u+x halo.sh` | pemilik boleh menjalankan |\n| `chmod g-w laporan.txt` | grup tidak boleh mengubah |\n| `chmod o=r catatan.txt` | lainnya hanya boleh membaca |\n| `chmod o= catatan.txt` | lainnya tidak punya izin apa pun |\n| `chmod a+r info.txt` | semua boleh membaca |\n| `chmod go-rw rahasia.txt` | grup dan lainnya: cabut baca dan tulis |\n| `chmod u+x,g-w halo.sh` | dua aturan sekaligus |\n\n- Beberapa aturan dipisah **koma tanpa spasi**.\n- `chmod +x halo.sh` (tanpa huruf siapa): chmod memakai `a`, tetapi tetap dibatasi umask (dibahas di pelajaran *chown, chgrp, dan umask*). Dengan umask 022/002, hasil `+x` sama dengan `a+x`. Supaya pasti, tulis `a+x`.\n\n**Opsi `-R`** (*recursive*) menerapkan perubahan ke folder **beserta seluruh isinya**. Hati-hati: `chmod -R +x proyek` membuat semua file di dalamnya bisa dijalankan, padahal file biasa seperti `.txt` tidak perlu `x`. Pakai `-R` hanya untuk aturan yang memang cocok bagi semua isinya, misalnya mencabut izin lainnya: `chmod -R o-rwx proyek`.\n\nKalau aturan salah tulis, `chmod` menolak:\n\n```text\nchmod: invalid mode: ‘u+z’\nTry 'chmod --help' for more information.\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDi folder home Budi ada `laporan.txt`, `halo.sh`, `rahasia.txt`, dan folder `proyek` berisi `index.html`. Semuanya masih berizin bawaan. Budi merapikan izinnya satu per satu.\n\n```bash\nls -l\nchmod u+x halo.sh\nchmod go-r rahasia.txt\nchmod g+w,o-r laporan.txt\nls -l\nchmod u+z halo.sh\nchmod -R o-rx proyek\nls -ld proyek\nls -l proyek\n```\n\nHasilnya:\n\n```text\n$ ls -l\ntotal 16\n-rw-r--r-- 1 budi budi   24 Sep  1 09:00 halo.sh\n-rw-r--r-- 1 budi budi   22 Sep  1 09:00 laporan.txt\ndrwxr-xr-x 2 budi budi 4096 Sep  1 09:00 proyek\n-rw-r--r-- 1 budi budi   20 Sep  1 09:00 rahasia.txt\n$ chmod u+x halo.sh\n$ chmod go-r rahasia.txt\n$ chmod g+w,o-r laporan.txt\n$ ls -l\ntotal 16\n-rwxr--r-- 1 budi budi   24 Sep  1 09:00 halo.sh\n-rw-rw---- 1 budi budi   22 Sep  1 09:00 laporan.txt\ndrwxr-xr-x 2 budi budi 4096 Sep  1 09:00 proyek\n-rw------- 1 budi budi   20 Sep  1 09:00 rahasia.txt\n$ chmod u+z halo.sh\nchmod: invalid mode: ‘u+z’\nTry 'chmod --help' for more information.\n$ chmod -R o-rx proyek\n$ ls -ld proyek\ndrwxr-x--- 2 budi budi 4096 Sep  1 09:00 proyek\n$ ls -l proyek\ntotal 4\n-rw-r----- 1 budi budi 19 Sep  1 09:00 index.html\n```\n\n- `u+x`: `halo.sh` berubah dari `rw-r--r--` menjadi `rwxr--r--`.\n- `go-r`: grup dan lainnya kehilangan izin baca, jadi `rahasia.txt` menjadi `rw-------`.\n- `g+w,o-r`: dua aturan sekaligus. Grup boleh menulis, lainnya tidak boleh membaca: `rw-rw----`.\n- `u+z` ditolak karena `z` bukan izin yang dikenal.\n- `-R o-rx` mencabut izin lainnya dari folder `proyek` **dan** `index.html` di dalamnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memberi spasi setelah koma**\n\nSalah:\n\n```bash\nchmod u+x, g-w halo.sh\n# chmod: invalid mode: ‘u+x,’\n```\n\nBenar:\n\n```bash\nchmod u+x,g-w halo.sh\n```\n\nSpasi memisahkan argumen. `chmod` membaca `u+x,` sebagai aturan (salah) dan `g-w` sebagai nama file. Tulis semua aturan rapat dengan koma.\n\n**2. Mengira o berarti owner (pemilik)**\n\nSalah:\n\n```bash\nchmod o-w catatan.txt\n# maksudnya: pemilik tidak boleh menulis\n```\n\nBenar:\n\n```bash\nchmod u-w catatan.txt\n```\n\nHuruf `o` adalah *others* (lainnya). Pemilik ditulis `u` (*user*).\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Huruf yang dipakai `chmod` untuk menunjuk PEMILIK file adalah...",
+          "options": [
+            "o",
+            "p",
+            "u",
+            "a"
+          ],
+          "answer": 2,
+          "explanation": "`u` = *user*, yaitu pemilik. `o` = *others* (lainnya), `a` = *all* (semua).",
+          "remedial": "- `chmod SIAPA OPERASI IZIN file`, ditulis rapat: `chmod u+x halo.sh`\n- Siapa: `u` pemilik, `g` grup, `o` lainnya, `a` semua\n- Operasi: `+` tambah, `-` cabut, `=` atur persis untuk kelompok yang disebut\n- Beberapa aturan: pisahkan dengan koma tanpa spasi\n- `-R` = folder beserta seluruh isinya, pakai dengan hati-hati"
+        },
+        {
+          "question": "Perintah mana yang mencabut izin tulis dari grup DAN lainnya sekaligus?",
+          "options": [
+            "chmod go-w catatan.txt",
+            "chmod u-w catatan.txt",
+            "chmod go+w catatan.txt",
+            "chmod a-r catatan.txt"
+          ],
+          "answer": 0,
+          "explanation": "`go` = grup dan lainnya, `-w` = cabut izin tulis.",
+          "remedial": "- `chmod SIAPA OPERASI IZIN file`, ditulis rapat: `chmod u+x halo.sh`\n- Siapa: `u` pemilik, `g` grup, `o` lainnya, `a` semua\n- Operasi: `+` tambah, `-` cabut, `=` atur persis untuk kelompok yang disebut\n- Beberapa aturan: pisahkan dengan koma tanpa spasi\n- `-R` = folder beserta seluruh isinya, pakai dengan hati-hati"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi folder saat ini: laporan.txt\n# Izin awal laporan.txt: -rw-rw-r--\nchmod g=r laporan.txt\nls -l laporan.txt",
+          "options": [
+            "-rw-rw-r-- 1 budi budi 0 Sep  1 09:00 laporan.txt",
+            "-r--r--r-- 1 budi budi 0 Sep  1 09:00 laporan.txt",
+            "-rw-r----- 1 budi budi 0 Sep  1 09:00 laporan.txt",
+            "-rw-r--r-- 1 budi budi 0 Sep  1 09:00 laporan.txt"
+          ],
+          "answer": 3,
+          "explanation": "`=` mengatur persis: grup sekarang hanya `r`, izin `w`-nya dicabut. Pemilik dan lainnya tidak disentuh.",
+          "remedial": "- `chmod SIAPA OPERASI IZIN file`, ditulis rapat: `chmod u+x halo.sh`\n- Siapa: `u` pemilik, `g` grup, `o` lainnya, `a` semua\n- Operasi: `+` tambah, `-` cabut, `=` atur persis untuk kelompok yang disebut\n- Beberapa aturan: pisahkan dengan koma tanpa spasi\n- `-R` = folder beserta seluruh isinya, pakai dengan hati-hati"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi folder saat ini: halo.sh\nchmod x+u halo.sh",
+          "options": [
+            "(tidak ada output, pemilik boleh menjalankan)",
+            "chmod: invalid mode: ‘x+u’\nTry 'chmod --help' for more information.",
+            "chmod: changing permissions of 'halo.sh': Operation not permitted",
+            "chmod: cannot access 'halo.sh': No such file or directory"
+          ],
+          "answer": 1,
+          "explanation": "Urutannya terbalik. Yang benar `u+x`: siapa dulu, lalu operasi, lalu izin.",
+          "remedial": "- `chmod SIAPA OPERASI IZIN file`, ditulis rapat: `chmod u+x halo.sh`\n- Siapa: `u` pemilik, `g` grup, `o` lainnya, `a` semua\n- Operasi: `+` tambah, `-` cabut, `=` atur persis untuk kelompok yang disebut\n- Beberapa aturan: pisahkan dengan koma tanpa spasi\n- `-R` = folder beserta seluruh isinya, pakai dengan hati-hati"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "# Isi folder saat ini: halo.sh\n# Izin awal halo.sh: -rw-r--r--\nchmod u+x,go-r halo.sh\nls -l halo.sh",
+      "options": [
+        "-rwx------ 1 budi budi 0 Sep  1 09:00 halo.sh",
+        "-rwxr--r-- 1 budi budi 0 Sep  1 09:00 halo.sh",
+        "-rw------- 1 budi budi 0 Sep  1 09:00 halo.sh",
+        "-rwx--x--x 1 budi budi 0 Sep  1 09:00 halo.sh"
+      ],
+      "answer": 0,
+      "explanation": "Pemilik mendapat `x` (`rwx`), grup dan lainnya kehilangan `r` sehingga tinggal `---`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tambahkan izin jalankan untuk PEMILIK saja\n# Isi folder saat ini: halo.sh\nchmod ___ halo.sh",
+      "answers": [
+        "u+x"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "chmod mengubah izin; hanya pemilik file atau root yang boleh.",
+        "Bentuk huruf: siapa (u g o a), operasi (+ - =), izin (r w x), ditulis rapat.",
+        "Beberapa aturan dipisah koma tanpa spasi, misalnya chmod u+x,g-w file.",
+        "chmod -R mengubah folder beserta seluruh isinya, jadi pakai dengan hati-hati."
+      ]
+    }
+  ]
+}

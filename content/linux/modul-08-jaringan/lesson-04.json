@@ -1,0 +1,111 @@
+{
+  "id": "linux-jaringan-04",
+  "moduleId": "linux-jaringan",
+  "order": 4,
+  "title": "DNS: Dari Nama ke IP",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Komputer berkomunikasi memakai IP address, tapi manusia lebih mudah mengingat nama seperti `example.com`. Yang menerjemahkan nama menjadi IP adalah **DNS** (*Domain Name System*).\n\nSetiap kali kamu mengetik sebuah nama, misalnya `ping example.com` atau membuka website, komputermu lebih dulu bertanya, \"Nama ini IP-nya berapa?\" Setelah dapat jawabannya, barulah ia menghubungi IP itu.\n\nDNS seperti daftar kontak di HP. Kamu cukup mengetuk nama \"Sari\", lalu HP mencarikan nomor teleponnya. Di Linux, ada dua tempat yang dicek: **catatan pribadi** di komputermu sendiri (file `/etc/hosts`), lalu **buku telepon besar** milik server DNS. Catatan pribadi selalu dibaca lebih dulu."
+    },
+    {
+      "type": "theory",
+      "content": "**Urutan mencari IP dari sebuah nama:**\n\n1. **`/etc/hosts`**: file teks berisi pasangan IP dan nama. Kalau namanya ada di sini, pencarian selesai.\n2. **Server DNS**: kalau tidak ada di `/etc/hosts`, komputer bertanya ke server DNS. Alamatnya tertulis di `/etc/resolv.conf`.\n\n| File / perintah | Fungsinya |\n|---|---|\n| `/etc/hosts` | daftar nama → IP buatan sendiri, dibaca lebih dulu |\n| `/etc/resolv.conf` | alamat server DNS yang ditanya |\n| `getent hosts nama` | cari IP sebuah nama dengan urutan yang sama seperti program lain |\n| `nslookup nama` / `dig nama` | alat untuk menguji server DNS |\n\n**Format `/etc/hosts`:** satu baris = IP, spasi, lalu nama. Baris yang diawali `#` adalah komentar. Mengubahnya butuh `sudo`, misalnya `sudo nano /etc/hosts`.\n\n**nano** adalah editor teks sederhana di terminal. Setelah file terbuka, ketik atau ubah teksnya seperti biasa, simpan dengan **Ctrl+O** lalu Enter, dan keluar dengan **Ctrl+X**. Kalau file dibuka tanpa `sudo`, isinya tetap bisa dilihat, tapi saat disimpan dengan Ctrl+O, nano menolak karena izinnya tidak cukup (*Permission denied*).\n\n**Isi `/etc/hosts` hanya berlaku di komputer yang mengeditnya.** Komputer lain tidak ikut mengenal nama yang kamu tambahkan.\n\n**`/etc/resolv.conf` di Ubuntu** berisi `nameserver 127.0.0.53` (di WSL isinya bisa berbeda). Itu bukan server di internet, melainkan **layanan DNS lokal** (systemd-resolved) di komputermu sendiri. Layanan itulah yang meneruskan pertanyaan ke server DNS sungguhan, misalnya milik router atau penyedia internet.\n\n**`getent hosts`** memakai urutan yang sama dengan program biasa (`/etc/hosts` dulu, baru DNS). **`nslookup`** dan **`dig`** adalah alat untuk menguji server DNS. Di Ubuntu, keduanya bertanya ke layanan DNS lokal `127.0.0.53`, yang juga membaca `/etc/hosts`. Tapi kalau kamu menyuruhnya bertanya langsung ke server DNS lain, misalnya `dig @192.168.1.1 toko.contoh`, isi `/etc/hosts` laptopmu tidak terlihat. Keduanya ada di paket `dnsutils` yang belum tentu terpasang (`sudo apt install dnsutils`).\n\nKegunaan `/etc/hosts` yang sering dipakai programmer: memberi nama pada server percobaan di jaringan lokal, misalnya `192.168.1.20 toko.contoh`, supaya bisa dicoba dengan nama sebelum nama aslinya didaftarkan ke DNS."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi melihat dua file DNS di laptopnya (hanya sebagian baris yang ditampilkan). Nama dan alamat di komputermu bisa berbeda.\n\n```text\nbudi@laptop:~$ cat /etc/hosts\n127.0.0.1 localhost\n127.0.1.1 laptop\nbudi@laptop:~$ cat /etc/resolv.conf\n...\nnameserver 127.0.0.53\n```\n\n- `localhost` diarahkan ke `127.0.0.1`, dan nama laptop Budi sendiri (`laptop`) ke `127.0.1.1`.\n- Pertanyaan DNS dikirim ke `127.0.0.53`, layanan DNS lokal di laptop itu.\n\nBudi punya server percobaan di jaringan kantor dengan IP `192.168.1.20`. Ia menambahkan baris `192.168.1.20 toko.contoh` ke `/etc/hosts` dengan `sudo nano /etc/hosts`, lalu mengeceknya:\n\n```text\nbudi@laptop:~$ getent hosts toko.contoh\n192.168.1.20    toko.contoh\nbudi@laptop:~$ ping -c 3 toko.contoh\nPING toko.contoh (192.168.1.20) 56(84) bytes of data.\n...\n```\n\nNama `toko.contoh` sekarang dikenali sebagai `192.168.1.20`, tanpa menyentuh server DNS mana pun.\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengedit /etc/hosts tanpa sudo**\n\nSalah:\n\n```bash\nnano /etc/hosts\n# saat disimpan dengan Ctrl+O: Permission denied\n```\n\nBenar:\n\n```bash\nsudo nano /etc/hosts\n```\n\n`/etc/hosts` milik root dan hanya bisa diubah dengan `sudo`. Tanpa itu, nano tetap membuka file, tapi menolak saat kamu menyimpan dengan Ctrl+O.\n\n**2. Mengira /etc/hosts berlaku untuk semua komputer**\n\nSalah:\n\n```text\n# Budi menambah \"192.168.1.20 toko.contoh\"\n# ke /etc/hosts laptopnya, lalu berkata:\n# \"Sari, buka saja toko.contoh dari laptopmu\"\n```\n\nBenar:\n\n```text\n# Sari juga menambah baris yang sama\n# ke /etc/hosts di laptopnya sendiri\n# (atau nama itu didaftarkan ke server DNS)\n```\n\nIsi `/etc/hosts` hanya berlaku di komputer yang mengeditnya. Laptop Sari tidak ikut mengenal `toko.contoh`, jadi di sana muncul `Name or service not known`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Fungsi utama DNS adalah...",
+          "options": [
+            "Mempercepat koneksi internet",
+            "Menerjemahkan nama seperti example.com menjadi IP address",
+            "Membagikan IP lokal ke laptop",
+            "Mengenkripsi data"
+          ],
+          "answer": 1,
+          "explanation": "DNS = buku telepon internet: nama → IP. Yang membagikan IP lokal adalah DHCP di router.",
+          "remedial": "- DNS menerjemahkan nama (mis. `example.com`) menjadi IP\n- `/etc/hosts` dibaca lebih dulu, baru server DNS\n- `/etc/resolv.conf` di Ubuntu berisi `nameserver 127.0.0.53` (DNS lokal systemd-resolved)\n- `getent hosts nama` mencari dengan urutan yang sama seperti program biasa\n- `/etc/hosts` hanya berlaku di komputer yang mengeditnya; diedit dengan `sudo nano` (Ctrl+O simpan, Ctrl+X keluar)"
+        },
+        {
+          "question": "Saat mencari IP dari sebuah nama, file yang dibaca Linux paling awal adalah...",
+          "options": [
+            "/etc/resolv.conf",
+            "/etc/passwd",
+            "/etc/hosts",
+            "/var/log/syslog"
+          ],
+          "answer": 2,
+          "explanation": "`/etc/hosts` dibaca lebih dulu. Kalau tidak ada di sana, barulah server DNS di `/etc/resolv.conf` ditanya.",
+          "remedial": "- DNS menerjemahkan nama (mis. `example.com`) menjadi IP\n- `/etc/hosts` dibaca lebih dulu, baru server DNS\n- `/etc/resolv.conf` di Ubuntu berisi `nameserver 127.0.0.53` (DNS lokal systemd-resolved)\n- `getent hosts nama` mencari dengan urutan yang sama seperti program biasa\n- `/etc/hosts` hanya berlaku di komputer yang mengeditnya; diedit dengan `sudo nano` (Ctrl+O simpan, Ctrl+X keluar)"
+        },
+        {
+          "question": "`/etc/resolv.conf` di Ubuntu berisi baris ini. Artinya...",
+          "code": "# Isi file /etc/resolv.conf (sebagian):\nnameserver 127.0.0.53",
+          "options": [
+            "Pertanyaan DNS dikirim ke layanan DNS lokal di komputer itu sendiri",
+            "DNS dimatikan",
+            "Komputer ini adalah server DNS untuk seluruh internet",
+            "Semua website diarahkan ke 127.0.0.53"
+          ],
+          "answer": 0,
+          "explanation": "`127.0.0.53` adalah layanan DNS lokal (systemd-resolved) yang meneruskan pertanyaan ke server DNS sungguhan.",
+          "remedial": "- DNS menerjemahkan nama (mis. `example.com`) menjadi IP\n- `/etc/hosts` dibaca lebih dulu, baru server DNS\n- `/etc/resolv.conf` di Ubuntu berisi `nameserver 127.0.0.53` (DNS lokal systemd-resolved)\n- `getent hosts nama` mencari dengan urutan yang sama seperti program biasa\n- `/etc/hosts` hanya berlaku di komputer yang mengeditnya; diedit dengan `sudo nano` (Ctrl+O simpan, Ctrl+X keluar)"
+        },
+        {
+          "question": "Budi mengetik `dig example.com` dan muncul pesan bahwa perintah `dig` tidak ditemukan (*not found*). Solusinya...",
+          "options": [
+            "Pakai sudo dig example.com",
+            "Edit /etc/hosts",
+            "Restart laptop",
+            "Pasang paket dnsutils"
+          ],
+          "answer": 3,
+          "explanation": "`dig` dan `nslookup` ada di paket `dnsutils` yang belum tentu terpasang: `sudo apt install dnsutils`.",
+          "remedial": "- DNS menerjemahkan nama (mis. `example.com`) menjadi IP\n- `/etc/hosts` dibaca lebih dulu, baru server DNS\n- `/etc/resolv.conf` di Ubuntu berisi `nameserver 127.0.0.53` (DNS lokal systemd-resolved)\n- `getent hosts nama` mencari dengan urutan yang sama seperti program biasa\n- `/etc/hosts` hanya berlaku di komputer yang mengeditnya; diedit dengan `sudo nano` (Ctrl+O simpan, Ctrl+X keluar)"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Budi menyimpan salinan `/etc/hosts` di file `hosts.txt`. Apa hasil perintah terakhir?",
+      "code": "# Isi file hosts.txt:\n#   127.0.0.1 localhost\n#   127.0.1.1 laptop\n#   192.168.1.20 toko.contoh\n#   192.168.1.30 gudang.contoh\ngrep gudang hosts.txt | cut -d' ' -f1",
+      "options": [
+        "192.168.1.20",
+        "gudang.contoh",
+        "192.168.1.30 gudang.contoh",
+        "192.168.1.30"
+      ],
+      "answer": 3,
+      "explanation": "`grep gudang` menyisakan baris `192.168.1.30 gudang.contoh`, lalu `cut` mengambil kolom pertama: IP-nya."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Cari IP yang dipakai sistem untuk nama toko.contoh\n# (cek /etc/hosts dulu, baru DNS)\ngetent ___ toko.contoh",
+      "answers": [
+        "hosts"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "DNS menerjemahkan nama menjadi IP address.",
+        "/etc/hosts dibaca lebih dulu; kalau tidak ada, server DNS di /etc/resolv.conf yang ditanya.",
+        "Di Ubuntu, nameserver 127.0.0.53 adalah layanan DNS lokal (systemd-resolved).",
+        "getent hosts nama mencari IP dengan urutan yang sama seperti program biasa.",
+        "Isi /etc/hosts hanya berlaku di komputer yang mengeditnya; nslookup dan dig (paket dnsutils) adalah alat menguji DNS."
+      ]
+    }
+  ]
+}

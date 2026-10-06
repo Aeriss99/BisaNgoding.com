@@ -1,0 +1,110 @@
+{
+  "id": "linux-proses-06",
+  "moduleId": "linux-proses",
+  "order": 6,
+  "title": "Service dan systemctl",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ada program yang harus **terus hidup**, walaupun tidak ada orang yang login: web server (Nginx), database (MySQL), atau server SSH. Program seperti ini disebut **service** (layanan) atau **daemon**: proses yang berjalan terus di latar belakang dan menunggu permintaan. Nama programnya sering berakhiran `d`, misalnya `sshd` atau `mysqld`.\n\nDi Ubuntu, semua service diatur oleh **systemd**, yaitu PID 1. Perintah untuk mengendalikannya adalah `systemctl`.\n\nService itu seperti satpam gedung yang berjaga 24 jam. systemd adalah manajer gedung yang mengatur jadwal satpam. **start** = menyuruh satpam mulai berjaga sekarang. **enable** = memasukkan satpam ke jadwal tetap, supaya setiap pagi saat gedung dibuka ia otomatis berjaga. Satpam bisa berjaga hari ini tanpa masuk jadwal tetap, dan sebaliknya."
+    },
+    {
+      "type": "theory",
+      "content": "| Perintah | Artinya |\n|---|---|\n| `systemctl status nginx` | lihat keadaan service (tanpa sudo) |\n| `sudo systemctl start nginx` | nyalakan sekarang |\n| `sudo systemctl stop nginx` | matikan sekarang |\n| `sudo systemctl restart nginx` | matikan lalu nyalakan lagi |\n| `sudo systemctl reload nginx` | baca ulang pengaturan tanpa mematikan |\n| `sudo systemctl enable nginx` | nyalakan otomatis setiap komputer menyala |\n| `sudo systemctl disable nginx` | batalkan nyala otomatis |\n| `systemctl is-active nginx` | jawab `active` atau `inactive` |\n| `systemctl is-enabled nginx` | jawab `enabled` atau `disabled` |\n\nCatatan penting:\n\n- **start ≠ enable.** `start` menyalakan sekarang, tapi setelah komputer dinyalakan ulang (*reboot*) service belum tentu hidup lagi. `enable` mengatur nyala otomatis saat *boot* (proses komputer dinyalakan), tapi **tidak** menyalakannya sekarang. Mau dua-duanya sekaligus: `sudo systemctl enable --now nginx`. Begitu pula `disable` tidak mematikan service yang sedang berjalan.\n- `nginx` adalah singkatan dari `nginx.service`. Keduanya boleh dipakai.\n- `reload` hanya bisa untuk service yang mendukungnya (Nginx mendukung). Kalau ragu, pakai `restart`.\n- `start`, `stop`, `restart`, dan `reload` **tidak menampilkan apa-apa** kalau berhasil. Cek hasilnya dengan `status` atau `is-active`.\n- Mengubah keadaan service butuh **sudo**. Tanpa sudo, systemd meminta password admin lewat jendela atau teks di terminal sebelum melanjutkan.\n- `systemctl status` membuka tampilan seperti `less` kalau outputnya panjang. Tekan `q` untuk keluar.\n\n**Membaca `systemctl status`:**\n\n| Baris | Artinya |\n|---|---|\n| `●` dan nama | nama service dan keterangannya |\n| `Loaded:` | file pengaturannya, lalu status nyala otomatis |\n| `Active:` | `active (running)` = berjalan, `inactive (dead)` = mati, `failed` = gagal |\n| `Main PID:` | PID proses utamanya |\n| `CGroup:` | semua proses milik service ini |\n\nDi baris `Loaded:`, kata pertama setelah path file (`enabled` atau `disabled`) adalah status nyala otomatis **saat ini**: `enabled` = menyala sendiri saat boot, `disabled` = tidak. Tulisan `preset: ...` hanya pengaturan bawaan dari pembuat paket; abaikan saja.\n\n**WSL:** WSL Ubuntu versi baru menyalakan systemd secara bawaan, jadi `systemctl` bisa dipakai. Di WSL versi lama, `systemctl` bisa menolak dengan pesan bahwa sistem tidak dijalankan dengan systemd."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nGambaran layar di Ubuntu yang sudah memasang Nginx (sebagian baris saja; angka, tanggal, dan PID di komputermu bisa berbeda).\n\n**1. Melihat keadaan service.**\n\n```text\n$ systemctl status nginx\n● nginx.service - A high performance web server and a reverse proxy server\n     Loaded: loaded (/usr/lib/systemd/system/nginx.service; enabled; preset: enabled)\n     Active: active (running) since Tue 2026-09-01 09:00:12 WIB; 1h 15min ago\n       Docs: man:nginx(8)\n   Main PID: 1237 (nginx)\n      Tasks: 3 (limit: 9387)\n     Memory: 2.9M (peak: 3.4M)\n        CPU: 24ms\n     CGroup: /system.slice/nginx.service\n             ├─1237 \"nginx: master process /usr/sbin/nginx -g daemon on; master_process on;\"\n             ├─1238 \"nginx: worker process\"\n             └─1239 \"nginx: worker process\"\n```\n\n- `enabled`: Nginx menyala otomatis setiap komputer dinyalakan.\n- `active (running)`: Nginx sedang berjalan sejak pukul 09:00:12, sudah 1 jam 15 menit.\n- `Main PID: 1237` adalah proses *master*. Di `CGroup` terlihat juga dua proses *worker*, total 3 proses (`Tasks: 3`).\n\n**2. Mematikan dan menyalakan lagi.**\n\n```text\n$ systemctl is-active nginx\nactive\n$ sudo systemctl stop nginx\n[sudo] password for budi:\n$ systemctl is-active nginx\ninactive\n$ sudo systemctl start nginx\n$ systemctl is-active nginx\nactive\n```\n\n- `stop` dan `start` tidak menampilkan apa-apa, jadi Budi mengecek dengan `is-active`.\n- Saat `start`, sudo tidak bertanya password lagi, karena sudo mengingat password untuk beberapa menit.\n- Kalau Budi menjalankan `systemctl status nginx` saat Nginx mati, baris `Active` diawali `Active: inactive (dead)`.\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira enable langsung menyalakan service**\n\nSalah:\n\n```bash\nsudo systemctl enable nginx\n# \"Nginx pasti sudah berjalan sekarang\"\n```\n\nBenar:\n\n```bash\nsudo systemctl enable --now nginx\n# atau: enable, lalu start\n```\n\n`enable` hanya mengatur nyala otomatis saat boot berikutnya. Untuk menyalakan sekarang perlu `start`, atau `enable --now`.\n\n**2. Mengira perintah gagal karena tidak ada pesan**\n\nSalah:\n\n```bash\nsudo systemctl restart nginx\n# tidak ada pesan, \"jangan-jangan gagal?\"\nsudo systemctl restart nginx\nsudo systemctl restart nginx\n```\n\nBenar:\n\n```bash\nsudo systemctl restart nginx\nsystemctl status nginx\n```\n\nDi Linux, perintah yang berhasil sering diam saja. Cek hasilnya dengan `systemctl status` atau `systemctl is-active`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dimaksud dengan *service* atau *daemon*?",
+          "options": [
+            "Program yang hanya berjalan saat kita mengetik perintahnya",
+            "Proses yang terus berjalan di latar belakang dan menunggu permintaan",
+            "File pengaturan di folder /etc",
+            "Perintah untuk menghentikan proses"
+          ],
+          "answer": 1,
+          "explanation": "Service seperti web server atau database terus hidup di belakang layar, walaupun tidak ada yang login.",
+          "remedial": "- Service/daemon = proses yang terus berjalan di latar belakang, diatur systemd\n- `status` melihat keadaan; `start`/`stop`/`restart`/`reload` mengubahnya (butuh sudo)\n- `start` = sekarang, `enable` = otomatis saat boot. `enable --now` = keduanya\n- `is-active` → active/inactive, `is-enabled` → enabled/disabled\n- Perintah yang berhasil tidak menampilkan apa-apa. Cek dengan `status`"
+        },
+        {
+          "question": "Apa beda `sudo systemctl start nginx` dan `sudo systemctl enable nginx`?",
+          "options": [
+            "start menyalakan sekarang; enable mengatur nyala otomatis saat boot",
+            "Keduanya sama persis",
+            "start untuk boot berikutnya; enable menyalakan sekarang",
+            "start butuh sudo, enable tidak"
+          ],
+          "answer": 0,
+          "explanation": "`start` = sekarang. `enable` = setiap kali komputer menyala. Untuk keduanya sekaligus: `enable --now`.",
+          "remedial": "- Service/daemon = proses yang terus berjalan di latar belakang, diatur systemd\n- `status` melihat keadaan; `start`/`stop`/`restart`/`reload` mengubahnya (butuh sudo)\n- `start` = sekarang, `enable` = otomatis saat boot. `enable --now` = keduanya\n- `is-active` → active/inactive, `is-enabled` → enabled/disabled\n- Perintah yang berhasil tidak menampilkan apa-apa. Cek dengan `status`"
+        },
+        {
+          "question": "Berdasarkan baris dari `systemctl status mysql` ini, apakah MySQL akan menyala sendiri saat komputer dinyalakan ulang?",
+          "code": "     Loaded: loaded (/usr/lib/systemd/system/mysql.service; disabled; preset: enabled)\n     Active: active (running) since Tue 2026-09-01 09:00:15 WIB; 1h 15min ago",
+          "options": [
+            "Ya, karena sedang active (running)",
+            "Ya, karena preset: enabled",
+            "Tidak bisa diketahui dari status",
+            "Tidak, karena di baris Loaded tertulis disabled"
+          ],
+          "answer": 3,
+          "explanation": "Nyala otomatis dilihat dari kata pertama setelah path di baris `Loaded`: `disabled`. `preset: enabled` hanya pengaturan bawaan dari pembuat paket, bukan status sekarang. Sekarang memang berjalan (mungkin dinyalakan dengan `start`), tapi setelah boot tidak menyala sendiri.",
+          "remedial": "- Service/daemon = proses yang terus berjalan di latar belakang, diatur systemd\n- `status` melihat keadaan; `start`/`stop`/`restart`/`reload` mengubahnya (butuh sudo)\n- `start` = sekarang, `enable` = otomatis saat boot. `enable --now` = keduanya\n- `is-active` → active/inactive, `is-enabled` → enabled/disabled\n- Perintah yang berhasil tidak menampilkan apa-apa. Cek dengan `status`"
+        },
+        {
+          "question": "Kamu mengubah pengaturan Nginx dan ingin Nginx membacanya ulang tanpa dimatikan. Perintahnya...",
+          "options": [
+            "sudo systemctl enable nginx",
+            "sudo systemctl stop nginx",
+            "sudo systemctl reload nginx",
+            "systemctl is-active nginx"
+          ],
+          "answer": 2,
+          "explanation": "`reload` membaca ulang pengaturan tanpa mematikan service.",
+          "remedial": "- Service/daemon = proses yang terus berjalan di latar belakang, diatur systemd\n- `status` melihat keadaan; `start`/`stop`/`restart`/`reload` mengubahnya (butuh sudo)\n- `start` = sekarang, `enable` = otomatis saat boot. `enable --now` = keduanya\n- `is-active` → active/inactive, `is-enabled` → enabled/disabled\n- Perintah yang berhasil tidak menampilkan apa-apa. Cek dengan `status`"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Ini sebagian output `systemctl status nginx`. Apa hasil perintah terakhir?",
+      "code": "# Sebagian output systemctl status nginx:\n     Loaded: loaded (/usr/lib/systemd/system/nginx.service; enabled; preset: enabled)\n     Active: inactive (dead)\n$ systemctl is-active nginx",
+      "options": [
+        "active",
+        "enabled",
+        "disabled",
+        "inactive"
+      ],
+      "answer": 3,
+      "explanation": "`is-active` melihat baris `Active`, yaitu `inactive (dead)`. `enabled` adalah jawaban `is-enabled`, bukan `is-active`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Atur supaya nginx menyala otomatis setiap kali komputer menyala\nsudo systemctl ___ nginx",
+      "answers": [
+        "enable"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Service (daemon) adalah proses yang terus berjalan di latar belakang, diatur oleh systemd.",
+        "systemctl status melihat keadaan; start, stop, restart, dan reload mengubahnya dengan sudo.",
+        "start menyalakan sekarang, enable menyalakan otomatis saat boot; enable --now melakukan keduanya.",
+        "Perintah yang berhasil diam saja; cek dengan status atau is-active."
+      ]
+    }
+  ]
+}
