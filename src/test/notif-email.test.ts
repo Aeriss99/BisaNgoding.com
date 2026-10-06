@@ -41,23 +41,27 @@ describe('Notifikasi Email Shared Logic', () => {
 
   it('templatPengingat generates correct subject and html', () => {
     const t = templatPengingat('Budi', 5, 'https://bisangoding.com', 'https://bisangoding.com/stop');
-    expect(t.subjek).toContain('Streak 5 harimu hampir putus');
+    expect(t.subjek).toContain('Streak 5 hari kamu berakhir malam ini');
     expect(t.teks).toContain('Budi');
     expect(t.teks).toContain('https://bisangoding.com/stop');
     expect(t.html).toContain('Budi');
-    expect(t.html).toContain('streak 5 hari');
+    expect(t.html).toContain('Streak 5 hari kamu');
     expect(t.html).toContain('https://bisangoding.com/stop');
+    expect(t.html).toContain('<table');
+    expect(t.html).toContain('#ffd93d');
   });
 
   it('templatModulBaru generates correct subject and html', () => {
     const daftar = [{ judul: 'Intro', kelas: 'Java', url: 'https://b.c/1' }];
     const t = templatModulBaru('Budi', daftar, 'https://bisangoding.com', 'https://bisangoding.com/stop');
-    expect(t.subjek).toContain('Modul baru di BisaNgoding');
+    expect(t.subjek).toContain('Modul baru tersedia: Intro');
     expect(t.teks).toContain('Budi');
     expect(t.teks).toContain('Intro');
     expect(t.teks).toContain('https://bisangoding.com/stop');
     expect(t.html).toContain('Budi');
     expect(t.html).toContain('Intro');
     expect(t.html).toContain('https://bisangoding.com/stop');
+    expect(t.html).toContain('<table');
+    expect(t.html).toContain('#ffd93d');
   });
 });
