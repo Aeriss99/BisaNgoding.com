@@ -162,14 +162,14 @@ export function templatPengingat(nama: string, streak: number, urlSitus: string,
   const safeNama = escapeHtml(nama || "");
   const namaPanggilan = safeNama ? safeNama.split(' ')[0] : 'Kawan';
   
-  const preheader = `Sisihkan 5 menit hari ini supaya streak ${streak} harimu tidak putus.`;
-  const bannerTitle = `Streak ${streak} hari kamu menunggu.`;
-  const bannerDesc = `Sisihkan 5 menit hari ini supaya tidak putus.`;
+  const preheader = `Pertahankan rutinitas belajar dengan menyelesaikan satu materi hari ini.`;
+  const bannerTitle = `Streak ${streak} hari kamu berlanjut.`;
+  const bannerDesc = `Sisihkan waktu hari ini untuk menjaga streak belajarmu.`;
   const greeting = safeNama ? `Halo ${safeNama},` : `Halo,`;
   
   const content = `
     <p style="margin: 0 0 16px 0; font-size: 16px; color: #111111; line-height: 1.5;">
-      Kami melihat kamu belum belajar hari ini. <b>Jangan sampai kerja kerasmu membangun rutinitas terbuang sia-sia!</b>
+      Kami melihat kamu belum beraktivitas di platform hari ini. <b>Pertahankan rutinitas belajarmu.</b>
     </p>
     <p style="margin: 0 0 24px 0; font-size: 16px; color: #111111; line-height: 1.5;">
       Luangkan waktu sedikit saja untuk membuka <a href="${urlSitus}" style="color: #1b5fd1; text-decoration: none;">halaman kelas</a> dan selesaikan satu materi. Konsistensi adalah kunci menguasai pemrograman.
@@ -190,23 +190,23 @@ export function templatPengingat(nama: string, streak: number, urlSitus: string,
     ctaText: 'Lanjutkan belajar', ctaUrl: urlSitus, urlSitus, urlBerhenti, jenis: 'streak'
   });
   
-  const teks = `Halo ${namaPanggilan},\n\nStreak ${streak} hari kamu menunggu. Sisihkan 5 menit hari ini supaya tidak putus.\n\nKami melihat kamu belum belajar hari ini. Jangan sampai kerja kerasmu terbuang sia-sia!\nLuangkan waktu sedikit saja untuk membuka halaman kelas dan selesaikan satu materi.\n\nStreak saat ini: ${streak} hari\nBatas: hari ini pukul 23.59 WIB\n\nLanjutkan belajar: ${urlSitus}\n\nBerhenti langganan: ${urlBerhenti}`;
+  const teks = `Halo ${namaPanggilan},\n\nStreak ${streak} hari kamu berlanjut. Sisihkan waktu hari ini untuk menjaga streak belajarmu.\n\nKami melihat kamu belum beraktivitas di platform hari ini. Pertahankan rutinitas belajarmu.\nLuangkan waktu sedikit saja untuk membuka halaman kelas dan selesaikan satu materi.\n\nStreak saat ini: ${streak} hari\nBatas: hari ini pukul 23.59 WIB\n\nLanjutkan belajar: ${urlSitus}\n\nBerhenti langganan: ${urlBerhenti}`;
   
-  return { subjek: `🔥 Streak ${streak} hari kamu berakhir malam ini`, teks, html };
+  return { subjek: `Pengingat belajar: streak ${streak} hari kamu berakhir hari ini`, teks, html };
 }
 
 export function templatModulBaru(nama: string, daftar: {judul:string, kelas:string, url:string}[], urlSitus: string, urlBerhenti: string) {
   const safeNama = escapeHtml(nama || "");
   const namaPanggilan = safeNama ? safeNama.split(' ')[0] : 'Kawan';
   
-  const preheader = `${daftar.length} modul baru siap dipelajari di BisaNgoding.`;
-  const bannerTitle = `Ada materi baru untukmu.`;
-  const bannerDesc = `${daftar.length} modul baru siap dipelajari di BisaNgoding.`;
+  const preheader = `${daftar.length} modul baru telah tersedia di BisaNgoding.`;
+  const bannerTitle = `Ada materi baru untuk dipelajari.`;
+  const bannerDesc = `${daftar.length} modul baru siap diakses di BisaNgoding.`;
   const greeting = safeNama ? `Halo ${safeNama},` : `Halo,`;
   
   const content = `
     <p style="margin: 0 0 16px 0; font-size: 16px; color: #111111; line-height: 1.5;">
-      Tim kami baru saja merilis pembaruan kurikulum. <b>Sekarang ada materi baru yang bisa kamu pelajari untuk meningkatkan keahlianmu.</b>
+      Tim kami telah merilis pembaruan kurikulum. <b>Sekarang ada materi baru yang tersedia untuk meningkatkan keahlian pemrograman kamu.</b>
     </p>
     <p style="margin: 0 0 24px 0; font-size: 16px; color: #111111; line-height: 1.5;">
       Klik tombol di bawah ini untuk melihat detailnya di <a href="${urlSitus}" style="color: #1b5fd1; text-decoration: none;">katalog kelas</a>.
@@ -240,11 +240,11 @@ export function templatModulBaru(nama: string, daftar: {judul:string, kelas:stri
   
   const safeDaftar0 = escapeHtml(daftar[0].judul);
   const subjekModul = daftar.length > 1 
-    ? `Modul baru tersedia: ${safeDaftar0} dan ${daftar.length - 1} lainnya` 
-    : `Modul baru tersedia: ${safeDaftar0}`;
+    ? `Modul baru di BisaNgoding: ${safeDaftar0} dan ${daftar.length - 1} lainnya` 
+    : `Modul baru di BisaNgoding: ${safeDaftar0}`;
     
   const textList = daftar.map(m => `- ${m.kelas}: ${m.judul} (${m.url})`).join('\n');
-  const teks = `Halo ${namaPanggilan},\n\nAda materi baru untukmu. ${daftar.length} modul baru siap dipelajari di BisaNgoding.\n\nSekarang ada materi baru yang bisa kamu pelajari untuk meningkatkan keahlianmu.\n\nDaftar modul baru:\n${textList}\n\nLihat modul baru: ${urlSitus}\n\nBerhenti langganan: ${urlBerhenti}`;
+  const teks = `Halo ${namaPanggilan},\n\nAda materi baru untuk dipelajari. ${daftar.length} modul baru telah tersedia di BisaNgoding.\n\nTim kami telah merilis pembaruan kurikulum. Sekarang ada materi baru yang tersedia untuk meningkatkan keahlian pemrograman kamu.\n\nDaftar modul baru:\n${textList}\n\nLihat modul baru: ${urlSitus}\n\nBerhenti langganan: ${urlBerhenti}`;
   
   return { subjek: subjekModul, teks, html };
 }

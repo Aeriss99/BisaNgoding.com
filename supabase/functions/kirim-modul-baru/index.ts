@@ -95,7 +95,8 @@ Deno.serve(async (req) => {
         html: t.html,
         headers: {
           "List-Unsubscribe": `<${urlBerhenti}>`,
-          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          "Reply-To": gmailUser
         }
       });
       
@@ -111,7 +112,7 @@ Deno.serve(async (req) => {
       gagal++;
     }
     
-    await sleep(200);
+    await sleep(2000);
   }
 
 
