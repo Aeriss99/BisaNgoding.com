@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { UserProgress } from '../types/schema';
+import { gabungStreak, lengkapiStreak } from './streak';
 
 const BASE_STORAGE_KEY = 'bisangoding_progress';
 const CURRENT_USER_KEY = 'bisangoding_current_user';
@@ -30,7 +31,7 @@ export function getLocalProgress(userId?: string | null): UserProgress | null {
   try {
     const key = getStorageKey(userId);
     const data = localStorage.getItem(key);
-    if (data) return JSON.parse(data);
+    if (data) return lengkapiStreak(JSON.parse(data));
   } catch (e) {
     console.error('Failed to get local progress', e);
   }
@@ -63,6 +64,8 @@ export function mergeProgress(
   local: UserProgress,
   cloud: UserProgress
 ): UserProgress {
+  local = lengkapiStreak(local);
+  cloud = lengkapiStreak(cloud);
   // Respect resetAt: if cloud was reset and local data is older than the reset time, cloud wins.
   // We use lastActiveDate (or maxSeenDate) to determine age.
   const cloudResetAt = cloud.resetAt || '';
@@ -94,7 +97,7 @@ export function mergeProgress(
   );
 
   const xp = Math.max(local.xp || 0, cloud.xp || 0);
-  const streak = Math.max(local.streak || 0, cloud.streak || 0);
+  const { streak, streakDate } = gabungStreak(local, cloud);
 
   const quizScores = { ...(cloud.quizScores || {}) };
   for (const [modId, lScore] of Object.entries(local.quizScores || {})) {
@@ -135,6 +138,7 @@ export function mergeProgress(
     passedChecks,
     xp,
     streak,
+    streakDate,
     quizScores,
     lastActiveDate,
     maxSeenDate,

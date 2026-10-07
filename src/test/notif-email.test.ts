@@ -14,6 +14,10 @@ describe('Notifikasi Email Shared Logic', () => {
     // Kemarin + streak > 0 -> true
     expect(perluPengingat({ streak: 3, lastActiveDate: '2026-10-06' }, hariIni)).toBe(true);
     
+    // Tanggal streak (selesai materi) dipakai lebih dulu daripada lastActiveDate
+    expect(perluPengingat({ streak: 3, lastActiveDate: '2026-10-07', streakDate: '2026-10-06' }, hariIni)).toBe(true);
+    expect(perluPengingat({ streak: 3, lastActiveDate: '2026-10-06', streakDate: '2026-10-07' }, hariIni)).toBe(false);
+
     // Hari ini -> false
     expect(perluPengingat({ streak: 3, lastActiveDate: '2026-10-07' }, hariIni)).toBe(false);
     

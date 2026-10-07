@@ -15,7 +15,7 @@ import { bersihkanProgresLokal } from '../lib/cloudProgress';
 import { useNavigate } from 'react-router-dom';
 
 export default function Profile() {
-  const { progress, importProgress, toggleUnlockAll, syncStatus, flushKeCloud } =
+  const { progress, importProgress, toggleUnlockAll, syncStatus, flushKeCloud, streakHariIni } =
     useProgress();
   const { user, isAdmin, masukGoogle, keluar, isSupabaseConfigured } =
     useAuth();
@@ -224,7 +224,7 @@ export default function Profile() {
           <div className="bg-gray-50 p-4 rounded-lg text-center">
             <div className="text-sm text-gray-500">Streak Harian</div>
             <div className="text-2xl font-bold text-orange-500">
-              {progress.streak} ⚡
+              {streakHariIni} ⚡
             </div>
           </div>
         </div>

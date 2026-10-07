@@ -11,14 +11,16 @@ export function tanggalJakarta(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function perluPengingat(data: { streak?: number; lastActiveDate?: string } | null, hariIni: string): boolean {
-  if (!data || !data.streak || data.streak <= 0 || !data.lastActiveDate) return false;
-  
+export function perluPengingat(data: { streak?: number; lastActiveDate?: string; streakDate?: string } | null, hariIni: string): boolean {
+  // streakDate = tanggal terakhir menyelesaikan materi (dasar streak). Data lama hanya punya lastActiveDate.
+  const tanggal = data?.streakDate ?? data?.lastActiveDate;
+  if (!data || !data.streak || data.streak <= 0 || !tanggal) return false;
+
   const dateKemarin = new Date(hariIni);
   dateKemarin.setDate(dateKemarin.getDate() - 1);
   const kemarinStr = tanggalJakarta(dateKemarin);
-  
-  return data.lastActiveDate === kemarinStr;
+
+  return tanggal === kemarinStr;
 }
 
 export function modulBaru(semua: {id:string}[], sudah: string[]): {id:string}[] {
