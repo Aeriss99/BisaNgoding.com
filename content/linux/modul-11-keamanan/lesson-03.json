@@ -1,0 +1,109 @@
+{
+  "id": "linux-keamanan-03",
+  "moduleId": "linux-keamanan",
+  "order": 3,
+  "title": "Kunci SSH dengan ssh-keygen",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Password bisa ditebak, apalagi oleh bot yang mencoba ribuan kali. Password juga harus diketik dan dikirim ke server setiap kali login.\n\n**Kunci SSH** lebih aman. Kunci SSH adalah **pasangan** dua file:\n\n- **kunci privat** (`id_ed25519`): disimpan di laptopmu, **rahasia**\n- **kunci publik** (`id_ed25519.pub`): boleh dibagikan, dipasang di server\n\nSaat login, laptop membuktikan bahwa ia memegang kunci privat yang cocok dengan kunci publik di server, **tanpa mengirim kunci privatnya** lewat jaringan. Kunci juga jauh lebih panjang daripada password apa pun, sehingga praktis mustahil ditebak bot.\n\nKunci publik itu seperti **gembok**, dan kunci privat seperti **anak kuncinya**. Kamu boleh memasang gembok yang sama di banyak pintu (banyak server), dan semua orang boleh melihat gembok itu. Tapi hanya anak kunci di sakumu yang bisa membukanya. Orang yang melihat gembok tidak bisa membuat anak kuncinya."
+    },
+    {
+      "type": "theory",
+      "content": "Membuat pasangan kunci di **laptop** (bukan di server):\n\n```bash\nssh-keygen -t ed25519 -C \"budi@laptop\"\n```\n\n- `-t ed25519`: jenis kunci. `ed25519` modern, pendek, dan aman. Untuk sistem lama kadang dipakai `-t rsa -b 4096`.\n- `-C \"budi@laptop\"`: komentar atau label supaya kunci mudah dikenali, biasanya `user@komputer`.\n\n`ssh-keygen` menanyakan dua hal:\n\n1. lokasi file: tekan Enter untuk lokasi bawaan `~/.ssh/id_ed25519`\n2. **passphrase**: password untuk kunci privat. Kalau laptop dicuri, kunci tidak langsung bisa dipakai. Boleh dikosongkan, tapi lebih aman diisi. (`ssh-agent` bisa mengingat passphrase selama sesi, jadi tidak perlu diketik terus.)\n\nIsi folder `~/.ssh`:\n\n| File | Isinya | Izin |\n|---|---|---|\n| `id_ed25519` | kunci **privat**, RAHASIA | `600` |\n| `id_ed25519.pub` | kunci publik, boleh dibagikan | `644` |\n| `known_hosts` | sidik jari server yang pernah dikunjungi (modul 8) | `644` |\n| `authorized_keys` | (di server) daftar kunci publik yang boleh masuk | `600` |\n\nFolder `~/.ssh` sendiri harus `700`. Ingat modul 5: `600` = `rw-------`, `700` = `rwx------`.\n\n**Kalau izinnya terlalu longgar**, ssh menolak memakai kunci privat dan menampilkan peringatan besar `WARNING: UNPROTECTED PRIVATE KEY FILE!`. Perbaikannya: `chmod 600 ~/.ssh/id_ed25519`.\n\n**Kunci privat tidak pernah dibagikan.** Jangan kirim ke teman, grup chat, chat AI, atau email, dan jangan ikut di-commit ke Git. Kalau kamu membuka file kunci privat, baris pertamanya `-----BEGIN OPENSSH PRIVATE KEY-----`. Teks seperti itu jangan pernah ditempel di mana pun. Kalau kunci privat sampai bocor, buat pasangan baru dan cabut kunci lama dari server (pelajaran berikutnya).\n\nDi Windows (PowerShell), `ssh-keygen` juga tersedia dengan cara pakai yang sama."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Membuat kunci.** Gambaran layar di laptop Budi (sidik jari dan gambar acak di komputermu pasti berbeda). Budi menekan Enter untuk lokasi bawaan, lalu mengetik passphrase dua kali (tidak tampil).\n\n```text\n$ ssh-keygen -t ed25519 -C \"budi@laptop\"\nGenerating public/private ed25519 key pair.\nEnter file in which to save the key (/home/budi/.ssh/id_ed25519):\nEnter passphrase (empty for no passphrase):\nEnter same passphrase again:\nYour identification has been saved in /home/budi/.ssh/id_ed25519\nYour public key has been saved in /home/budi/.ssh/id_ed25519.pub\nThe key fingerprint is:\nSHA256:Kp7vQ2xN9mT4rL8sW1cY6bH3jF0dG5eA2uZ7iO4nR8k budi@laptop\nThe key's randomart image is:\n...\n```\n\nSetelah baris `randomart` muncul gambar kotak acak dari huruf dan simbol. Itu hanya gambaran sidik jari, tidak perlu dihafal.\n\n**2. Isi folder `~/.ssh`.**\n\n```text\n$ ls -l ~/.ssh\ntotal 12\n-rw------- 1 budi budi  411 Sep  1 09:00 id_ed25519\n-rw-r--r-- 1 budi budi   97 Sep  1 09:00 id_ed25519.pub\n-rw-r--r-- 1 budi budi  142 Sep  1 09:00 known_hosts\n```\n\n`ssh-keygen` langsung memberi izin `600` pada kunci privat. Isi kunci publik satu baris: `ssh-ed25519`, lalu teks acak panjang, lalu label `budi@laptop`.\n\n**3. Berlatih mengatur izin.** `ssh-keygen` tidak dijalankan di kelas ini, jadi Budi meniru folder `.ssh` di folder latihan. Kunci publik tiruan sudah disiapkan (isinya `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciBudi budi@laptop`, versi pendek dari kunci asli). Kunci privat tiruan dibuat kosong dengan `touch`. Isi kunci privat asli tidak pernah ditampilkan.\n\n```bash\ntouch .ssh/id_ed25519\nls -ld .ssh\nls -l .ssh\nchmod 700 .ssh\nchmod 600 .ssh/id_ed25519\nstat -c '%a %A %n' .ssh .ssh/*\ncat .ssh/id_ed25519.pub\n```\n\nHasilnya:\n\n```text\n$ touch .ssh/id_ed25519\n$ ls -ld .ssh\ndrwxr-xr-x 2 budi budi 4096 Sep  1 09:00 .ssh\n$ ls -l .ssh\ntotal 4\n-rw-r--r-- 1 budi budi  0 Sep  1 09:00 id_ed25519\n-rw-r--r-- 1 budi budi 65 Sep  1 09:00 id_ed25519.pub\n$ chmod 700 .ssh\n$ chmod 600 .ssh/id_ed25519\n$ stat -c '%a %A %n' .ssh .ssh/*\n700 drwx------ .ssh\n600 -rw------- .ssh/id_ed25519\n644 -rw-r--r-- .ssh/id_ed25519.pub\n$ cat .ssh/id_ed25519.pub\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciBudi budi@laptop\n```\n\n- Di folder latihan ini, folder dan file baru mendapat izin `755` dan `644` (di Ubuntu biasa malah `775` dan `664`). Untuk `.ssh`, itu terlalu longgar.\n- Setelah `chmod 700` dan `chmod 600`, hanya Budi yang bisa masuk ke folder `.ssh` dan membaca kunci privatnya.\n- Kunci publik tetap `644`: memang boleh dibaca orang lain."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengirim kunci privat**\n\nSalah:\n\n```text\n# kirim file id_ed25519 ke grup chat\n# supaya teman bisa memasangnya di server\n```\n\nBenar:\n\n```text\n# kirim atau pasang id_ed25519.pub saja\n# (yang berakhiran .pub)\n```\n\nFile tanpa `.pub` adalah kunci privat. Siapa pun yang memegangnya bisa masuk ke server sebagai kamu. Yang dipasang di server selalu kunci publik.\n\n**2. Izin kunci privat terlalu longgar**\n\nSalah:\n\n```bash\nchmod 644 ~/.ssh/id_ed25519\n# ssh: WARNING: UNPROTECTED PRIVATE KEY FILE!\n```\n\nBenar:\n\n```bash\nchmod 600 ~/.ssh/id_ed25519\n```\n\nssh menolak memakai kunci privat yang bisa dibaca orang lain, lalu menulis `This private key will be ignored.` Kunci privat harus `600`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "File mana yang boleh dibagikan dan dipasang di server?",
+          "options": [
+            "~/.ssh/id_ed25519",
+            "~/.ssh/id_ed25519.pub",
+            "~/.ssh/known_hosts",
+            "Keduanya, id_ed25519 dan id_ed25519.pub"
+          ],
+          "answer": 1,
+          "explanation": "Yang berakhiran `.pub` adalah kunci publik. `id_ed25519` adalah kunci privat dan tidak pernah dibagikan.",
+          "remedial": "- Kunci SSH = pasangan: privat (rahasia, di laptop) + publik (`.pub`, dipasang di server)\n- `ssh-keygen -t ed25519 -C \"budi@laptop\"`; passphrase = password untuk kunci privat\n- Izin: folder `~/.ssh` 700, kunci privat 600\n- Izin terlalu longgar → `UNPROTECTED PRIVATE KEY FILE`\n- Kunci privat tidak pernah dikirim ke siapa pun"
+        },
+        {
+          "question": "Apa fungsi `-C \"budi@laptop\"` pada `ssh-keygen -t ed25519 -C \"budi@laptop\"`?",
+          "options": [
+            "Memilih jenis kunci",
+            "Menentukan passphrase",
+            "Memberi komentar atau label supaya kunci mudah dikenali",
+            "Menyalin kunci ke server budi"
+          ],
+          "answer": 2,
+          "explanation": "`-C` = *comment*. Label itu ikut tertulis di akhir kunci publik. Jenis kunci dipilih dengan `-t`.",
+          "remedial": "- Kunci SSH = pasangan: privat (rahasia, di laptop) + publik (`.pub`, dipasang di server)\n- `ssh-keygen -t ed25519 -C \"budi@laptop\"`; passphrase = password untuk kunci privat\n- Izin: folder `~/.ssh` 700, kunci privat 600\n- Izin terlalu longgar → `UNPROTECTED PRIVATE KEY FILE`\n- Kunci privat tidak pernah dikirim ke siapa pun"
+        },
+        {
+          "question": "Izin yang benar untuk folder `~/.ssh` dan kunci privat `~/.ssh/id_ed25519` adalah...",
+          "options": [
+            "700 dan 600",
+            "755 dan 644",
+            "777 dan 600",
+            "600 dan 700"
+          ],
+          "answer": 0,
+          "explanation": "Folder `700` (`rwx------`), kunci privat `600` (`rw-------`). Hanya pemilik yang boleh.",
+          "remedial": "- Kunci SSH = pasangan: privat (rahasia, di laptop) + publik (`.pub`, dipasang di server)\n- `ssh-keygen -t ed25519 -C \"budi@laptop\"`; passphrase = password untuk kunci privat\n- Izin: folder `~/.ssh` 700, kunci privat 600\n- Izin terlalu longgar → `UNPROTECTED PRIVATE KEY FILE`\n- Kunci privat tidak pernah dikirim ke siapa pun"
+        },
+        {
+          "question": "Apa gunanya passphrase pada kunci SSH?",
+          "options": [
+            "Supaya server tidak menanyakan sidik jari",
+            "Supaya kunci publik tidak bisa dibaca orang lain",
+            "Supaya kunci bisa dipakai tanpa internet",
+            "Melindungi kunci privat, supaya tidak langsung bisa dipakai kalau laptop dicuri"
+          ],
+          "answer": 3,
+          "explanation": "Passphrase adalah password untuk membuka kunci privat di laptopmu sendiri.",
+          "remedial": "- Kunci SSH = pasangan: privat (rahasia, di laptop) + publik (`.pub`, dipasang di server)\n- `ssh-keygen -t ed25519 -C \"budi@laptop\"`; passphrase = password untuk kunci privat\n- Izin: folder `~/.ssh` 700, kunci privat 600\n- Izin terlalu longgar → `UNPROTECTED PRIVATE KEY FILE`\n- Kunci privat tidak pernah dikirim ke siapa pun"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "# Isi folder saat ini: .ssh/, .ssh/id_ed25519\nchmod 600 .ssh/id_ed25519\nstat -c '%a %A' .ssh/id_ed25519",
+      "options": [
+        "644 -rw-r--r--",
+        "700 -rwx------",
+        "600 -rw-------",
+        "600 -rw-r--r--"
+      ],
+      "answer": 2,
+      "explanation": "`600` = pemilik `rw-`, grup dan lainnya `---`. Izin yang tepat untuk kunci privat."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Atur folder .ssh: hanya pemilik yang boleh membaca, menulis, dan masuk\n# Isi folder saat ini: .ssh/\nchmod ___ .ssh",
+      "answers": [
+        "700|0700|u=rwx,go=|go-rwx|og-rwx"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Kunci SSH berupa pasangan: kunci privat (rahasia, di laptop) dan kunci publik .pub (dipasang di server).",
+        "Buat dengan ssh-keygen -t ed25519 -C \"label\"; passphrase melindungi kunci privat.",
+        "Folder ~/.ssh harus 700 dan kunci privat 600; kalau terlalu longgar, ssh menolak kuncinya.",
+        "Kunci privat tidak pernah dikirim ke siapa pun, termasuk grup chat, chat AI, dan Git."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "id": "linux-keamanan-04",
+  "moduleId": "linux-keamanan",
+  "order": 4,
+  "title": "Memasang Kunci di Server",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kunci publik harus dipasang di server supaya bisa dipakai login. Tempatnya file **`~/.ssh/authorized_keys`** milik user yang dituju. Untuk login sebagai `sari`, kunci publik Budi harus ada di `/home/sari/.ssh/authorized_keys` di server.\n\nCara termudah dari laptop:\n\n```bash\nssh-copy-id sari@203.0.113.10\n```\n\n`ssh-copy-id` login ke server memakai password sari (untuk terakhir kalinya), menambahkan isi `~/.ssh/id_ed25519.pub` sebagai baris baru di `authorized_keys`, dan membereskan izinnya.\n\n`authorized_keys` itu seperti daftar gembok di pintu kamar sari. Setiap gembok cocok dengan satu anak kunci. Laptop Budi punya satu anak kunci, komputer kantor punya anak kunci lain, jadi di pintu dipasang dua gembok. Kalau satu anak kunci hilang, cukup lepas gemboknya. Gembok lain tetap terpasang."
+    },
+    {
+      "type": "theory",
+      "content": "**Format `authorized_keys`: satu baris = satu kunci.**\n\n```text\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciSari sari@laptop-sari\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciBudi budi@laptop\n```\n\nSetiap baris berisi jenis kunci, isi kunci, dan label, dipisah spasi. Label (kolom ke-3) memudahkan mengenali kunci milik siapa. (Kunci di kelas ini versi pendek tiruan; kunci asli jauh lebih panjang, tapi tetap satu baris.)\n\n**Cara manual** (misalnya dari Windows, karena PowerShell punya `ssh-keygen` tetapi tidak punya `ssh-copy-id`): salin isi file `.pub`, lalu di server, sebagai `sari`:\n\n```bash\nmkdir -p ~/.ssh\nnano ~/.ssh/authorized_keys      # tempel di baris baru, simpan\nchmod 700 ~/.ssh\nchmod 600 ~/.ssh/authorized_keys\n```\n\nKalau file `.pub` sudah ada di server (misalnya disalin dengan `scp`, modul 8), bisa juga `cat budi.pub >> ~/.ssh/authorized_keys`. Perhatikan **`>>`** (tambahkan), bukan `>` yang mengosongkan file lebih dulu.\n\n**Setelah terpasang**, `ssh sari@203.0.113.10` tidak lagi menanyakan password server. Kalau kuncimu punya passphrase, yang ditanyakan adalah passphrase kunci: `Enter passphrase for key '/home/budi/.ssh/id_ed25519':`.\n\n**Mencabut akses** = hapus baris kunci itu dari `authorized_keys` di server (misalnya dengan `nano`). Laptop yang kuncinya dihapus tidak bisa masuk lagi dengan kunci.\n\n**Pintasan `~/.ssh/config`** di laptop:\n\n```text\nHost toko\n    HostName 203.0.113.10\n    User sari\n    IdentityFile ~/.ssh/id_ed25519\n```\n\n| Baris | Artinya |\n|---|---|\n| `Host toko` | nama pintasan |\n| `HostName` | alamat server sebenarnya |\n| `User` | user di server |\n| `IdentityFile` | kunci privat yang dipakai |\n\nSetelah itu cukup `ssh toko`, sama dengan `ssh sari@203.0.113.10` memakai kunci `~/.ssh/id_ed25519`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Memasang kunci dengan ssh-copy-id.** Gambaran layar di laptop Budi (IP dan versi di komputermu bisa berbeda). Kunci Budi memakai passphrase, tapi passphrase itu sudah diingat `ssh-agent` selama sesi ini, jadi tidak ditanyakan.\n\n```text\n$ ssh-copy-id sari@203.0.113.10\n/usr/bin/ssh-copy-id: INFO: Source of key(s) to be installed: \"/home/budi/.ssh/id_ed25519.pub\"\n/usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed\n/usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys\nsari@203.0.113.10's password:\n\nNumber of key(s) added: 1\n\nNow try logging into the machine, with: \"ssh 'sari@203.0.113.10'\"\nand check to make sure that only the key(s) you wanted were added.\n\n$ ssh sari@203.0.113.10\nWelcome to Ubuntu 24.04 LTS (GNU/Linux 6.8.0-45-generic x86_64)\n...\nsari@server-toko:~$\n```\n\n- Password sari diminta sekali, untuk memasang kunci. `Number of key(s) added: 1` berarti satu kunci berhasil ditambahkan.\n- Login berikutnya langsung masuk tanpa menanyakan password server.\n\n**2. Cara manual.** Di folder latihan ini kita berpura-pura menjadi `sari` di server. `authorized_keys` sudah berisi kunci laptop Sari. Kunci publik Budi sudah disalin ke file `budi.pub`. Budi menambahkannya, lalu membereskan izinnya.\n\n```bash\ncat .ssh/authorized_keys\ncat budi.pub >> .ssh/authorized_keys\nwc -l .ssh/authorized_keys\ncut -d' ' -f3 .ssh/authorized_keys\nchmod 700 .ssh\nchmod 600 .ssh/authorized_keys\nls -l .ssh\n```\n\nHasilnya:\n\n```text\n$ cat .ssh/authorized_keys\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciSari sari@laptop-sari\n$ cat budi.pub >> .ssh/authorized_keys\n$ wc -l .ssh/authorized_keys\n2 .ssh/authorized_keys\n$ cut -d' ' -f3 .ssh/authorized_keys\nsari@laptop-sari\nbudi@laptop\n$ chmod 700 .ssh\n$ chmod 600 .ssh/authorized_keys\n$ ls -l .ssh\ntotal 4\n-rw------- 1 budi budi 135 Sep  1 09:00 authorized_keys\n```\n\n- `>>` menambahkan kunci Budi sebagai baris kedua. Kunci Sari tetap ada.\n- `wc -l` menghitung 2 baris = 2 kunci, dan `cut -f3` menampilkan labelnya: `sari@laptop-sari` dan `budi@laptop`.\n- Setelah `chmod 600`, hanya pemilik yang bisa membaca dan mengubah `authorized_keys`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai > saat menambah kunci**\n\nSalah:\n\n```bash\ncat budi.pub > ~/.ssh/authorized_keys\n```\n\nBenar:\n\n```bash\ncat budi.pub >> ~/.ssh/authorized_keys\n```\n\n`>` mengosongkan file dulu, sehingga semua kunci lama hilang dan pemiliknya tidak bisa masuk lagi dengan kunci. `>>` menambahkan di akhir.\n\n**2. Kunci terpotong menjadi dua baris saat ditempel**\n\nSalah:\n\n```text\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICo\nntohKunciBudi budi@laptop\n```\n\nBenar:\n\n```text\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciBudi budi@laptop\n```\n\nSatu kunci harus satu baris utuh. Kunci yang terpotong tidak cocok dengan kunci privat mana pun, sehingga login dengan kunci gagal.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Supaya Budi bisa login sebagai `sari` dengan kunci, kunci publik Budi harus ada di file...",
+          "options": [
+            "/home/sari/.ssh/authorized_keys di server",
+            "/home/budi/.ssh/known_hosts di laptop",
+            "/etc/ssh/sshd_config di server",
+            "/home/sari/.ssh/id_ed25519 di server"
+          ],
+          "answer": 0,
+          "explanation": "Server memeriksa `authorized_keys` milik user yang dituju. `known_hosts` berisi sidik jari server, bukan kunci yang boleh masuk.",
+          "remedial": "- Kunci publik dipasang di `~/.ssh/authorized_keys` milik user di server\n- `ssh-copy-id user@ip` menambahkannya otomatis (sekali memakai password)\n- Cara manual: tempel isi `.pub` di baris baru, lalu `chmod 700 ~/.ssh` dan `chmod 600 ~/.ssh/authorized_keys`\n- Satu baris = satu kunci. Cabut akses = hapus barisnya\n- `~/.ssh/config` membuat pintasan seperti `ssh toko`"
+        },
+        {
+          "question": "Budi ingin bisa login sebagai `sari` dari laptop DAN dari komputer kantor, masing-masing dengan kuncinya sendiri. Bagaimana isi `authorized_keys` sari?",
+          "options": [
+            "Satu baris berisi gabungan dua kunci",
+            "Hanya kunci terakhir yang dipasang",
+            "Dua baris, satu baris untuk setiap kunci",
+            "Satu kunci saja yang disalin ke kedua komputer"
+          ],
+          "answer": 2,
+          "explanation": "Satu baris = satu kunci. Setiap komputer punya pasangan kunci sendiri.",
+          "remedial": "- Kunci publik dipasang di `~/.ssh/authorized_keys` milik user di server\n- `ssh-copy-id user@ip` menambahkannya otomatis (sekali memakai password)\n- Cara manual: tempel isi `.pub` di baris baru, lalu `chmod 700 ~/.ssh` dan `chmod 600 ~/.ssh/authorized_keys`\n- Satu baris = satu kunci. Cabut akses = hapus barisnya\n- `~/.ssh/config` membuat pintasan seperti `ssh toko`"
+        },
+        {
+          "question": "Laptop Andi hilang. Kuncinya terpasang di `authorized_keys` milik sari dengan label `andi@laptop`. Cara mencabut aksesnya adalah...",
+          "options": [
+            "Menghapus file known_hosts di server",
+            "Mengganti password sari",
+            "Menjalankan ssh-keygen lagi di laptop Budi",
+            "Menghapus baris berlabel andi@laptop dari authorized_keys sari di server"
+          ],
+          "answer": 3,
+          "explanation": "Tanpa baris itu, kunci privat di laptop Andi tidak cocok dengan gembok mana pun di server.",
+          "remedial": "- Kunci publik dipasang di `~/.ssh/authorized_keys` milik user di server\n- `ssh-copy-id user@ip` menambahkannya otomatis (sekali memakai password)\n- Cara manual: tempel isi `.pub` di baris baru, lalu `chmod 700 ~/.ssh` dan `chmod 600 ~/.ssh/authorized_keys`\n- Satu baris = satu kunci. Cabut akses = hapus barisnya\n- `~/.ssh/config` membuat pintasan seperti `ssh toko`"
+        },
+        {
+          "question": "Berdasarkan isi `~/.ssh/config` ini, perintah `ssh toko` sama dengan...",
+          "code": "# Isi ~/.ssh/config:\nHost toko\n    HostName 203.0.113.10\n    User sari\n    IdentityFile ~/.ssh/id_ed25519",
+          "options": [
+            "ssh toko@203.0.113.10",
+            "ssh sari@203.0.113.10 dengan kunci ~/.ssh/id_ed25519",
+            "ssh budi@toko",
+            "ssh root@203.0.113.10"
+          ],
+          "answer": 1,
+          "explanation": "`HostName` = alamat server, `User` = user di server, `IdentityFile` = kunci privat yang dipakai.",
+          "remedial": "- Kunci publik dipasang di `~/.ssh/authorized_keys` milik user di server\n- `ssh-copy-id user@ip` menambahkannya otomatis (sekali memakai password)\n- Cara manual: tempel isi `.pub` di baris baru, lalu `chmod 700 ~/.ssh` dan `chmod 600 ~/.ssh/authorized_keys`\n- Satu baris = satu kunci. Cabut akses = hapus barisnya\n- `~/.ssh/config` membuat pintasan seperti `ssh toko`"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "# Isi file .ssh/authorized_keys:\n#   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciSari sari@laptop-sari\n#   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciBudi budi@laptop\n#   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciAndi andi@laptop\ncut -d' ' -f3 .ssh/authorized_keys",
+      "options": [
+        "sari@laptop-sari\nbudi@laptop\nandi@laptop",
+        "ssh-ed25519\nssh-ed25519\nssh-ed25519",
+        "3",
+        "andi@laptop"
+      ],
+      "answer": 0,
+      "explanation": "Kolom ke-3 setiap baris adalah label kunci. Ada tiga baris, jadi tiga label."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tambahkan kunci Budi ke akhir authorized_keys TANPA menghapus isi lama\n# Isi file .ssh/authorized_keys:\n#   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciSari sari@laptop-sari\n# Isi file budi.pub:\n#   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIContohKunciBudi budi@laptop\ncat budi.pub ___ .ssh/authorized_keys",
+      "answers": [
+        ">>"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Kunci publik dipasang di ~/.ssh/authorized_keys milik user tujuan di server.",
+        "ssh-copy-id user@ip memasangnya otomatis; setelah itu login tanpa password server.",
+        "Cara manual: tempel isi .pub di baris baru (atau cat file.pub >>), lalu chmod 700 ~/.ssh dan chmod 600 authorized_keys.",
+        "Satu baris = satu kunci; mencabut akses = menghapus barisnya.",
+        "~/.ssh/config membuat pintasan, misalnya ssh toko."
+      ]
+    }
+  ]
+}

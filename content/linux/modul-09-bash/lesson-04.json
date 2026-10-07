@@ -1,0 +1,112 @@
+{
+  "id": "linux-bash-04",
+  "moduleId": "linux-bash",
+  "order": 4,
+  "title": "Kondisi dengan if",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sejauh ini script kita selalu mengerjakan hal yang sama. Script yang pintar bisa **memilih**: kalau folder ada, lakukan ini; kalau tidak, lakukan itu.\n\nDasarnya adalah **kode keluar** (*exit code*). Setiap perintah yang selesai meninggalkan sebuah angka:\n\n- `0` = berhasil\n- selain `0` (misalnya 1 atau 2) = gagal\n\nKode keluar perintah **terakhir** tersimpan di variabel `$?`. Coba `ls catatan.txt; echo $?`: kalau file ada, hasilnya `0`.\n\n`if` itu seperti satpam gedung. \"**Kalau** kamu punya kartu karyawan, silakan masuk. **Kalau tidak**, tapi kamu tamu yang sudah janji, isi buku tamu. **Selain itu**, silakan menunggu di lobi.\" Satpam memeriksa syarat satu per satu dari atas, dan berhenti di syarat pertama yang cocok."
+    },
+    {
+      "type": "theory",
+      "content": "**Bentuk `if`:**\n\n```bash\nif [ kondisi ]; then\n    perintah kalau benar\nelif [ kondisi lain ]; then\n    perintah kalau kondisi lain benar\nelse\n    perintah kalau semuanya salah\nfi\n```\n\n`elif` dan `else` boleh tidak dipakai. `fi` (kata `if` dibalik) menutup blok. `;` sebelum `then` wajib kalau `then` ditulis di baris yang sama. Bagian di dalam biasanya digeser 4 spasi supaya mudah dibaca. Bisa juga satu baris: `if [ -f catatan.txt ]; then echo \"ada\"; fi`.\n\n**Spasi di dalam `[ ]` wajib.** `[` sebenarnya sebuah perintah, jadi harus dipisah spasi: `[ -f \"$1\" ]`. Kalau ditulis `[$n -gt 5]` dengan `n` berisi 7, bash mencari perintah bernama `[7` dan menjawab `[7: command not found`.\n\n**Tes yang sering dipakai:**\n\n| Tes | Benar kalau... |\n|---|---|\n| `[ -f catatan.txt ]` | file `catatan.txt` ada |\n| `[ -d backup ]` | folder `backup` ada |\n| `[ -z \"$1\" ]` | teks kosong |\n| `[ \"$a\" = \"ya\" ]` / `[ \"$a\" != \"ya\" ]` | teks sama / tidak sama |\n| `[ ! -d backup ]` | kebalikannya: folder `backup` TIDAK ada |\n\n**Membandingkan angka** memakai singkatan bahasa Inggris:\n\n| Tes | Artinya |\n|---|---|\n| `-eq` / `-ne` | sama dengan / tidak sama dengan |\n| `-lt` / `-gt` | lebih kecil / lebih besar (*less than* / *greater than*) |\n| `-le` / `-ge` | lebih kecil atau sama / lebih besar atau sama |\n\nJangan tertukar: `=` untuk teks, `-eq` untuk angka. `[ \"ya\" -eq \"ya\" ]` gagal dengan pesan `integer expression expected` (butuh angka). Jangan juga memakai `>` di dalam `[ ]`: tanda itu tetap berarti redirect, jadi `[ 10 > 9 ]` malah membuat file bernama `9`.\n\n**`if` dengan perintah biasa.** `if` sebenarnya hanya melihat kode keluar, jadi perintah apa pun bisa dipakai. `grep -q` (*quiet*) tidak mencetak apa-apa, hanya memberi kode keluar 0 kalau teksnya ditemukan dan 1 kalau tidak:\n\n```bash\nif grep -q \"sari\" peserta.txt; then\n    echo \"Sari terdaftar\"\nfi\n```\n\n**Jalan pintas `&&` dan `||`:**\n\n- `A && B`: jalankan B hanya kalau A **berhasil**\n- `A || B`: jalankan B hanya kalau A **gagal**\n\nContoh: `[ -d backup ] || mkdir backup` membuat folder `backup` hanya kalau belum ada."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh 1: Kode keluar dan if\n\nDi folder Budi ada `catatan.txt`, folder `proyek`, dan script `cek.sh` yang memeriksa sebuah nama.\n\n```bash\nls catatan.txt; echo $?\nls rahasia.txt; echo $?\ncat cek.sh\nchmod +x cek.sh\n./cek.sh\n./cek.sh catatan.txt\n./cek.sh proyek\n./cek.sh foto.jpg\n```\n\nHasilnya:\n\n```text\n$ ls catatan.txt; echo $?\ncatatan.txt\n0\n$ ls rahasia.txt; echo $?\nls: cannot access 'rahasia.txt': No such file or directory\n2\n$ cat cek.sh\n#!/bin/bash\nif [ -z \"$1\" ]; then\n    echo \"Pakai: ./cek.sh NAMA\"\nelif [ -d \"$1\" ]; then\n    echo \"$1 adalah folder\"\nelif [ -f \"$1\" ]; then\n    echo \"$1 adalah file\"\nelse\n    echo \"$1 tidak ditemukan\"\nfi\n$ chmod +x cek.sh\n$ ./cek.sh\nPakai: ./cek.sh NAMA\n$ ./cek.sh catatan.txt\ncatatan.txt adalah file\n$ ./cek.sh proyek\nproyek adalah folder\n$ ./cek.sh foto.jpg\nfoto.jpg tidak ditemukan\n```\n\n- `ls` yang berhasil memberi kode `0`. Saat file tidak ada, `ls` gagal dengan kode `2`.\n- Tanpa argumen, `-z \"$1\"` benar, jadi script menampilkan cara pakainya.\n- Bash memeriksa kondisi dari atas dan berhenti di kondisi pertama yang benar.\n\n### Contoh 2: Angka, grep -q, && dan ||\n\nBudi membuat script `nilai.sh` yang membandingkan angka, lalu mencoba `grep -q`, `&&`, dan `||` pada file `peserta.txt` (berisi `budi` dan `sari`).\n\n```bash\nbash nilai.sh 85\nbash nilai.sh 70\nbash nilai.sh 55\ngrep -q sari peserta.txt && echo \"Sari terdaftar\"\ngrep -q andi peserta.txt || echo \"Andi belum terdaftar\"\nls\n[ -d backup ] || mkdir backup\nls\n```\n\nHasilnya:\n\n```text\n$ bash nilai.sh 85\nNilai 85: A\n$ bash nilai.sh 70\nNilai 70: B\n$ bash nilai.sh 55\nNilai 55: perlu remedial\n$ grep -q sari peserta.txt && echo \"Sari terdaftar\"\nSari terdaftar\n$ grep -q andi peserta.txt || echo \"Andi belum terdaftar\"\nAndi belum terdaftar\n$ ls\nnilai.sh  peserta.txt\n$ [ -d backup ] || mkdir backup\n$ ls\nbackup  nilai.sh  peserta.txt\n```\n\n- Nilai 70 masuk `-ge 70` (lebih besar atau **sama dengan**), jadi mendapat B.\n- `grep -q` tidak mencetak baris yang ditemukan. Yang tercetak hanya pesan dari `echo`.\n- Folder `backup` belum ada, jadi `mkdir backup` dijalankan. Kalau perintah itu diulang, `mkdir` dilewati karena tesnya sudah berhasil."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tidak ada spasi di dalam [ ]**\n\nSalah:\n\n```bash\nif [$n -gt 5]; then\n# [7: command not found\n```\n\nBenar:\n\n```bash\nif [ \"$n\" -gt 5 ]; then\n```\n\n`[` adalah perintah, jadi harus dipisah spasi dari isinya, dan `]` juga harus berdiri sendiri.\n\n**2. Memakai -eq untuk teks**\n\nSalah:\n\n```bash\nif [ \"$jawab\" -eq \"ya\" ]; then\n# [: ya: integer expression expected\n```\n\nBenar:\n\n```bash\nif [ \"$jawab\" = \"ya\" ]; then\n```\n\n`-eq`, `-lt`, `-gt` dan kawan-kawan hanya untuk angka. Untuk teks pakai `=` dan `!=`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "`$?` bernilai `0`. Artinya...",
+          "options": [
+            "perintah terakhir berhasil",
+            "perintah terakhir gagal",
+            "script tidak menerima argumen",
+            "variabel belum diisi"
+          ],
+          "answer": 0,
+          "explanation": "Kode keluar 0 = berhasil. Selain 0 = gagal.",
+          "remedial": "- Kode keluar: 0 = berhasil, selain 0 = gagal. `$?` = kode keluar perintah terakhir\n- `if [ ... ]; then ... elif ... else ... fi`, dengan spasi di dalam `[ ]`\n- `-f` file ada, `-d` folder ada, `-z` teks kosong, `!` kebalikan\n- Teks: `=` `!=`. Angka: `-eq -ne -lt -gt -le -ge`\n- `A && B`: B kalau A berhasil. `A || B`: B kalau A gagal"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi file umur.sh:\n#   #!/bin/bash\n#   umur=$1\n#   if [ \"$umur\" -ge 17 ]; then\n#       echo \"Boleh membuat KTP\"\n#   else\n#       echo \"Belum cukup umur\"\n#   fi\nbash umur.sh 17",
+          "options": [
+            "Belum cukup umur",
+            "Boleh membuat KTP",
+            "Boleh membuat KTP\nBelum cukup umur",
+            "[: 17: integer expression expected"
+          ],
+          "answer": 1,
+          "explanation": "`-ge` = lebih besar **atau sama dengan**. 17 sama dengan 17, jadi kondisinya benar.",
+          "remedial": "- Kode keluar: 0 = berhasil, selain 0 = gagal. `$?` = kode keluar perintah terakhir\n- `if [ ... ]; then ... elif ... else ... fi`, dengan spasi di dalam `[ ]`\n- `-f` file ada, `-d` folder ada, `-z` teks kosong, `!` kebalikan\n- Teks: `=` `!=`. Angka: `-eq -ne -lt -gt -le -ge`\n- `A && B`: B kalau A berhasil. `A || B`: B kalau A gagal"
+        },
+        {
+          "question": "Mana penulisan yang benar?",
+          "options": [
+            "if [-d backup]; then",
+            "if [ -d backup]; then",
+            "if [-d backup ]; then",
+            "if [ -d backup ]; then"
+          ],
+          "answer": 3,
+          "explanation": "`[` dan `]` harus dipisah spasi dari isinya.",
+          "remedial": "- Kode keluar: 0 = berhasil, selain 0 = gagal. `$?` = kode keluar perintah terakhir\n- `if [ ... ]; then ... elif ... else ... fi`, dengan spasi di dalam `[ ]`\n- `-f` file ada, `-d` folder ada, `-z` teks kosong, `!` kebalikan\n- Teks: `=` `!=`. Angka: `-eq -ne -lt -gt -le -ge`\n- `A && B`: B kalau A berhasil. `A || B`: B kalau A gagal"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi file peserta.txt:\n#   budi\n#   sari\ngrep -q dewi peserta.txt; echo $?",
+          "options": [
+            "0",
+            "dewi",
+            "1",
+            "(tidak ada output)"
+          ],
+          "answer": 2,
+          "explanation": "`grep -q` tidak mencetak apa-apa. `dewi` tidak ada di file, jadi kode keluarnya 1, dan `echo $?` mencetak angka itu.",
+          "remedial": "- Kode keluar: 0 = berhasil, selain 0 = gagal. `$?` = kode keluar perintah terakhir\n- `if [ ... ]; then ... elif ... else ... fi`, dengan spasi di dalam `[ ]`\n- `-f` file ada, `-d` folder ada, `-z` teks kosong, `!` kebalikan\n- Teks: `=` `!=`. Angka: `-eq -ne -lt -gt -le -ge`\n- `A && B`: B kalau A berhasil. `A || B`: B kalau A gagal"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "# Isi folder saat ini: foto/\n# Isi file jenis.sh:\n#   #!/bin/bash\n#   if [ -f \"$1\" ]; then\n#       echo \"$1: file\"\n#   elif [ -d \"$1\" ]; then\n#       echo \"$1: folder\"\n#   else\n#       echo \"$1: tidak ada\"\n#   fi\nbash jenis.sh foto",
+      "options": [
+        "foto: file",
+        "foto: tidak ada",
+        "foto: folder",
+        "foto: file\nfoto: folder"
+      ],
+      "answer": 2,
+      "explanation": "`foto` adalah folder, jadi `-f` salah dan `-d` benar. Bash berhenti di kondisi pertama yang benar."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Cetak pesan hanya kalau proyek adalah sebuah FOLDER\n# Isi folder saat ini: proyek/\n[ ___ proyek ] && echo \"proyek adalah folder\"",
+      "answers": [
+        "-d"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Setiap perintah punya kode keluar: 0 berhasil, selain 0 gagal; $? menyimpan kode perintah terakhir.",
+        "if [ ... ]; then ... elif ... else ... fi, dan spasi di dalam [ ] wajib.",
+        "-f file ada, -d folder ada, -z teks kosong; = dan != untuk teks, -eq -lt -gt dan kawan-kawan untuk angka.",
+        "if bisa memakai perintah apa saja, misalnya grep -q.",
+        "A && B menjalankan B kalau A berhasil; A || B menjalankan B kalau A gagal."
+      ]
+    }
+  ]
+}

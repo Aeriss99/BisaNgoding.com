@@ -1,0 +1,112 @@
+{
+  "id": "linux-nginx-03",
+  "moduleId": "linux-nginx",
+  "order": 3,
+  "title": "Folder dan File Konfigurasi Nginx",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Nginx sudah berjalan. Sebelum membuat situs sendiri, kenali dulu tiga tempat penting di server:\n\n| Folder | Isinya |\n|---|---|\n| `/etc/nginx/` | pengaturan (konfigurasi) Nginx |\n| `/var/www/` | file-file website |\n| `/var/log/nginx/` | log: catatan setiap permintaan dan setiap error |\n\nDi dalam `/etc/nginx/` ada dua folder yang akan sering kamu sentuh: `sites-available` dan `sites-enabled`.\n\nBayangkan toko dengan **gudang** dan **etalase**. Gudang (`sites-available`) menyimpan semua barang dagangan. Etalase (`sites-enabled`) hanya berisi barang yang sedang dipajang. Untuk memajang, barang tidak dipindah dari gudang: cukup pasang **papan penunjuk** di etalase, \"barangnya ada di gudang rak 3\". Untuk menurunkan dari etalase, cabut papannya. Barang di gudang tetap aman."
+    },
+    {
+      "type": "theory",
+      "content": "Isi `/etc/nginx` (angka dan nama di komputermu bisa sedikit berbeda):\n\n```text\n$ ls /etc/nginx\nconf.d          koi-utf     modules-available  proxy_params     sites-enabled  win-utf\nfastcgi.conf    koi-win     modules-enabled    scgi_params      snippets\nfastcgi_params  mime.types  nginx.conf         sites-available  uwsgi_params\n```\n\n| Nama | Artinya |\n|---|---|\n| `nginx.conf` | konfigurasi utama; ia ikut membaca semua file di `sites-enabled/` dan `conf.d/*.conf` |\n| `sites-available/` | **gudang**: semua file konfigurasi situs |\n| `sites-enabled/` | **etalase**: situs yang AKTIF, berisi symlink ke `sites-available/` |\n| `proxy_params` | potongan pengaturan untuk reverse proxy (pelajaran 5) |\n\n**Symlink** (*symbolic link*) adalah file kecil yang isinya hanya penunjuk ke file lain, seperti *shortcut*. Membuka symlink sama dengan membuka file tujuannya. Menghapus symlink **tidak** menghapus file tujuannya. Di `ls -l`, symlink diawali huruf `l` dan ditulis `nama -> tujuan`:\n\n```text\n$ ls -l /etc/nginx/sites-enabled\ntotal 0\nlrwxrwxrwx 1 root root 34 Sep  1 09:00 default -> /etc/nginx/sites-available/default\n```\n\nMembuat symlink: `ln -s TUJUAN NAMA_LINK` (urutannya seperti `cp`: yang ditunjuk dulu). Di server:\n\n```bash\nsudo ln -s /etc/nginx/sites-available/toko /etc/nginx/sites-enabled/\nsudo rm /etc/nginx/sites-enabled/default\n```\n\nBaris pertama mengaktifkan situs `toko`: karena argumen terakhirnya sebuah folder (`sites-enabled/`), symlink dibuat di dalam folder itu dengan nama yang sama dengan file tujuannya, yaitu `toko`. Baris kedua menonaktifkan situs `default`, dan file aslinya di `sites-available` tetap ada. Kalau tujuan ditulis **relatif** (tanpa `/` di depan), ia dibaca dari folder tempat symlink berada, bukan dari folder kerjamu. Karena itu di server sebaiknya pakai path lengkap.\n\n**File website** biasanya di `/var/www/NAMA/`, misalnya `/var/www/toko/`. Halaman bawaan ada di `/var/www/html/`.\n\n**Izin file.** Proses *worker* Nginx (proses pekerja yang benar-benar melayani pengunjung) berjalan sebagai user **`www-data`** (ingat `ps aux` di modul Proses). File website biasanya milik `sari` atau `root`, jadi bagi `www-data` berlaku izin kelompok **lainnya**. Karena itu: **file 644** (lainnya boleh membaca) dan **folder 755** (lainnya boleh masuk).\n\n**Log.** `/var/log/nginx/access.log` mencatat setiap permintaan, satu baris per permintaan:\n\n```text\n203.0.113.50 - - [01/Sep/2026:09:15:02 +0700] \"GET / HTTP/1.1\" 200 1432 \"-\" \"Mozilla/5.0 ...\"\n```\n\n| Bagian | Artinya |\n|---|---|\n| `203.0.113.50` | IP pengunjung |\n| `- -` | dua kolom keterangan yang biasanya kosong (`-`) |\n| `[01/Sep/2026:09:15:02 +0700]` | waktu |\n| `\"GET / HTTP/1.1\"` | permintaan: metode, alamat yang diminta, versi HTTP |\n| `200` | kode status |\n| `1432` | ukuran jawaban dalam byte |\n| `\"-\"` | perujuk (halaman asal), `-` = tidak ada |\n| `\"Mozilla/5.0 ...\"` | browser pengunjung (dipotong) |\n\nKalau dipotong per spasi dengan `cut -d' '`, kolom 1 = IP, kolom 7 = alamat yang diminta, kolom 9 = kode status. Kenapa kode status jatuh di kolom 9? Setelah IP ada dua kolom `-` (kolom 2 dan 3). Bagian waktu terpotong menjadi 2 kolom (kolom 4 dan 5, karena ada spasi sebelum `+0700]`), dan bagian permintaan menjadi 3 kolom (kolom 6, 7, 8: `\"GET`, `/`, `HTTP/1.1\"`).\n\n`/var/log/nginx/error.log` mencatat error, satu baris per kejadian, dengan tingkat seperti `[error]` (tingkat lain misalnya `[warn]` dan `[emerg]`). File log Nginx hanya boleh dibaca root dan grup `adm`, jadi di server `sari` membacanya dengan `sudo`, misalnya `sudo tail -n 20 /var/log/nginx/access.log`.\n\nDi `grep`, tanda `[` dan `]` punya arti khusus, jadi untuk mencari teks `[error]` apa adanya, tulis `'\\[error\\]'`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Gudang dan etalase tiruan.** Supaya aman dicoba, Budi meniru `/etc/nginx` di folder kerjanya: folder `nginx/sites-available` berisi `default` dan `toko`, dan `nginx/sites-enabled` sudah berisi symlink `default`. Karena ini tiruan, tujuan symlink ditulis relatif: `../sites-available/toko` dibaca dari dalam folder `sites-enabled`.\n\n```bash\nls nginx/sites-available\nls -l nginx/sites-enabled\nln -s ../sites-available/toko nginx/sites-enabled/toko\nrm nginx/sites-enabled/default\nls -l nginx/sites-enabled\nls nginx/sites-available\nhead -n 3 nginx/sites-enabled/toko\n```\n\nHasilnya:\n\n```text\n$ ls nginx/sites-available\ndefault  toko\n$ ls -l nginx/sites-enabled\ntotal 0\nlrwxrwxrwx 1 budi budi 26 Sep  1 09:00 default -> ../sites-available/default\n$ ln -s ../sites-available/toko nginx/sites-enabled/toko\n$ rm nginx/sites-enabled/default\n$ ls -l nginx/sites-enabled\ntotal 0\nlrwxrwxrwx 1 budi budi 23 Sep  1 09:00 toko -> ../sites-available/toko\n$ ls nginx/sites-available\ndefault  toko\n$ head -n 3 nginx/sites-enabled/toko\nserver {\n    listen 80;\n    server_name toko.contoh www.toko.contoh;\n```\n\n- Di `sites-enabled`, `toko` adalah symlink (diawali `l`) yang menunjuk ke `../sites-available/toko`.\n- Setelah symlink `default` dihapus, file `default` di `sites-available` tetap ada. Situsnya hanya tidak aktif lagi.\n- `head` lewat symlink menampilkan isi file tujuannya.\n\n\n\n**2. Membaca log.** Budi menyalin potongan `access.log` (12 baris) dan `error.log` (5 baris) dari server ke folder kerjanya.\n\n```bash\nhead -n 2 access.log\nwc -l access.log\ncut -d' ' -f1 access.log | sort | uniq -c\ngrep ' 404 ' access.log | cut -d' ' -f7\ncut -d' ' -f9 access.log | sort | uniq -c\ngrep -c '\\[error\\]' error.log\n```\n\nHasilnya:\n\n```text\n$ head -n 2 access.log\n203.0.113.50 - - [01/Sep/2026:09:15:02 +0700] \"GET / HTTP/1.1\" 200 1432 \"-\" \"Mozilla/5.0 ...\"\n203.0.113.50 - - [01/Sep/2026:09:15:03 +0700] \"GET /gaya.css HTTP/1.1\" 200 1280 \"-\" \"Mozilla/5.0 ...\"\n$ wc -l access.log\n12 access.log\n$ cut -d' ' -f1 access.log | sort | uniq -c\n      3 192.0.2.15\n      2 192.0.2.80\n      4 198.51.100.23\n      3 203.0.113.50\n$ grep ' 404 ' access.log | cut -d' ' -f7\n/promo.html\n/.env\n/admin\n/login.php\n/config.php\n$ cut -d' ' -f9 access.log | sort | uniq -c\n      6 200\n      1 403\n      5 404\n$ grep -c '\\[error\\]' error.log\n5\n```\n\n- Ada 12 permintaan dari 4 IP. IP `198.51.100.23` paling banyak (4 kali).\n- Keempat 404 dari `198.51.100.23` meminta alamat yang tidak pernah ada di toko (`/.env`, `/admin`, `/login.php`, `/config.php`). Ini ciri bot yang mencari celah, sama seperti di `auth.log` pada modul sebelumnya.\n- Spasi di `' 404 '` membuat `grep` hanya cocok dengan kolom kode status, bukan angka 404 yang kebetulan ada di bagian lain baris.\n- Ringkasan kode status: 6 kali 200, 1 kali 403, 5 kali 404.\n- Kelima baris di potongan `error.log` ini semuanya bertingkat `[error]`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis tujuan symlink relatif dari folder kerja**\n\nSalah:\n\n```bash\nln -s nginx/sites-available/toko nginx/sites-enabled/toko\ncat nginx/sites-enabled/toko\n# cat: nginx/sites-enabled/toko: No such file or directory\n```\n\nBenar:\n\n```bash\nln -s ../sites-available/toko nginx/sites-enabled/toko\n# di server sungguhan, pakai path lengkap:\n# sudo ln -s /etc/nginx/sites-available/toko /etc/nginx/sites-enabled/\n```\n\nTujuan relatif dibaca dari folder tempat symlink berada (`nginx/sites-enabled`), sehingga symlink menunjuk ke file yang tidak ada. Path lengkap yang diawali `/` tidak punya masalah ini.\n\n**2. Menyalin file ke sites-enabled**\n\nSalah:\n\n```bash\nsudo cp /etc/nginx/sites-available/toko /etc/nginx/sites-enabled/\n```\n\nBenar:\n\n```bash\nsudo ln -s /etc/nginx/sites-available/toko /etc/nginx/sites-enabled/\n```\n\nSalinan adalah file terpisah. Kalau nanti kamu mengedit file di `sites-available`, Nginx tetap membaca salinan lama di `sites-enabled`. Symlink selalu menunjuk ke satu file yang sama.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Folder yang berisi situs-situs yang sedang AKTIF di Nginx adalah...",
+          "options": [
+            "/etc/nginx/sites-available",
+            "/var/www/html",
+            "/etc/nginx/sites-enabled",
+            "/var/log/nginx"
+          ],
+          "answer": 2,
+          "explanation": "`sites-enabled` berisi symlink ke file di `sites-available`. Hanya situs di `sites-enabled` yang dipakai Nginx.",
+          "remedial": "- `/etc/nginx` = pengaturan, `/var/www` = file website, `/var/log/nginx` = log\n- `sites-available` = gudang semua situs, `sites-enabled` = situs aktif (symlink)\n- Aktifkan: `sudo ln -s /etc/nginx/sites-available/toko /etc/nginx/sites-enabled/`. Nonaktifkan: hapus symlink-nya\n- Nginx membaca file sebagai `www-data`: file 644, folder 755\n- access.log: kolom 1 IP, kolom 7 alamat, kolom 9 kode status"
+        },
+        {
+          "question": "Apa arti huruf `l` di awal baris `ls -l` ini?",
+          "code": "lrwxrwxrwx 1 root root 34 Sep  1 09:00 default -> /etc/nginx/sites-available/default",
+          "options": [
+            "default adalah file log",
+            "default adalah symlink yang menunjuk ke file lain",
+            "default terkunci dan tidak bisa diubah",
+            "default adalah folder"
+          ],
+          "answer": 1,
+          "explanation": "`l` = *link*. Tanda `->` menunjukkan file tujuannya. Folder diawali `d`, file biasa diawali `-`.",
+          "remedial": "- `/etc/nginx` = pengaturan, `/var/www` = file website, `/var/log/nginx` = log\n- `sites-available` = gudang semua situs, `sites-enabled` = situs aktif (symlink)\n- Aktifkan: `sudo ln -s /etc/nginx/sites-available/toko /etc/nginx/sites-enabled/`. Nonaktifkan: hapus symlink-nya\n- Nginx membaca file sebagai `www-data`: file 644, folder 755\n- access.log: kolom 1 IP, kolom 7 alamat, kolom 9 kode status"
+        },
+        {
+          "question": "Nginx membaca file website sebagai user `www-data`. File `index.html` dimiliki `sari`, grup `sari`. Izin mana yang membuat Nginx bisa membacanya?",
+          "options": [
+            "600",
+            "640",
+            "700",
+            "644"
+          ],
+          "answer": 3,
+          "explanation": "`www-data` bukan pemilik dan bukan anggota grup `sari`, jadi yang berlaku izin \"lainnya\". Hanya 644 yang memberi r untuk lainnya.",
+          "remedial": "- `/etc/nginx` = pengaturan, `/var/www` = file website, `/var/log/nginx` = log\n- `sites-available` = gudang semua situs, `sites-enabled` = situs aktif (symlink)\n- Aktifkan: `sudo ln -s /etc/nginx/sites-available/toko /etc/nginx/sites-enabled/`. Nonaktifkan: hapus symlink-nya\n- Nginx membaca file sebagai `www-data`: file 644, folder 755\n- access.log: kolom 1 IP, kolom 7 alamat, kolom 9 kode status"
+        },
+        {
+          "question": "Berdasarkan baris `access.log` ini, apa arti angka `2048`?",
+          "code": "192.0.2.80 - - [01/Sep/2026:09:18:30 +0700] \"GET /produk.html HTTP/1.1\" 200 2048 \"-\" \"Mozilla/5.0 ...\"",
+          "options": [
+            "Ukuran jawaban dalam byte",
+            "Kode status",
+            "Nomor port pengunjung",
+            "Nomor proses Nginx"
+          ],
+          "answer": 0,
+          "explanation": "Setelah kode status (200) ada ukuran jawaban dalam byte (2048).",
+          "remedial": "- `/etc/nginx` = pengaturan, `/var/www` = file website, `/var/log/nginx` = log\n- `sites-available` = gudang semua situs, `sites-enabled` = situs aktif (symlink)\n- Aktifkan: `sudo ln -s /etc/nginx/sites-available/toko /etc/nginx/sites-enabled/`. Nonaktifkan: hapus symlink-nya\n- Nginx membaca file sebagai `www-data`: file 644, folder 755\n- access.log: kolom 1 IP, kolom 7 alamat, kolom 9 kode status"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `access.log` berisi potongan log Nginx. Apa hasil perintah terakhir?",
+      "code": "# Isi file access.log:\n#   203.0.113.50 - - [01/Sep/2026:09:15:02 +0700] \"GET / HTTP/1.1\" 200 1432 \"-\" \"Mozilla/5.0 ...\"\n#   203.0.113.50 - - [01/Sep/2026:09:15:03 +0700] \"GET /gaya.css HTTP/1.1\" 200 1280 \"-\" \"Mozilla/5.0 ...\"\n#   192.0.2.15 - - [01/Sep/2026:09:16:40 +0700] \"GET / HTTP/1.1\" 200 1432 \"-\" \"Mozilla/5.0 ...\"\n#   192.0.2.15 - - [01/Sep/2026:09:16:41 +0700] \"GET /gaya.css HTTP/1.1\" 200 1280 \"-\" \"Mozilla/5.0 ...\"\n#   192.0.2.15 - - [01/Sep/2026:09:16:52 +0700] \"GET /promo.html HTTP/1.1\" 404 162 \"-\" \"Mozilla/5.0 ...\"\n#   198.51.100.23 - - [01/Sep/2026:09:17:05 +0700] \"GET /.env HTTP/1.1\" 404 162 \"-\" \"Mozilla/5.0 ...\"\n#   198.51.100.23 - - [01/Sep/2026:09:17:06 +0700] \"GET /admin HTTP/1.1\" 404 162 \"-\" \"Mozilla/5.0 ...\"\n#   198.51.100.23 - - [01/Sep/2026:09:17:07 +0700] \"GET /login.php HTTP/1.1\" 404 162 \"-\" \"Mozilla/5.0 ...\"\n#   198.51.100.23 - - [01/Sep/2026:09:17:08 +0700] \"GET /config.php HTTP/1.1\" 404 162 \"-\" \"Mozilla/5.0 ...\"\n#   192.0.2.80 - - [01/Sep/2026:09:18:30 +0700] \"GET /produk.html HTTP/1.1\" 200 2048 \"-\" \"Mozilla/5.0 ...\"\n#   192.0.2.80 - - [01/Sep/2026:09:18:41 +0700] \"GET /gambar/ HTTP/1.1\" 403 162 \"-\" \"Mozilla/5.0 ...\"\n#   203.0.113.50 - - [01/Sep/2026:09:20:15 +0700] \"GET /produk.html HTTP/1.1\" 200 2048 \"-\" \"Mozilla/5.0 ...\"\ngrep -c ' 200 ' access.log",
+      "options": [
+        "12",
+        "5",
+        "1",
+        "6"
+      ],
+      "answer": 3,
+      "explanation": "`grep -c` menghitung baris yang mengandung ` 200 ` (kode status 200). Ada 6 permintaan yang berhasil."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Aktifkan situs toko: buat symlink di sites-enabled\n# Isi folder saat ini: nginx/sites-available/toko, nginx/sites-enabled/\nln ___ ../sites-available/toko nginx/sites-enabled/toko",
+      "answers": [
+        "-s|--symbolic"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "/etc/nginx berisi pengaturan, /var/www berisi file website, /var/log/nginx berisi log.",
+        "sites-available adalah gudang semua situs; sites-enabled berisi symlink ke situs yang aktif.",
+        "ln -s TUJUAN NAMA membuat symlink; menghapus symlink tidak menghapus file tujuannya.",
+        "Nginx membaca file sebagai www-data, jadi file website 644 dan folder 755.",
+        "access.log bisa dianalisis dengan cut, sort, uniq -c, grep, dan wc."
+      ]
+    }
+  ]
+}

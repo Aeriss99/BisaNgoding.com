@@ -1,0 +1,111 @@
+{
+  "id": "linux-cron-03",
+  "moduleId": "linux-cron",
+  "order": 3,
+  "title": "Koma, Rentang, Langkah, dan @",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Dengan angka dan `*` saja, beberapa jadwal jadi repot. \"Jam 8 dan jam 17\" butuh dua baris, \"Senin sampai Jumat\" butuh lima baris, dan \"setiap 15 menit\" butuh empat baris.\n\nUntungnya, satu kolom bisa diisi lebih dari satu nilai dengan tiga tanda khusus:\n\n- **koma** `,` untuk daftar: `8,17`\n- **tanda hubung** `-` untuk rentang: `1-5`\n- **garis miring** `/` untuk langkah: `*/15`\n\nAda juga singkatan siap pakai yang diawali `@`, misalnya `@daily`.\n\nBayangkan jadwal minum obat di rumah sakit. \"Jam 7, 13, dan 19\" adalah daftar (koma). \"Senin sampai Jumat\" adalah rentang (tanda hubung). \"Setiap 4 jam\" adalah langkah (garis miring). Perawat tidak menulis jadwal satu per satu; cukup satu kalimat singkat."
+    },
+    {
+      "type": "theory",
+      "content": "| Tanda | Contoh | Artinya |\n|---|---|---|\n| `,` daftar | `0 8,17 * * *` | jam 08.00 **dan** 17.00 setiap hari |\n| `-` rentang | `0 9 * * 1-5` | jam 09.00, Senin **sampai** Jumat |\n| `*/N` langkah | `*/15 * * * *` | setiap 15 menit: menit 0, 15, 30, 45 |\n| `*/N` langkah | `0 */6 * * *` | setiap 6 jam: jam 00, 06, 12, 18 |\n\nTanda-tanda ini boleh dipakai di kolom mana saja dan boleh digabung:\n\n```text\n0 8-17 * * 1-5   setiap jam tepat dari 08.00 sampai 17.00,\n                 Senin sampai Jumat (10 kali sehari)\n30 7 1,15 * *    tanggal 1 dan 15 setiap bulan, jam 07.30\n```\n\n`*/15` dihitung dari awal kolom (menit 0), bukan dari saat jadwal disimpan. Rentang selalu **termasuk** kedua ujungnya: `8-17` berarti 8, 9, ..., 17.\n\n**Jadwal khusus `@`** (menggantikan kelima kolom sekaligus):\n\n| Singkatan | Sama dengan | Artinya |\n|---|---|---|\n| `@reboot` | — | setiap kali komputer menyala |\n| `@hourly` | `0 * * * *` | setiap jam, menit 0 |\n| `@daily` | `0 0 * * *` | setiap hari jam 00.00 |\n| `@weekly` | `0 0 * * 0` | setiap Minggu jam 00.00 |\n| `@monthly` | `0 0 1 * *` | setiap tanggal 1 jam 00.00 |\n\nContoh: `@reboot /home/budi/mulai.sh`.\n\n**Jebakan klasik:** `* 2 * * *` BUKAN \"sekali jam 2\". Kolom menit berisi `*`, jadi perintahnya jalan **setiap menit selama jam 2**: 02.00, 02.01, ..., 02.59, sebanyak 60 kali. Untuk sekali saja, tulis `0 2 * * *`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Membaca jadwal gabungan.**\n\n```text\n*/15 * * * *    /home/budi/cek-web.sh\n0 8-17 * * 1-5  /home/budi/stok.sh\n0 7,19 * * *    /home/budi/laporan.sh\n@reboot         /home/budi/mulai.sh\n```\n\n- `cek-web.sh`: setiap 15 menit, sepanjang hari, setiap hari.\n- `stok.sh`: setiap jam tepat dari 08.00 sampai 17.00, hanya Senin–Jumat.\n- `laporan.sh`: dua kali sehari, jam 07.00 dan 19.00.\n- `mulai.sh`: sekali setiap komputer selesai menyala.\n\nSpasi antara jadwal dan perintah boleh lebih dari satu supaya rapi.\n\n**2. Menghitung nilai yang terpilih.** Untuk membayangkan nilai mana saja yang dipilih sebuah langkah atau rentang, Budi memakai `seq` (*sequence*), perintah yang mencetak deretan angka: `seq AWAL LANGKAH AKHIR`. `seq` hanya alat bantu menghitung, bukan bagian dari cron.\n\n```bash\nseq 0 15 59\nseq 0 6 23\nseq 8 17 | wc -l\n```\n\nHasilnya:\n\n```text\n$ seq 0 15 59\n0\n15\n30\n45\n$ seq 0 6 23\n0\n6\n12\n18\n$ seq 8 17 | wc -l\n10\n```\n\n- `seq 0 15 59` = menit yang dipilih `*/15`: 0, 15, 30, 45.\n- `seq 0 6 23` = jam yang dipilih `*/6`: 0, 6, 12, 18.\n- Rentang `8-17` berisi 10 nilai, jadi `0 8-17 * * 1-5` jalan 10 kali pada setiap hari kerja."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa mengisi kolom menit**\n\nSalah:\n\n```text\n* 2 * * * /home/budi/backup.sh\n# maksudnya sekali jam 02.00\n```\n\nBenar:\n\n```text\n0 2 * * * /home/budi/backup.sh\n```\n\n`*` di kolom menit berarti setiap menit. Backup jadi jalan 60 kali antara 02.00 dan 02.59.\n\n**2. Memakai koma untuk \"sampai\"**\n\nSalah:\n\n```text\n0 9 * * 1,5 /home/budi/laporan.sh\n# maksudnya Senin sampai Jumat\n```\n\nBenar:\n\n```text\n0 9 * * 1-5 /home/budi/laporan.sh\n```\n\nKoma membuat daftar: `1,5` hanya Senin dan Jumat. Untuk rentang Senin sampai Jumat pakai tanda hubung: `1-5`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Arti `*/10` di kolom menit adalah...",
+          "options": [
+            "Hanya menit ke-10",
+            "Setiap 10 menit: menit 0, 10, 20, 30, 40, 50",
+            "10 menit setelah jadwal disimpan",
+            "Sepuluh kali dalam satu jam"
+          ],
+          "answer": 1,
+          "explanation": "`*/10` memilih setiap nilai kelipatan 10 mulai dari 0. Dalam satu jam itu 6 kali.",
+          "remedial": "- `,` = daftar (`8,17` = 8 dan 17)\n- `-` = rentang, termasuk kedua ujung (`1-5` = Senin sampai Jumat)\n- `*/N` = setiap N, dihitung dari awal kolom (`*/15` = menit 0, 15, 30, 45)\n- `@reboot`, `@hourly`, `@daily`, `@weekly`, `@monthly`\n- `* 2 * * *` = setiap menit selama jam 2; sekali jam 2 = `0 2 * * *`"
+        },
+        {
+          "question": "Jadwal untuk hari kerja (Senin sampai Jumat) jam 07.00 adalah...",
+          "options": [
+            "0 7 * * 1,5",
+            "7 0 * * 1-5",
+            "0 7 1-5 * *",
+            "0 7 * * 1-5"
+          ],
+          "answer": 3,
+          "explanation": "Menit 0, jam 7, hari `1-5`. `1,5` hanya Senin dan Jumat, `7 0` adalah jam 00.07, dan `1-5` di kolom ketiga berarti tanggal 1 sampai 5.",
+          "remedial": "- `,` = daftar (`8,17` = 8 dan 17)\n- `-` = rentang, termasuk kedua ujung (`1-5` = Senin sampai Jumat)\n- `*/N` = setiap N, dihitung dari awal kolom (`*/15` = menit 0, 15, 30, 45)\n- `@reboot`, `@hourly`, `@daily`, `@weekly`, `@monthly`\n- `* 2 * * *` = setiap menit selama jam 2; sekali jam 2 = `0 2 * * *`"
+        },
+        {
+          "question": "`@daily` sama dengan...",
+          "options": [
+            "0 0 * * *",
+            "* * * * *",
+            "0 0 * * 0",
+            "0 0 1 * *"
+          ],
+          "answer": 0,
+          "explanation": "`@daily` = setiap hari jam 00.00. `0 0 * * 0` adalah `@weekly`, `0 0 1 * *` adalah `@monthly`.",
+          "remedial": "- `,` = daftar (`8,17` = 8 dan 17)\n- `-` = rentang, termasuk kedua ujung (`1-5` = Senin sampai Jumat)\n- `*/N` = setiap N, dihitung dari awal kolom (`*/15` = menit 0, 15, 30, 45)\n- `@reboot`, `@hourly`, `@daily`, `@weekly`, `@monthly`\n- `* 2 * * *` = setiap menit selama jam 2; sekali jam 2 = `0 2 * * *`"
+        },
+        {
+          "question": "Berapa kali baris ini dijalankan dalam satu hari?",
+          "code": "0 8,12,16 * * * /home/budi/cek-stok.sh",
+          "options": [
+            "1",
+            "8",
+            "3",
+            "16"
+          ],
+          "answer": 2,
+          "explanation": "Kolom jam berisi daftar tiga nilai: 8, 12, dan 16. Menitnya 0, jadi jalan tiga kali sehari.",
+          "remedial": "- `,` = daftar (`8,17` = 8 dan 17)\n- `-` = rentang, termasuk kedua ujung (`1-5` = Senin sampai Jumat)\n- `*/N` = setiap N, dihitung dari awal kolom (`*/15` = menit 0, 15, 30, 45)\n- `@reboot`, `@hourly`, `@daily`, `@weekly`, `@monthly`\n- `* 2 * * *` = setiap menit selama jam 2; sekali jam 2 = `0 2 * * *`"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Budi ingin backup sekali saja setiap jam 02.00, tapi menulis baris ini. Berapa kali backup dijalankan setiap malam?",
+      "code": "* 2 * * * /home/budi/backup.sh",
+      "options": [
+        "1 kali, jam 02.00",
+        "2 kali",
+        "60 kali, setiap menit dari 02.00 sampai 02.59",
+        "24 kali, setiap jam"
+      ],
+      "answer": 2,
+      "explanation": "Kolom menit berisi `*`, jadi setiap menit selama jam 2 cocok. Tulis `0 2 * * *` untuk sekali saja."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Jalankan setiap 15 menit, sepanjang hari\n___ * * * * /home/budi/cek-web.sh",
+      "answers": [
+        "*/15|0,15,30,45|0-59/15"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Koma membuat daftar nilai, misalnya 8,17.",
+        "Tanda hubung membuat rentang yang termasuk kedua ujung, misalnya 1-5 untuk Senin sampai Jumat.",
+        "*/N berarti setiap N, dihitung dari awal kolom: */15 di kolom menit = 0, 15, 30, 45.",
+        "@reboot, @hourly, @daily, @weekly, dan @monthly menggantikan lima kolom sekaligus.",
+        "* 2 * * * jalan setiap menit selama jam 2; untuk sekali jam 2 tulis 0 2 * * *."
+      ]
+    }
+  ]
+}

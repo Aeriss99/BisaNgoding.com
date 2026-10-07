@@ -1,0 +1,112 @@
+{
+  "id": "linux-bash-06",
+  "moduleId": "linux-bash",
+  "order": 6,
+  "title": "Fungsi dan exit",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Script yang makin panjang biasanya punya bagian yang diulang-ulang. Daripada menyalin baris yang sama berkali-kali, bungkus menjadi **fungsi**: sekelompok perintah yang diberi nama, lalu dipanggil kapan saja dengan nama itu.\n\nDi pelajaran ini kita juga belajar mengakhiri script dengan rapi memakai `exit`, supaya orang (dan program lain) tahu apakah script berhasil atau gagal.\n\nFungsi itu seperti **resep sambal** di dapur restoran. Resepnya ditulis sekali di dinding. Setiap kali ada menu yang butuh sambal, juru masak cukup berkata \"buat sambal\", tanpa membaca ulang semua langkahnya. `exit` itu seperti juru masak yang berhenti di tengah jalan karena bahannya habis, lalu memberi tahu kasir: \"pesanan ini gagal\"."
+    },
+    {
+      "type": "theory",
+      "content": "**Membuat dan memanggil fungsi:**\n\n```bash\nsapa() {\n    echo \"Halo, $1!\"\n}\n\nsapa Budi\nsapa Sari\n```\n\n- Fungsi harus **dibuat dulu** (lebih atas di script) sebelum dipanggil. Bash membaca dari atas ke bawah, jadi memanggil fungsi yang belum dibuat menghasilkan `command not found`.\n- Memanggil fungsi sama seperti menjalankan perintah: nama fungsi, lalu argumennya.\n- Di dalam fungsi, `$1`, `$2`, `$#` berisi argumen **fungsi itu**, bukan argumen script.\n\n**`local`** membuat variabel yang hanya berlaku di dalam fungsi:\n\n```bash\nsapa() {\n    local nama=\"$1\"\n    echo \"Halo, $nama\"\n}\n```\n\nTanpa `local`, variabel yang diisi di dalam fungsi ikut berlaku (dan bisa menimpa variabel bernama sama) di seluruh script.\n\n**`exit`** menghentikan script saat itu juga, dengan kode keluar pilihanmu:\n\n| Perintah | Artinya |\n|---|---|\n| `exit 0` | selesai, berhasil |\n| `exit 1` | selesai, gagal (angka selain 0) |\n\nBaris setelah `exit` tidak dijalankan. Orang yang memanggil script bisa mengecek hasilnya dengan `$?`.\n\n**Pesan error ke stderr.** Ingat modul *Membaca dan Mencari Teks*: output biasa dan pesan error adalah dua saluran berbeda, dan `2>` mengalihkan pesan error saja. Saluran output biasa disebut *stdout* (nomor 1), saluran pesan error disebut *stderr* (nomor 2). Pesan error buatanmu sebaiknya juga dikirim ke stderr:\n\n```bash\necho \"Error: folder tidak ada\" >&2\n```\n\n`>&2` artinya \"kirim output `echo` ini ke stderr\". Di layar terlihat sama, tapi bisa dipisahkan, misalnya `./cek.sh 2> error.txt` menyimpan pesan error saja ke file.\n\n**`set -e` (sekilas).** Biasanya bash tetap lanjut ke baris berikutnya walau sebuah perintah gagal. Dengan `set -e` di awal script, script langsung **berhenti** begitu ada perintah yang gagal. Pengecualian: perintah yang dipakai sebagai kondisi `if`, atau yang ditulis sebelum `&&` / `||`, tidak membuat script berhenti."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh 1: Fungsi dan local\n\nScript `salam.sh` milik Budi punya dua fungsi: `garis` dan `sapa`.\n\n```bash\ncat salam.sh\nbash salam.sh\n```\n\nHasilnya:\n\n```text\n$ cat salam.sh\n#!/bin/bash\ngaris() {\n    echo \"--------------------\"\n}\n\nsapa() {\n    local nama=\"$1\"\n    echo \"Halo, $nama! Selamat datang.\"\n}\n\ngaris\nsapa Budi\nsapa \"Sari Dewi\"\ngaris\necho \"Di luar fungsi, nama = [$nama]\"\n$ bash salam.sh\n--------------------\nHalo, Budi! Selamat datang.\nHalo, Sari Dewi! Selamat datang.\n--------------------\nDi luar fungsi, nama = []\n```\n\n- `garis` dipanggil dua kali tanpa menulis ulang isinya.\n- Di dalam `sapa`, `$1` berisi argumen fungsi: `Budi`, lalu `Sari Dewi`.\n- Karena memakai `local`, variabel `nama` tidak ada di luar fungsi, jadi tercetak kosong `[]`.\n\n### Contoh 2: exit, stderr, dan set -e\n\nScript `cek.sh` memeriksa sebuah file dan keluar dengan kode yang sesuai. Lalu Budi membandingkan dua script yang sama-sama memanggil `ls` pada file yang tidak ada: `tanpa-e.sh` dan `pakai-e.sh` (yang kedua memakai `set -e`).\n\n```bash\ncat cek.sh\nchmod +x cek.sh\n./cek.sh catatan.txt; echo \"Kode keluar: $?\"\n./cek.sh; echo \"Kode keluar: $?\"\n./cek.sh nilai.txt 2> error.txt\ncat error.txt\nbash tanpa-e.sh\nbash pakai-e.sh\n```\n\nHasilnya:\n\n```text\n$ cat cek.sh\n#!/bin/bash\nif [ -z \"$1\" ]; then\n    echo \"Error: nama file belum diberikan\" >&2\n    exit 1\nfi\nif [ ! -f \"$1\" ]; then\n    echo \"Error: $1 tidak ditemukan\" >&2\n    exit 1\nfi\necho \"$1 berisi $(wc -l < \"$1\") baris\"\nexit 0\n$ chmod +x cek.sh\n$ ./cek.sh catatan.txt; echo \"Kode keluar: $?\"\ncatatan.txt berisi 2 baris\nKode keluar: 0\n$ ./cek.sh; echo \"Kode keluar: $?\"\nError: nama file belum diberikan\nKode keluar: 1\n$ ./cek.sh nilai.txt 2> error.txt\n$ cat error.txt\nError: nilai.txt tidak ditemukan\n$ bash tanpa-e.sh\nMulai\nls: cannot access 'tidakada.txt': No such file or directory\nSelesai\n$ bash pakai-e.sh\nMulai\nls: cannot access 'tidakada.txt': No such file or directory\n```\n\n- Saat file ada, script sampai ke `exit 0`. Tanpa argumen, script berhenti di `exit 1` dan baris di bawahnya tidak dijalankan.\n- Dengan `2> error.txt`, pesan error tidak tampil di layar karena masuk ke file.\n- `tanpa-e.sh` tetap mencetak `Selesai` walau `ls` gagal. `pakai-e.sh` berhenti tepat setelah `ls` gagal."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memanggil fungsi sebelum dibuat**\n\nSalah:\n\n```bash\n#!/bin/bash\nsapa Budi\nsapa() {\n    echo \"Halo, $1\"\n}\n# ./salam.sh: line 2: sapa: command not found\n```\n\nBenar:\n\n```bash\n#!/bin/bash\nsapa() {\n    echo \"Halo, $1\"\n}\nsapa Budi\n```\n\nBash membaca script dari atas ke bawah. Saat baris `sapa Budi` dijalankan, fungsi `sapa` belum dikenal.\n\n**2. Lupa exit setelah pesan error**\n\nSalah:\n\n```bash\nif [ -z \"$1\" ]; then\n    echo \"Error: nama file belum diberikan\" >&2\nfi\nwc -l \"$1\"\n# wc: invalid zero-length file name\n```\n\nBenar:\n\n```bash\nif [ -z \"$1\" ]; then\n    echo \"Error: nama file belum diberikan\" >&2\n    exit 1\nfi\nwc -l \"$1\"\n```\n\n`echo` hanya mencetak pesan. Tanpa `exit 1`, script tetap lanjut dan menjalankan `wc` dengan nama file kosong.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi file kali.sh:\n#   #!/bin/bash\n#   kali() {\n#       echo \"$1 x $2 = $(($1 * $2))\"\n#   }\n#   kali 3 4\n#   kali 5 2\nbash kali.sh",
+          "options": [
+            "3 x 4 = 12",
+            "$1 x $2 = 12\n$1 x $2 = 10",
+            "3 x 4 = 12\n5 x 2 = 10",
+            "12\n10"
+          ],
+          "answer": 2,
+          "explanation": "Fungsi dipanggil dua kali. Setiap kali, `$1` dan `$2` berisi argumen panggilan itu.",
+          "remedial": "- Fungsi: `nama() { ... }`, dibuat dulu sebelum dipanggil\n- Di dalam fungsi, `$1 $2` = argumen fungsi. `local` = variabel khusus di dalam fungsi\n- `exit 0` = selesai berhasil, `exit 1` = selesai gagal. Baris setelah `exit` tidak dijalankan\n- `echo \"...\" >&2` mengirim pesan error ke stderr\n- `set -e`: script berhenti begitu ada perintah yang gagal"
+        },
+        {
+          "question": "Apa gunanya `local` di dalam fungsi?",
+          "options": [
+            "Supaya fungsi hanya bisa dipanggil sekali",
+            "Supaya variabel hanya berlaku di dalam fungsi itu",
+            "Supaya variabel tersimpan permanen di komputer",
+            "Supaya fungsi bisa dipakai script lain"
+          ],
+          "answer": 1,
+          "explanation": "Variabel `local` tidak terlihat di luar fungsi dan tidak menimpa variabel bernama sama di bagian lain script.",
+          "remedial": "- Fungsi: `nama() { ... }`, dibuat dulu sebelum dipanggil\n- Di dalam fungsi, `$1 $2` = argumen fungsi. `local` = variabel khusus di dalam fungsi\n- `exit 0` = selesai berhasil, `exit 1` = selesai gagal. Baris setelah `exit` tidak dijalankan\n- `echo \"...\" >&2` mengirim pesan error ke stderr\n- `set -e`: script berhenti begitu ada perintah yang gagal"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi file proses.sh:\n#   #!/bin/bash\n#   echo \"Langkah 1\"\n#   exit 1\n#   echo \"Langkah 2\"\nbash proses.sh; echo $?",
+          "options": [
+            "Langkah 1\nLangkah 2\n1",
+            "Langkah 1\n0",
+            "Langkah 1\nLangkah 2\n0",
+            "Langkah 1\n1"
+          ],
+          "answer": 3,
+          "explanation": "`exit 1` menghentikan script, jadi `Langkah 2` tidak pernah dicetak. `$?` berisi kode keluar script: 1.",
+          "remedial": "- Fungsi: `nama() { ... }`, dibuat dulu sebelum dipanggil\n- Di dalam fungsi, `$1 $2` = argumen fungsi. `local` = variabel khusus di dalam fungsi\n- `exit 0` = selesai berhasil, `exit 1` = selesai gagal. Baris setelah `exit` tidak dijalankan\n- `echo \"...\" >&2` mengirim pesan error ke stderr\n- `set -e`: script berhenti begitu ada perintah yang gagal"
+        },
+        {
+          "question": "Apa efek `set -e` di awal script?",
+          "options": [
+            "Script langsung berhenti begitu ada perintah yang gagal",
+            "Semua pesan error disembunyikan",
+            "Script diulang dari awal kalau ada error",
+            "Script hanya boleh dijalankan oleh root"
+          ],
+          "answer": 0,
+          "explanation": "Tanpa `set -e`, bash tetap lanjut ke baris berikutnya walau ada perintah yang gagal.",
+          "remedial": "- Fungsi: `nama() { ... }`, dibuat dulu sebelum dipanggil\n- Di dalam fungsi, `$1 $2` = argumen fungsi. `local` = variabel khusus di dalam fungsi\n- `exit 0` = selesai berhasil, `exit 1` = selesai gagal. Baris setelah `exit` tidak dijalankan\n- `echo \"...\" >&2` mengirim pesan error ke stderr\n- `set -e`: script berhenti begitu ada perintah yang gagal"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "# Isi folder saat ini: arsip/\n# Isi file salin.sh:\n#   #!/bin/bash\n#   set -e\n#   echo \"Menyalin...\"\n#   cp data.txt arsip/\n#   echo \"Beres\"\nbash salin.sh",
+      "options": [
+        "Menyalin...\ncp: cannot stat 'data.txt': No such file or directory",
+        "Menyalin...\ncp: cannot stat 'data.txt': No such file or directory\nBeres",
+        "Menyalin...\nBeres",
+        "cp: cannot stat 'data.txt': No such file or directory"
+      ],
+      "answer": 0,
+      "explanation": "File `data.txt` tidak ada, jadi `cp` gagal. Karena ada `set -e`, script berhenti saat itu juga dan `Beres` tidak dicetak."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Kirim pesan ini ke stderr, bukan ke stdout\necho \"Error: file tidak ada\" ___",
+      "answers": [
+        ">&2|1>&2"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Fungsi dibuat dengan nama() { ... } dan harus ditulis sebelum dipanggil.",
+        "Di dalam fungsi, $1 dan $2 berisi argumen fungsi; local membuat variabel khusus di dalam fungsi.",
+        "exit 0 berarti berhasil, exit 1 berarti gagal; baris sesudah exit tidak dijalankan.",
+        "Pesan error dikirim ke stderr dengan echo \"...\" >&2.",
+        "set -e menghentikan script begitu ada perintah yang gagal."
+      ]
+    }
+  ]
+}

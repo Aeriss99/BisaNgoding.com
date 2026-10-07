@@ -1,0 +1,111 @@
+{
+  "id": "linux-cron-05",
+  "moduleId": "linux-cron",
+  "order": 5,
+  "title": "Path, Log, dan Zona Waktu",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Jadwal sudah benar, tapi besok paginya backup tidak ada? Penyebabnya hampir selalu satu dari tiga hal ini:\n\n1. **Lingkungan cron sangat minim**, sehingga perintah atau file tidak ditemukan.\n2. **Output dan pesan error tidak disimpan**, sehingga kamu tidak tahu apa yang terjadi.\n3. **Zona waktu server berbeda** dengan yang kamu kira, sehingga jadwal jalan di jam lain.\n\nPelajaran ini membahas ketiganya, plus cara memeriksa apakah cron benar-benar menjalankan perintahmu.\n\ncron itu seperti petugas shift malam yang baru masuk. Ia tidak kenal singkatan-singkatanmu, jadi perlu **alamat lengkap**. Tidak ada orang yang melihat ia bekerja, jadi ia harus menulis **buku laporan**. Dan jam dinding di posnya bisa memakai **zona waktu lain** dari jam tanganmu."
+    },
+    {
+      "type": "theory",
+      "content": "**1. Lingkungan minim → pakai path lengkap.** Saat menjalankan perintah, cron memakai `/bin/sh` (shell sederhana bawaan sistem, bukan bash), `PATH=/usr/bin:/bin`, dan HOME = folder home pemilik crontab. File `.bashrc` tidak dibaca, jadi variabel dan pengaturan buatanmu di sana tidak ada.\n\n- Tulis script dengan path lengkap: `/home/budi/backup.sh`, bukan `backup.sh`.\n- Di dalam script pun, jangan mengandalkan folder kerja: tulis path folder dan file secara lengkap, atau pindah dulu ke folder yang pasti dengan `cd \"$HOME\"` seperti di `backup.sh`.\n- Program di luar `/usr/bin` dan `/bin` tidak ditemukan dengan nama pendek. Cari path lengkapnya dengan `which nama-program`.\n\n**2. Tanda `%` harus ditulis `\\%`.** Di baris crontab, `%` berarti \"baris baru\". Jadi `date +%F` di crontab harus ditulis `date +\\%F`. Lebih aman lagi: taruh perintah seperti itu di dalam script, karena di dalam script `%` tidak perlu diubah.\n\n**3. Simpan output dan error ke file.** cron mencoba mengirim output lewat email lokal. Di server biasa tidak ada program email, jadi output itu **hilang**. Arahkan sendiri ke file log:\n\n```text\n0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1\n```\n\nIngat modul *Membaca dan Mencari Teks*: `>>` menambahkan output ke akhir file, dan `2>&1` artinya \"saluran 2 (error) ikut ke tempat saluran 1 (output biasa)\". Hasilnya, output DAN pesan error masuk ke `backup.log`. Urutannya penting: `2>&1` ditulis **di belakang** `>> file`. Kalau ditulis di depan (`2>&1 >> file`), error dikirim ke tempat lama sebelum output dipindah ke file, sehingga tidak ikut masuk. Jangan pakai `&>` di crontab: itu singkatan milik bash, sedangkan cron memakai `/bin/sh`.\n\n**4. Memeriksa apakah cron menjalankannya.** Setiap kali cron menjalankan perintah, ia mencatatnya di log sistem:\n\n| Perintah | Artinya |\n|---|---|\n| `journalctl -u cron` | log service cron |\n| `grep CRON /var/log/syslog` | baris dari cron di file log sistem |\n\nBaris `CMD (...)` hanya membuktikan cron **menjalankan** perintah itu, bukan bahwa perintahnya **berhasil**. Hasilnya dilihat di file log milik script, misalnya `backup.log`.\n\n**5. Zona waktu.** Banyak VPS (server sewaan di internet) yang baru dibuat memakai **UTC**, waktu standar dunia. WIB = UTC + 7 jam, jadi `0 2 * * *` di server UTC jalan pukul **09.00 WIB**. Cek dengan `timedatectl`, ganti dengan `sudo timedatectl set-timezone Asia/Jakarta`, lalu jalankan `sudo systemctl restart cron` supaya cron memakai zona baru."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Meniru lingkungan cron.** `env -i` menjalankan perintah dengan lingkungan kosong, hanya berisi variabel yang disebut. Budi memakainya untuk meniru cron: `/bin/sh` dengan `PATH=/usr/bin:/bin`. Di folder home-nya ada script `laporan.sh` yang sudah diberi izin x.\n\n```bash\nenv -i PATH=/usr/bin:/bin /bin/sh -c 'echo $PATH'\nenv -i PATH=/usr/bin:/bin /bin/sh -c 'laporan.sh'\nenv -i PATH=/usr/bin:/bin /bin/sh -c '/home/budi/laporan.sh'\nwhich tar\n```\n\nHasilnya:\n\n```text\n$ env -i PATH=/usr/bin:/bin /bin/sh -c 'echo $PATH'\n/usr/bin:/bin\n$ env -i PATH=/usr/bin:/bin /bin/sh -c 'laporan.sh'\n/bin/sh: 1: laporan.sh: not found\n$ env -i PATH=/usr/bin:/bin /bin/sh -c '/home/budi/laporan.sh'\nLaporan dibuat\n$ which tar\n/usr/bin/tar\n```\n\n- Dengan nama pendek, `/bin/sh` mencari `laporan.sh` hanya di `/usr/bin` dan `/bin`, lalu menyerah: `not found`. Inilah yang terjadi kalau di crontab kamu menulis nama pendek.\n- Dengan path lengkap, script ditemukan dan berjalan.\n- `tar` ada di `/usr/bin`, jadi aman dipakai dengan nama pendek di dalam script. Untuk program lain, cek dulu dengan `which`.\n\n**2. Output dan error ke satu file.** Di folder kerja hanya ada `catatan.txt`. Budi menjalankan `ls` untuk dua file, satu ada dan satu tidak, lalu mengarahkan hasilnya ke log dengan dua urutan berbeda.\n\n```bash\nls catatan.txt hilang.txt >> log.txt 2>&1\ncat log.txt\nls catatan.txt hilang.txt 2>&1 >> log2.txt\ncat log2.txt\n```\n\nHasilnya:\n\n```text\n$ ls catatan.txt hilang.txt >> log.txt 2>&1\n$ cat log.txt\nls: cannot access 'hilang.txt': No such file or directory\ncatatan.txt\n$ ls catatan.txt hilang.txt 2>&1 >> log2.txt\nls: cannot access 'hilang.txt': No such file or directory\n$ cat log2.txt\ncatatan.txt\n```\n\n- Urutan benar (`>> log.txt 2>&1`): layar bersih, pesan error dan output sama-sama masuk ke `log.txt`.\n- Urutan terbalik (`2>&1 >> log2.txt`): pesan error tetap muncul di layar, dan `log2.txt` hanya berisi output biasa. Di cron tidak ada layar, jadi pesan error itu tidak masuk ke log dan biasanya hilang.\n\n**3. Membaca log cron di server.** Gambaran layar di Ubuntu (angka dan jam di komputermu bisa berbeda):\n\n```text\n$ journalctl -u cron -n 3\nSep 01 02:00:01 server-toko CRON[2841]: pam_unix(cron:session): session opened for user budi(uid=1000) by budi(uid=0)\nSep 01 02:00:01 server-toko CRON[2842]: (budi) CMD (/home/budi/backup.sh >> /home/budi/backup.log 2>&1)\nSep 01 02:00:03 server-toko CRON[2841]: pam_unix(cron:session): session closed for user budi\n```\n\nPukul 02:00:01 cron membuka sesi untuk budi, menjalankan perintah (`CMD`), dan menutup sesinya dua detik kemudian.\n\nBudi menyimpan potongan `/var/log/syslog` ke file `syslog.txt`, lalu menyaringnya.\n\n```bash\ngrep CRON syslog.txt | wc -l\ngrep backup syslog.txt\n```\n\nHasilnya:\n\n```text\n$ grep CRON syslog.txt | wc -l\n4\n$ grep backup syslog.txt\n2026-09-01T02:00:01.402155+07:00 server-toko CRON[2842]: (budi) CMD (/home/budi/backup.sh >> /home/budi/backup.log 2>&1)\n```\n\n- Ada 4 baris dari cron. Baris `systemd` tentang Nginx tidak ikut terhitung.\n- `cek-web.sh` tercatat pukul 01:45, 02:00, dan 02:15: cocok dengan jadwal `*/15`.\n- Baris `backup.sh` membuktikan cron menjalankannya pukul 02:00:01. Berhasil atau tidaknya dilihat di `backup.log`.\n\n**4. Zona waktu server.**\n\n```text\n$ timedatectl\n               Local time: Tue 2026-09-01 02:00:00 UTC\n           Universal time: Tue 2026-09-01 02:00:00 UTC\n                 RTC time: Tue 2026-09-01 02:00:00\n                Time zone: Etc/UTC (UTC, +0000)\nSystem clock synchronized: yes\n              NTP service: active\n          RTC in local TZ: no\n$ sudo timedatectl set-timezone Asia/Jakarta\n$ timedatectl | grep \"Time zone\"\n                Time zone: Asia/Jakarta (WIB, +0700)\n$ sudo systemctl restart cron\n```\n\nSebelum diganti, server memakai UTC: jam 02.00 di server sama dengan 09.00 WIB. Setelah diganti dan cron di-restart, `0 2 * * *` benar-benar jalan pukul 02.00 WIB.\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis nama pendek di crontab**\n\nSalah:\n\n```text\n0 2 * * * backup.sh\n```\n\nBenar:\n\n```text\n0 2 * * * /home/budi/backup.sh\n```\n\nPATH di cron hanya `/usr/bin:/bin`, jadi `backup.sh` tidak ditemukan. Path lengkap selalu ditemukan dari folder mana pun.\n\n**2. Memakai % apa adanya di crontab**\n\nSalah:\n\n```text\n0 2 * * * tar -czf /home/budi/b-$(date +%F).tar.gz /home/budi/dokumen\n```\n\nBenar:\n\n```text\n0 2 * * * /home/budi/backup.sh\n# perintah tar dan date ditaruh di dalam script\n```\n\nDi baris crontab, `%` berarti baris baru, sehingga perintahnya terpotong. Tulis `\\%` (misalnya `date +\\%F`), atau lebih aman pindahkan ke dalam script.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Isi variabel PATH saat cron menjalankan perintah di Ubuntu adalah...",
+          "options": [
+            "Sama persis dengan PATH di terminalmu",
+            "/usr/bin:/bin",
+            "Kosong, sehingga perintah apa pun tidak ditemukan",
+            "/home/budi"
+          ],
+          "answer": 1,
+          "explanation": "cron hanya memakai `/usr/bin:/bin`. Pengaturan dari `.bashrc` tidak dibaca. Karena itu script ditulis dengan path lengkap.",
+          "remedial": "- Lingkungan cron: `/bin/sh`, `PATH=/usr/bin:/bin`, tanpa `.bashrc` → pakai path lengkap\n- Di baris crontab, `%` ditulis `\\%`\n- Simpan output dan error: `>> /home/budi/log.txt 2>&1` (urutan ini, bukan `&>`)\n- `journalctl -u cron` / `grep CRON /var/log/syslog`: bukti cron menjalankan, bukan bukti berhasil\n- VPS sering memakai UTC: 02.00 UTC = 09.00 WIB. Cek dengan `timedatectl`"
+        },
+        {
+          "question": "Apa arti `2>&1` di akhir `>> /home/budi/backup.log 2>&1`?",
+          "options": [
+            "Pesan error ikut dikirim ke tempat yang sama dengan output biasa",
+            "Jalankan perintah 2 kali",
+            "Simpan 2 baris terakhir saja",
+            "Buang semua pesan error"
+          ],
+          "answer": 0,
+          "explanation": "Saluran 2 (error) diarahkan ke tempat saluran 1 (output biasa), yaitu `backup.log`. Jadi error ikut tercatat.",
+          "remedial": "- Lingkungan cron: `/bin/sh`, `PATH=/usr/bin:/bin`, tanpa `.bashrc` → pakai path lengkap\n- Di baris crontab, `%` ditulis `\\%`\n- Simpan output dan error: `>> /home/budi/log.txt 2>&1` (urutan ini, bukan `&>`)\n- `journalctl -u cron` / `grep CRON /var/log/syslog`: bukti cron menjalankan, bukan bukti berhasil\n- VPS sering memakai UTC: 02.00 UTC = 09.00 WIB. Cek dengan `timedatectl`"
+        },
+        {
+          "question": "Di log server ada baris ini. Apa yang bisa disimpulkan?",
+          "code": "2026-09-01T02:00:01.402155+07:00 server-toko CRON[2842]: (budi) CMD (/home/budi/backup.sh >> /home/budi/backup.log 2>&1)",
+          "options": [
+            "backup.sh pasti berhasil membuat backup",
+            "backup.sh gagal karena dijalankan oleh CRON",
+            "cron sudah menjalankan perintah itu; berhasil atau tidaknya harus dicek di backup.log",
+            "Jadwal backup sudah dihapus dari crontab"
+          ],
+          "answer": 2,
+          "explanation": "Baris `CMD` hanya mencatat bahwa cron menjalankan perintah. Hasilnya dicek di file log milik script.",
+          "remedial": "- Lingkungan cron: `/bin/sh`, `PATH=/usr/bin:/bin`, tanpa `.bashrc` → pakai path lengkap\n- Di baris crontab, `%` ditulis `\\%`\n- Simpan output dan error: `>> /home/budi/log.txt 2>&1` (urutan ini, bukan `&>`)\n- `journalctl -u cron` / `grep CRON /var/log/syslog`: bukti cron menjalankan, bukan bukti berhasil\n- VPS sering memakai UTC: 02.00 UTC = 09.00 WIB. Cek dengan `timedatectl`"
+        },
+        {
+          "question": "Server Budi memakai zona waktu UTC. Jadwal `0 2 * * *` berjalan pukul berapa WIB?",
+          "options": [
+            "02.00 WIB",
+            "19.00 WIB",
+            "21.00 WIB",
+            "09.00 WIB"
+          ],
+          "answer": 3,
+          "explanation": "WIB = UTC + 7 jam. Jam 02.00 UTC = 09.00 WIB.",
+          "remedial": "- Lingkungan cron: `/bin/sh`, `PATH=/usr/bin:/bin`, tanpa `.bashrc` → pakai path lengkap\n- Di baris crontab, `%` ditulis `\\%`\n- Simpan output dan error: `>> /home/budi/log.txt 2>&1` (urutan ini, bukan `&>`)\n- `journalctl -u cron` / `grep CRON /var/log/syslog`: bukti cron menjalankan, bukan bukti berhasil\n- VPS sering memakai UTC: 02.00 UTC = 09.00 WIB. Cek dengan `timedatectl`"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Folder kerja hanya berisi `catatan.txt` (file `log.txt` belum ada). Apa hasil perintah terakhir?",
+      "code": "# Isi folder saat ini: catatan.txt\nls catatan.txt hilang.txt >> log.txt 2>&1\ncat log.txt",
+      "options": [
+        "ls: cannot access 'hilang.txt': No such file or directory\ncatatan.txt",
+        "catatan.txt",
+        "ls: cannot access 'hilang.txt': No such file or directory",
+        "(tidak ada output)"
+      ],
+      "answer": 0,
+      "explanation": "`>> log.txt` mengirim output biasa ke `log.txt`, dan `2>&1` membuat pesan error ikut ke sana. Jadi `log.txt` berisi keduanya."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Simpan output DAN pesan error ke log.txt\n# Isi folder saat ini: catatan.txt\nls catatan.txt hilang.txt >> log.txt ___",
+      "answers": [
+        "2>&1"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Lingkungan cron minim (/bin/sh, PATH=/usr/bin:/bin, tanpa .bashrc), jadi selalu pakai path lengkap.",
+        "Di baris crontab, % harus ditulis \\%; lebih aman taruh perintahnya di script.",
+        "Arahkan output dan error ke file dengan >> file 2>&1, dengan 2>&1 di belakang.",
+        "journalctl -u cron dan grep CRON /var/log/syslog membuktikan cron menjalankan perintah, bukan bahwa perintahnya berhasil.",
+        "Cek zona waktu server dengan timedatectl; 02.00 UTC sama dengan 09.00 WIB."
+      ]
+    }
+  ]
+}

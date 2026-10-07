@@ -1,0 +1,111 @@
+{
+  "id": "linux-keamanan-02",
+  "moduleId": "linux-keamanan",
+  "order": 2,
+  "title": "Membuat User untuk Server",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di VPS yang baru disewa, login pertama biasanya sebagai **root** (atau user bawaan seperti `ubuntu`). Prompt-nya diakhiri `#`:\n\n```text\nroot@server-toko:~#\n```\n\nIngat modul 5: root tidak pernah ditolak. Satu salah ketik bisa merusak seluruh server. Selain itu, di pelajaran 5 nanti login root lewat SSH akan dimatikan. Jadi sebelum itu harus ada **user biasa** yang boleh memakai `sudo`.\n\nLangkahnya ada tiga: buat user, masukkan ke group `sudo`, lalu uji.\n\nPemilik gedung baru memegang kunci master. Ia tidak membawa kunci master itu ke mana-mana setiap hari. Ia membuat kartu akses untuk pengelola harian, dengan hak meminjam kunci master di pos satpam saat benar-benar perlu. Kunci master sendiri lalu disimpan di brankas."
+    },
+    {
+      "type": "theory",
+      "content": "| Perintah | Artinya |\n|---|---|\n| `sudo adduser sari` | buat user `sari` beserta folder home dan password |\n| `sudo usermod -aG sudo sari` | masukkan `sari` ke group `sudo` |\n| `groups sari` | lihat group yang diikuti `sari` |\n| `su - sari` | pindah menjadi user `sari` |\n| `sudo whoami` | uji sudo: harus menjawab `root` |\n\n**`adduser` vs `useradd`.** `adduser` ramah: menanyakan password dan data lain, lalu membuat folder home. `useradd` adalah perintah tingkat rendah: tanpa opsi `-m`, folder home tidak dibuat. Untuk akun manusia, pakai `adduser`.\n\n**`usermod -aG`.** `usermod` (*user modify*) mengubah user. `-G` menetapkan **group tambahan**, dan `-a` (*append*) artinya **tambahkan**. Tanpa `-a`, `-G sudo` **mengganti** semua group tambahan `sari` menjadi hanya `sudo`, sehingga group lain yang sudah diikutinya hilang.\n\n**`su - sari`.** `su` (*switch user*) membuka shell sebagai user lain. Tanda `-` membuatnya seperti login sungguhan: pindah ke folder home `sari` dengan pengaturan milik `sari`. Dari root, `su` tidak menanyakan password. Ketik `exit` untuk kembali.\n\n**Kenapa diuji dengan `sudo whoami`?** `whoami` menampilkan nama user yang menjalankan perintah. Kalau sudo berfungsi, perintah itu berjalan sebagai root, jadi jawabannya `root`. sudo menanyakan password **milik sari** sendiri.\n\nPerubahan group baru berlaku di sesi login berikutnya. `su - sari` membuka sesi baru, jadi bisa langsung dipakai untuk menguji.\n\nUser baru dicatat di akhir file `/etc/passwd` (formatnya sudah kamu kenal di modul 5: nama:x:UID:GID:keterangan:home:shell)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi masuk ke VPS sebagai root. Perintah di bawah ditulis dengan `sudo` supaya sama dengan saat bekerja dari user biasa (sebagai root, `sudo` langsung berjalan tanpa menanyakan password). Angka dan nama di servermu bisa berbeda.\n\n**1. Membuat user.** `adduser` menanyakan password (tidak tampil saat diketik) dan data diri. Data diri boleh dikosongkan dengan Enter.\n\n```text\nroot@server-toko:~# sudo adduser sari\ninfo: Adding user `sari' ...\ninfo: Selecting UID/GID from range 1000 to 59999 ...\ninfo: Adding new group `sari' (1001) ...\ninfo: Adding new user `sari' (1001) with group `sari (1001)' ...\ninfo: Creating home directory `/home/sari' ...\ninfo: Copying files from `/etc/skel' ...\nNew password:\nRetype new password:\npasswd: password updated successfully\nChanging the user information for sari\nEnter the new value, or press ENTER for the default\n\tFull Name []: Sari\n\tRoom Number []:\n\tWork Phone []:\n\tHome Phone []:\n\tOther []:\nIs the information correct? [Y/n] y\ninfo: Adding new user `sari' to supplemental / extra groups `users' ...\ninfo: Adding user `sari' to group `users' ...\n```\n\n`adduser` membuat group pribadi `sari`, user `sari` (UID 1001), dan folder `/home/sari`, lalu memasukkan `sari` ke group `users`.\n\n**2. Memberi hak sudo, lalu mengecek.**\n\n```text\nroot@server-toko:~# sudo usermod -aG sudo sari\nroot@server-toko:~# groups sari\nsari : sari sudo users\n```\n\n`usermod` diam kalau berhasil. `groups sari` menunjukkan `sari` sekarang anggota `sudo`.\n\n**3. Menguji.**\n\n```text\nroot@server-toko:~# su - sari\n...\nsari@server-toko:~$ sudo whoami\n[sudo] password for sari:\nroot\nsari@server-toko:~$ exit\nlogout\nroot@server-toko:~#\n```\n\nSetelah `su - sari`, Ubuntu mungkin menampilkan pesan singkat tentang cara memakai sudo (ditulis `...`). Prompt berganti menjadi `sari@server-toko:~$`. `sudo whoami` menjawab `root`: sudo milik sari berfungsi.\n\n**4. Melihat catatan user.** Budi menyalin baris pertama dan baris terakhir `/etc/passwd` server ke file `passwd.txt`, lalu membacanya.\n\n```bash\ncat passwd.txt\ngrep sari passwd.txt\ncut -d: -f1,3,6 passwd.txt\n```\n\nHasilnya:\n\n```text\n$ cat passwd.txt\nroot:x:0:0:root:/root:/bin/bash\nsari:x:1001:1001:Sari,,,:/home/sari:/bin/bash\n$ grep sari passwd.txt\nsari:x:1001:1001:Sari,,,:/home/sari:/bin/bash\n$ cut -d: -f1,3,6 passwd.txt\nroot:0:/root\nsari:1001:/home/sari\n```\n\n- Baris `sari` ada di akhir file karena user baru ditambahkan di bawah.\n- `cut -d: -f1,3,6` mengambil nama, UID, dan folder home: root ber-UID 0 dengan home `/root`, sari ber-UID 1001 dengan home `/home/sari`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa -a di usermod**\n\nSalah:\n\n```bash\nsudo usermod -G sudo sari\n```\n\nBenar:\n\n```bash\nsudo usermod -aG sudo sari\n```\n\nTanpa `-a`, `-G` mengganti seluruh group tambahan. `sari` masuk `sudo`, tapi keluar dari group lain seperti `users`. Kalau ini terjadi pada user yang sebelumnya anggota `sudo`, hak sudo-nya bisa ikut hilang.\n\n**2. Memakai useradd untuk akun manusia**\n\nSalah:\n\n```bash\nsudo useradd sari\n# tidak ada folder /home/sari\n```\n\nBenar:\n\n```bash\nsudo adduser sari\n```\n\n`useradd` tanpa `-m` tidak membuat folder home dan tidak menanyakan password. `adduser` mengurus semuanya.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa sebaiknya dibuat user biasa seperti `sari`, daripada bekerja sebagai root setiap hari?",
+          "options": [
+            "Karena root tidak pernah ditolak, jadi satu salah ketik bisa merusak server",
+            "Karena root tidak bisa memakai perintah ls",
+            "Karena user biasa bekerja lebih cepat",
+            "Karena root tidak boleh memakai apt"
+          ],
+          "answer": 0,
+          "explanation": "Root melewati semua pengaman izin. Kerja sebagai user biasa dan pakai `sudo` hanya saat perlu. Lagi pula, login root lewat SSH nanti dimatikan.",
+          "remedial": "- VPS baru: login sebagai root, lalu buat user biasa\n- `sudo adduser sari` membuat user, home, dan password\n- `sudo usermod -aG sudo sari`: `-a` wajib, supaya group lain tidak hilang\n- Cek dengan `groups sari`, uji dengan `su - sari` lalu `sudo whoami` → `root`\n- Jangan bekerja sehari-hari sebagai root"
+        },
+        {
+          "question": "Perintah untuk memasukkan `sari` ke group `sudo` TANPA mengeluarkannya dari group lain adalah...",
+          "options": [
+            "sudo usermod -G sudo sari",
+            "sudo chgrp sudo sari",
+            "sudo usermod -aG sudo sari",
+            "sudo groups sari sudo"
+          ],
+          "answer": 2,
+          "explanation": "`-a` (*append*) menambahkan group. Tanpa `-a`, `-G` mengganti semua group tambahan.",
+          "remedial": "- VPS baru: login sebagai root, lalu buat user biasa\n- `sudo adduser sari` membuat user, home, dan password\n- `sudo usermod -aG sudo sari`: `-a` wajib, supaya group lain tidak hilang\n- Cek dengan `groups sari`, uji dengan `su - sari` lalu `sudo whoami` → `root`\n- Jangan bekerja sehari-hari sebagai root"
+        },
+        {
+          "question": "Berdasarkan output ini, mana yang benar?",
+          "code": "$ groups sari\nsari : sari sudo users",
+          "options": [
+            "sari adalah root",
+            "sari hanya anggota satu group",
+            "Group utama sari adalah users",
+            "sari anggota group sudo, jadi boleh memakai sudo"
+          ],
+          "answer": 3,
+          "explanation": "Nama-nama setelah titik dua adalah group yang diikuti `sari`. Ada `sudo` di sana.",
+          "remedial": "- VPS baru: login sebagai root, lalu buat user biasa\n- `sudo adduser sari` membuat user, home, dan password\n- `sudo usermod -aG sudo sari`: `-a` wajib, supaya group lain tidak hilang\n- Cek dengan `groups sari`, uji dengan `su - sari` lalu `sudo whoami` → `root`\n- Jangan bekerja sehari-hari sebagai root"
+        },
+        {
+          "question": "Apa beda `adduser` dan `useradd` di Ubuntu?",
+          "options": [
+            "Keduanya sama persis",
+            "adduser bertanya password dan membuat folder home; useradd tanpa -m tidak membuat folder home",
+            "useradd membuat folder home, adduser tidak",
+            "adduser hanya untuk Windows"
+          ],
+          "answer": 1,
+          "explanation": "Untuk akun manusia, pakai `adduser` yang ramah. `useradd` adalah perintah tingkat rendah.",
+          "remedial": "- VPS baru: login sebagai root, lalu buat user biasa\n- `sudo adduser sari` membuat user, home, dan password\n- `sudo usermod -aG sudo sari`: `-a` wajib, supaya group lain tidak hilang\n- Cek dengan `groups sari`, uji dengan `su - sari` lalu `sudo whoami` → `root`\n- Jangan bekerja sehari-hari sebagai root"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Sari sudah dimasukkan ke group sudo, dan password yang diketik benar. Apa yang tampil setelah password diketik?",
+      "code": "root@server-toko:~# su - sari\nsari@server-toko:~$ sudo whoami\n[sudo] password for sari:",
+      "options": [
+        "sari",
+        "root",
+        "budi",
+        "(tidak ada output)"
+      ],
+      "answer": 1,
+      "explanation": "Dengan sudo, `whoami` dijalankan sebagai root, jadi jawabannya `root`. Ini tanda sudo milik sari berfungsi."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Masukkan sari ke group sudo tanpa menghapus group lainnya\nsudo usermod ___ sudo sari",
+      "answers": [
+        "-aG|-a -G|--append --groups"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Di VPS baru, buat user biasa dengan sudo adduser nama.",
+        "sudo usermod -aG sudo nama memberi hak sudo; tanpa -a group lain hilang.",
+        "Cek dengan groups nama, uji dengan su - nama lalu sudo whoami yang harus menjawab root.",
+        "Untuk akun manusia pakai adduser, bukan useradd.",
+        "Kerja sehari-hari sebagai user biasa, bukan root."
+      ]
+    }
+  ]
+}
