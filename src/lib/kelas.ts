@@ -19,7 +19,6 @@ export function ringkasanKelas(courseId: string, progress: UserProgress): Ringka
   if (!course || course.status === 'soon') return null;
   const mods = modulesData.filter((m) => (m.courseId || 'java') === courseId && m.status !== 'draft').sort((a, b) => a.order - b.order);
   const selesaiSet = new Set(progress.completedLessons);
-  let adaSedang = false;
   const modul: ModulKelas[] = mods.map((mod, i) => {
     const lessons = getVisibleLessons(mod.id);
     const terbuka = checkModuleUnlocked(mod, progress);
@@ -45,7 +44,6 @@ export function ringkasanKelas(courseId: string, progress: UserProgress): Ringka
     let status: StatusModul;
     if (!terbuka) status = 'terkunci';
     else if (semua && (quiz === 'tidak-ada' || quiz === 'lulus')) status = 'selesai';
-    else if (!adaSedang) { status = 'sedang'; adaSedang = true; }
     else status = 'terbuka';
     const syaratId = mod.requires || mods[i - 1]?.id;
     return {
@@ -54,6 +52,13 @@ export function ringkasanKelas(courseId: string, progress: UserProgress): Ringka
       syaratJudul: status === 'terkunci' ? mods.find((m) => m.id === syaratId)?.title : undefined,
     };
   });
+  // Modul "sedang" = modul terbuka yang belum selesai dan SUDAH dimulai (ada materi selesai atau quiz pernah gagal).
+  // Kalau belum ada yang dimulai, pakai modul terbuka pertama. Dengan begitu modul baru yang disisipkan
+  // di tengah (misalnya Git Tag) tidak merebut tombol "Lanjutkan belajar" dari modul yang sedang dikerjakan.
+  const belumSelesai = modul.filter((m) => m.status === 'terbuka');
+  const dipilih = belumSelesai.find((m) => m.jumlahSelesai > 0 || m.quiz === 'gagal') ?? belumSelesai[0];
+  if (dipilih) dipilih.status = 'sedang';
+
   const totalMateri = modul.reduce((t, m) => t + m.jumlahMateri, 0);
   if (totalMateri === 0) return null;
   const totalSelesai = modul.reduce((t, m) => t + m.jumlahSelesai, 0);

@@ -8,7 +8,7 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 | --- | --- |
 | **Java** | Java Dasar, Proyek Todolist, OOP, Collection, Record & Sealed Class, Standard Classes, Generics, Lambda, Stream |
 | **JavaScript** | JavaScript Dasar dan Proyek Todolist |
-| **Git & GitHub** | Git di laptop sampai GitHub: pull request, code review, manajemen proyek, keamanan, dan CI/CD |
+| **Git & GitHub** | Git di laptop sampai GitHub: tag dan versi rilis, pull request, code review, manajemen proyek, keamanan, dan CI/CD |
 | **Linux & Terminal** | Mengenal Linux, terminal dan navigasi, file dan folder, membaca dan mencari teks, permission, menginstal program, proses dan service, jaringan dan SSH, bash scripting, cron, mengamankan server, web server Nginx |
 | **English for IT** | Bahasa Inggris dasar sehari-hari sampai bahasa Inggris dunia kerja IT, dengan latihan mendengar dan menyusun kalimat |
 
