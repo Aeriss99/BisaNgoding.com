@@ -67,3 +67,12 @@ describe('Soal membawa konteksnya sendiri', () => {
     for (const { q } of gitLog) expect(q.code).toMatch(/Riwayat/);
   });
 });
+
+describe('Teks kode tidak memakai ligature (strip ganda tetap terlihat dua)', () => {
+  it('index.css mematikan ligature untuk kode dan kolom ketik', () => {
+    const css = baca(path.join(ROOT, 'src/index.css'));
+    const blok = css.slice(css.indexOf('font-variant-ligatures: none') - 200, css.indexOf('font-variant-ligatures: none') + 120);
+    for (const sel of ['code', 'pre', 'input', 'textarea', '.font-mono', '.cm-editor']) expect(blok).toContain(sel);
+    expect(blok).toContain("font-feature-settings: 'liga' 0, 'calt' 0");
+  });
+});
