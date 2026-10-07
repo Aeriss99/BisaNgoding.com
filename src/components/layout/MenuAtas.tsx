@@ -180,12 +180,12 @@ export function KartuPengguna() {
 }
 
 export function KotakStreakXp({ ringkas = false }: { ringkas?: boolean }) {
-  const { progress } = useProgress();
+  const { progress, streakHariIni } = useProgress();
   return (
     <div className={`mx-4 ${ringkas ? 'mb-3' : 'mb-2.5'} px-3 py-2.5 bg-[var(--color-primary-light)] border-2 border-[var(--color-text-main)] rounded-[10px] flex justify-between text-[14px]`}>
       <span className="flex items-center gap-1.5">
         <Ikon nama="flame" ukuran={16} warna="var(--color-streak)" />
-        <b>{progress.streak} hari</b>
+        <b>{streakHariIni} hari</b>
         {!ringkas && ' streak'}
       </span>
       <span>
@@ -336,7 +336,7 @@ function TombolNotifikasi({ onClick, ukuran }: { onClick: () => void; ukuran: 'b
 /* ───────────────────────── menu atas */
 export default function MenuAtas() {
   const { pathname } = useLocation();
-  const { progress } = useProgress();
+  const { progress, streakHariIni } = useProgress();
   const keluarAman = useKeluar();
   const [panel, setPanel] = useState<'profil' | 'notif' | 'cari' | null>(null);
   const [laci, setLaci] = useState(false);
@@ -429,7 +429,7 @@ export default function MenuAtas() {
           </div>
           <div title="Streak belajar" className="flex items-center gap-1.5 h-11 px-3 border-2 border-[var(--color-text-main)] rounded-[10px] bg-[var(--color-streak-bg)] font-space font-bold">
             <Ikon nama="flame" ukuran={20} warna="var(--color-streak)" />
-            {progress.streak}
+            {streakHariIni}
           </div>
           <div title="XP" className="hidden xl:flex items-center gap-1.5 h-11 px-3 border-2 border-[var(--color-text-main)] rounded-[10px] bg-[var(--color-primary-light)] font-space font-bold">
             <Ikon nama="star" ukuran={18} />
@@ -482,7 +482,7 @@ export default function MenuAtas() {
         <div className="flex-1" />
         <div title="Streak belajar" className="flex items-center gap-1 h-9 px-2 border-2 border-[var(--color-text-main)] rounded-lg bg-[var(--color-streak-bg)] font-space font-bold text-[14px]">
           <Ikon nama="flame" ukuran={16} warna="var(--color-streak)" />
-          {progress.streak}
+          {streakHariIni}
         </div>
         <TombolNotifikasi ukuran="kecil" onClick={() => setNotifHp((b) => !b)} />
       </header>

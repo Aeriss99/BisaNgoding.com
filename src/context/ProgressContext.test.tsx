@@ -127,6 +127,37 @@ describe('ProgressContext', () => {
     expect(result.current.progress.streak).toBe(2);
   });
 
+  it('streak tetap naik walaupun touchActivity() sudah mengisi lastActiveDate hari ini (pindah kartu)', () => {
+    const kemarin = new Date();
+    kemarin.setDate(kemarin.getDate() - 1);
+    const lokal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    localStorageMock.setItem(
+      'bisangoding_progress',
+      JSON.stringify({
+        completedLessons: ['dasar-01'],
+        xp: 10,
+        streak: 3,
+        streakDate: lokal(kemarin),
+        lastActiveDate: new Date().toISOString().split('T')[0],
+        version: 1,
+      })
+    );
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    act(() => {
+      result.current.touchActivity(); // klik Lanjut di kartu
+      result.current.markLessonCompleted('dasar-02'); // kartu terakhir
+    });
+    expect(result.current.progress.streak).toBe(4);
+    expect(result.current.streakHariIni).toBe(4);
+
+    act(() => {
+      result.current.markLessonCompleted('dasar-03'); // materi kedua di hari yang sama
+    });
+    expect(result.current.progress.streak).toBe(4);
+  });
+
   it('handles streak logic: missing a day resets streak', () => {
     const twoDaysAgo = new Date();
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);

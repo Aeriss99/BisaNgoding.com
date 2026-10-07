@@ -12,6 +12,7 @@ import {
   toISODate,
 } from '../lib/resetLogic';
 import { useAuth } from './AuthContext';
+import { progresSetelahMateri, streakTampil, tanggalLokal } from '../lib/streak';
 import {
   getLocalProgress,
   saveLocalProgress,
@@ -31,6 +32,8 @@ interface ProgressContextType {
   addXP: (amount: number) => void;
   saveQuizScore: (moduleId: string, score: number, passed: boolean) => void;
   touchActivity: () => void;
+  /** Streak untuk ditampilkan: 0 kalau sudah lebih dari sehari tidak menyelesaikan materi. */
+  streakHariIni: number;
   flushKeCloud: () => Promise<boolean>;
   inactiveDaysConfig: number;
   daysUntilReset: number | null;
@@ -252,45 +255,12 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   const markLessonCompleted = (lessonId: string) => {
     setProgress((prev) => {
-      if (prev.completedLessons.includes(lessonId)) return prev;
-
-      let newStreak = prev.streak;
-      const today = new Date().toISOString().split('T')[0];
-
-      if (prev.lastActiveDate !== today) {
-        const lastActive = new Date(prev.lastActiveDate);
-        const todayDate = new Date(today);
-        const diffDays = Math.floor(
-          (todayDate.getTime() - lastActive.getTime()) / (1000 * 3600 * 24)
-        );
-
-        if (diffDays === 1) {
-          newStreak += 1; // Consecutive day
-        } else if (diffDays > 1) {
-          newStreak = 1; // Missed a day
-        }
-      } else if (prev.streak === 0) {
-        newStreak = 1; // First day
-      }
-
-      const nextProgress = {
-        ...prev,
-        completedLessons: [...prev.completedLessons, lessonId],
-        passedChecks: Array.from(
-          new Set([...(prev.passedChecks || []), lessonId])
-        ), // Auto pass if completed
-        xp: prev.xp + 10,
-        streak: newStreak,
-        lastActiveDate: today,
-        maxSeenDate:
-          prev.maxSeenDate && prev.maxSeenDate > today
-            ? prev.maxSeenDate
-            : today,
-        justReset: false,
-      };
-
-      saveProgressState(nextProgress);
-      return nextProgress;
+      // Streak memakai streakDate (tanggal lokal terakhir menyelesaikan materi), bukan lastActiveDate,
+      // karena lastActiveDate sudah diisi touchActivity() setiap kali pindah kartu.
+      const next = progresSetelahMateri(prev, lessonId);
+      if (next === prev) return prev;
+      saveProgressState(next);
+      return next;
     });
   };
 
@@ -357,6 +327,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         quizScores: data.quizScores || {},
         xp: data.xp,
         streak: data.streak,
+        streakDate: data.streakDate,
         lastActiveDate: data.lastActiveDate,
         maxSeenDate:
           data.maxSeenDate && data.maxSeenDate > today
@@ -442,6 +413,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         addXP,
         saveQuizScore,
         touchActivity,
+        streakHariIni: streakTampil(progress.streak, progress.streakDate, tanggalLokal()),
         flushKeCloud,
         inactiveDaysConfig,
         daysUntilReset,
