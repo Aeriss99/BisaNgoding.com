@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useProgress } from '../context/ProgressContext';
 import { coursesData, modulesData, getVisibleLessons } from './content';
+import { tanggalLokal, streakTampil } from './streak';
 import { hitungNotifikasi, perbaruiModulDikenal, perbaruiQuizDikenal, type Notifikasi, type QuizLulusInfo } from './notifikasi';
 
 const KUNCI_DIKENAL = 'bn_modul_dikenal';
@@ -30,11 +31,6 @@ function simpan(kunci: string, nilai: unknown) {
   window.dispatchEvent(new Event(EVENT));
 }
 
-function tanggalLokal(d = new Date()): string {
-  const bulan = String(d.getMonth() + 1).padStart(2, '0');
-  const hari = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${bulan}-${hari}`;
-}
 
 /** Modul siap yang punya materi, beserta kelasnya. */
 function modulSiap() {
@@ -104,14 +100,14 @@ export function useNotifikasi() {
       quizLulus.push({ modulId: id, judul: m.title, kelasId, sejak, adaBerikutnya: urutan >= 0 && urutan < sekelas.length - 1 });
     }
     return hitungNotifikasi({
-      streak: progress.streak,
-      lastActiveDate: progress.lastActiveDate,
+      streak: streakTampil(progress.streak, progress.streakDate, hariIni),
+      lastActiveDate: progress.streakDate ?? progress.lastActiveDate,
       jumlahSelesai: progress.completedLessons.length,
       hariIni,
       modulBaru,
       quizLulus,
     });
-  }, [progress.streak, progress.lastActiveDate, progress.completedLessons.length, hariIni, dikenal, quizDikenal]);
+  }, [progress.streak, progress.streakDate, progress.lastActiveDate, progress.completedLessons.length, hariIni, dikenal, quizDikenal]);
 
   const tandaiDibaca = useCallback((id: string) => {
     const lama = baca<string[]>(KUNCI_DIBACA) ?? [];

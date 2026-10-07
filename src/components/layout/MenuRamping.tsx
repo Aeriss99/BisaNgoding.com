@@ -14,7 +14,7 @@ interface MenuRampingProps {
 }
 
 export default function MenuRamping({ kembaliKe, kembaliLabel, judul, posisi, total }: MenuRampingProps) {
-  const { progress } = useProgress();
+  const { streakHariIni } = useProgress();
   const keluar = useKeluar();
   const [menuProfilBuka, setMenuProfilBuka] = useState(false);
   const profilRef = useRef<HTMLDivElement>(null);
@@ -89,7 +89,7 @@ export default function MenuRamping({ kembaliKe, kembaliLabel, judul, posisi, to
         </div>
         <div title="Streak belajar" className="flex items-center gap-1.5 h-10 px-2.5 border-2 rounded-[10px] bg-[var(--color-streak-bg)] font-space font-bold shrink-0">
           <Ikon nama="flame" ukuran={18} warna="var(--color-streak)" tebal={2.2} />
-          {progress.streak}
+          {streakHariIni}
         </div>
         <div className="relative shrink-0" ref={profilRef}>
           <button 
@@ -127,7 +127,7 @@ export default function MenuRamping({ kembaliKe, kembaliLabel, judul, posisi, to
         <span className="font-mono text-[13px] font-bold shrink-0">{posisi + 1}/{total}</span>
         <div className="flex items-center gap-1 h-9 px-2 border-2 rounded-lg bg-[var(--color-streak-bg)] font-space font-bold text-[14px] shrink-0">
           <Ikon nama="flame" ukuran={16} warna="var(--color-streak)" tebal={2.2} />
-          {progress.streak}
+          {streakHariIni}
         </div>
       </header>
     </>

@@ -2,6 +2,7 @@ import type { Course, UserProgress } from '../types/schema';
 import { coursesData, getModule } from './content';
 import { ringkasanKelas, type LanjutKelas } from './kelas';
 import { PASSING_SCORE } from './quizLogic';
+import { streakTampil, tanggalLokal } from './streak';
 
 export interface ProgresKelas {
   course: Course;
@@ -74,7 +75,7 @@ export function ringkasanProgres(progress: UserProgress): RingkasanProgres {
   quiz.sort((a, b) => Number(b.lulus) - Number(a.lulus) || a.kelasJudul.localeCompare(b.kelasJudul) || a.judul.localeCompare(b.judul));
 
   return {
-    streak: progress.streak || 0,
+    streak: streakTampil(progress.streak || 0, progress.streakDate, tanggalLokal()),
     xp: progress.xp || 0,
     totalSelesai: kelas.reduce((t, k) => t + k.totalSelesai, 0),
     totalMateri: kelas.reduce((t, k) => t + k.totalMateri, 0),

@@ -257,6 +257,8 @@ export interface UserProgress {
   quizScores: Record<string, { score: number; passed: boolean }>;
   xp: number;
   streak: number;
+  /** Tanggal lokal (YYYY-MM-DD) terakhir menyelesaikan materi. Dasar perhitungan streak. */
+  streakDate?: string;
   lastActiveDate: string;
   maxSeenDate?: string;
   version?: number;
