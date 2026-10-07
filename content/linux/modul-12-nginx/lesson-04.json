@@ -1,0 +1,111 @@
+{
+  "id": "linux-nginx-04",
+  "moduleId": "linux-nginx",
+  "order": 4,
+  "title": "Membuat Server Block",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Halaman \"Welcome to nginx!\" bukan website kita. Sekarang Budi memasang website Toko Budi sendiri dalam tiga langkah:\n\n1. menyiapkan folder dan file website di `/var/www/toko`\n2. menulis **server block** di `/etc/nginx/sites-available/toko`\n3. mengaktifkan, menguji, lalu menerapkannya\n\n**Server block** adalah blok pengaturan untuk satu situs, ditulis di dalam `server { ... }`. Nama lainnya *virtual host*. Satu Nginx bisa melayani banyak situs (banyak domain): setiap situs punya server block sendiri. Setiap perintah pengaturan di dalamnya disebut **directive**.\n\nServer block seperti formulir pendaftaran satu penyewa di gedung perkantoran: nama perusahaan di papan lobi (`server_name`), pintu masuk yang dipakai (`listen`), ruangan tempat barangnya (`root`), dan meja yang pertama didatangi tamu (`index`). Satpam (Nginx) bertanya kepada setiap tamu, \"Mau ke perusahaan mana?\", lalu mengantarnya ke ruangan yang benar."
+    },
+    {
+      "type": "theory",
+      "content": "**1. Folder website.**\n\n```bash\nsudo mkdir -p /var/www/toko\nsudo chown -R sari:sari /var/www/toko\nnano /var/www/toko/index.html\n```\n\n`chown -R sari:sari` membuat `sari` pemilik folder itu, sehingga ia bisa mengedit dan mengunggah file tanpa sudo. Di Ubuntu, file baru milik user biasa sudah bisa dibaca \"lainnya\", jadi `www-data` tetap bisa membacanya. Pilihan lain: biarkan milik `root` dan selalu memakai `sudo`. Yang penting tetap sama: file 644, folder 755.\n\n**2. Server block.** `sudo nano /etc/nginx/sites-available/toko`, lalu tulis:\n\n```text\nserver {\n    listen 80;\n    server_name toko.contoh www.toko.contoh;\n    root /var/www/toko;\n    index index.html;\n\n    location / {\n        try_files $uri $uri/ =404;\n    }\n}\n```\n\n| Directive | Artinya |\n|---|---|\n| `listen 80;` | menunggu permintaan di port 80 |\n| `server_name ...;` | domain yang dilayani blok ini (boleh lebih dari satu) |\n| `root /var/www/toko;` | folder file website |\n| `index index.html;` | file yang dikirim kalau alamatnya folder, misalnya `/` |\n| `location / { ... }` | aturan untuk alamat yang diawali `/` (artinya semua alamat) |\n| `try_files $uri $uri/ =404;` | coba file itu, lalu folder itu; kalau tidak ada, balas 404 |\n\n`$uri` adalah alamat yang diminta, misalnya `/produk.html`. Nginx menggabungkannya dengan `root`, jadi yang dicari adalah `/var/www/toko/produk.html`.\n\nAturan menulis: **setiap directive diakhiri titik koma `;`**. Blok ditulis di dalam `{ }`, dan setelah `}` tidak perlu titik koma. Baris yang diawali `#` adalah komentar.\n\n**3. Aktifkan, uji, terapkan.**\n\n```bash\nsudo ln -s /etc/nginx/sites-available/toko /etc/nginx/sites-enabled/\nsudo rm /etc/nginx/sites-enabled/default\nsudo nginx -t\nsudo systemctl reload nginx\n```\n\n- **Menonaktifkan `default` itu opsional.** Situs `default` memakai `listen 80 default_server;`: ia menjadi penampung untuk permintaan yang domainnya tidak cocok dengan server block mana pun, misalnya saat pengunjung mengetik IP server. Kalau `default` dinonaktifkan dan `toko` satu-satunya situs, Nginx memakai `toko` untuk semua permintaan di port 80, termasuk lewat IP. Jangan menambahkan `default_server` di `toko` selama `default` masih aktif: hanya boleh ada satu penampung untuk satu port.\n- **`sudo nginx -t`** menguji semua file konfigurasi tanpa menerapkannya. Kalau ada salah, Nginx menyebut nama file dan nomor barisnya setelah tanda `:`.\n- Pesan `unexpected \"}\"` biasanya berarti ada titik koma yang terlupa di baris **sebelum** `}`. Pesan `unknown directive` berarti nama directive salah ketik.\n- **`reload`** membaca ulang konfigurasi tanpa memutus pengunjung. Kalau konfigurasi baru ternyata salah, `reload` gagal dan Nginx tetap memakai konfigurasi lama. **`restart`** menghentikan lalu menyalakan Nginx; kalau konfigurasinya salah, Nginx bisa mati. Jadi biasakan: `nginx -t` dulu, baru `reload`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Konfigurasi benar.** Setelah menulis file `toko` dan membuat symlink, Budi menguji lalu menerapkan (gambaran layar di server):\n\n```text\nsari@server-toko:~$ sudo nginx -t\nnginx: the configuration file /etc/nginx/nginx.conf syntax is ok\nnginx: configuration file /etc/nginx/nginx.conf test is successful\nsari@server-toko:~$ sudo systemctl reload nginx\nsari@server-toko:~$\n```\n\n`reload` tidak menampilkan apa-apa, artinya berhasil.\n\n**2. Konfigurasi salah.** Di percobaan lain, Budi lupa satu titik koma:\n\n```text\nsari@server-toko:~$ sudo nginx -t\nnginx: [emerg] unexpected \"}\" in /etc/nginx/sites-enabled/toko:9\nnginx: configuration file /etc/nginx/nginx.conf test failed\n```\n\nNginx menyebut file `toko` baris 9. `[emerg]` adalah tingkat paling parah: Nginx tidak bisa memakai konfigurasi ini.\n\nUntuk mencari salahnya, Budi menampilkan file itu beserta nomor barisnya. Di latihan ini, salinan file yang salah itu ada di folder kerja dengan nama `toko`.\n\n```bash\ncat -n toko\ngrep -n 'try_files' toko\n```\n\nHasilnya:\n\n```text\n$ cat -n toko\n     1\tserver {\n     2\t    listen 80;\n     3\t    server_name toko.contoh www.toko.contoh;\n     4\t    root /var/www/toko;\n     5\t    index index.html;\n     6\t\n     7\t    location / {\n     8\t        try_files $uri $uri/ =404\n     9\t    }\n    10\t}\n$ grep -n 'try_files' toko\n8:        try_files $uri $uri/ =404\n```\n\n- Nginx melapor baris 9 karena di sanalah ia bertemu `}` yang tidak diharapkan. Penyebabnya ada di baris **8**: `try_files ... =404` tidak diakhiri `;`.\n- Setelah titik koma ditambahkan, Budi menjalankan `sudo nginx -t` lagi sampai `test is successful`, baru `sudo systemctl reload nginx`.\n- Selama konfigurasi masih salah, situs tetap berjalan dengan konfigurasi lama, karena Budi belum menjalankan `reload` atau `restart`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa titik koma di akhir directive**\n\nSalah:\n\n```text\nroot /var/www/toko\nindex index.html;\n```\n\nBenar:\n\n```text\nroot /var/www/toko;\nindex index.html;\n```\n\nTanpa `;`, Nginx menganggap baris berikutnya masih bagian dari directive yang sama, lalu `nginx -t` gagal. Periksa baris yang disebut dan baris sebelumnya.\n\n**2. Langsung restart tanpa menguji**\n\nSalah:\n\n```bash\nsudo systemctl restart nginx\n```\n\nBenar:\n\n```bash\nsudo nginx -t\nsudo systemctl reload nginx\n```\n\nKalau konfigurasi salah, `restart` bisa membuat Nginx mati, dan SEMUA situs di server ikut tidak bisa dibuka. `nginx -t` menemukan salahnya lebih dulu, dan `reload` tidak memutus pengunjung.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Setiap directive di file konfigurasi Nginx harus diakhiri dengan...",
+          "options": [
+            "titik koma `;`",
+            "titik dua `:`",
+            "kurung kurawal `}`",
+            "baris kosong"
+          ],
+          "answer": 0,
+          "explanation": "`listen 80;`, `root /var/www/toko;`, dan seterusnya. Kurung kurawal dipakai untuk membuka dan menutup blok.",
+          "remedial": "- Server block = `server { ... }`, pengaturan untuk satu situs/domain\n- `listen 80;` `server_name domain;` `root folder;` `index index.html;` `location / { try_files $uri $uri/ =404; }`\n- Setiap directive diakhiri `;`\n- Aktifkan dengan `ln -s` ke `sites-enabled`, uji dengan `sudo nginx -t`, terapkan dengan `sudo systemctl reload nginx`\n- `unexpected \"}\"` = titik koma terlupa di baris sebelumnya"
+        },
+        {
+          "question": "Di server block, directive `root /var/www/toko;` artinya...",
+          "options": [
+            "hanya user root yang boleh membuka situs",
+            "folder tempat file-file website disimpan",
+            "file yang dikirim pertama kali",
+            "folder tempat log disimpan"
+          ],
+          "answer": 1,
+          "explanation": "`root` = folder file website. Permintaan `/produk.html` dicari di `/var/www/toko/produk.html`.",
+          "remedial": "- Server block = `server { ... }`, pengaturan untuk satu situs/domain\n- `listen 80;` `server_name domain;` `root folder;` `index index.html;` `location / { try_files $uri $uri/ =404; }`\n- Setiap directive diakhiri `;`\n- Aktifkan dengan `ln -s` ke `sites-enabled`, uji dengan `sudo nginx -t`, terapkan dengan `sudo systemctl reload nginx`\n- `unexpected \"}\"` = titik koma terlupa di baris sebelumnya"
+        },
+        {
+          "question": "Apa arti pesan ini?",
+          "code": "$ sudo nginx -t\nnginx: [emerg] unknown directive \"rot\" in /etc/nginx/sites-enabled/toko:4\nnginx: configuration file /etc/nginx/nginx.conf test failed",
+          "options": [
+            "Folder /var/www/toko tidak ada",
+            "Nginx belum terpasang",
+            "Ada nama directive yang salah ketik (rot) di baris 4 file toko",
+            "Port 80 sudah dipakai program lain"
+          ],
+          "answer": 2,
+          "explanation": "`unknown directive` = Nginx tidak mengenal kata itu. Mungkin maksudnya `root`. Nomor baris ada setelah tanda `:`.",
+          "remedial": "- Server block = `server { ... }`, pengaturan untuk satu situs/domain\n- `listen 80;` `server_name domain;` `root folder;` `index index.html;` `location / { try_files $uri $uri/ =404; }`\n- Setiap directive diakhiri `;`\n- Aktifkan dengan `ln -s` ke `sites-enabled`, uji dengan `sudo nginx -t`, terapkan dengan `sudo systemctl reload nginx`\n- `unexpected \"}\"` = titik koma terlupa di baris sebelumnya"
+        },
+        {
+          "question": "Apa beda `sudo systemctl reload nginx` dan `sudo systemctl restart nginx`?",
+          "options": [
+            "reload hanya untuk HTTPS, restart untuk HTTP",
+            "Tidak ada bedanya",
+            "reload hanya menguji konfigurasi tanpa menerapkannya; restart yang menerapkannya",
+            "reload membaca ulang konfigurasi tanpa memutus pengunjung; restart menghentikan lalu menyalakan Nginx"
+          ],
+          "answer": 3,
+          "explanation": "Untuk perubahan konfigurasi, pakai `reload` setelah `nginx -t` berhasil. Yang menguji konfigurasi adalah `nginx -t`.",
+          "remedial": "- Server block = `server { ... }`, pengaturan untuk satu situs/domain\n- `listen 80;` `server_name domain;` `root folder;` `index index.html;` `location / { try_files $uri $uri/ =404; }`\n- Setiap directive diakhiri `;`\n- Aktifkan dengan `ln -s` ke `sites-enabled`, uji dengan `sudo nginx -t`, terapkan dengan `sudo systemctl reload nginx`\n- `unexpected \"}\"` = titik koma terlupa di baris sebelumnya"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `toko` berisi server block. Apa hasil perintah terakhir?",
+      "code": "# Isi file toko:\n#   server {\n#       listen 80;\n#       server_name toko.contoh www.toko.contoh;\n#       root /var/www/toko;\n#       index index.html;\n#\n#       location / {\n#           try_files $uri $uri/ =404;\n#       }\n#   }\ngrep -c ';' toko",
+      "options": [
+        "10",
+        "5",
+        "4",
+        "6"
+      ],
+      "answer": 1,
+      "explanation": "`grep -c` menghitung baris yang mengandung `;`: `listen`, `server_name`, `root`, `index`, dan `try_files`. Baris `{`, `}`, `location`, dan baris kosong tidak punya titik koma."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Uji semua file konfigurasi Nginx sebelum reload\nsudo nginx ___",
+      "answers": [
+        "-t"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Server block (server { ... }) berisi pengaturan satu situs: listen, server_name, root, index, dan location.",
+        "Setiap directive diakhiri titik koma; blok ditulis di dalam kurung kurawal.",
+        "Aktifkan situs dengan symlink ke sites-enabled; menonaktifkan default itu opsional.",
+        "Selalu sudo nginx -t dulu, lalu sudo systemctl reload nginx.",
+        "Pesan error nginx -t menyebut file dan nomor baris; unexpected \"}\" biasanya berarti titik koma terlupa di baris sebelumnya."
+      ]
+    }
+  ]
+}

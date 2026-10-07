@@ -1,0 +1,110 @@
+{
+  "id": "linux-cron-01",
+  "moduleId": "linux-cron",
+  "order": 1,
+  "title": "Mengenal Cron",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul sebelumnya kamu membuat script `backup.sh`. Script itu baru berguna kalau rajin dijalankan, misalnya **setiap malam**. Masalahnya, manusia gampang lupa, dan tidak ada yang mau bangun jam 2 pagi hanya untuk mengetik satu perintah.\n\nDi sinilah **cron** membantu. cron adalah *service* (ingat modul *Proses dan Service*: proses yang terus berjalan di latar belakang) yang **menjalankan perintah sesuai jadwal**. Setiap menit, cron melihat daftar jadwal. Kalau ada jadwal yang cocok dengan waktu saat itu, perintahnya dijalankan.\n\nPekerjaan rutin yang biasa diserahkan ke cron:\n\n- backup data setiap malam\n- menghapus file sementara atau backup lama setiap minggu\n- membuat laporan setiap Senin pagi\n- mengecek apakah website masih hidup setiap 15 menit\n\ncron itu seperti **alarm berulang di HP**: \"setiap hari jam 05.00\", \"setiap Senin jam 07.30\". Bedanya, saat alarm cron berbunyi, yang bangun bukan kamu. Yang bangun adalah perintahmu, dan ia langsung bekerja sendiri walaupun kamu sedang tidur."
+    },
+    {
+      "type": "theory",
+      "content": "| Istilah | Artinya |\n|---|---|\n| **cron** | service yang menjalankan perintah sesuai jadwal; di Ubuntu nama service-nya `cron` |\n| **crontab** | (*cron table*) daftar jadwal milik **satu user**: budi punya crontab sendiri, root punya crontab sendiri |\n| **baris jadwal** | satu baris di crontab = satu pekerjaan: waktu (5 kolom) lalu perintah |\n| **job** | sebutan untuk satu pekerjaan terjadwal |\n\nContoh satu baris jadwal (cara membacanya dibahas di pelajaran berikutnya):\n\n```text\n0 2 * * * /home/budi/backup.sh\n```\n\nLima isian pertama adalah **waktu**, sisanya adalah **perintah**. Baris yang diawali `#` adalah komentar dan tidak dijalankan.\n\n**Mengecek service cron.** cron sudah terpasang dan menyala otomatis di Ubuntu. Cek dengan `systemctl status cron` (baris `Active: active (running)`) atau `systemctl is-active cron`.\n\n**Menjalankan manual vs lewat cron:**\n\n| | Manual | Lewat cron |\n|---|---|---|\n| Siapa yang menjalankan | kamu, saat mengetik | cron, saat jadwalnya tiba |\n| Harus login? | ya | tidak; jalan walaupun tidak ada yang login |\n| Output | langsung tampil di layar | **tidak tampil di layar mana pun**; harus disimpan ke file (pelajaran 5) |\n| Dijalankan sebagai | user yang mengetik | pemilik crontab (crontab budi → sebagai budi) |\n\nDua hal penting:\n\n- **Komputer harus menyala.** Kalau server mati tepat pada jam jadwal, jadwal itu **dilewati**; cron tidak mengulangnya setelah server hidup lagi. Karena itu cron paling cocok untuk server yang menyala 24 jam.\n- **Uji manual dulu.** Perintah yang gagal saat dijalankan manual pasti juga gagal lewat cron, dan di cron kamu tidak melihat pesan errornya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Mengecek service cron.** Gambaran layar di Ubuntu:\n\n```text\n$ systemctl is-active cron\nactive\n```\n\nArtinya cron sedang berjalan dan siap menjalankan jadwal.\n\n**2. Mengintip daftar jadwal.** Budi sudah punya beberapa jadwal. Ia menyimpan salinannya ke file `cadangan-cron.txt` (caranya di pelajaran 4). File itu teks biasa, jadi bisa dibaca dengan `cat`. Lalu ia menghitung jadwal yang aktif: `grep -v '^#'` membuang baris yang diawali `#` (tanda `^` berarti \"awal baris\"), dan `wc -l` menghitung sisanya.\n\n```bash\ncat cadangan-cron.txt\ngrep -v '^#' cadangan-cron.txt | wc -l\n```\n\nHasilnya:\n\n```text\n$ cat cadangan-cron.txt\n# m h  dom mon dow   command\n0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1\n30 8 * * 1 /home/budi/laporan.sh\n0 0 1 * * /home/budi/bersih.sh\n$ grep -v '^#' cadangan-cron.txt | wc -l\n3\n```\n\n- Baris pertama hanya komentar: pengingat urutan kolom (`m` menit, `h` jam, `dom` tanggal (*day of month*), `mon` bulan, `dow` hari (*day of week*)).\n- Ada 3 jadwal aktif. Dalam bahasa sehari-hari: backup **setiap hari jam 02.00**, laporan **setiap Senin jam 08.30**, dan bersih-bersih **setiap tanggal 1 jam 00.00**.\n- Perhatikan, semua script ditulis dengan path lengkap seperti `/home/budi/backup.sh`. Alasannya dibahas di pelajaran 5."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira cron mengejar jadwal yang terlewat**\n\nSalah:\n\n```text\n# laptop dimatikan jam 22.00, jadwal backup jam 02.00\n# \"besok pagi saat dinyalakan, backup jalan sendiri\"\n```\n\nBenar:\n\n```text\n# taruh jadwal penting di server yang menyala 24 jam,\n# atau jalankan backup manual kalau jadwalnya terlewat\n```\n\ncron hanya menjalankan perintah kalau komputer menyala tepat pada waktunya. Jadwal yang terlewat tidak diulang.\n\n**2. Menjadwalkan perintah yang belum pernah dicoba**\n\nSalah:\n\n```text\n# langsung masukkan script baru ke crontab,\n# lalu menunggu sampai besok pagi\n```\n\nBenar:\n\n```text\n# jalankan manual dulu sampai berhasil:\n/home/budi/backup.sh\n# baru jadwalkan\n```\n\nLewat cron, pesan error tidak muncul di layar. Kalau script belum pernah dicoba, kamu baru sadar ada masalah setelah backup-nya ternyata tidak ada.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa itu cron?",
+          "options": [
+            "Service yang berjalan terus dan menjalankan perintah sesuai jadwal",
+            "Perintah untuk mengukur lama sebuah proses berjalan",
+            "Editor teks khusus untuk menulis script",
+            "Folder tempat Linux menyimpan file sementara"
+          ],
+          "answer": 0,
+          "explanation": "cron berjalan di latar belakang dan setiap menit mengecek apakah ada jadwal yang harus dijalankan.",
+          "remedial": "- cron = service yang menjalankan perintah sesuai jadwal, mengecek setiap menit\n- crontab = daftar jadwal milik satu user; satu baris = satu pekerjaan\n- Baris jadwal: 5 kolom waktu, lalu perintah. Baris `#` = komentar\n- Lewat cron, output tidak tampil di layar dan komputer harus menyala\n- Jadwal yang terlewat (komputer mati) tidak diulang"
+        },
+        {
+          "question": "Apa yang dimaksud dengan crontab?",
+          "options": [
+            "Program yang mematikan server pada jam tertentu",
+            "Daftar jadwal milik seorang user",
+            "Log yang mencatat semua perintah di terminal",
+            "Nama lain dari folder home"
+          ],
+          "answer": 1,
+          "explanation": "crontab (*cron table*) adalah daftar jadwal. Setiap user punya crontab sendiri.",
+          "remedial": "- cron = service yang menjalankan perintah sesuai jadwal, mengecek setiap menit\n- crontab = daftar jadwal milik satu user; satu baris = satu pekerjaan\n- Baris jadwal: 5 kolom waktu, lalu perintah. Baris `#` = komentar\n- Lewat cron, output tidak tampil di layar dan komputer harus menyala\n- Jadwal yang terlewat (komputer mati) tidak diulang"
+        },
+        {
+          "question": "Server Budi mati karena listrik padam dari jam 01.00 sampai 03.00. Apa yang terjadi pada jadwal backup jam 02.00 malam itu?",
+          "options": [
+            "Langsung dijalankan begitu server menyala lagi",
+            "Dijalankan dua kali pada malam berikutnya",
+            "Dilewati, karena cron tidak mengulang jadwal yang terlewat",
+            "cron menampilkan pesan error di layar Budi"
+          ],
+          "answer": 2,
+          "explanation": "cron hanya bekerja saat komputer menyala. Jadwal jam 02.00 malam itu terlewat dan tidak diulang; backup berikutnya baru jalan pada jadwal berikutnya.",
+          "remedial": "- cron = service yang menjalankan perintah sesuai jadwal, mengecek setiap menit\n- crontab = daftar jadwal milik satu user; satu baris = satu pekerjaan\n- Baris jadwal: 5 kolom waktu, lalu perintah. Baris `#` = komentar\n- Lewat cron, output tidak tampil di layar dan komputer harus menyala\n- Jadwal yang terlewat (komputer mati) tidak diulang"
+        },
+        {
+          "question": "Budi menjadwalkan `echo halo` lewat cron. Saat jadwalnya tiba, tulisan `halo` muncul di mana?",
+          "options": [
+            "Di terminal yang sedang dibuka Budi",
+            "Di semua terminal yang sedang terbuka",
+            "Di layar login server",
+            "Tidak di layar mana pun; output perlu diarahkan ke file supaya bisa dibaca"
+          ],
+          "answer": 3,
+          "explanation": "Perintah dari cron tidak terhubung ke terminal mana pun. Supaya hasilnya bisa dibaca, simpan ke file (dibahas di pelajaran 5).",
+          "remedial": "- cron = service yang menjalankan perintah sesuai jadwal, mengecek setiap menit\n- crontab = daftar jadwal milik satu user; satu baris = satu pekerjaan\n- Baris jadwal: 5 kolom waktu, lalu perintah. Baris `#` = komentar\n- Lewat cron, output tidak tampil di layar dan komputer harus menyala\n- Jadwal yang terlewat (komputer mati) tidak diulang"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `cadangan-cron.txt` berisi salinan daftar jadwal Budi. Apa hasil perintah terakhir?",
+      "code": "# Isi file cadangan-cron.txt:\n#   # m h  dom mon dow   command\n#   0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1\n#   30 8 * * 1 /home/budi/laporan.sh\n#   0 0 1 * * /home/budi/bersih.sh\ngrep -c backup cadangan-cron.txt",
+      "options": [
+        "2",
+        "1",
+        "3",
+        "0"
+      ],
+      "answer": 1,
+      "explanation": "Kata `backup` muncul dua kali (`backup.sh` dan `backup.log`), tapi keduanya di baris yang sama. `grep -c` menghitung jumlah BARIS yang cocok, jadi hasilnya 1."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Lihat keadaan service cron (sedang berjalan atau tidak)\nsystemctl ___ cron",
+      "answers": [
+        "status|is-active"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "cron adalah service yang menjalankan perintah sesuai jadwal; ia mengecek jadwal setiap menit.",
+        "crontab adalah daftar jadwal milik satu user; satu baris berisi 5 kolom waktu lalu perintah.",
+        "Perintah dari cron jalan tanpa perlu login, dan outputnya tidak tampil di layar.",
+        "Komputer harus menyala pada jam jadwal; jadwal yang terlewat tidak diulang.",
+        "Selalu uji perintah secara manual sebelum dijadwalkan."
+      ]
+    }
+  ]
+}

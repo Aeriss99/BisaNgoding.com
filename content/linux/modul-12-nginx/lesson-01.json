@@ -1,0 +1,109 @@
+{
+  "id": "linux-nginx-01",
+  "moduleId": "linux-nginx",
+  "order": 1,
+  "title": "Web Server dan Nginx",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sejauh ini kamu sudah bisa masuk ke server, mengamankannya, dan menjadwalkan tugas otomatis. Modul terakhir ini menjawab pertanyaan besar: bagaimana caranya website Toko Budi bisa dibuka siapa saja di internet?\n\nServer butuh **web server**: program yang terus menunggu permintaan dari browser, lalu mengirim halaman. Di modul ini kita memakai **Nginx** (dibaca \"engine-x\"), salah satu web server paling banyak dipakai di Linux.\n\nIngat lagi percakapan browser dan server dari modul Jaringan:\n\n- browser mengirim **permintaan** (*request*): \"tolong kirim halaman `/produk.html` dari `toko.contoh`\"\n- server membalas dengan **jawaban** (*response*): sebuah **kode status** ditambah isi halamannya\n\nBayangkan restoran. Pelanggan (browser) memesan dari menu. Pelayan (web server) mencatat pesanan, mengambil makanan, lalu mengantarnya ke meja. Kalau menu yang dipesan tidak ada, pelayan menjawab \"maaf, tidak ada\" (404). Kalau koki di dapur tidak menjawab panggilan, pelayan kembali dengan kabar bahwa dapur sedang bermasalah (502, dibahas di pelajaran 5)."
+    },
+    {
+      "type": "theory",
+      "content": "**Kode status** yang paling sering kamu temui:\n\n| Kode | Artinya |\n|---|---|\n| 200 | OK, halaman dikirim |\n| 301 | pindah alamat, misalnya dari `http://` ke `https://` |\n| 403 | dilarang (*Forbidden*) |\n| 404 | tidak ditemukan (*Not Found*) |\n| 500 | error di server |\n| 502 | *Bad Gateway*: web server berjalan, tapi aplikasi di belakangnya tidak menjawab |\n\n**Port** (ingat: port = nomor kamar):\n\n| Alamat | Port bawaan | Keterangan |\n|---|---|---|\n| `http://toko.contoh` | 80 | HTTP, tidak terenkripsi |\n| `https://toko.contoh` | 443 | HTTPS, terenkripsi (ada gembok di browser) |\n\nBrowser menambahkan port bawaan secara otomatis, jadi kamu jarang menulisnya. `https://toko.contoh` sama saja dengan `https://toko.contoh:443`.\n\n**Dua tugas utama Nginx:**\n\n1. **Mengirim file statis.** File statis adalah file yang dikirim apa adanya: HTML, CSS, gambar, JavaScript. Website statis hanyalah sebuah folder berisi file.\n2. **Reverse proxy.** Nginx berdiri di depan sebuah aplikasi (misalnya buatan Node.js atau Spring Boot), meneruskan permintaan pengunjung ke aplikasi itu, lalu mengantar jawabannya kembali. Dibahas di pelajaran 5.\n\n**Apache** adalah web server lain yang juga populer dan lebih tua. Konsepnya mirip, tapi cara menulis pengaturannya berbeda. Kelas ini memakai Nginx. Satu port hanya bisa dipakai satu program, jadi jangan menjalankan dua web server di port 80 sekaligus.\n\n**HTTP vs HTTPS.** Di HTTP, isi permintaan (termasuk password yang diketik di formulir) berjalan sebagai teks biasa dan bisa diintip di tengah jalan, misalnya di Wi-Fi umum. HTTPS **mengenkripsinya**: isinya diacak sehingga hanya browser dan server yang bisa membacanya. Untuk HTTPS, server butuh **sertifikat** (pelajaran 6).\n\nRencana modul ini: memasang Nginx → mengenal folder pengaturannya → membuat situs sendiri → reverse proxy → HTTPS → studi kasus lengkap."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Percakapan browser dan Nginx.** Gambaran sederhana (bukan output perintah) saat pengunjung membuka dua alamat di `toko.contoh`:\n\n```text\nBrowser → Nginx : GET /produk.html   (Host: toko.contoh)\nNginx → Browser : 200 OK + isi file produk.html\n\nBrowser → Nginx : GET /promo.html    (Host: toko.contoh)\nNginx → Browser : 404 Not Found\n```\n\n`GET` artinya \"minta kirimkan\". Bagian `Host` memberi tahu nama domain yang diminta. Untuk 404, Nginx mengirim halaman error bawaan. Isinya bisa dilihat dengan `curl` (modul Jaringan):\n\n```text\n$ curl http://toko.contoh/promo.html\n<html>\n<head><title>404 Not Found</title></head>\n<body>\n<center><h1>404 Not Found</h1></center>\n<hr><center>nginx/1.24.0 (Ubuntu)</center>\n</body>\n</html>\n```\n\nHalaman ini membuktikan Nginx **hidup** dan menjawab. Yang tidak ada hanyalah file `promo.html`.\n\n**2. Website statis = folder berisi file.** Di laptop Budi ada folder `toko` berisi website Toko Budi. Tidak ada yang perlu \"diinstal\": Nginx cukup mengirim file-file ini.\n\n```bash\nls toko\ncat toko/index.html\n```\n\nHasilnya:\n\n```text\n$ ls toko\ngaya.css  index.html  produk.html\n$ cat toko/index.html\n<!DOCTYPE html>\n<html>\n<head>\n<title>Toko Budi</title>\n<link rel=\"stylesheet\" href=\"gaya.css\">\n</head>\n<body>\n<h1>Selamat datang di Toko Budi</h1>\n<a href=\"produk.html\">Lihat produk</a>\n</body>\n</html>\n```\n\n- Saat pengunjung membuka `http://toko.contoh/`, Nginx mengirim `index.html`.\n- Browser membaca baris `<link ... href=\"gaya.css\">`, lalu mengirim permintaan **kedua** untuk `/gaya.css`. Satu halaman bisa menghasilkan banyak permintaan.\n- Saat pengunjung mengeklik \"Lihat produk\", browser meminta `/produk.html`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira 404 berarti server mati**\n\nSalah:\n\n```text\n# muncul \"404 Not Found\"\n# \"server-nya mati, restart saja!\"\n```\n\nBenar:\n\n```text\n# 404 = Nginx hidup dan menjawab,\n# hanya file yang diminta tidak ada.\n# Cek nama file dan alamatnya.\n```\n\nKalau server mati, browser sama sekali tidak mendapat jawaban. Kode 404 justru dikirim oleh web server yang sedang berjalan.\n\n**2. Mengetik password di halaman http://**\n\nSalah:\n\n```text\nhttp://toko.contoh/login\n```\n\nBenar:\n\n```text\nhttps://toko.contoh/login\n```\n\nDi HTTP, password berjalan tanpa enkripsi dan bisa diintip di tengah jalan. Formulir login harus memakai HTTPS.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa tugas utama sebuah web server?",
+          "options": [
+            "Menyimpan data dalam bentuk tabel",
+            "Menerima permintaan dari browser lalu mengirim jawaban berupa kode status dan isi halaman",
+            "Menjalankan perintah sesuai jadwal",
+            "Memberi alamat IP kepada komputer di jaringan"
+          ],
+          "answer": 1,
+          "explanation": "Web server seperti Nginx menunggu permintaan (request) lalu mengirim jawaban (response).",
+          "remedial": "- Web server menerima permintaan (request) dan mengirim jawaban (response): kode status + isi\n- 200 OK, 301 pindah alamat, 403 dilarang, 404 tidak ditemukan, 500 error server, 502 aplikasi di belakang tidak menjawab\n- HTTP = port 80 tanpa enkripsi, HTTPS = port 443 terenkripsi\n- Nginx: mengirim file statis dan menjadi reverse proxy di depan aplikasi"
+        },
+        {
+          "question": "Browser menerima kode status 404. Artinya...",
+          "options": [
+            "Server mati",
+            "Halaman berhasil dikirim",
+            "Halaman atau file yang diminta tidak ditemukan",
+            "Pengunjung dilarang masuk"
+          ],
+          "answer": 2,
+          "explanation": "404 = *Not Found*. Server hidup dan menjawab, tetapi file yang diminta tidak ada. Dilarang adalah 403.",
+          "remedial": "- Web server menerima permintaan (request) dan mengirim jawaban (response): kode status + isi\n- 200 OK, 301 pindah alamat, 403 dilarang, 404 tidak ditemukan, 500 error server, 502 aplikasi di belakang tidak menjawab\n- HTTP = port 80 tanpa enkripsi, HTTPS = port 443 terenkripsi\n- Nginx: mengirim file statis dan menjadi reverse proxy di depan aplikasi"
+        },
+        {
+          "question": "Port bawaan untuk HTTPS adalah...",
+          "options": [
+            "443",
+            "80",
+            "22",
+            "8080"
+          ],
+          "answer": 0,
+          "explanation": "HTTPS memakai port 443, HTTP memakai port 80, SSH memakai port 22.",
+          "remedial": "- Web server menerima permintaan (request) dan mengirim jawaban (response): kode status + isi\n- 200 OK, 301 pindah alamat, 403 dilarang, 404 tidak ditemukan, 500 error server, 502 aplikasi di belakang tidak menjawab\n- HTTP = port 80 tanpa enkripsi, HTTPS = port 443 terenkripsi\n- Nginx: mengirim file statis dan menjadi reverse proxy di depan aplikasi"
+        },
+        {
+          "question": "Nginx dipakai sebagai *reverse proxy*. Artinya Nginx...",
+          "options": [
+            "menghapus file yang tidak dipakai",
+            "mengganti alamat IP server setiap hari",
+            "memblokir semua pengunjung dari luar negeri",
+            "menerima permintaan pengunjung lalu meneruskannya ke aplikasi di belakangnya"
+          ],
+          "answer": 3,
+          "explanation": "Reverse proxy berdiri di depan aplikasi: pengunjung bicara dengan Nginx, Nginx yang bicara dengan aplikasi.",
+          "remedial": "- Web server menerima permintaan (request) dan mengirim jawaban (response): kode status + isi\n- 200 OK, 301 pindah alamat, 403 dilarang, 404 tidak ditemukan, 500 error server, 502 aplikasi di belakang tidak menjawab\n- HTTP = port 80 tanpa enkripsi, HTTPS = port 443 terenkripsi\n- Nginx: mengirim file statis dan menjadi reverse proxy di depan aplikasi"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Budi menjalankan perintah ini dan mendapat halaman berikut. Apa artinya?",
+      "code": "$ curl http://toko.contoh/diskon.html\n<html>\n<head><title>404 Not Found</title></head>\n<body>\n<center><h1>404 Not Found</h1></center>\n<hr><center>nginx/1.24.0 (Ubuntu)</center>\n</body>\n</html>",
+      "options": [
+        "Nginx berjalan, tetapi file diskon.html tidak ada",
+        "Server toko.contoh mati",
+        "Budi tidak punya izin membuka halaman itu",
+        "Aplikasi di belakang Nginx tidak menjawab"
+      ],
+      "answer": 0,
+      "explanation": "Halaman `404 Not Found` dikirim oleh Nginx yang sedang berjalan (lihat baris `nginx/1.24.0`). Yang tidak ada hanya file yang diminta."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Baris pertama jawaban saat file yang diminta tidak ada\nHTTP/1.1 ___ Not Found",
+      "answers": [
+        "404"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Web server menerima permintaan dari browser dan mengirim jawaban berupa kode status dan isi halaman.",
+        "Kode penting: 200 OK, 301 pindah alamat, 403 dilarang, 404 tidak ditemukan, 500 dan 502 masalah di sisi server.",
+        "HTTP memakai port 80 tanpa enkripsi; HTTPS memakai port 443 dan terenkripsi.",
+        "Nginx mengirim file statis dan bisa menjadi reverse proxy di depan aplikasi."
+      ]
+    }
+  ]
+}

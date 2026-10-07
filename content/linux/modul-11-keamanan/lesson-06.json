@@ -1,0 +1,111 @@
+{
+  "id": "linux-keamanan-06",
+  "moduleId": "linux-keamanan",
+  "order": 6,
+  "title": "Firewall dengan ufw",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Firewall** memeriksa setiap koneksi yang datang ke server dan hanya membuka port tertentu. Port yang tidak diizinkan ditolak, walaupun ada program yang menunggu di port itu.\n\nDi Ubuntu ada **ufw** (*Uncomplicated Firewall*). ufw sudah terpasang, tetapi **belum aktif**. Semua perintah ufw butuh `sudo`. Tanpa sudo, ufw menolak dengan pesan `ERROR: You need to be root to run this script`.\n\nFirewall itu satpam di gerbang gedung yang memegang daftar pintu yang boleh dilewati tamu: pintu 22 untuk pengelola (SSH), pintu 80 dan 443 untuk pengunjung toko (web). Pintu gudang (database, port 3306) tertutup untuk umum. Penghuni yang keluar gedung tidak diperiksa."
+    },
+    {
+      "type": "theory",
+      "content": "| Perintah | Artinya |\n|---|---|\n| `sudo ufw status` | lihat keadaan dan daftar aturan |\n| `sudo ufw default deny incoming` | tolak semua koneksi masuk, kecuali yang diizinkan |\n| `sudo ufw default allow outgoing` | izinkan semua koneksi keluar dari server |\n| `sudo ufw allow OpenSSH` | izinkan SSH (port 22) |\n| `sudo ufw enable` | nyalakan firewall (juga otomatis saat boot) |\n| `sudo ufw app list` | daftar nama aplikasi yang dikenal ufw |\n| `sudo ufw allow 80/tcp` | izinkan port 80 TCP |\n| `sudo ufw allow 'Nginx Full'` | izinkan port 80 dan 443 |\n| `sudo ufw status numbered` | daftar aturan bernomor |\n| `sudo ufw delete 2` | hapus aturan nomor 2 |\n| `sudo ufw disable` | matikan firewall |\n\nPenjelasan:\n\n- **incoming** = koneksi dari luar ke server. **outgoing** = koneksi dari server ke luar (misalnya `apt update`). Bawaan ufw sebenarnya sudah begitu; dua perintah `default` hanya memastikan.\n- **WAJIB `allow OpenSSH` (atau `allow 22/tcp`) SEBELUM `enable`.** Kalau tidak, koneksi SSH baru ke server terblokir dan kamu hanya bisa masuk lewat konsol penyedia VPS.\n- `OpenSSH` dan `Nginx Full` adalah **nama aplikasi** (lihat `ufw app list`). Nama berisi spasi harus dikutip: `'Nginx Full'`. Nama `Nginx ...` baru muncul setelah Nginx dipasang (modul berikutnya). `Nginx HTTP` = port 80 saja, `Nginx HTTPS` = 443 saja, `Nginx Full` = keduanya.\n- **Database jangan dibuka untuk semua orang.** Kalau memang perlu, izinkan satu IP saja: `sudo ufw allow from 203.0.113.50 to any port 3306`.\n- Aturan untuk nama aplikasi atau port (misalnya `OpenSSH`, `80/tcp`) muncul dua kali di `status`: sekali untuk IPv4 dan sekali bertanda `(v6)` untuk IPv6 (modul 8).\n- **Nomor aturan bergeser** setelah satu dihapus. Lihat `status numbered` lagi sebelum menghapus yang berikutnya.\n- `sudo ufw status verbose` menampilkan juga kebijakan bawaan: `Default: deny (incoming), allow (outgoing), disabled (routed)`.\n- Penyedia VPS kadang punya firewall sendiri di panel web. Dua-duanya harus mengizinkan port yang dibutuhkan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nGambaran layar di server-toko. Angka dan nama di servermu bisa berbeda.\n\n**1. Menyalakan firewall dengan urutan yang benar.**\n\n```text\n$ ufw status\nERROR: You need to be root to run this script\n$ sudo ufw status\nStatus: inactive\n$ sudo ufw default deny incoming\nDefault incoming policy changed to 'deny'\n(be sure to update your rules accordingly)\n$ sudo ufw default allow outgoing\nDefault outgoing policy changed to 'allow'\n(be sure to update your rules accordingly)\n$ sudo ufw allow OpenSSH\nRules updated\nRules updated (v6)\n$ sudo ufw enable\nCommand may disrupt existing ssh connections. Proceed with operation (y|n)? y\nFirewall is active and enabled on system startup\n$ sudo ufw status\nStatus: active\n\nTo                         Action      From\n--                         ------      ----\nOpenSSH                    ALLOW       Anywhere\nOpenSSH (v6)               ALLOW       Anywhere (v6)\n```\n\n- Tanpa sudo, ufw menolak.\n- `allow OpenSSH` membuat aturan untuk IPv4 dan IPv6 (`Rules updated (v6)`).\n- `enable` memperingatkan bahwa koneksi SSH bisa terganggu. Karena OpenSSH sudah diizinkan, Budi menjawab `y` dengan aman.\n\n**2. Menghapus aturan.** Setelah Nginx dipasang, Budi sempat mengizinkan `Nginx Full`, lalu ingin menghapusnya lagi:\n\n```text\n$ sudo ufw status numbered\nStatus: active\n\n     To                         Action      From\n     --                         ------      ----\n[ 1] OpenSSH                    ALLOW IN    Anywhere\n[ 2] Nginx Full                 ALLOW IN    Anywhere\n[ 3] OpenSSH (v6)               ALLOW IN    Anywhere (v6)\n[ 4] Nginx Full (v6)            ALLOW IN    Anywhere (v6)\n$ sudo ufw delete 2\nDeleting:\n allow 'Nginx Full'\nProceed with operation (y|n)? y\nRule deleted\n```\n\nSetelah ini nomor aturan bergeser, jadi Budi melihat `status numbered` lagi sebelum menghapus aturan lain.\n\n**3. Menyaring daftar aturan.** Sebelum menghapus, Budi sempat menyimpan daftar aturan ke file dengan `sudo ufw status numbered > aturan.txt`. Ia mencari aturan untuk Nginx dan menghitung semua aturan yang mengizinkan.\n\n```bash\ngrep \"Nginx Full\" aturan.txt\ngrep -c ALLOW aturan.txt\n```\n\nHasilnya:\n\n```text\n$ grep \"Nginx Full\" aturan.txt\n[ 2] Nginx Full                 ALLOW IN    Anywhere\n[ 4] Nginx Full (v6)            ALLOW IN    Anywhere (v6)\n$ grep -c ALLOW aturan.txt\n4\n```\n\n`Nginx Full` muncul dua kali: aturan nomor 2 untuk IPv4 dan nomor 4 untuk IPv6. Total ada 4 aturan `ALLOW`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyalakan firewall sebelum mengizinkan SSH**\n\nSalah:\n\n```bash\nsudo ufw enable\nsudo ufw allow OpenSSH\n```\n\nBenar:\n\n```bash\nsudo ufw allow OpenSSH\nsudo ufw enable\n```\n\nBegitu `enable` dijalankan tanpa aturan SSH, koneksi SSH baru ke server terblokir. Kalau sesi yang sedang terbuka ikut terputus, satu-satunya jalan adalah konsol penyedia VPS.\n\n**2. Membuka port database untuk semua orang**\n\nSalah:\n\n```bash\nsudo ufw allow 3306\n```\n\nBenar:\n\n```bash\nsudo ufw allow from 203.0.113.50 to any port 3306\n# atau lebih baik: tidak dibuka sama sekali\n```\n\nPort database yang terbuka akan ikut dicoba bot. Izinkan hanya IP yang benar-benar perlu.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa `sudo ufw allow OpenSSH` harus dijalankan SEBELUM `sudo ufw enable`?",
+          "options": [
+            "Karena ufw tidak bisa dinyalakan kalau belum ada aturan",
+            "Karena OpenSSH harus dipasang ulang",
+            "Supaya koneksi SSH ke server tidak terblokir saat firewall menyala",
+            "Supaya Nginx ikut terbuka"
+          ],
+          "answer": 2,
+          "explanation": "Setelah `enable`, semua koneksi masuk yang tidak diizinkan ditolak, termasuk SSH.",
+          "remedial": "- Firewall hanya membuka port yang diizinkan; di Ubuntu: `ufw` (butuh sudo)\n- `default deny incoming`, `default allow outgoing`\n- `allow OpenSSH` SEBELUM `enable`\n- `allow 80/tcp`, `allow 'Nginx Full'` (80 dan 443), izinkan satu IP dengan `allow from IP to any port N`\n- `status numbered` lalu `delete N`; nomor bergeser setelah dihapus"
+        },
+        {
+          "question": "`sudo ufw allow 'Nginx Full'` membuka port...",
+          "options": [
+            "80 dan 443",
+            "22 saja",
+            "80 saja",
+            "3306"
+          ],
+          "answer": 0,
+          "explanation": "`Nginx Full` = HTTP (80) dan HTTPS (443). `Nginx HTTP` hanya 80.",
+          "remedial": "- Firewall hanya membuka port yang diizinkan; di Ubuntu: `ufw` (butuh sudo)\n- `default deny incoming`, `default allow outgoing`\n- `allow OpenSSH` SEBELUM `enable`\n- `allow 80/tcp`, `allow 'Nginx Full'` (80 dan 443), izinkan satu IP dengan `allow from IP to any port N`\n- `status numbered` lalu `delete N`; nomor bergeser setelah dihapus"
+        },
+        {
+          "question": "Berdasarkan output ini, perintah untuk menghapus aturan `Nginx Full` versi IPv4 adalah...",
+          "code": "$ sudo ufw status numbered\nStatus: active\n\n     To                         Action      From\n     --                         ------      ----\n[ 1] OpenSSH                    ALLOW IN    Anywhere\n[ 2] Nginx Full                 ALLOW IN    Anywhere\n[ 3] OpenSSH (v6)               ALLOW IN    Anywhere (v6)\n[ 4] Nginx Full (v6)            ALLOW IN    Anywhere (v6)",
+          "options": [
+            "sudo ufw delete 1",
+            "sudo ufw delete 4",
+            "sudo ufw delete Nginx",
+            "sudo ufw delete 2"
+          ],
+          "answer": 3,
+          "explanation": "Aturan `Nginx Full` tanpa tanda `(v6)` bernomor 2. Nomor 4 adalah versi IPv6.",
+          "remedial": "- Firewall hanya membuka port yang diizinkan; di Ubuntu: `ufw` (butuh sudo)\n- `default deny incoming`, `default allow outgoing`\n- `allow OpenSSH` SEBELUM `enable`\n- `allow 80/tcp`, `allow 'Nginx Full'` (80 dan 443), izinkan satu IP dengan `allow from IP to any port N`\n- `status numbered` lalu `delete N`; nomor bergeser setelah dihapus"
+        },
+        {
+          "question": "Budi lupa sudo dan mengetik `ufw status`. Apa yang tampil?",
+          "options": [
+            "Status: inactive",
+            "ERROR: You need to be root to run this script",
+            "Firewall is active and enabled on system startup",
+            "(tidak ada output)"
+          ],
+          "answer": 1,
+          "explanation": "Semua perintah ufw, termasuk `status`, butuh sudo.",
+          "remedial": "- Firewall hanya membuka port yang diizinkan; di Ubuntu: `ufw` (butuh sudo)\n- `default deny incoming`, `default allow outgoing`\n- `allow OpenSSH` SEBELUM `enable`\n- `allow 80/tcp`, `allow 'Nginx Full'` (80 dan 443), izinkan satu IP dengan `allow from IP to any port N`\n- `status numbered` lalu `delete N`; nomor bergeser setelah dihapus"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Budi menyalakan ufw TANPA mengizinkan SSH lebih dulu, lalu keluar dari server. Dari laptop ia mencoba masuk lagi. Apa yang paling mungkin tampil?",
+      "code": "$ sudo ufw enable\nCommand may disrupt existing ssh connections. Proceed with operation (y|n)? y\nFirewall is active and enabled on system startup\n$ exit\n...\nbudi@laptop:~$ ssh sari@203.0.113.10",
+      "options": [
+        "sari@server-toko:~$",
+        "sari@203.0.113.10: Permission denied (publickey).",
+        "ssh: connect to host 203.0.113.10 port 22: Connection refused",
+        "ssh: connect to host 203.0.113.10 port 22: Connection timed out"
+      ],
+      "answer": 3,
+      "explanation": "Firewall diam-diam membuang koneksi ke port 22, jadi ssh menunggu sampai menyerah: `Connection timed out`. `Connection refused` berarti server menjawab tapi SSH tidak berjalan."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Izinkan SSH sebelum menyalakan firewall\nsudo ufw allow ___",
+      "answers": [
+        "OpenSSH|22/tcp|22"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Firewall hanya membuka port yang diizinkan; di Ubuntu dipakai ufw dengan sudo.",
+        "Atur default deny incoming dan allow outgoing, lalu allow OpenSSH SEBELUM enable.",
+        "allow 80/tcp atau allow 'Nginx Full' untuk web; database jangan dibuka, atau hanya untuk satu IP.",
+        "status numbered lalu delete N untuk menghapus; nomor bergeser setelah dihapus.",
+        "Firewall di panel penyedia VPS juga harus mengizinkan port yang sama."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "id": "linux-nginx-05",
+  "moduleId": "linux-nginx",
+  "order": 5,
+  "title": "Reverse Proxy ke Aplikasi",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tidak semua website berupa file statis. Toko online butuh keranjang belanja, login, dan database. Semua itu dikerjakan oleh **aplikasi**, misalnya buatan Node.js atau Spring Boot.\n\nAplikasi seperti ini biasanya punya web server kecil sendiri yang menunggu di port tertentu, misalnya 3000 (umum untuk Node.js) atau 8080 (umum untuk Spring Boot). Sebaiknya aplikasi hanya menunggu di `127.0.0.1`, yaitu hanya bisa dihubungi dari server itu sendiri (ingat `ss -tuln` di modul Jaringan).\n\nLalu bagaimana pengunjung bisa sampai ke aplikasi? Lewat Nginx: Nginx menerima permintaan di port 80/443, **meneruskannya** ke `127.0.0.1:3000`, lalu mengantar jawaban aplikasi kembali ke pengunjung. Peran ini disebut **reverse proxy**. Aplikasi di belakang Nginx disebut **upstream**.\n\nBayangkan resepsionis hotel. Tamu tidak boleh langsung masuk ke dapur atau kantor staf. Semua permintaan lewat resepsionis, yang meneleponkan bagian yang tepat lalu menyampaikan jawabannya ke tamu. Kalau bagian dapur tidak mengangkat telepon, resepsionis berkata, \"Maaf, bagian itu sedang tidak bisa dihubungi.\" Itulah 502 Bad Gateway."
+    },
+    {
+      "type": "theory",
+      "content": "Server block untuk reverse proxy (ganti isi `/etc/nginx/sites-available/toko`):\n\n```text\nserver {\n    listen 80;\n    server_name toko.contoh www.toko.contoh;\n\n    location / {\n        proxy_pass http://127.0.0.1:3000;\n        include proxy_params;\n    }\n}\n```\n\n| Directive | Artinya |\n|---|---|\n| `proxy_pass http://127.0.0.1:3000;` | teruskan permintaan ke aplikasi di port 3000 komputer ini |\n| `include proxy_params;` | sisipkan isi file `/etc/nginx/proxy_params` di sini |\n\nIsi `/etc/nginx/proxy_params` di Ubuntu:\n\n```text\nproxy_set_header Host $http_host;\nproxy_set_header X-Real-IP $remote_addr;\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\nproxy_set_header X-Forwarded-Proto $scheme;\n```\n\nBaris-baris ini menitipkan keterangan ke aplikasi: domain yang diminta (`Host`), IP asli pengunjung, dan apakah pengunjung memakai `http` atau `https`. Tanpa ini, aplikasi melihat semua pengunjung datang dari `127.0.0.1`, karena yang menghubunginya selalu Nginx.\n\nSetelah mengubah file: `sudo nginx -t`, lalu `sudo systemctl reload nginx`.\n\n**Kenapa memakai reverse proxy?**\n\n- **Satu pintu.** Pengunjung hanya bicara dengan Nginx di port 80/443. Port aplikasi (3000) **tidak** perlu dan **jangan** dibuka di ufw.\n- **HTTPS di satu tempat.** Sertifikat cukup dipasang di Nginx, aplikasi tidak perlu mengurusnya.\n- **Banyak aplikasi dan domain di satu server.** Setiap domain punya server block sendiri yang meneruskan ke port aplikasinya masing-masing.\n- Nginx juga bisa mengirim file statis (gambar, CSS) sendiri dengan cepat.\n\n**Kalau aplikasinya bermasalah:**\n\n| Kode | Artinya |\n|---|---|\n| 502 Bad Gateway | Nginx berjalan, tapi aplikasi tidak menjawab: mati, atau port di `proxy_pass` salah |\n| 504 Gateway Time-out | aplikasi menjawab terlalu lama |\n\nSaat 502, `error.log` mencatat baris berisi `connect() failed (111: Connection refused) while connecting to upstream`. Artinya: Nginx mencoba menghubungi upstream, tapi ditolak karena tidak ada program yang menunggu di port itu."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Membaca konfigurasi.** Budi menyalin server block barunya (`toko`) dan file `proxy_params` dari server ke folder kerjanya untuk diperiksa.\n\n```bash\ncat toko\ngrep proxy_pass toko\nwc -l proxy_params\n```\n\nHasilnya:\n\n```text\n$ cat toko\nserver {\n    listen 80;\n    server_name toko.contoh www.toko.contoh;\n\n    location / {\n        proxy_pass http://127.0.0.1:3000;\n        include proxy_params;\n    }\n}\n$ grep proxy_pass toko\n        proxy_pass http://127.0.0.1:3000;\n$ wc -l proxy_params\n4 proxy_params\n```\n\n- Semua alamat (`location /`) diteruskan ke `http://127.0.0.1:3000`.\n- `include proxy_params;` menyisipkan empat baris `proxy_set_header` dari file `proxy_params`.\n\n**2. Aplikasi mati.** Suatu pagi aplikasi Node.js Budi berhenti, padahal Nginx tetap berjalan. Gambaran layar di laptop:\n\n```text\nbudi@laptop:~$ curl http://toko.contoh\n<html>\n<head><title>502 Bad Gateway</title></head>\n<body>\n<center><h1>502 Bad Gateway</h1></center>\n<hr><center>nginx/1.24.0 (Ubuntu)</center>\n</body>\n</html>\n```\n\nDengan `curl -I`, baris pertamanya `HTTP/1.1 502 Bad Gateway`. Nginx hidup (lihat baris `nginx/1.24.0`), tapi aplikasi di belakangnya tidak menjawab.\n\n**3. Mencari penyebabnya di log.** Budi menyalin potongan `error.log` dari server ke folder kerjanya.\n\n```bash\ngrep -c 'Connection refused' error.log\ntail -n 1 error.log\n```\n\nHasilnya:\n\n```text\n$ grep -c 'Connection refused' error.log\n3\n$ tail -n 1 error.log\n2026/09/05 10:21:02 [error] 1238#1238: *9 connect() failed (111: Connection refused) while connecting to upstream, client: 192.0.2.80, server: toko.contoh, request: \"GET / HTTP/1.1\", upstream: \"http://127.0.0.1:3000/\", host: \"toko.contoh\"\n```\n\n- Ada 3 baris `Connection refused`: tiga permintaan yang gagal diteruskan.\n- Baris terakhir menyebut `upstream: \"http://127.0.0.1:3000/\"` dan `client: 192.0.2.80` (pengunjung yang mendapat 502).\n- Solusinya bukan mengutak-atik Nginx, tapi menyalakan lagi aplikasinya. Setelah aplikasi hidup, permintaan berikutnya langsung berhasil tanpa perlu `reload`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membuka port aplikasi ke internet**\n\nSalah:\n\n```bash\nsudo ufw allow 3000\n```\n\nBenar:\n\n```bash\n# aplikasi tetap di 127.0.0.1:3000, cukup buka Nginx\nsudo ufw allow 'Nginx Full'\n```\n\nPengunjung cukup bicara dengan Nginx. Membuka port 3000 tidak ada gunanya selama aplikasi hanya menunggu di `127.0.0.1`, dan berbahaya kalau suatu saat aplikasi menunggu di semua alamat (`0.0.0.0`): orang bisa melewati Nginx (termasuk HTTPS-nya) dan langsung menghubungi aplikasi.\n\n**2. Mengira 502 berarti Nginx rusak**\n\nSalah:\n\n```bash\nsudo systemctl restart nginx\n# masih 502...\nsudo apt remove nginx\n```\n\nBenar:\n\n```bash\nsudo tail -n 5 /var/log/nginx/error.log\n# ada \"Connection refused\"?\n# nyalakan lagi aplikasinya\n```\n\n502 dikirim oleh Nginx yang sehat. Masalahnya di upstream: aplikasinya mati atau port di `proxy_pass` salah. Baca `error.log` dulu.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Dalam susunan reverse proxy, siapa yang menerima permintaan pertama kali dari browser pengunjung?",
+          "options": [
+            "Aplikasi Node.js di port 3000",
+            "Database",
+            "Nginx di port 80 atau 443",
+            "Firewall penyedia domain"
+          ],
+          "answer": 2,
+          "explanation": "Pengunjung hanya bicara dengan Nginx. Nginx yang meneruskan ke aplikasi di `127.0.0.1:3000`.",
+          "remedial": "- Reverse proxy: Nginx menerima di 80/443, meneruskan ke aplikasi di `127.0.0.1:PORT`\n- `proxy_pass http://127.0.0.1:3000;` + `include proxy_params;` (meneruskan Host dan IP asli)\n- Port aplikasi tidak dibuka di ufw\n- 502 = aplikasi tidak menjawab (error.log: `Connection refused`), 504 = aplikasi terlalu lama"
+        },
+        {
+          "question": "Pengunjung mendapat `502 Bad Gateway`. Artinya...",
+          "options": [
+            "Nginx berjalan, tapi aplikasi di belakangnya tidak menjawab",
+            "Nginx mati",
+            "File index.html tidak ada",
+            "Pengunjung salah mengetik domain"
+          ],
+          "answer": 0,
+          "explanation": "502 dikirim Nginx saat upstream (aplikasi) menolak atau tidak bisa dihubungi.",
+          "remedial": "- Reverse proxy: Nginx menerima di 80/443, meneruskan ke aplikasi di `127.0.0.1:PORT`\n- `proxy_pass http://127.0.0.1:3000;` + `include proxy_params;` (meneruskan Host dan IP asli)\n- Port aplikasi tidak dibuka di ufw\n- 502 = aplikasi tidak menjawab (error.log: `Connection refused`), 504 = aplikasi terlalu lama"
+        },
+        {
+          "question": "Apa guna `include proxy_params;` di server block reverse proxy?",
+          "options": [
+            "Membuka port 3000 di firewall",
+            "Menyalakan aplikasi secara otomatis",
+            "Mempercepat aplikasi",
+            "Meneruskan keterangan seperti domain dan IP asli pengunjung ke aplikasi"
+          ],
+          "answer": 3,
+          "explanation": "Tanpa header dari `proxy_params`, aplikasi melihat semua pengunjung berasal dari `127.0.0.1`.",
+          "remedial": "- Reverse proxy: Nginx menerima di 80/443, meneruskan ke aplikasi di `127.0.0.1:PORT`\n- `proxy_pass http://127.0.0.1:3000;` + `include proxy_params;` (meneruskan Host dan IP asli)\n- Port aplikasi tidak dibuka di ufw\n- 502 = aplikasi tidak menjawab (error.log: `Connection refused`), 504 = aplikasi terlalu lama"
+        },
+        {
+          "question": "Aplikasi berjalan di `127.0.0.1:3000` di belakang Nginx. Kenapa port 3000 tidak dibuka di ufw?",
+          "options": [
+            "Karena ufw tidak bisa membuka port di atas 1024",
+            "Karena pengunjung cukup lewat Nginx, dan aplikasi memang hanya perlu dihubungi dari server itu sendiri",
+            "Karena port 3000 khusus untuk database",
+            "Karena Nginx akan mati kalau port 3000 dibuka"
+          ],
+          "answer": 1,
+          "explanation": "Satu pintu: pengunjung → Nginx (80/443) → aplikasi (127.0.0.1:3000). Port aplikasi tetap tertutup dari luar.",
+          "remedial": "- Reverse proxy: Nginx menerima di 80/443, meneruskan ke aplikasi di `127.0.0.1:PORT`\n- `proxy_pass http://127.0.0.1:3000;` + `include proxy_params;` (meneruskan Host dan IP asli)\n- Port aplikasi tidak dibuka di ufw\n- 502 = aplikasi tidak menjawab (error.log: `Connection refused`), 504 = aplikasi terlalu lama"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `error.log` berisi potongan log error Nginx. Apa hasil perintah terakhir?",
+      "code": "# Isi file error.log:\n#   2026/09/01 08:40:12 [error] 1238#1238: *3 directory index of \"/var/www/toko/\" is forbidden, client: 203.0.113.50, server: toko.contoh, request: \"GET / HTTP/1.1\", host: \"toko.contoh\"\n#   2026/09/01 08:52:30 [error] 1238#1238: *5 open() \"/var/www/toko/index.html\" failed (13: Permission denied), client: 203.0.113.50, server: toko.contoh, request: \"GET / HTTP/1.1\", host: \"toko.contoh\"\n#   2026/09/05 10:20:11 [error] 1238#1238: *7 connect() failed (111: Connection refused) while connecting to upstream, client: 203.0.113.50, server: toko.contoh, request: \"GET / HTTP/1.1\", upstream: \"http://127.0.0.1:3000/\", host: \"toko.contoh\"\n#   2026/09/05 10:20:30 [error] 1238#1238: *8 connect() failed (111: Connection refused) while connecting to upstream, client: 192.0.2.15, server: toko.contoh, request: \"GET / HTTP/1.1\", upstream: \"http://127.0.0.1:3000/\", host: \"toko.contoh\"\n#   2026/09/05 10:21:02 [error] 1238#1238: *9 connect() failed (111: Connection refused) while connecting to upstream, client: 192.0.2.80, server: toko.contoh, request: \"GET / HTTP/1.1\", upstream: \"http://127.0.0.1:3000/\", host: \"toko.contoh\"\ngrep 'Connection refused' error.log | cut -d' ' -f2",
+      "options": [
+        "3",
+        "10:20:11",
+        "10:20:11\n10:20:30\n10:21:02",
+        "2026/09/05\n2026/09/05\n2026/09/05"
+      ],
+      "answer": 2,
+      "explanation": "`grep` menyisakan tiga baris `Connection refused`, lalu `cut -f2` mengambil kolom kedua (jam) dari setiap baris. Kolom pertama adalah tanggal."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Teruskan semua permintaan ke aplikasi di 127.0.0.1:3000\nlocation / {\n    ___ http://127.0.0.1:3000;\n    include proxy_params;\n}",
+      "answers": [
+        "proxy_pass"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Reverse proxy: Nginx menerima permintaan di port 80/443 lalu meneruskannya ke aplikasi di 127.0.0.1.",
+        "proxy_pass menunjuk alamat aplikasi; include proxy_params meneruskan domain dan IP asli pengunjung.",
+        "Port aplikasi tidak dibuka di ufw: pengunjung hanya bicara dengan Nginx.",
+        "502 Bad Gateway berarti aplikasi tidak menjawab; error.log mencatat Connection refused. 504 berarti aplikasi terlalu lama."
+      ]
+    }
+  ]
+}

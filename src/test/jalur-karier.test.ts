@@ -63,14 +63,14 @@ describe('statusKartu', () => {
     expect(statusKartu({ kelas: 'javascript', sebagian: 'DOM segera' })).toMatchObject({ jenis: 'sebagian', teks: `${n} modul · DOM segera` });
   });
 
-  it('Linux sudah dibuka: bagian yang belum ada tampil segera', () => {
+  it('Linux lengkap: dasar sampai server, Linux Lanjutan membuka modul Bash', () => {
     const n = jumlahModulTersedia('linux');
-    expect(n).toBe(8);
-    expect(statusKartu({ kelas: 'linux' })).toMatchObject({ jenis: 'tersedia', teks: 'Tersedia · 8 modul', url: '/kelas/linux' });
-    expect(statusKartu({ kelas: 'linux', sebagian: 'server segera' })).toMatchObject({ jenis: 'sebagian', teks: '8 modul · server segera' });
-    const lanjutan = statusKartu({ kelas: 'linux', nama: 'Linux Lanjutan', segera: true });
-    expect(lanjutan).toMatchObject({ jenis: 'segera', teks: 'Segera hadir', nama: 'Linux Lanjutan' });
-    expect(lanjutan.url).toBeUndefined();
+    expect(n).toBe(12);
+    expect(statusKartu({ kelas: 'linux' })).toMatchObject({ jenis: 'tersedia', teks: 'Tersedia · 12 modul', url: '/kelas/linux' });
+    const lanjutan = statusKartu({ kelas: 'linux', nama: 'Linux Lanjutan', modul: 'linux-bash', meta: '4 modul server' });
+    expect(lanjutan).toMatchObject({ jenis: 'tersedia', teks: 'Tersedia · 4 modul server', nama: 'Linux Lanjutan', url: '/kelas/linux?modul=linux-bash' });
+    const semua = JSON.stringify(dataJalur);
+    expect(semua).not.toContain('server segera');
   });
 
   it('kelas baru: ungu dan membuka halaman rencana; kelas segera: tidak bisa diklik', () => {

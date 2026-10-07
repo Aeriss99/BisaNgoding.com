@@ -1,0 +1,110 @@
+{
+  "id": "linux-cron-06",
+  "moduleId": "linux-cron",
+  "order": 6,
+  "title": "Studi Kasus: Backup Otomatis Setiap Malam",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya merangkai semuanya. Target Budi: folder `/home/budi/dokumen` di-backup **otomatis setiap malam jam 02.00**, dan backup yang lebih tua dari 7 hari dihapus supaya disk tidak penuh.\n\nLangkahnya:\n\n1. Siapkan script `backup.sh` dari modul sebelumnya (ternyata sudah aman untuk cron)\n2. Beri izin x, lalu **uji manual** sampai berhasil\n3. Tambahkan baris jadwal dengan `crontab -e`\n4. Hapus backup lama dengan `find ... -mtime +7`\n5. Besok paginya, cek log dan folder backup\n\nBayangkan petugas arsip yang setiap malam memotret isi lemari dokumen dan menyimpan fotonya di gudang. Supaya gudang tidak penuh, setiap malam ia juga membuang foto yang umurnya lebih dari seminggu. Paginya, kepala kantor cukup membaca buku laporan petugas itu."
+    },
+    {
+      "type": "theory",
+      "content": "**1. Script yang aman untuk cron.** Script `backup.sh` dari modul sebelumnya ternyata sudah siap dipakai cron. Satu-satunya yang diubah di server: baris tanggal memakai tanggal hari ini.\n\n```bash\n#!/bin/bash\n# backup.sh: arsipkan folder dokumen dengan nama bertanggal\nset -e\ncd \"$HOME\"\n\nsumber=\"dokumen\"\ntujuan=\"backup\"\ntanggal=$(date +%F)\narsip=\"$tujuan/backup-$tanggal.tar.gz\"\n\nif [ ! -d \"$sumber\" ]; then\n    echo \"Error: folder $sumber tidak ditemukan\" >&2\n    exit 1\nfi\n\nmkdir -p \"$tujuan\"\ntar -czf \"$arsip\" \"$sumber\"\necho \"Backup selesai: $arsip\"\n```\n\nKenapa aman untuk cron?\n\n- `cd \"$HOME\"` di awal: cron juga mengisi `HOME` dengan `/home/budi`, jadi script selalu pindah dulu ke folder home. Setelah itu, nama pendek `dokumen` dan `backup` pasti berarti `/home/budi/dokumen` dan `/home/budi/backup`, apa pun folder kerja saat script dijalankan. (Jangan menulis `~` di dalam tanda kutip: `\"~/dokumen\"` tidak diganti menjadi folder home.)\n- Semua program yang dipakai (`date`, `mkdir`, `tar`) ada di `/usr/bin`, jadi tetap ditemukan dengan `PATH` cron yang minim.\n- Di dalam script, `date +%F` boleh apa adanya. Aturan `\\%` hanya berlaku di baris crontab.\n- Pesan error dikirim ke stderr dan script keluar dengan `exit 1`, jadi kegagalan tetap tercatat di log asalkan baris crontab memakai `2>&1`.\n\n**2. Uji manual** dengan path lengkap, persis seperti yang akan dijalankan cron:\n\n```bash\nchmod +x /home/budi/backup.sh\n/home/budi/backup.sh\n```\n\n**3. Jadwalkan** dengan `crontab -e`, tambahkan:\n\n```text\n0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1\n```\n\n**4. Hapus backup lama:**\n\n```bash\nfind /home/budi/backup -name \"*.tar.gz\" -mtime +7 -delete\n```\n\n| Bagian | Artinya |\n|---|---|\n| `-name \"*.tar.gz\"` | hanya file arsip |\n| `-mtime +7` | terakhir diubah **lebih dari 7 hari** yang lalu |\n| `-mtime -7` | terakhir diubah **kurang dari 7 hari** yang lalu |\n| `-delete` | hapus file yang cocok |\n\n`-mtime` dihitung dari **waktu sekarang**, dalam satuan hari. Seperti kebiasaan `echo` sebelum `rm`, jalankan dulu **tanpa** `-delete` untuk melihat daftar file yang akan terhapus. Kalau sudah yakin, baris ini bisa ditambahkan di akhir `backup.sh`, atau dijadwalkan sendiri.\n\n**5. Besok paginya:** `cat /home/budi/backup.log` (ada pesan selesai atau pesan error?), `ls /home/budi/backup` (arsip hari ini ada?), dan kalau perlu `grep CRON /var/log/syslog` (cron menjalankannya?)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Uji manual.** Di folder home Budi ada `backup.sh` dan folder `dokumen` berisi `catatan.txt` dan `nilai.txt`. Di kelas ini, tanggal di script dikunci `2026-09-01` dengan `date -d` supaya hasilnya selalu sama; di servermu tulis `tanggal=$(date +%F)`. Budi sengaja menjalankannya dari folder lain dengan path lengkap, seperti cara cron.\n\n```bash\ncat backup.sh\nchmod +x backup.sh\ncd dokumen\n/home/budi/backup.sh\ncd\nls backup\ntar -tzf backup/backup-2026-09-01.tar.gz | sort\n```\n\nHasilnya:\n\n```text\n$ cat backup.sh\n#!/bin/bash\n# backup.sh: arsipkan folder dokumen dengan nama bertanggal\nset -e\ncd \"$HOME\"\n\nsumber=\"dokumen\"\ntujuan=\"backup\"\ntanggal=$(date -d 2026-09-01 +%F)   # di server: $(date +%F)\narsip=\"$tujuan/backup-$tanggal.tar.gz\"\n\nif [ ! -d \"$sumber\" ]; then\n    echo \"Error: folder $sumber tidak ditemukan\" >&2\n    exit 1\nfi\n\nmkdir -p \"$tujuan\"\ntar -czf \"$arsip\" \"$sumber\"\necho \"Backup selesai: $arsip\"\n$ chmod +x backup.sh\n$ cd dokumen\n$ /home/budi/backup.sh\nBackup selesai: backup/backup-2026-09-01.tar.gz\n$ cd\n$ ls backup\nbackup-2026-09-01.tar.gz\n$ tar -tzf backup/backup-2026-09-01.tar.gz | sort\ndokumen/\ndokumen/catatan.txt\ndokumen/nilai.txt\n```\n\n- Walaupun dijalankan dari folder `dokumen`, script tetap bekerja: script dipanggil dengan path lengkap, lalu di dalamnya `cd \"$HOME\"` memindahkan folder kerja ke home.\n- Arsip masuk ke `/home/budi/backup`, dan isinya diawali `dokumen/`. (Ingat, `tar -tzf` melihat isi arsip tanpa membongkarnya.)\n- Uji manual berhasil. Sekarang Budi menambahkan baris jadwal dengan `crontab -e`.\n\n**2. Meniru hasil cron.** Budi menjalankan script dengan pengalihan yang sama persis dengan baris crontab-nya, lalu membaca log seperti yang akan ia lakukan besok pagi.\n\n```bash\nchmod +x backup.sh\n/home/budi/backup.sh >> /home/budi/backup.log 2>&1\ncat backup.log\n```\n\nHasilnya:\n\n```text\n$ chmod +x backup.sh\n$ /home/budi/backup.sh >> /home/budi/backup.log 2>&1\n$ cat backup.log\nBackup selesai: backup/backup-2026-09-01.tar.gz\n```\n\n- Layar tetap kosong; semua pesan masuk ke `backup.log`. Inilah yang akan Budi baca setiap pagi.\n- Kalau folder `dokumen` tidak ada, log berisi `Error: folder dokumen tidak ditemukan`, karena pesan error ikut masuk berkat `2>&1`.\n\n**3. Menghapus backup lama.** Anggap hari ini 2 September 2026. Folder `backup` berisi tiga arsip, dan masing-masing terakhir diubah pada tanggal yang tertulis di namanya: dua dari awal Agustus, satu dari kemarin. Budi melihat dulu daftarnya tanpa `-delete`, baru menghapus.\n\n```bash\nls backup\nfind /home/budi/backup -name \"*.tar.gz\" -mtime +7 | sort\nfind /home/budi/backup -name \"*.tar.gz\" -mtime +7 -delete\nls backup\n```\n\nHasilnya:\n\n```text\n$ ls backup\nbackup-2026-08-01.tar.gz  backup-2026-08-02.tar.gz  backup-2026-09-01.tar.gz\n$ find /home/budi/backup -name \"*.tar.gz\" -mtime +7 | sort\n/home/budi/backup/backup-2026-08-01.tar.gz\n/home/budi/backup/backup-2026-08-02.tar.gz\n$ find /home/budi/backup -name \"*.tar.gz\" -mtime +7 -delete\n$ ls backup\nbackup-2026-09-01.tar.gz\n```\n\n- Arsip 1 dan 2 Agustus sudah lebih dari 7 hari, jadi masuk daftar. Arsip kemarin tidak.\n- `find` dengan `-delete` tidak menampilkan apa-apa; hasilnya dicek dengan `ls`.\n- `find` menampilkan path persis seperti tempat mulai yang ditulis, jadi hasilnya diawali `/home/budi/backup/`.\n\n**4. Setelah jadwal pertama lewat.** Selain membaca `backup.log`, Budi memastikan cron memang menjalankan script-nya (gambaran layar di server; tanggal dan angka di komputermu bisa berbeda):\n\n```text\n$ grep CRON /var/log/syslog | tail -n 1\n2026-09-01T02:00:01.402155+07:00 server-toko CRON[2842]: (budi) CMD (/home/budi/backup.sh >> /home/budi/backup.log 2>&1)\n```\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Langsung menjadwalkan tanpa uji manual**\n\nSalah:\n\n```text\n# script baru ditulis, langsung masuk crontab\n0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1\n```\n\nBenar:\n\n```text\n/home/budi/backup.sh\n# berhasil? baru tambahkan baris jadwal\n```\n\nKesalahan kecil (salah ketik, lupa `chmod +x`) baru ketahuan besok pagi, dan backup malam itu tidak ada. Uji manual memperlihatkan error saat itu juga.\n\n**2. Memakai -delete tanpa melihat daftar dan tanpa -name**\n\nSalah:\n\n```bash\nfind /home/budi/backup -mtime +7 -delete\n```\n\nBenar:\n\n```bash\nfind /home/budi/backup -name \"*.tar.gz\" -mtime +7\n# daftarnya benar? baru:\nfind /home/budi/backup -name \"*.tar.gz\" -mtime +7 -delete\n```\n\nTanpa `-name`, semua file lama di folder itu ikut terhapus, bukan hanya arsip. `-delete` tidak bertanya dan tidak ada tempat sampah.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Arti `-mtime +7` di perintah `find` adalah...",
+          "options": [
+            "File yang terakhir diubah lebih dari 7 hari yang lalu",
+            "File yang berukuran lebih dari 7 MB",
+            "File yang terakhir diubah kurang dari 7 hari yang lalu",
+            "Tujuh file yang paling lama"
+          ],
+          "answer": 0,
+          "explanation": "`-mtime` = waktu ubah dalam hari. `+7` = lebih dari 7 hari, `-7` = kurang dari 7 hari.",
+          "remedial": "- Script untuk cron: jangan bergantung pada folder kerja (`cd \"$HOME\"` di awal atau path lengkap), uji manual dulu dengan `/home/budi/backup.sh`\n- Jadwal: `0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1`\n- `-mtime +7` = lebih dari 7 hari lalu, `-mtime -7` = kurang dari 7 hari lalu\n- `find ... -name \"*.tar.gz\" -mtime +7` dulu, baru tambahkan `-delete`\n- Pagi harinya: baca `backup.log`, cek folder backup"
+        },
+        {
+          "question": "Kenapa script sebaiknya dijalankan manual dulu sebelum dijadwalkan di cron?",
+          "options": [
+            "Karena cron hanya mau menjalankan script yang pernah dijalankan",
+            "Supaya error langsung terlihat di layar dan bisa diperbaiki sebelum jadwalnya tiba",
+            "Supaya script berjalan lebih cepat",
+            "Karena izin x baru berlaku setelah script dijalankan sekali"
+          ],
+          "answer": 1,
+          "explanation": "Lewat cron, error tidak tampil di layar. Uji manual membuat masalah ketahuan saat itu juga.",
+          "remedial": "- Script untuk cron: jangan bergantung pada folder kerja (`cd \"$HOME\"` di awal atau path lengkap), uji manual dulu dengan `/home/budi/backup.sh`\n- Jadwal: `0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1`\n- `-mtime +7` = lebih dari 7 hari lalu, `-mtime -7` = kurang dari 7 hari lalu\n- `find ... -name \"*.tar.gz\" -mtime +7` dulu, baru tambahkan `-delete`\n- Pagi harinya: baca `backup.log`, cek folder backup"
+        },
+        {
+          "question": "Baris crontab mana yang menjalankan backup.sh setiap hari jam 02.00 dan menyimpan output serta pesan errornya?",
+          "options": [
+            "0 2 * * * backup.sh >> backup.log 2>&1",
+            "2 0 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1",
+            "0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log",
+            "0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1"
+          ],
+          "answer": 3,
+          "explanation": "Jadwal `0 2`, path lengkap untuk script dan log, dan `2>&1` supaya error ikut tercatat. Opsi pertama memakai nama pendek, opsi kedua jalan jam 00.02, opsi ketiga tidak menyimpan error.",
+          "remedial": "- Script untuk cron: jangan bergantung pada folder kerja (`cd \"$HOME\"` di awal atau path lengkap), uji manual dulu dengan `/home/budi/backup.sh`\n- Jadwal: `0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1`\n- `-mtime +7` = lebih dari 7 hari lalu, `-mtime -7` = kurang dari 7 hari lalu\n- `find ... -name \"*.tar.gz\" -mtime +7` dulu, baru tambahkan `-delete`\n- Pagi harinya: baca `backup.log`, cek folder backup"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi file backup.sh:\n#   #!/bin/bash\n#   # backup.sh: arsipkan folder dokumen dengan nama bertanggal\n#   set -e\n#   cd \"$HOME\"\n#\n#   sumber=\"dokumen\"\n#   tujuan=\"backup\"\n#   tanggal=$(date -d 2026-09-01 +%F)   # di server: $(date +%F)\n#   arsip=\"$tujuan/backup-$tanggal.tar.gz\"\n#\n#   if [ ! -d \"$sumber\" ]; then\n#       echo \"Error: folder $sumber tidak ditemukan\" >&2\n#       exit 1\n#   fi\n#\n#   mkdir -p \"$tujuan\"\n#   tar -czf \"$arsip\" \"$sumber\"\n#   echo \"Backup selesai: $arsip\"\n# Isi file dokumen/catatan.txt:\n#   rapat jam 9\n# Isi file dokumen/nilai.txt:\n#   budi 80\nchmod +x backup.sh\ncd dokumen\n/home/budi/backup.sh",
+          "options": [
+            "bash: /home/budi/backup.sh: No such file or directory",
+            "bash: backup.sh: command not found",
+            "Backup selesai: backup/backup-2026-09-01.tar.gz",
+            "Error: folder dokumen tidak ditemukan"
+          ],
+          "answer": 2,
+          "explanation": "Path lengkap `/home/budi/backup.sh` ditemukan dari folder mana pun. Di dalam script, `cd \"$HOME\"` memindahkan folder kerja ke home, jadi `dokumen` ditemukan walaupun script dipanggil dari dalam folder `dokumen`.",
+          "remedial": "- Script untuk cron: jangan bergantung pada folder kerja (`cd \"$HOME\"` di awal atau path lengkap), uji manual dulu dengan `/home/budi/backup.sh`\n- Jadwal: `0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1`\n- `-mtime +7` = lebih dari 7 hari lalu, `-mtime -7` = kurang dari 7 hari lalu\n- `find ... -name \"*.tar.gz\" -mtime +7` dulu, baru tambahkan `-delete`\n- Pagi harinya: baca `backup.log`, cek folder backup"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Anggap hari ini 2 September 2026, dan setiap arsip terakhir diubah pada tanggal di namanya. Apa hasil perintah terakhir?",
+      "code": "# Isi folder saat ini: backup/backup-2026-08-01.tar.gz, backup/backup-2026-09-01.tar.gz\nfind backup -name \"*.tar.gz\" -mtime +7",
+      "options": [
+        "backup/backup-2026-08-01.tar.gz",
+        "backup/backup-2026-09-01.tar.gz",
+        "backup/backup-2026-08-01.tar.gz\nbackup/backup-2026-09-01.tar.gz",
+        "(tidak ada output)"
+      ],
+      "answer": 0,
+      "explanation": "Arsip 1 Agustus sudah lebih dari 7 hari, arsip 1 September baru sehari. Hanya yang pertama cocok dengan `-mtime +7`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan arsip yang terakhir diubah LEBIH DARI 7 hari lalu (belum dihapus)\n# Isi folder saat ini: backup/backup-2026-08-01.tar.gz, backup/backup-2026-09-01.tar.gz\nfind backup -name \"*.tar.gz\" -mtime ___",
+      "answers": [
+        "+7"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Script untuk cron tidak boleh bergantung pada folder kerja (backup.sh memakai cd \"$HOME\"), dan diuji manual dulu dengan path lengkapnya.",
+        "Baris jadwal: 0 2 * * * /home/budi/backup.sh >> /home/budi/backup.log 2>&1.",
+        "find ... -name \"*.tar.gz\" -mtime +7 menampilkan arsip yang lebih tua dari 7 hari; tambahkan -delete setelah daftarnya benar.",
+        "Pagi harinya, baca backup.log dan cek isi folder backup."
+      ]
+    }
+  ]
+}
