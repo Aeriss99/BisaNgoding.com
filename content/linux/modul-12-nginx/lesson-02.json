@@ -1,0 +1,110 @@
+{
+  "id": "linux-nginx-02",
+  "moduleId": "linux-nginx",
+  "order": 2,
+  "title": "Memasang Nginx",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Nginx ada di repository resmi Ubuntu, jadi cara memasangnya sama seperti program lain: dengan `apt` (modul Menginstal Program).\n\nPerintah di pelajaran ini dijalankan **di server** (kecuali latihan membaca file di akhir contoh), setelah Budi masuk ke `server-toko` sebagai user `sari` (`ssh sari@203.0.113.10`, atau `ssh toko` kalau sudah membuat pintasan di `~/.ssh/config`). Prompt-nya `sari@server-toko:~$`.\n\nUrutannya:\n\n1. perbarui daftar paket, lalu pasang Nginx\n2. pastikan service-nya berjalan\n3. buka pintu firewall untuk port 80\n4. coba dari server, lalu dari laptop\n\nSeperti membuka warung baru. Pertama memasang etalase (instal). Lalu menyalakan lampu (service berjalan). Lalu membuka pintu depan, karena satpam (firewall) hanya membuka pintu yang diizinkan. Terakhir, kamu sendiri mencoba menjadi pembeli pertama: dari dalam warung (`curl` di server) dan dari jalan depan (browser di laptop)."
+    },
+    {
+      "type": "theory",
+      "content": "| Perintah | Artinya |\n|---|---|\n| `sudo apt update` | perbarui daftar paket |\n| `sudo apt install nginx` | pasang Nginx |\n| `systemctl status nginx` | lihat keadaan service |\n| `systemctl is-active nginx` | jawab `active` atau `inactive` |\n| `sudo ufw app list` | daftar nama aplikasi yang dikenal ufw |\n| `sudo ufw allow 'Nginx HTTP'` | buka port 80 |\n| `curl -I http://localhost` | minta header halaman dari server itu sendiri |\n\nCatatan penting:\n\n- Saat memasang, `apt` bertanya `[Y/n]` karena ikut memasang paket tambahan `nginx-common`.\n- **Setelah terpasang, Nginx langsung berjalan** dan sudah di-*enable* (menyala otomatis saat boot). Kamu tidak perlu `start` lagi.\n- **Firewall.** Di modul sebelumnya, ufw dinyalakan setelah mengizinkan OpenSSH. Kalau hanya OpenSSH yang diizinkan, port 80 masih tertutup untuk pengunjung dari luar. Setelah Nginx terpasang, ufw mengenal tiga nama aplikasi baru:\n\n| Nama di ufw | Port yang dibuka |\n|---|---|\n| `Nginx HTTP` | 80 |\n| `Nginx HTTPS` | 443 |\n| `Nginx Full` | 80 dan 443 |\n\nNama yang mengandung spasi harus diberi tanda kutip: `'Nginx HTTP'`. Untuk sekarang cukup port 80. Di pelajaran 6 (HTTPS), aturan ini diganti `'Nginx Full'` supaya port 443 juga terbuka.\n\n- **`curl -I http://localhost`** di server meminta ***header*** saja, yaitu baris-baris keterangan di awal jawaban (tanpa isi halamannya). Karena dijalankan dari dalam server, permintaan ini tidak lewat pintu firewall. Arti baris-baris header-nya:\n\n| Baris | Artinya |\n|---|---|\n| `HTTP/1.1 200 OK` | kode status |\n| `Server:` | nama dan versi web server |\n| `Date:` | waktu jawaban dikirim, selalu dalam zona **GMT** |\n| `Content-Type:` | jenis isi, `text/html` = halaman web |\n| `Content-Length:` | ukuran isi dalam byte |\n| `Last-Modified:` | kapan file halaman terakhir diubah |\n\n- `curl` biasanya sudah ada di Ubuntu Server. Kalau belum: `sudo apt install curl`.\n\n**Mengendalikan Nginx** sama seperti service lain (modul Proses dan Service): `sudo systemctl stop nginx`, `start`, `restart`, dan `reload` (baca ulang pengaturan tanpa memutus pengunjung). Semuanya diam kalau berhasil."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nGambaran layar di server (sebagian baris saja; angka, tanggal, dan versi di komputermu bisa berbeda).\n\n**1. Memasang Nginx.**\n\n```text\nsari@server-toko:~$ sudo apt update\n...\nsari@server-toko:~$ sudo apt install nginx\nReading package lists... Done\nBuilding dependency tree... Done\nReading state information... Done\nThe following additional packages will be installed:\n  nginx-common\n...\nThe following NEW packages will be installed:\n  nginx nginx-common\n0 upgraded, 2 newly installed, 0 to remove and 12 not upgraded.\n...\nDo you want to continue? [Y/n]\n```\n\nBudi mengetik `y` lalu Enter, dan apt mengunduh serta memasang kedua paket.\n\n**2. Memastikan Nginx berjalan.**\n\n```text\nsari@server-toko:~$ systemctl is-active nginx\nactive\nsari@server-toko:~$ systemctl status nginx\n● nginx.service - A high performance web server and a reverse proxy server\n     Loaded: loaded (/usr/lib/systemd/system/nginx.service; enabled; preset: enabled)\n     Active: active (running) since Tue 2026-09-01 09:00:12 WIB; 1h 15min ago\n```\n\n`enabled` = menyala otomatis saat boot, `active (running)` = sedang berjalan. Tekan `q` kalau tampilan `status` tidak kembali ke prompt.\n\n**3. Membuka port 80 di firewall.**\n\n```text\nsari@server-toko:~$ sudo ufw app list\nAvailable applications:\n  Nginx Full\n  Nginx HTTP\n  Nginx HTTPS\n  OpenSSH\nsari@server-toko:~$ sudo ufw allow 'Nginx HTTP'\nRules updated\nRules updated (v6)\n```\n\n**4. Mencoba dari server.**\n\n```text\nsari@server-toko:~$ curl -I http://localhost\nHTTP/1.1 200 OK\nServer: nginx/1.24.0 (Ubuntu)\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nContent-Type: text/html\nContent-Length: 615\nLast-Modified: Tue, 01 Sep 2026 01:58:40 GMT\nConnection: keep-alive\nETag: \"66d3cb50-267\"\nAccept-Ranges: bytes\n```\n\n**5. Mencoba dari laptop.** Budi membuka `http://203.0.113.10` di browser dan melihat halaman bawaan berjudul **Welcome to nginx!**. File halaman itu ada di server, di `/var/www/html/index.nginx-debian.html`.\n\n**6. Membaca header yang disimpan.** Budi menyalin teks header dari langkah 4 ke file `header.txt` di laptopnya, lalu membacanya dengan perintah dari modul Teks.\n\n```bash\nhead -n 1 header.txt\ngrep Server header.txt\ngrep -c GMT header.txt\n```\n\nHasilnya:\n\n```text\n$ head -n 1 header.txt\nHTTP/1.1 200 OK\n$ grep Server header.txt\nServer: nginx/1.24.0 (Ubuntu)\n$ grep -c GMT header.txt\n2\n```\n\n- Baris pertama selalu berisi kode status: `200 OK`.\n- `grep -c GMT` menghitung 2 baris: `Date` dan `Last-Modified`. Waktu di header HTTP selalu ditulis dalam GMT, jadi 02:00 GMT sama dengan 09:00 WIB."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira Nginx rusak karena tidak bisa dibuka dari laptop**\n\nSalah:\n\n```bash\n# di server: curl -I http://localhost -> 200 OK\n# di laptop: http://203.0.113.10 menunggu lama lalu gagal\nsudo apt remove nginx\n```\n\nBenar:\n\n```bash\nsudo ufw status\nsudo ufw allow 'Nginx HTTP'\n```\n\nKalau dari server berhasil tapi dari luar gagal, Nginx-nya sehat. Yang menghalangi adalah firewall: port 80 belum diizinkan.\n\n**2. Menulis nama aplikasi ufw tanpa kutip**\n\nSalah:\n\n```bash\nsudo ufw allow Nginx HTTP\n```\n\nBenar:\n\n```bash\nsudo ufw allow 'Nginx HTTP'\n```\n\nTanpa kutip, bash memecahnya menjadi dua argumen, `Nginx` dan `HTTP`, sehingga ufw menolak perintah itu. Kutip menyatukannya menjadi satu nama.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Budi baru saja selesai menjalankan `sudo apt install nginx`. Bagaimana keadaan Nginx?",
+          "options": [
+            "Terpasang tapi mati, harus `start` dulu",
+            "Sudah berjalan dan akan menyala otomatis saat boot",
+            "Berjalan, tapi mati lagi setelah server di-restart",
+            "Belum bisa dipakai sebelum server di-restart"
+          ],
+          "answer": 1,
+          "explanation": "Di Ubuntu, paket nginx langsung menyalakan service-nya dan mengaktifkan nyala otomatis (`enabled`).",
+          "remedial": "- Pasang: `sudo apt update` lalu `sudo apt install nginx`\n- Setelah terpasang, Nginx langsung berjalan dan aktif saat boot\n- Cek: `systemctl is-active nginx` atau `systemctl status nginx`\n- Firewall: `sudo ufw allow 'Nginx HTTP'` (port 80), `'Nginx Full'` (80 dan 443)\n- Uji dari server: `curl -I http://localhost`. Baris pertama = kode status"
+        },
+        {
+          "question": "Perintah `sudo ufw allow 'Nginx HTTP'` membuka port...",
+          "options": [
+            "22",
+            "443",
+            "80",
+            "80 dan 443"
+          ],
+          "answer": 2,
+          "explanation": "`Nginx HTTP` = port 80. `Nginx HTTPS` = 443, dan `Nginx Full` = keduanya.",
+          "remedial": "- Pasang: `sudo apt update` lalu `sudo apt install nginx`\n- Setelah terpasang, Nginx langsung berjalan dan aktif saat boot\n- Cek: `systemctl is-active nginx` atau `systemctl status nginx`\n- Firewall: `sudo ufw allow 'Nginx HTTP'` (port 80), `'Nginx Full'` (80 dan 443)\n- Uji dari server: `curl -I http://localhost`. Baris pertama = kode status"
+        },
+        {
+          "question": "Baris `Date:` di header jawaban Nginx ditulis dalam zona waktu...",
+          "options": [
+            "WIB",
+            "zona waktu server",
+            "zona waktu laptop pengunjung",
+            "GMT"
+          ],
+          "answer": 3,
+          "explanation": "Header HTTP selalu memakai GMT. `Date: Tue, 01 Sep 2026 02:00:00 GMT` sama dengan pukul 09:00 WIB.",
+          "remedial": "- Pasang: `sudo apt update` lalu `sudo apt install nginx`\n- Setelah terpasang, Nginx langsung berjalan dan aktif saat boot\n- Cek: `systemctl is-active nginx` atau `systemctl status nginx`\n- Firewall: `sudo ufw allow 'Nginx HTTP'` (port 80), `'Nginx Full'` (80 dan 443)\n- Uji dari server: `curl -I http://localhost`. Baris pertama = kode status"
+        },
+        {
+          "question": "Perintah untuk memastikan Nginx sedang berjalan, tanpa mengubah apa pun dan tanpa sudo, adalah...",
+          "options": [
+            "systemctl is-active nginx",
+            "sudo systemctl start nginx",
+            "sudo apt install nginx",
+            "sudo ufw allow 'Nginx HTTP'"
+          ],
+          "answer": 0,
+          "explanation": "`is-active` hanya bertanya dan menjawab `active` atau `inactive`. Perintah lain mengubah sesuatu dan butuh sudo.",
+          "remedial": "- Pasang: `sudo apt update` lalu `sudo apt install nginx`\n- Setelah terpasang, Nginx langsung berjalan dan aktif saat boot\n- Cek: `systemctl is-active nginx` atau `systemctl status nginx`\n- Firewall: `sudo ufw allow 'Nginx HTTP'` (port 80), `'Nginx Full'` (80 dan 443)\n- Uji dari server: `curl -I http://localhost`. Baris pertama = kode status"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `header.txt` berisi header jawaban Nginx. Apa hasil perintah terakhir?",
+      "code": "# Isi file header.txt:\n#   HTTP/1.1 200 OK\n#   Server: nginx/1.24.0 (Ubuntu)\n#   Date: Tue, 01 Sep 2026 02:00:00 GMT\n#   Content-Type: text/html\n#   Content-Length: 615\n#   Last-Modified: Tue, 01 Sep 2026 01:58:40 GMT\n#   Connection: keep-alive\n#   ETag: \"66d3cb50-267\"\n#   Accept-Ranges: bytes\ngrep Type header.txt",
+      "options": [
+        "text/html",
+        "Content-Type: text/html",
+        "Content-Type: text/html\nContent-Length: 615",
+        "1"
+      ],
+      "answer": 1,
+      "explanation": "`grep` menampilkan seluruh baris yang mengandung `Type`. Hanya baris `Content-Type` yang cocok."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Buka port 80 saja (HTTP) di firewall untuk Nginx\nsudo ufw allow ___",
+      "answers": [
+        "'Nginx HTTP'|\"Nginx HTTP\"|80/tcp|80"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Nginx dipasang dengan sudo apt install nginx, lalu langsung berjalan dan aktif saat boot.",
+        "Cek keadaannya dengan systemctl is-active nginx atau systemctl status nginx.",
+        "Buka port di firewall: 'Nginx HTTP' untuk 80, 'Nginx Full' untuk 80 dan 443 (pakai kutip).",
+        "curl -I http://localhost menguji Nginx dari dalam server; baris pertama berisi kode status.",
+        "Dari laptop, http://IP-server menampilkan halaman bawaan Welcome to nginx!"
+      ]
+    }
+  ]
+}

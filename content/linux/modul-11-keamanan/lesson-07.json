@@ -1,0 +1,111 @@
+{
+  "id": "linux-keamanan-07",
+  "moduleId": "linux-keamanan",
+  "order": 7,
+  "title": "Update dan Memantau Log Login",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Dua lapisan terakhir:\n\n- **Update rutin.** Program yang terpasang kadang ternyata punya celah keamanan. Pembuatnya merilis perbaikan lewat update, jadi server yang rajin di-update lebih sulit dibobol.\n- **Memantau log.** Server mencatat setiap percobaan login SSH di **`/var/log/auth.log`**. Dari situ kamu tahu siapa yang mencoba masuk dan siapa yang berhasil. Log SSH juga bisa dibaca dengan `journalctl -u ssh` (modul 7).\n\nMembaca `auth.log` biasanya perlu `sudo`, misalnya `sudo grep sshd /var/log/auth.log`.\n\n`auth.log` itu rekaman CCTV di pintu depan: siapa datang, jam berapa, berhasil masuk atau tidak. **fail2ban** adalah satpam yang menonton rekaman itu dan mengusir orang yang berkali-kali gagal membuka pintu. **Update otomatis** seperti tukang yang setiap hari datang memperbaiki engsel dan jendela yang rusak."
+    },
+    {
+      "type": "theory",
+      "content": "**Membaca satu baris `auth.log`:**\n\n```text\n2026-09-01T03:14:07.512345+07:00 server-toko sshd[2345]: Invalid user admin from 198.51.100.23 port 51240\n```\n\n| Bagian | Artinya |\n|---|---|\n| `2026-09-01T03:14:07.512345+07:00` | tanggal, `T`, jam; `+07:00` = WIB |\n| `server-toko` | nama server |\n| `sshd[2345]` | program yang menulis (SSH server) dan PID-nya |\n| sisanya | pesannya |\n\n| Pesan | Artinya |\n|---|---|\n| `Invalid user admin from IP` | nama user `admin` tidak ada di server (bot menebak) |\n| `Failed password for root from IP` | password salah untuk user `root` |\n| `Failed password for invalid user admin from IP` | password salah untuk user yang tidak ada |\n| `Accepted publickey for sari from IP` | login BERHASIL dengan kunci |\n\nPerhatikan huruf besar: `Invalid user` (awal pesan) berbeda dengan `invalid user` di dalam baris `Failed password`. `grep` peka huruf besar/kecil.\n\nResep dari modul 4 yang berguna (pakai `sudo` di server):\n\n```bash\ngrep -c \"Failed password\" /var/log/auth.log\ngrep Accepted /var/log/auth.log\ngrep \"Invalid user\" /var/log/auth.log | cut -d' ' -f8 | sort | uniq -c\n```\n\nPada baris `Invalid user`, kolom ke-6 (dipisah spasi) adalah nama user yang ditebak, dan kolom ke-8 adalah IP-nya.\n\n**Update keamanan otomatis.** Ubuntu Server sudah memasang paket `unattended-upgrades`. Pengaturannya di `/etc/apt/apt.conf.d/20auto-upgrades`:\n\n```text\nAPT::Periodic::Update-Package-Lists \"1\";\nAPT::Periodic::Unattended-Upgrade \"1\";\n```\n\n`\"1\"` = setiap hari: daftar paket diperbarui dan update **keamanan** dipasang otomatis. Kalau belum aktif: `sudo dpkg-reconfigure -plow unattended-upgrades` (jawab Yes). Update lain tetap dipasang sendiri sesekali dengan `sudo apt update` lalu `sudo apt upgrade` (modul 6).\n\n**Perlu restart?** Kalau file `/var/run/reboot-required` ada (isinya `*** System restart required ***`), server perlu dinyalakan ulang, misalnya setelah update kernel. Jalankan `sudo reboot`: koneksi SSH terputus, tunggu sebentar, lalu login lagi.\n\n**fail2ban** (`sudo apt install fail2ban`) membaca log dan memblokir sementara IP yang gagal login berkali-kali dalam waktu singkat (bawaan: 5 kali gagal dalam 10 menit → diblokir 10 menit). Di Ubuntu, penjagaan SSH (*jail* bernama `sshd`) langsung aktif setelah dipasang. Pengaturan sendiri ditulis di `/etc/fail2ban/jail.local`, jangan mengubah `jail.conf`. Kalau login sudah memakai kunci saja, fail2ban adalah lapisan **tambahan**, bukan pengganti.\n\n**Checklist keamanan server** (urut):\n\n1. user biasa + sudo (`adduser`, `usermod -aG sudo`)\n2. kunci SSH terpasang (`ssh-keygen`, `ssh-copy-id`), login kunci diuji di terminal baru\n3. `PasswordAuthentication no` dan `PermitRootLogin no`, lalu `sshd -t` dan `restart ssh`\n4. `ufw allow OpenSSH`, baru `ufw enable`\n5. update keamanan otomatis aktif, restart kalau ada `reboot-required`\n6. fail2ban terpasang, `auth.log` diperiksa sesekali"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi menyalin delapan baris `auth.log` dari server-toko ke file `auth.log`, lalu menganalisisnya.\n\n```bash\nwc -l auth.log\ngrep -c \"Failed password\" auth.log\ngrep Accepted auth.log\ngrep \"Invalid user\" auth.log | cut -d' ' -f6\ngrep \"Invalid user\" auth.log | cut -d' ' -f8 | sort | uniq -c\n```\n\nHasilnya:\n\n```text\n$ wc -l auth.log\n8 auth.log\n$ grep -c \"Failed password\" auth.log\n4\n$ grep Accepted auth.log\n2026-09-01T09:02:11.220019+07:00 server-toko sshd[2402]: Accepted publickey for sari from 203.0.113.50 port 50122 ssh2: ED25519 SHA256:Q3r8LmZ1vT6yKc0pN4wJ7sB2dF5gH9uE1oA3iX8kR2c\n$ grep \"Invalid user\" auth.log | cut -d' ' -f6\nadmin\ntest\noracle\n$ grep \"Invalid user\" auth.log | cut -d' ' -f8 | sort | uniq -c\n      2 198.51.100.23\n      1 198.51.100.77\n```\n\n- Ada 4 tebakan password yang gagal, dan hanya 1 login berhasil: `sari` dengan kunci dari `203.0.113.50`.\n- Bot menebak nama user `admin`, `test`, dan `oracle`, yang semuanya tidak ada di server.\n- `198.51.100.23` mencoba dua nama user yang tidak ada, `198.51.100.77` satu.\n\nBagian berikut tidak bisa dijalankan di kelas ini, jadi ditampilkan sebagai gambaran layar di server (angka di servermu bisa berbeda):\n\n```text\n$ cat /etc/apt/apt.conf.d/20auto-upgrades\nAPT::Periodic::Update-Package-Lists \"1\";\nAPT::Periodic::Unattended-Upgrade \"1\";\n$ cat /var/run/reboot-required\n*** System restart required ***\n$ sudo fail2ban-client status sshd\nStatus for the jail: sshd\n|- Filter\n|  |- Currently failed:\t0\n|  |- Total failed:\t5\n|  `- File list:\t/var/log/auth.log\n`- Actions\n   |- Currently banned:\t1\n   |- Total banned:\t1\n   `- Banned IP list:\t198.51.100.23\n```\n\n- Update keamanan otomatis aktif setiap hari.\n- Server perlu restart, jadi Budi menjalankan `sudo reboot` di jam sepi.\n- fail2ban mencatat 5 percobaan gagal dan sedang memblokir 1 IP: `198.51.100.23`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Panik melihat banyak Failed password**\n\nSalah:\n\n```text\n# ratusan baris \"Failed password\"\n# \"servernya sudah dibobol!\"\n```\n\nBenar:\n\n```text\n# Failed = percobaan yang GAGAL.\n# Periksa baris Accepted: apakah semuanya\n# dari user dan IP yang kamu kenal?\n```\n\nServer di internet memang terus dicoba. Yang perlu diwaspadai adalah baris `Accepted` dari user atau IP yang tidak kamu kenal.\n\n**2. Mengubah jail.conf**\n\nSalah:\n\n```bash\nsudo nano /etc/fail2ban/jail.conf\n```\n\nBenar:\n\n```bash\nsudo nano /etc/fail2ban/jail.local\n```\n\n`jail.conf` adalah file bawaan paket yang bisa tertimpa saat fail2ban di-update. Pengaturan sendiri ditulis di `jail.local`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti baris log ini?",
+          "code": "2026-09-01T09:02:11.220019+07:00 server-toko sshd[2402]: Accepted publickey for sari from 203.0.113.50 port 50122 ssh2: ED25519 SHA256:Q3r8LmZ1vT6yKc0pN4wJ7sB2dF5gH9uE1oA3iX8kR2c",
+          "options": [
+            "sari gagal login karena kunci salah",
+            "Ada bot yang menebak user sari",
+            "sari berhasil login dengan kunci dari IP 203.0.113.50",
+            "Kunci publik sari dihapus dari server"
+          ],
+          "answer": 2,
+          "explanation": "`Accepted publickey` = login berhasil memakai kunci.",
+          "remedial": "- `/var/log/auth.log` mencatat login SSH: `Invalid user`, `Failed password`, `Accepted publickey`\n- Saring dengan `grep`, `wc -l`, `cut`, `sort | uniq -c` (pakai sudo di server)\n- `unattended-upgrades` memasang update keamanan otomatis; cek `/etc/apt/apt.conf.d/20auto-upgrades`\n- `/var/run/reboot-required` ada → perlu `sudo reboot`\n- fail2ban memblokir sementara IP yang berkali-kali gagal; lapisan tambahan, bukan pengganti"
+        },
+        {
+          "question": "Baris `Invalid user oracle from 198.51.100.77 port 40112` berarti...",
+          "options": [
+            "Ada yang mencoba login dengan nama user oracle, yang tidak ada di server",
+            "User oracle berhasil login",
+            "Password user oracle salah satu kali, padahal user itu ada",
+            "IP 198.51.100.77 sudah diblokir"
+          ],
+          "answer": 0,
+          "explanation": "`Invalid user` = nama user tidak ada. Bot sering menebak nama seperti `admin`, `test`, `oracle`.",
+          "remedial": "- `/var/log/auth.log` mencatat login SSH: `Invalid user`, `Failed password`, `Accepted publickey`\n- Saring dengan `grep`, `wc -l`, `cut`, `sort | uniq -c` (pakai sudo di server)\n- `unattended-upgrades` memasang update keamanan otomatis; cek `/etc/apt/apt.conf.d/20auto-upgrades`\n- `/var/run/reboot-required` ada → perlu `sudo reboot`\n- fail2ban memblokir sementara IP yang berkali-kali gagal; lapisan tambahan, bukan pengganti"
+        },
+        {
+          "question": "Isi `/etc/apt/apt.conf.d/20auto-upgrades` adalah dua baris dengan nilai `\"1\"`. Artinya...",
+          "options": [
+            "Server di-restart sekali sehari",
+            "Hanya satu paket yang boleh di-update",
+            "Update dimatikan",
+            "Setiap hari daftar paket diperbarui dan update keamanan dipasang otomatis"
+          ],
+          "answer": 3,
+          "explanation": "`\"1\"` = setiap hari. Bawaannya hanya update keamanan yang dipasang otomatis.",
+          "remedial": "- `/var/log/auth.log` mencatat login SSH: `Invalid user`, `Failed password`, `Accepted publickey`\n- Saring dengan `grep`, `wc -l`, `cut`, `sort | uniq -c` (pakai sudo di server)\n- `unattended-upgrades` memasang update keamanan otomatis; cek `/etc/apt/apt.conf.d/20auto-upgrades`\n- `/var/run/reboot-required` ada → perlu `sudo reboot`\n- fail2ban memblokir sementara IP yang berkali-kali gagal; lapisan tambahan, bukan pengganti"
+        },
+        {
+          "question": "Apa yang dilakukan fail2ban?",
+          "options": [
+            "Mengganti login password dengan kunci",
+            "Memblokir sementara IP yang gagal login berkali-kali dalam waktu singkat",
+            "Memasang update keamanan setiap hari",
+            "Menghapus file auth.log yang terlalu besar"
+          ],
+          "answer": 1,
+          "explanation": "fail2ban membaca log, lalu memblokir IP yang terlalu sering gagal (bawaan: 5 kali dalam 10 menit → 10 menit).",
+          "remedial": "- `/var/log/auth.log` mencatat login SSH: `Invalid user`, `Failed password`, `Accepted publickey`\n- Saring dengan `grep`, `wc -l`, `cut`, `sort | uniq -c` (pakai sudo di server)\n- `unattended-upgrades` memasang update keamanan otomatis; cek `/etc/apt/apt.conf.d/20auto-upgrades`\n- `/var/run/reboot-required` ada → perlu `sudo reboot`\n- fail2ban memblokir sementara IP yang berkali-kali gagal; lapisan tambahan, bukan pengganti"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `auth.log` berisi potongan log login server. Apa hasil perintah terakhir?",
+      "code": "# Isi file auth.log:\n#   2026-09-01T03:14:07.512345+07:00 server-toko sshd[2345]: Invalid user admin from 198.51.100.23 port 51240\n#   2026-09-01T03:14:09.104422+07:00 server-toko sshd[2345]: Failed password for invalid user admin from 198.51.100.23 port 51240 ssh2\n#   2026-09-01T03:15:31.880123+07:00 server-toko sshd[2351]: Failed password for root from 198.51.100.23 port 51302 ssh2\n#   2026-09-01T03:16:02.310777+07:00 server-toko sshd[2356]: Invalid user test from 198.51.100.23 port 51388\n#   2026-09-01T03:16:04.902316+07:00 server-toko sshd[2356]: Failed password for invalid user test from 198.51.100.23 port 51388 ssh2\n#   2026-09-01T04:20:45.118230+07:00 server-toko sshd[2371]: Invalid user oracle from 198.51.100.77 port 40112\n#   2026-09-01T04:20:47.650941+07:00 server-toko sshd[2371]: Failed password for invalid user oracle from 198.51.100.77 port 40112 ssh2\n#   2026-09-01T09:02:11.220019+07:00 server-toko sshd[2402]: Accepted publickey for sari from 203.0.113.50 port 50122 ssh2: ED25519 SHA256:Q3r8LmZ1vT6yKc0pN4wJ7sB2dF5gH9uE1oA3iX8kR2c\ngrep -c \"Invalid user\" auth.log",
+      "options": [
+        "6",
+        "8",
+        "3",
+        "4"
+      ],
+      "answer": 2,
+      "explanation": "Hanya tiga baris yang mengandung `Invalid user` dengan huruf I besar. Baris `Failed password for invalid user ...` memakai huruf i kecil, dan grep peka huruf besar/kecil."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Hitung tebakan password yang gagal\n# Isi file auth.log:\n#   2026-09-01T03:14:07.512345+07:00 server-toko sshd[2345]: Invalid user admin from 198.51.100.23 port 51240\n#   2026-09-01T03:14:09.104422+07:00 server-toko sshd[2345]: Failed password for invalid user admin from 198.51.100.23 port 51240 ssh2\n#   2026-09-01T03:15:31.880123+07:00 server-toko sshd[2351]: Failed password for root from 198.51.100.23 port 51302 ssh2\n#   2026-09-01T03:16:02.310777+07:00 server-toko sshd[2356]: Invalid user test from 198.51.100.23 port 51388\n#   2026-09-01T03:16:04.902316+07:00 server-toko sshd[2356]: Failed password for invalid user test from 198.51.100.23 port 51388 ssh2\n#   2026-09-01T04:20:45.118230+07:00 server-toko sshd[2371]: Invalid user oracle from 198.51.100.77 port 40112\n#   2026-09-01T04:20:47.650941+07:00 server-toko sshd[2371]: Failed password for invalid user oracle from 198.51.100.77 port 40112 ssh2\n#   2026-09-01T09:02:11.220019+07:00 server-toko sshd[2402]: Accepted publickey for sari from 203.0.113.50 port 50122 ssh2: ED25519 SHA256:Q3r8LmZ1vT6yKc0pN4wJ7sB2dF5gH9uE1oA3iX8kR2c\ngrep -c \"___\" auth.log",
+      "answers": [
+        "Failed password|Failed"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "/var/log/auth.log mencatat setiap login SSH: Invalid user, Failed password, dan Accepted publickey.",
+        "grep, wc -l, cut, dan sort | uniq -c membantu meringkas log yang panjang.",
+        "unattended-upgrades memasang update keamanan otomatis; reboot-required menandakan perlu restart.",
+        "fail2ban memblokir sementara IP yang berkali-kali gagal login.",
+        "Checklist: user + sudo, kunci SSH, matikan password dan root, ufw, update otomatis, pantau log."
+      ]
+    }
+  ]
+}

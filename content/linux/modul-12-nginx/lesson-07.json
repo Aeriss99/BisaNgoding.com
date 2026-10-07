@@ -1,0 +1,111 @@
+{
+  "id": "linux-nginx-07",
+  "moduleId": "linux-nginx",
+  "order": 7,
+  "title": "Studi Kasus: Website Toko Online",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya merangkai semuanya. Budi menyewa VPS (server sewaan di internet) baru dengan IP `203.0.113.10` dan domain `toko.contoh`. Tujuannya: `https://toko.contoh` online dan servernya aman.\n\nUrutan di pelajaran ini bisa kamu pakai sebagai **checklist** setiap kali menyiapkan server baru. Urutannya penting: langkah keamanan dulu, baru website.\n\nSeperti membuka cabang toko baru. Pertama urus kunci dan satpam (keamanan). Lalu pasang etalase (Nginx), isi barang (unggah file), pasang papan nama di jalan (domain), dan gantung izin usaha resmi (HTTPS). Kalau ada pembeli yang mengeluh, periksa berurutan: pintunya terbuka (firewall)? lampunya menyala (Nginx berjalan)? alamatnya benar (DNS)? barangnya ada dan boleh diambil (file dan izin)?"
+    },
+    {
+      "type": "theory",
+      "content": "**Urutan lengkap dari VPS baru:**\n\n| No | Langkah | Perintah utama |\n|---|---|---|\n| 1 | login pertama sebagai root | `ssh root@203.0.113.10` |\n| 2 | buat user + sudo | `sudo adduser sari`, `sudo usermod -aG sudo sari` |\n| 3 | pasang kunci SSH (dari laptop) | `ssh-keygen -t ed25519`, `ssh-copy-id sari@203.0.113.10` |\n| 4 | uji login kunci di terminal BARU | `ssh sari@203.0.113.10` |\n| 5 | matikan login password dan root | `PasswordAuthentication no`, `PermitRootLogin no`, `sudo sshd -t`, `sudo systemctl restart ssh` |\n| 6 | firewall | `sudo ufw allow OpenSSH`, lalu `sudo ufw enable` |\n| 7 | pasang Nginx, buka web | `sudo apt install nginx`, `sudo ufw allow 'Nginx Full'` |\n| 8 | siapkan folder website | `sudo mkdir -p /var/www/toko`, `sudo chown -R sari:sari /var/www/toko` |\n| 9 | unggah file (dari laptop) | `scp -r toko/* sari@203.0.113.10:/var/www/toko/` |\n| 10 | server block | tulis `sites-available/toko`, `sudo ln -s ...`, `sudo nginx -t`, `sudo systemctl reload nginx` |\n| 11 | domain | record A `toko.contoh` dan `www.toko.contoh` → `203.0.113.10` |\n| 12 | HTTPS | `sudo certbot --nginx -d toko.contoh -d www.toko.contoh` |\n| 13 | cek | buka `https://toko.contoh`, `sudo certbot renew --dry-run` |\n\nCatatan urutan:\n\n- Langkah 5: jangan tutup sesi SSH yang sedang terbuka sampai login dengan kunci di terminal baru berhasil.\n- Langkah 6: `allow OpenSSH` **sebelum** `enable`, supaya kamu tidak terkunci di luar.\n- Langkah 7: nama `'Nginx Full'` baru dikenal ufw **setelah** Nginx terpasang, jadi pasang Nginx dulu.\n- Langkah 9: `toko/*` dikembangkan bash di laptop menjadi semua isi folder `toko`, dan `-r` membuat subfolder (misalnya `gambar`) ikut tersalin. Untuk setiap file, scp menampilkan satu baris kemajuan seperti di modul Jaringan.\n- Langkah 10: sebelum domain siap, situs bisa dicoba lewat `http://203.0.113.10` kalau situs `default` sudah dinonaktifkan.\n\n**Tabel diagnosa:**\n\n| Gejala | Penyebab yang mungkin | Cek dan perbaiki |\n|---|---|---|\n| 403 Forbidden | tidak ada `index.html` di folder; izin terlalu ketat | `ls -l`, perbaiki ke 644/755; `error.log`: `is forbidden` atau `(13: Permission denied)` |\n| 404 Not Found | `root` salah; nama file salah (huruf besar/kecil berbeda) | periksa `root` di server block, `ls` folder website |\n| 502 Bad Gateway | aplikasi di belakang Nginx mati; port `proxy_pass` salah | `error.log`: `Connection refused`; nyalakan aplikasi |\n| situs tidak bisa dibuka sama sekali | firewall belum membuka 80/443; DNS belum mengarah; Nginx mati | `sudo ufw status`, `getent hosts toko.contoh`, `systemctl status nginx` |\n| `nginx -t` gagal | salah ketik, titik koma terlupa | baca nama file dan nomor baris, lalu `cat -n` |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**Kasus: 403 Forbidden.** Setelah langkah 10 (situs `default` sudah dinonaktifkan), Budi membuka `http://203.0.113.10` dan mendapat halaman `403 Forbidden`. Ia membaca log di server dengan `sudo tail -n 1 /var/log/nginx/error.log`, dan di tengah baris terakhirnya ada bagian ini:\n\n```text\nopen() \"/var/www/toko/index.html\" failed (13: Permission denied)\n```\n\nNginx (sebagai `www-data`) tidak boleh membaca `index.html`. Ternyata Budi (sebagai user `sari`) pernah menjalankan `chmod 600` pada file itu karena mengira file website harus dirahasiakan seperti kunci SSH.\n\nDi latihan ini, folder `www/toko` adalah salinan `/var/www/toko` lengkap dengan izinnya. Budi memeriksa dan memperbaikinya.\n\n```bash\nls -ld www/toko\nls -l www/toko\nchmod 644 www/toko/index.html\nls -l www/toko\n```\n\nHasilnya:\n\n```text\n$ ls -ld www/toko\ndrwxr-xr-x 2 budi budi 4096 Sep  1 09:00 www/toko\n$ ls -l www/toko\ntotal 12\n-rw-r--r-- 1 budi budi  21 Sep  1 09:00 gaya.css\n-rw------- 1 budi budi 202 Sep  1 09:00 index.html\n-rw-r--r-- 1 budi budi  23 Sep  1 09:00 produk.html\n$ chmod 644 www/toko/index.html\n$ ls -l www/toko\ntotal 12\n-rw-r--r-- 1 budi budi  21 Sep  1 09:00 gaya.css\n-rw-r--r-- 1 budi budi 202 Sep  1 09:00 index.html\n-rw-r--r-- 1 budi budi  23 Sep  1 09:00 produk.html\n```\n\n- Sebelum diperbaiki, `index.html` berizin `-rw-------`: hanya pemiliknya yang boleh membaca, `www-data` tidak.\n- Folder `toko` berizin `drwxr-xr-x` (755), jadi `www-data` boleh masuk. Setelah `chmod 644`, semua file `-rw-r--r--`.\n- Di server sungguhan, perbaikannya `chmod 644 /var/www/toko/index.html` sebagai `sari` (tanpa sudo, karena `sari` pemiliknya). Halaman langsung tampil tanpa `reload`, karena yang berubah hanya izin file, bukan konfigurasi Nginx.\n- Jangan \"mengobati\" 403 dengan `chmod 777`: Nginx hanya perlu membaca."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyalakan firewall sebelum mengizinkan SSH**\n\nSalah:\n\n```bash\nsudo ufw enable\nsudo ufw allow OpenSSH\n```\n\nBenar:\n\n```bash\nsudo ufw allow OpenSSH\nsudo ufw enable\n```\n\nBegitu ufw aktif, semua koneksi masuk yang tidak diizinkan ditolak, termasuk koneksi SSH baru. Kalau urutannya terbalik, kamu bisa terkunci dan harus masuk lewat konsol penyedia VPS.\n\n**2. Memakai chmod 777 untuk mengatasi 403**\n\nSalah:\n\n```bash\nchmod -R 777 /var/www/toko\n```\n\nBenar:\n\n```bash\nchmod 644 /var/www/toko/index.html\nchmod 755 /var/www/toko\n```\n\nNginx hanya perlu membaca file (644) dan masuk ke folder (755). Dengan 777, siapa pun di server bisa mengubah isi website.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Mana urutan yang benar untuk menerapkan server block baru?",
+          "options": [
+            "sudo systemctl reload nginx, lalu sudo nginx -t",
+            "sudo nginx -t, lalu sudo systemctl reload nginx",
+            "sudo certbot --nginx, lalu sudo nginx -t",
+            "sudo systemctl restart nginx saja, tanpa menguji"
+          ],
+          "answer": 1,
+          "explanation": "Uji dulu dengan `nginx -t`. Hanya kalau `test is successful`, terapkan dengan `reload`.",
+          "remedial": "- Keamanan dulu: user sari + sudo → kunci SSH → uji di terminal baru → matikan password/root → ufw (OpenSSH sebelum enable)\n- Lalu website: Nginx → `'Nginx Full'` → folder /var/www/toko → scp → server block → `nginx -t` + reload → record A → certbot\n- 403: izin atau index.html tidak ada. 404: root/nama file. 502: aplikasi mati\n- Tidak bisa dibuka sama sekali: ufw, DNS, atau Nginx mati"
+        },
+        {
+          "question": "Pengunjung mendapat 403. Di `error.log` ada `open() \"/var/www/toko/index.html\" failed (13: Permission denied)`. Perbaikan yang tepat adalah...",
+          "options": [
+            "chmod 777 /var/www/toko/index.html",
+            "Menghapus situs default",
+            "chmod 644 /var/www/toko/index.html",
+            "Menjalankan certbot lagi"
+          ],
+          "answer": 2,
+          "explanation": "`www-data` perlu izin baca untuk \"lainnya\": 644. 777 terlalu longgar.",
+          "remedial": "- Keamanan dulu: user sari + sudo → kunci SSH → uji di terminal baru → matikan password/root → ufw (OpenSSH sebelum enable)\n- Lalu website: Nginx → `'Nginx Full'` → folder /var/www/toko → scp → server block → `nginx -t` + reload → record A → certbot\n- 403: izin atau index.html tidak ada. 404: root/nama file. 502: aplikasi mati\n- Tidak bisa dibuka sama sekali: ufw, DNS, atau Nginx mati"
+        },
+        {
+          "question": "Situs reverse proxy menampilkan `502 Bad Gateway`, dan `error.log` berisi `Connection refused ... upstream: \"http://127.0.0.1:3000/\"`. Langkah yang tepat adalah...",
+          "options": [
+            "Menyalakan lagi aplikasi di port 3000 (atau memperbaiki port di proxy_pass)",
+            "sudo ufw allow 'Nginx Full'",
+            "Mengganti izin index.html menjadi 644",
+            "Membuat ulang record A domain"
+          ],
+          "answer": 0,
+          "explanation": "Nginx sudah menerima permintaan, tapi aplikasi di port 3000 menolak koneksi. Masalahnya di aplikasi, bukan di firewall atau DNS.",
+          "remedial": "- Keamanan dulu: user sari + sudo → kunci SSH → uji di terminal baru → matikan password/root → ufw (OpenSSH sebelum enable)\n- Lalu website: Nginx → `'Nginx Full'` → folder /var/www/toko → scp → server block → `nginx -t` + reload → record A → certbot\n- 403: izin atau index.html tidak ada. 404: root/nama file. 502: aplikasi mati\n- Tidak bisa dibuka sama sekali: ufw, DNS, atau Nginx mati"
+        },
+        {
+          "question": "Semua halaman `toko.contoh` menjawab 404, padahal file-filenya ada di `/var/www/toko`. Berdasarkan potongan server block ini, penyebabnya adalah...",
+          "code": "# Potongan /etc/nginx/sites-available/toko:\n    server_name toko.contoh www.toko.contoh;\n    root /var/www/tokoo;\n    index index.html;",
+          "options": [
+            "Lupa titik koma",
+            "server_name salah",
+            "Port 80 tertutup",
+            "root salah ketik (tokoo), jadi Nginx mencari di folder yang tidak ada"
+          ],
+          "answer": 3,
+          "explanation": "Nginx mencari file di folder `root`. `/var/www/tokoo` tidak ada, jadi semua permintaan berakhir 404.",
+          "remedial": "- Keamanan dulu: user sari + sudo → kunci SSH → uji di terminal baru → matikan password/root → ufw (OpenSSH sebelum enable)\n- Lalu website: Nginx → `'Nginx Full'` → folder /var/www/toko → scp → server block → `nginx -t` + reload → record A → certbot\n- 403: izin atau index.html tidak ada. 404: root/nama file. 502: aplikasi mati\n- Tidak bisa dibuka sama sekali: ufw, DNS, atau Nginx mati"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `access.log` berisi potongan log Nginx. Apa hasil perintah terakhir?",
+      "code": "# Isi file access.log:\n#   203.0.113.50 - - [01/Sep/2026:09:15:02 +0700] \"GET / HTTP/1.1\" 200 1432 \"-\" \"Mozilla/5.0 ...\"\n#   203.0.113.50 - - [01/Sep/2026:09:15:03 +0700] \"GET /gaya.css HTTP/1.1\" 200 1280 \"-\" \"Mozilla/5.0 ...\"\n#   192.0.2.15 - - [01/Sep/2026:09:16:40 +0700] \"GET / HTTP/1.1\" 200 1432 \"-\" \"Mozilla/5.0 ...\"\n#   192.0.2.15 - - [01/Sep/2026:09:16:41 +0700] \"GET /gaya.css HTTP/1.1\" 200 1280 \"-\" \"Mozilla/5.0 ...\"\n#   192.0.2.15 - - [01/Sep/2026:09:16:52 +0700] \"GET /promo.html HTTP/1.1\" 404 162 \"-\" \"Mozilla/5.0 ...\"\n#   198.51.100.23 - - [01/Sep/2026:09:17:05 +0700] \"GET /.env HTTP/1.1\" 404 162 \"-\" \"Mozilla/5.0 ...\"\n#   198.51.100.23 - - [01/Sep/2026:09:17:06 +0700] \"GET /admin HTTP/1.1\" 404 162 \"-\" \"Mozilla/5.0 ...\"\n#   198.51.100.23 - - [01/Sep/2026:09:17:07 +0700] \"GET /login.php HTTP/1.1\" 404 162 \"-\" \"Mozilla/5.0 ...\"\n#   198.51.100.23 - - [01/Sep/2026:09:17:08 +0700] \"GET /config.php HTTP/1.1\" 404 162 \"-\" \"Mozilla/5.0 ...\"\n#   192.0.2.80 - - [01/Sep/2026:09:18:30 +0700] \"GET /produk.html HTTP/1.1\" 200 2048 \"-\" \"Mozilla/5.0 ...\"\n#   192.0.2.80 - - [01/Sep/2026:09:18:41 +0700] \"GET /gambar/ HTTP/1.1\" 403 162 \"-\" \"Mozilla/5.0 ...\"\n#   203.0.113.50 - - [01/Sep/2026:09:20:15 +0700] \"GET /produk.html HTTP/1.1\" 200 2048 \"-\" \"Mozilla/5.0 ...\"\ngrep ' 403 ' access.log | cut -d' ' -f7",
+      "options": [
+        "/gambar/",
+        "192.0.2.80",
+        "403",
+        "/produk.html"
+      ],
+      "answer": 0,
+      "explanation": "Hanya satu baris berkode 403. Kolom 7 adalah alamat yang diminta: folder `/gambar/`. Kemungkinan folder itu tidak punya `index.html`, jadi Nginx menolak menampilkan isinya."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Uji konfigurasi, dan HANYA kalau lulus, terapkan tanpa memutus pengunjung\nsudo nginx -t && sudo systemctl ___ nginx",
+      "answers": [
+        "reload"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Urutan aman: user sari dan sudo, kunci SSH, uji di terminal baru, matikan password dan root, lalu ufw (OpenSSH sebelum enable).",
+        "Lalu website: pasang Nginx, 'Nginx Full', folder /var/www/toko, scp -r, server block, nginx -t dan reload, record A, certbot.",
+        "403 biasanya izin atau index.html tidak ada; 404 root atau nama file; 502 aplikasi mati.",
+        "Situs yang tidak bisa dibuka sama sekali: cek ufw, DNS, dan apakah Nginx berjalan.",
+        "Log Nginx (access.log dan error.log) adalah tempat pertama untuk mencari penyebab."
+      ]
+    }
+  ]
+}

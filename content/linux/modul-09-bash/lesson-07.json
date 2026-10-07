@@ -1,0 +1,111 @@
+{
+  "id": "linux-bash-07",
+  "moduleId": "linux-bash",
+  "order": 7,
+  "title": "Studi Kasus: Script Backup",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya menggabungkan semua yang sudah dipelajari menjadi script yang benar-benar dipakai di server: **script backup**.\n\nTugas `backup.sh`:\n\n1. Mengecek folder sumber ada. Kalau tidak, tampilkan error dan keluar dengan `exit 1`.\n2. Membuat folder tujuan kalau belum ada (`mkdir -p`).\n3. Membungkus folder sumber menjadi satu file arsip bertanggal, misalnya `backup-2026-09-01.tar.gz`.\n4. Menampilkan pesan selesai.\n\nDi modul berikutnya, script ini akan dijalankan otomatis setiap malam.\n\nBayangkan setiap akhir minggu kamu memasukkan semua dokumen penting ke dalam satu kardus, menyegelnya, lalu menulis tanggal di luarnya. Kalau suatu hari dokumen aslinya rusak, cukup buka kardus bertanggal yang tepat. Script backup melakukan hal yang sama, dan tidak pernah lupa."
+    },
+    {
+      "type": "theory",
+      "content": "**`tar`** membungkus banyak file dan folder menjadi **satu file arsip**. Akhiran `.tar.gz` berarti arsip itu juga dikompres (diperkecil) dengan gzip.\n\n| Opsi | Artinya |\n|---|---|\n| `-c` (*create*) | buat arsip baru |\n| `-z` | kompres dengan gzip |\n| `-f nama` (*file*) | nama file arsip, harus **langsung** diikuti namanya |\n| `-t` (*list*) | lihat daftar isi arsip |\n| `-x` (*extract*) | bongkar arsip |\n\n```bash\ntar -czf backup.tar.gz dokumen     # buat arsip dari folder dokumen\ntar -tzf backup.tar.gz             # lihat isinya\ntar -xzf backup.tar.gz             # bongkar di folder kerja\n```\n\nKarena `-f` harus langsung diikuti nama arsip, huruf `f` selalu ditaruh paling akhir: `-czf`, `-tzf`, `-xzf`. Urutan isi yang ditampilkan `tar -tzf` bisa berbeda di tiap komputer, jadi di contoh kita menambahkan `| sort`.\n\n`tar -xzf` membongkar di folder kerja dan **menimpa** file bernama sama tanpa bertanya. Untuk memulihkan, bongkar di folder kosong dulu, lalu periksa isinya.\n\n**Nama bertanggal.** `date +%F` menampilkan tanggal hari ini dalam bentuk `TAHUN-BULAN-TANGGAL`, misalnya `2026-09-01`. Supaya hasil contoh selalu sama, contoh di sini memakai `date -d 2026-09-01 +%F` (`-d` = pakai tanggal yang disebut, bukan hari ini). Di server sungguhan cukup `$(date +%F)`.\n\n**Isi `backup.sh` baris demi baris:**\n\n| Baris | Gunanya |\n|---|---|\n| `set -e` | berhenti kalau ada perintah yang gagal |\n| `cd \"$HOME\"` | pindah ke folder home dulu (variabel sistem `HOME` berisi misalnya `/home/budi`), supaya script benar dari folder mana pun ia dijalankan |\n| `sumber=...`, `tujuan=...` | nama folder disimpan di variabel, mudah diganti |\n| `tanggal=$(date ...)` | tanggal untuk nama arsip |\n| `if [ ! -d \"$sumber\" ]` | folder sumber tidak ada → error ke stderr dan `exit 1` |\n| `mkdir -p \"$tujuan\"` | buat folder tujuan; tidak protes kalau sudah ada |\n| `tar -czf \"$arsip\" \"$sumber\"` | membuat arsip |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDi folder home Budi ada folder `dokumen` (berisi `catatan.txt` dan `laporan.txt`) dan script `backup.sh`. Budi menjalankan backup, memeriksa isi arsip, lalu mencoba memulihkannya di folder `pulih`. Terakhir ia menguji apa yang terjadi kalau folder `dokumen` tidak ada.\n\n```bash\ncat backup.sh\nchmod +x backup.sh\n./backup.sh\nls backup\ntar -tzf backup/backup-2026-09-01.tar.gz | sort\nmkdir pulih\ncd pulih\ntar -xzf ../backup/backup-2026-09-01.tar.gz\nls dokumen\ncd ..\nmv dokumen dokumen-lama\n./backup.sh; echo \"Kode keluar: $?\"\n```\n\nHasilnya:\n\n```text\n$ cat backup.sh\n#!/bin/bash\n# backup.sh: arsipkan folder dokumen dengan nama bertanggal\nset -e\ncd \"$HOME\"\n\nsumber=\"dokumen\"\ntujuan=\"backup\"\ntanggal=$(date -d 2026-09-01 +%F)   # di server: $(date +%F)\narsip=\"$tujuan/backup-$tanggal.tar.gz\"\n\nif [ ! -d \"$sumber\" ]; then\n    echo \"Error: folder $sumber tidak ditemukan\" >&2\n    exit 1\nfi\n\nmkdir -p \"$tujuan\"\ntar -czf \"$arsip\" \"$sumber\"\necho \"Backup selesai: $arsip\"\n$ chmod +x backup.sh\n$ ./backup.sh\nBackup selesai: backup/backup-2026-09-01.tar.gz\n$ ls backup\nbackup-2026-09-01.tar.gz\n$ tar -tzf backup/backup-2026-09-01.tar.gz | sort\ndokumen/\ndokumen/catatan.txt\ndokumen/laporan.txt\n$ mkdir pulih\n$ cd pulih\n$ tar -xzf ../backup/backup-2026-09-01.tar.gz\n$ ls dokumen\ncatatan.txt  laporan.txt\n$ cd ..\n$ mv dokumen dokumen-lama\n$ ./backup.sh; echo \"Kode keluar: $?\"\nError: folder dokumen tidak ditemukan\nKode keluar: 1\n```\n\n- Folder `backup` dibuat otomatis oleh `mkdir -p`, dan arsipnya diberi nama bertanggal.\n- `tar -tzf` menunjukkan bahwa arsip berisi folder `dokumen/` beserta kedua filenya.\n- Arsip dibongkar di folder `pulih` yang masih kosong, jadi tidak ada file yang tertimpa.\n- Saat `dokumen` tidak ada, script menolak dengan pesan error dan kode keluar 1. Kode bukan 0 ini penting supaya kegagalan bisa ketahuan, misalnya saat script dijalankan otomatis."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Huruf f tidak di akhir opsi tar**\n\nSalah:\n\n```bash\ntar -cfz backup.tar.gz dokumen\n# tar: backup.tar.gz: Cannot stat: No such file or directory\n```\n\nBenar:\n\n```bash\ntar -czf backup.tar.gz dokumen\n```\n\n`-f` mengambil kata tepat sesudahnya sebagai nama arsip. Di `-cfz`, sesudah `f` ada `z`, jadi tar membuat arsip bernama `z` dan mencoba memasukkan file `backup.tar.gz` yang tidak ada.\n\n**2. Membongkar arsip lama di atas data terbaru**\n\nSalah:\n\n```bash\ncd ~\ntar -xzf backup/backup-2026-09-01.tar.gz\n# isi folder dokumen yang terbaru tertimpa versi lama\n```\n\nBenar:\n\n```bash\nmkdir pulih\ncd pulih\ntar -xzf ../backup/backup-2026-09-01.tar.gz\n```\n\n`tar -xzf` menimpa file bernama sama tanpa bertanya. Bongkar di folder kosong, periksa, baru salin file yang dibutuhkan.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di `tar -czf arsip.tar.gz data`, apa arti `-c`, `-z`, dan `-f`?",
+          "options": [
+            "bongkar arsip, kompres, paksa",
+            "salin, zip, folder",
+            "buat arsip baru, kompres dengan gzip, nama file arsip",
+            "cek, nol, file"
+          ],
+          "answer": 2,
+          "explanation": "`-c` *create*, `-z` gzip, `-f` diikuti nama file arsip.",
+          "remedial": "- `tar -czf arsip.tar.gz folder`: buat arsip terkompres. `-c` buat, `-z` gzip, `-f` nama arsip\n- `tar -tzf arsip.tar.gz`: lihat isi. `tar -xzf arsip.tar.gz`: bongkar di folder kerja\n- Huruf `f` selalu terakhir karena harus langsung diikuti nama arsip\n- `date +%F` → `2026-09-01`, cocok untuk nama arsip bertanggal\n- Script backup: cek sumber (`-d`, kalau tidak `exit 1`), `mkdir -p` tujuan, `tar -czf`, pesan selesai"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "# Isi folder saat ini: web/, web/index.html, web/gaya.css\ntar -czf web.tar.gz web\ntar -tzf web.tar.gz | sort",
+          "options": [
+            "web/\nweb/gaya.css\nweb/index.html",
+            "gaya.css\nindex.html",
+            "web.tar.gz",
+            "web/gaya.css\nweb/index.html\nweb.tar.gz"
+          ],
+          "answer": 0,
+          "explanation": "Arsip berisi folder `web/` beserta isinya, lengkap dengan nama foldernya di depan.",
+          "remedial": "- `tar -czf arsip.tar.gz folder`: buat arsip terkompres. `-c` buat, `-z` gzip, `-f` nama arsip\n- `tar -tzf arsip.tar.gz`: lihat isi. `tar -xzf arsip.tar.gz`: bongkar di folder kerja\n- Huruf `f` selalu terakhir karena harus langsung diikuti nama arsip\n- `date +%F` → `2026-09-01`, cocok untuk nama arsip bertanggal\n- Script backup: cek sumber (`-d`, kalau tidak `exit 1`), `mkdir -p` tujuan, `tar -czf`, pesan selesai"
+        },
+        {
+          "question": "Apa hasil perintah terakhir?",
+          "code": "echo \"backup-$(date -d 2026-09-01 +%F).tar.gz\"",
+          "options": [
+            "backup-01-09-2026.tar.gz",
+            "backup-2026-09-01.tar.gz",
+            "backup-$(date -d 2026-09-01 +%F).tar.gz",
+            "backup-20260901.tar.gz"
+          ],
+          "answer": 1,
+          "explanation": "`%F` menghasilkan tanggal berbentuk TAHUN-BULAN-TANGGAL. `$(...)` diganti hasilnya karena berada di dalam kutip ganda.",
+          "remedial": "- `tar -czf arsip.tar.gz folder`: buat arsip terkompres. `-c` buat, `-z` gzip, `-f` nama arsip\n- `tar -tzf arsip.tar.gz`: lihat isi. `tar -xzf arsip.tar.gz`: bongkar di folder kerja\n- Huruf `f` selalu terakhir karena harus langsung diikuti nama arsip\n- `date +%F` → `2026-09-01`, cocok untuk nama arsip bertanggal\n- Script backup: cek sumber (`-d`, kalau tidak `exit 1`), `mkdir -p` tujuan, `tar -czf`, pesan selesai"
+        },
+        {
+          "question": "Kenapa script backup sebaiknya `exit 1` kalau folder sumber tidak ada?",
+          "options": [
+            "Supaya folder sumber dibuat otomatis",
+            "Supaya arsip kosong tetap dibuat",
+            "Karena tar menolak berjalan tanpa exit",
+            "Supaya kegagalan terlihat dari kode keluar yang bukan 0"
+          ],
+          "answer": 3,
+          "explanation": "Kode keluar 1 menandai bahwa backup gagal. Script yang menjalankannya (atau orang yang memeriksa) bisa langsung tahu.",
+          "remedial": "- `tar -czf arsip.tar.gz folder`: buat arsip terkompres. `-c` buat, `-z` gzip, `-f` nama arsip\n- `tar -tzf arsip.tar.gz`: lihat isi. `tar -xzf arsip.tar.gz`: bongkar di folder kerja\n- Huruf `f` selalu terakhir karena harus langsung diikuti nama arsip\n- `date +%F` → `2026-09-01`, cocok untuk nama arsip bertanggal\n- Script backup: cek sumber (`-d`, kalau tidak `exit 1`), `mkdir -p` tujuan, `tar -czf`, pesan selesai"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "# Isi folder saat ini: dokumen/\n# Isi file backup.sh:\n#   #!/bin/bash\n#   sumber=\"foto\"\n#   if [ ! -d \"$sumber\" ]; then\n#       echo \"Error: folder $sumber tidak ada\" >&2\n#       exit 1\n#   fi\n#   tar -czf foto.tar.gz \"$sumber\"\n#   echo \"Backup selesai\"\nbash backup.sh",
+      "options": [
+        "Backup selesai",
+        "Error: folder foto tidak ada",
+        "Error: folder foto tidak ada\nBackup selesai",
+        "tar: foto: Cannot stat: No such file or directory"
+      ],
+      "answer": 1,
+      "explanation": "Folder `foto` tidak ada, jadi `[ ! -d \"$sumber\" ]` benar. Script mencetak pesan error lalu `exit 1`, sehingga `tar` tidak pernah dijalankan."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Lihat daftar isi arsip tanpa membongkarnya\n# Isi folder saat ini: data/, data/a.txt, data/b.txt\ntar -czf data.tar.gz data\ntar ___ data.tar.gz | sort",
+      "answers": [
+        "-tzf|-tf|-ztf|tzf|tf"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "tar -czf arsip.tar.gz folder membuat arsip terkompres; huruf f selalu terakhir, langsung diikuti nama arsip.",
+        "tar -tzf melihat isi arsip; tar -xzf membongkar di folder kerja dan menimpa file bernama sama.",
+        "date +%F menghasilkan tanggal seperti 2026-09-01 untuk nama arsip.",
+        "Script backup: cek folder sumber (exit 1 kalau tidak ada), mkdir -p tujuan, tar -czf, lalu pesan selesai."
+      ]
+    }
+  ]
+}

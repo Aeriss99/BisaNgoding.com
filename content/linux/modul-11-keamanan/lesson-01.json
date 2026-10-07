@@ -1,0 +1,110 @@
+{
+  "id": "linux-keamanan-01",
+  "moduleId": "linux-keamanan",
+  "order": 1,
+  "title": "Kenapa Server Harus Diamankan",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Begitu server tersambung ke internet dengan IP publik (ingat modul 8), alamatnya bisa dihubungi siapa saja di dunia. Di internet ada banyak **bot**: program otomatis yang tanpa henti menghubungi alamat IP satu per satu untuk:\n\n- mencari port yang terbuka, misalnya port 22 (SSH)\n- menebak nama user dan password SSH, misalnya `root`, `admin`, atau `test` dengan password `123456`\n\nBot tidak memilih korban. Server yang baru online beberapa menit biasanya sudah dicoba. Jadi pertanyaannya bukan \"apakah servermu akan dicoba dibobol\", tapi \"apakah pintunya cukup kuat\".\n\nDi modul ini Budi dan Sari menyiapkan `server-toko` (IP `203.0.113.10`) untuk website Toko Budi. Server itu sebuah **VPS** (*Virtual Private Server*): server sewaan di pusat data penyedia, yang dikelola sendiri lewat SSH. Di server akan dibuat akun kerja bernama `sari`, dan Budi masuk ke akun itu dari laptopnya.\n\nMengamankan server mirip mengamankan rumah. Pintu memakai kunci yang sulit ditiru, bukan kunci kombinasi yang bisa ditebak. Tidak ada kunci cadangan di bawah keset. Ada pagar yang hanya membuka gerbang tertentu, satpam yang mengusir orang yang berkali-kali mencoba membuka pintu, CCTV yang merekam siapa saja yang datang, dan perbaikan rutin supaya tidak ada jendela yang rusak. Satu pengaman saja tidak cukup. Kalau satu jebol, yang lain masih menahan."
+    },
+    {
+      "type": "theory",
+      "content": "Prinsip itu disebut **pertahanan berlapis**: beberapa pengaman dipasang sekaligus. Inilah lapisan yang dikerjakan di modul ini:\n\n| Lapisan | Gunanya | Pelajaran |\n|---|---|---|\n| user biasa + sudo | kerja sehari-hari tidak sebagai root | 2 |\n| login dengan kunci SSH | tidak ada password yang bisa ditebak | 3 dan 4 |\n| matikan login password dan root | bot tidak bisa menebak sama sekali | 5 |\n| firewall `ufw` | hanya port yang perlu yang terbuka | 6 |\n| update rutin | celah keamanan program cepat ditambal | 7 |\n| pantau log, fail2ban | tahu siapa yang mencoba masuk, blokir yang nakal | 7 |\n\n**Urutan aman.** Urutan langkah sangat penting, karena salah urut bisa membuat kamu sendiri terkunci di luar server:\n\n1. buat user + masukkan ke group sudo\n2. pasang kunci SSH untuk user itu\n3. uji login dengan kunci di terminal **baru** (terminal lama tetap terbuka)\n4. baru matikan login password dan login root\n5. di firewall: izinkan SSH (`ufw allow OpenSSH`) **sebelum** menyalakan firewall (`ufw enable`)\n\nKalau sampai terkunci, satu-satunya jalan masuk adalah konsol di panel web penyedia VPS, dan itu merepotkan.\n\n**Kunci privat itu rahasia.** Nanti kamu akan membuat kunci SSH. Bagian privatnya tidak pernah dikirim ke siapa pun: tidak ke teman, grup chat, chat AI, email, atau repositori Git.\n\n**Log login.** Setiap percobaan login SSH dicatat server di file `/var/log/auth.log`. Dari file itu kamu bisa melihat bot yang sedang mencoba masuk. Cara membacanya dibahas lengkap di pelajaran 7."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nServer-toko baru online pagi ini. Budi menyalin empat baris dari log login server (`/var/log/auth.log`) ke file `auth.log` di laptopnya, lalu membacanya dengan perintah dari modul 4.\n\n```bash\ncat auth.log\nwc -l auth.log\ngrep Accepted auth.log\n```\n\nHasilnya:\n\n```text\n$ cat auth.log\n2026-09-01T03:14:07.512345+07:00 server-toko sshd[2345]: Invalid user admin from 198.51.100.23 port 51240\n2026-09-01T03:14:09.104422+07:00 server-toko sshd[2345]: Failed password for invalid user admin from 198.51.100.23 port 51240 ssh2\n2026-09-01T03:15:31.880123+07:00 server-toko sshd[2351]: Failed password for root from 198.51.100.23 port 51302 ssh2\n2026-09-01T09:02:11.220019+07:00 server-toko sshd[2402]: Accepted publickey for sari from 203.0.113.50 port 50122 ssh2: ED25519 SHA256:Q3r8LmZ1vT6yKc0pN4wJ7sB2dF5gH9uE1oA3iX8kR2c\n$ wc -l auth.log\n4 auth.log\n$ grep Accepted auth.log\n2026-09-01T09:02:11.220019+07:00 server-toko sshd[2402]: Accepted publickey for sari from 203.0.113.50 port 50122 ssh2: ED25519 SHA256:Q3r8LmZ1vT6yKc0pN4wJ7sB2dF5gH9uE1oA3iX8kR2c\n```\n\n- Tiga baris pertama terjadi dini hari (03:14 sampai 03:15), semuanya dari IP `198.51.100.23`. Itu bot: menebak user `admin` yang tidak ada di server (`Invalid user`), lalu menebak password untuk user `admin` dan `root` (`Failed password`). Semuanya gagal.\n- Baris terakhir (`Accepted publickey`) adalah login yang berhasil: user `sari` masuk memakai kunci SSH dari IP `203.0.113.50`, yaitu laptop Budi.\n- Di server sungguhan, log satu hari bisa berisi ratusan baris percobaan seperti ini. Angka, jam, dan IP di servermu pasti berbeda."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira server kecil tidak akan diserang**\n\nSalah:\n\n```text\n# \"Servernya baru dan isinya cuma toko kecil,\n#  tidak ada yang tertarik membobolnya.\"\n```\n\nBenar:\n\n```text\n# Bot mencoba SEMUA alamat IP secara otomatis.\n# Amankan sejak hari pertama server online.\n```\n\nBot tidak tahu dan tidak peduli isi servermu. Server yang berhasil dibobol bisa dipakai untuk menyerang orang lain, mengirim spam, atau menambang kripto.\n\n**2. Mematikan login password sebelum kunci terpasang**\n\nSalah:\n\n```text\n# 1. matikan login password\n# 2. baru pasang kunci SSH\n```\n\nBenar:\n\n```text\n# 1. pasang kunci SSH\n# 2. uji login kunci di terminal baru\n# 3. baru matikan login password\n```\n\nKalau password dimatikan saat kunci belum terpasang, tidak ada cara lagi untuk masuk lewat SSH. Ikuti urutan aman.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa server yang baru online beberapa menit biasanya sudah dicoba login oleh orang tak dikenal?",
+          "options": [
+            "Karena penyedia VPS membagikan password server ke publik",
+            "Karena bot otomatis terus menghubungi semua alamat IP di internet",
+            "Karena server baru selalu memakai password kosong",
+            "Karena SSH mengirim pemberitahuan ke seluruh internet"
+          ],
+          "answer": 1,
+          "explanation": "Bot memindai alamat IP satu per satu tanpa memilih korban, lalu mencoba menebak user dan password.",
+          "remedial": "- Server di internet terus dicoba bot: mencari port terbuka dan menebak password SSH\n- Pertahanan berlapis: user + sudo, kunci SSH, matikan password dan root, firewall, update, pantau log\n- Urutan aman: user + sudo → kunci → uji di terminal baru → matikan password/root\n- `ufw allow OpenSSH` sebelum `ufw enable`\n- Kunci privat tidak pernah dikirim ke siapa pun"
+        },
+        {
+          "question": "Apa maksud prinsip pertahanan berlapis?",
+          "options": [
+            "Memakai satu password yang sangat panjang",
+            "Memasang firewall dua kali",
+            "Memasang beberapa pengaman sekaligus, supaya kalau satu jebol yang lain masih menahan",
+            "Membuat banyak user root"
+          ],
+          "answer": 2,
+          "explanation": "Kunci SSH, firewall, update, dan pemantauan log saling melengkapi. Tidak ada satu pengaman yang sempurna.",
+          "remedial": "- Server di internet terus dicoba bot: mencari port terbuka dan menebak password SSH\n- Pertahanan berlapis: user + sudo, kunci SSH, matikan password dan root, firewall, update, pantau log\n- Urutan aman: user + sudo → kunci → uji di terminal baru → matikan password/root\n- `ufw allow OpenSSH` sebelum `ufw enable`\n- Kunci privat tidak pernah dikirim ke siapa pun"
+        },
+        {
+          "question": "Urutan mana yang AMAN?",
+          "options": [
+            "Matikan login password → buat user → pasang kunci",
+            "Pasang kunci → matikan login password → buat user",
+            "Buat user → matikan login password → pasang kunci",
+            "Buat user + sudo → pasang kunci → uji login kunci di terminal baru → matikan login password"
+          ],
+          "answer": 3,
+          "explanation": "Login password baru boleh dimatikan setelah login dengan kunci terbukti berhasil.",
+          "remedial": "- Server di internet terus dicoba bot: mencari port terbuka dan menebak password SSH\n- Pertahanan berlapis: user + sudo, kunci SSH, matikan password dan root, firewall, update, pantau log\n- Urutan aman: user + sudo → kunci → uji di terminal baru → matikan password/root\n- `ufw allow OpenSSH` sebelum `ufw enable`\n- Kunci privat tidak pernah dikirim ke siapa pun"
+        },
+        {
+          "question": "Siapa yang boleh menerima kunci SSH privat milik Budi?",
+          "options": [
+            "Tidak ada, kunci privat tidak pernah dikirim ke siapa pun",
+            "Teman satu tim lewat grup chat",
+            "Chat AI, supaya bisa dibantu memeriksanya",
+            "Repositori Git, supaya tidak hilang"
+          ],
+          "answer": 0,
+          "explanation": "Siapa pun yang memegang kunci privat bisa masuk ke server seperti Budi. Kunci privat hanya disimpan di laptop pemiliknya.",
+          "remedial": "- Server di internet terus dicoba bot: mencari port terbuka dan menebak password SSH\n- Pertahanan berlapis: user + sudo, kunci SSH, matikan password dan root, firewall, update, pantau log\n- Urutan aman: user + sudo → kunci → uji di terminal baru → matikan password/root\n- `ufw allow OpenSSH` sebelum `ufw enable`\n- Kunci privat tidak pernah dikirim ke siapa pun"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `auth.log` berisi potongan log login server. Apa hasil perintah terakhir?",
+      "code": "# Isi file auth.log:\n#   2026-09-01T03:14:07.512345+07:00 server-toko sshd[2345]: Invalid user admin from 198.51.100.23 port 51240\n#   2026-09-01T03:14:09.104422+07:00 server-toko sshd[2345]: Failed password for invalid user admin from 198.51.100.23 port 51240 ssh2\n#   2026-09-01T03:15:31.880123+07:00 server-toko sshd[2351]: Failed password for root from 198.51.100.23 port 51302 ssh2\n#   2026-09-01T09:02:11.220019+07:00 server-toko sshd[2402]: Accepted publickey for sari from 203.0.113.50 port 50122 ssh2: ED25519 SHA256:Q3r8LmZ1vT6yKc0pN4wJ7sB2dF5gH9uE1oA3iX8kR2c\ngrep -c \"Failed password\" auth.log",
+      "options": [
+        "2",
+        "1",
+        "4",
+        "3"
+      ],
+      "answer": 0,
+      "explanation": "Ada dua baris yang mengandung `Failed password`: tebakan password untuk `admin` dan untuk `root`. `-c` menghitung barisnya."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Hitung jumlah baris di auth.log\n# Isi file auth.log:\n#   2026-09-01T03:14:07.512345+07:00 server-toko sshd[2345]: Invalid user admin from 198.51.100.23 port 51240\n#   2026-09-01T03:14:09.104422+07:00 server-toko sshd[2345]: Failed password for invalid user admin from 198.51.100.23 port 51240 ssh2\n#   2026-09-01T03:15:31.880123+07:00 server-toko sshd[2351]: Failed password for root from 198.51.100.23 port 51302 ssh2\n#   2026-09-01T09:02:11.220019+07:00 server-toko sshd[2402]: Accepted publickey for sari from 203.0.113.50 port 50122 ssh2: ED25519 SHA256:Q3r8LmZ1vT6yKc0pN4wJ7sB2dF5gH9uE1oA3iX8kR2c\nwc ___ auth.log",
+      "answers": [
+        "-l|--lines"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Server di internet terus dicoba bot yang mencari port terbuka dan menebak password SSH.",
+        "Pertahanan berlapis: user biasa + sudo, kunci SSH, matikan password dan root, firewall, update, dan pantau log.",
+        "Ikuti urutan aman supaya tidak terkunci di luar server sendiri.",
+        "Kunci privat tidak pernah dikirim ke siapa pun.",
+        "Percobaan login tercatat di /var/log/auth.log."
+      ]
+    }
+  ]
+}

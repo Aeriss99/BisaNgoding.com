@@ -1,0 +1,110 @@
+{
+  "id": "linux-keamanan-05",
+  "moduleId": "linux-keamanan",
+  "order": 5,
+  "title": "Mematikan Login Password dan Root",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setelah login dengan kunci berhasil, saatnya menutup pintu yang masih bisa ditebak bot:\n\n- **login dengan password**: dimatikan, sehingga hanya pemegang kunci yang bisa masuk\n- **login sebagai root lewat SSH**: dimatikan, sehingga bot yang menebak `root` pasti gagal\n\nKeduanya diatur di **`/etc/ssh/sshd_config`**, file pengaturan SSH server. `sshd` adalah nama program SSH server (ingat modul 7: nama service sering berakhiran `d`). Jangan tertukar dengan `/etc/ssh/ssh_config`, yaitu pengaturan **klien** ssh yang dipakai saat kamu menghubungi server lain.\n\nSetelah semua penghuni memegang anak kunci, lubang kunci kombinasi angka di pintu depan ditutup permanen, dan pintu khusus pemilik gedung dikunci dari dalam. Tapi sebelum menutupnya, pastikan anak kunci barumu benar-benar bisa membuka pintu: coba dari pintu lain, sementara pintu yang sedang kamu pakai tetap terbuka."
+    },
+    {
+      "type": "theory",
+      "content": "Potongan `sshd_config` bawaan Ubuntu 24.04:\n\n```text\nInclude /etc/ssh/sshd_config.d/*.conf\n#PermitRootLogin prohibit-password\n#PubkeyAuthentication yes\n#PasswordAuthentication yes\n#PermitEmptyPasswords no\nKbdInteractiveAuthentication no\n```\n\n- Baris berawalan `#` adalah **komentar**: tidak dibaca sebagai pengaturan, hanya menunjukkan nilai bawaan. Untuk mengubah, **hapus `#`** lalu ganti nilainya.\n- `prohibit-password` artinya root boleh login hanya dengan kunci. Kita ubah menjadi `no`.\n- `PubkeyAuthentication yes` (login dengan kunci) sudah bawaan, tidak perlu diubah.\n\nSetelah diedit:\n\n```text\nPermitRootLogin no\nPasswordAuthentication no\n```\n\n**Melihat pengaturan yang aktif saja:** `grep -v '^#' sshd_config`. Tanda `^` di pola grep berarti \"awal baris\", jadi `'^#'` = baris yang diawali `#`. Dengan `-v`, yang tampil justru baris yang **bukan** komentar. Pola ditulis dalam kutip tunggal supaya bash tidak mengubahnya.\n\n**Jebakan `Include`.** Baris paling atas membuat file di `/etc/ssh/sshd_config.d/` dibaca **lebih dulu**, dan untuk opsi ini nilai **pertama** yang dibaca yang berlaku. Di banyak VPS ada `/etc/ssh/sshd_config.d/50-cloud-init.conf` berisi `PasswordAuthentication yes`, yang mengalahkan perubahanmu. Ubah juga nilainya di file itu menjadi `no`.\n\n**Langkah aman:**\n\n1. Pastikan login kunci sebagai `sari` berhasil dan `sari` bisa sudo.\n2. Edit: `sudo nano /etc/ssh/sshd_config` (simpan: Ctrl+O, Enter, Ctrl+X). Periksa juga file di `/etc/ssh/sshd_config.d/`.\n3. Uji file: `sudo sshd -t`. Tidak ada output = tidak ada salah ketik.\n4. Cek nilai akhir: `sudo sshd -T | grep -E \"passwordauthentication|permitrootlogin\"`. `-T` menampilkan semua nilai akhir dengan huruf kecil. `grep -E` membuat `|` di dalam pola berarti \"atau\".\n5. Terapkan: `sudo systemctl restart ssh`. Nama service di Ubuntu adalah `ssh`, bukan `sshd`.\n6. **ATURAN EMAS:** jangan tutup sesi SSH yang sedang terbuka. Buka terminal **baru** dan coba login. Kalau gagal, perbaiki dari sesi lama. Sesi yang sudah terbuka tidak terputus oleh restart.\n\nSetelah login password dimatikan, komputer yang tidak punya kunci yang terpasang ditolak dengan `Permission denied (publickey).`"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**1. Salah ketik nama opsi.** Budi menulis `PasswordAuthenticaton` (huruf `i` kurang) lalu menguji filenya (nomor baris di servermu bisa berbeda):\n\n```text\n$ sudo sshd -t\n/etc/ssh/sshd_config: line 57: Bad configuration option: PasswordAuthenticaton\n/etc/ssh/sshd_config: terminating, 1 bad configuration options\n```\n\nBudi memperbaiki baris 57, lalu `sudo sshd -t` tidak menampilkan apa-apa lagi. Karena diuji dulu, SSH server tidak sempat di-restart dengan file yang salah.\n\n**2. Memeriksa hasil edit.** Budi menyalin `sshd_config` yang sudah diedit dan file `sshd_config.d/50-cloud-init.conf` dari server ke folder latihan, lalu memeriksanya.\n\n```bash\ngrep -v '^#' sshd_config\ncat sshd_config.d/50-cloud-init.conf\ngrep PasswordAuthentication sshd_config sshd_config.d/50-cloud-init.conf\n```\n\nHasilnya:\n\n```text\n$ grep -v '^#' sshd_config\nInclude /etc/ssh/sshd_config.d/*.conf\nPermitRootLogin no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\n$ cat sshd_config.d/50-cloud-init.conf\nPasswordAuthentication yes\n$ grep PasswordAuthentication sshd_config sshd_config.d/50-cloud-init.conf\nsshd_config:PasswordAuthentication no\nsshd_config.d/50-cloud-init.conf:PasswordAuthentication yes\n```\n\n- `grep -v '^#'` menampilkan empat pengaturan aktif. `PermitRootLogin no` dan `PasswordAuthentication no` sudah tidak diawali `#`.\n- Tapi `50-cloud-init.conf` berisi `PasswordAuthentication yes`. File itu dibaca lebih dulu (lewat `Include`), jadi nilainya yang menang. Budi mengubahnya menjadi `no` dengan `sudo nano`.\n\n**3. Menguji, menerapkan, dan mencoba.** Gambaran layar di server, lalu di terminal BARU:\n\n```text\nsari@server-toko:~$ sudo sshd -t\nsari@server-toko:~$ sudo sshd -T | grep -E \"passwordauthentication|permitrootlogin\"\npermitrootlogin no\npasswordauthentication no\nsari@server-toko:~$ sudo systemctl restart ssh\n```\n\nSesi itu dibiarkan terbuka. Di terminal baru, `ssh sari@203.0.113.10` dari laptop Budi tetap masuk dengan kunci. Dari laptop lain yang kuncinya tidak terpasang:\n\n```text\n$ ssh sari@203.0.113.10\nsari@203.0.113.10: Permission denied (publickey).\n```\n\nPassword bahkan tidak ditanyakan lagi.\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menutup sesi lama sebelum menguji**\n\nSalah:\n\n```bash\nsudo systemctl restart ssh\nexit\n# lalu baru mencoba login lagi\n```\n\nBenar:\n\n```bash\nsudo systemctl restart ssh\n# sesi ini tetap terbuka;\n# uji login di terminal BARU\n```\n\nKalau ada yang salah dan sesi lama sudah ditutup, kamu bisa terkunci di luar server. Sesi yang terbuka tidak terputus oleh restart, jadi pakai sesi itu untuk memperbaiki.\n\n**2. Lupa menghapus tanda #**\n\nSalah:\n\n```text\n#PasswordAuthentication no\n```\n\nBenar:\n\n```text\nPasswordAuthentication no\n```\n\nBaris berawalan `#` adalah komentar dan tidak dibaca. Mengganti `yes` menjadi `no` saja tidak berpengaruh selama `#` masih ada.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "File mana yang mengatur SSH **server** di Ubuntu?",
+          "options": [
+            "/etc/ssh/ssh_config",
+            "~/.ssh/config",
+            "/etc/ssh/sshd_config",
+            "~/.ssh/authorized_keys"
+          ],
+          "answer": 2,
+          "explanation": "`sshd_config` (dengan `d`) untuk server. `ssh_config` dan `~/.ssh/config` untuk klien.",
+          "remedial": "- Pengaturan SSH server: `/etc/ssh/sshd_config` (`ssh_config` = klien)\n- Baris `#` = komentar. Hapus `#` lalu tulis `PasswordAuthentication no` dan `PermitRootLogin no`\n- File di `sshd_config.d/` (misalnya `50-cloud-init.conf`) dibaca lebih dulu dan bisa mengalahkan perubahanmu\n- `sudo sshd -t` → `sudo systemctl restart ssh`; cek nilai akhir dengan `sudo sshd -T`\n- Jangan tutup sesi lama; uji login di terminal baru"
+        },
+        {
+          "question": "Di `sshd_config` ada baris `#PasswordAuthentication yes`. Artinya...",
+          "options": [
+            "Login password sudah dimatikan",
+            "Baris itu komentar yang menunjukkan nilai bawaan; belum ada pengaturan yang kamu tulis",
+            "Login password hanya untuk root",
+            "File itu rusak dan harus dihapus"
+          ],
+          "answer": 1,
+          "explanation": "Baris berawalan `#` tidak dibaca sebagai pengaturan. Untuk mengubahnya, hapus `#` dan ganti nilainya.",
+          "remedial": "- Pengaturan SSH server: `/etc/ssh/sshd_config` (`ssh_config` = klien)\n- Baris `#` = komentar. Hapus `#` lalu tulis `PasswordAuthentication no` dan `PermitRootLogin no`\n- File di `sshd_config.d/` (misalnya `50-cloud-init.conf`) dibaca lebih dulu dan bisa mengalahkan perubahanmu\n- `sudo sshd -t` → `sudo systemctl restart ssh`; cek nilai akhir dengan `sudo sshd -T`\n- Jangan tutup sesi lama; uji login di terminal baru"
+        },
+        {
+          "question": "Budi sudah menulis `PasswordAuthentication no` di `sshd_config` dan me-restart ssh, tapi `sudo sshd -T` masih menampilkan `passwordauthentication yes`. Penyebab yang paling mungkin adalah...",
+          "options": [
+            "Restart belum selesai, tunggu sehari",
+            "Kunci SSH Budi rusak",
+            "ufw belum dinyalakan",
+            "Ada file di /etc/ssh/sshd_config.d/ (misalnya 50-cloud-init.conf) berisi PasswordAuthentication yes yang dibaca lebih dulu"
+          ],
+          "answer": 3,
+          "explanation": "Baris `Include` membuat file di `sshd_config.d/` dibaca lebih dulu, dan nilai pertama yang berlaku.",
+          "remedial": "- Pengaturan SSH server: `/etc/ssh/sshd_config` (`ssh_config` = klien)\n- Baris `#` = komentar. Hapus `#` lalu tulis `PasswordAuthentication no` dan `PermitRootLogin no`\n- File di `sshd_config.d/` (misalnya `50-cloud-init.conf`) dibaca lebih dulu dan bisa mengalahkan perubahanmu\n- `sudo sshd -t` → `sudo systemctl restart ssh`; cek nilai akhir dengan `sudo sshd -T`\n- Jangan tutup sesi lama; uji login di terminal baru"
+        },
+        {
+          "question": "Setelah mengedit `sshd_config`, urutan yang aman adalah...",
+          "options": [
+            "sudo sshd -t → sudo systemctl restart ssh → uji login di terminal baru tanpa menutup sesi lama",
+            "sudo systemctl restart ssh → exit → coba login",
+            "exit → sudo sshd -t → sudo systemctl restart ssh",
+            "sudo reboot → baru periksa file"
+          ],
+          "answer": 0,
+          "explanation": "Uji file dulu, terapkan, lalu uji login dari terminal baru sementara sesi lama tetap terbuka.",
+          "remedial": "- Pengaturan SSH server: `/etc/ssh/sshd_config` (`ssh_config` = klien)\n- Baris `#` = komentar. Hapus `#` lalu tulis `PasswordAuthentication no` dan `PermitRootLogin no`\n- File di `sshd_config.d/` (misalnya `50-cloud-init.conf`) dibaca lebih dulu dan bisa mengalahkan perubahanmu\n- `sudo sshd -t` → `sudo systemctl restart ssh`; cek nilai akhir dengan `sudo sshd -T`\n- Jangan tutup sesi lama; uji login di terminal baru"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "File `sshd_config` berisi potongan pengaturan bawaan. Apa hasil perintah terakhir?",
+      "code": "# Isi file sshd_config:\n#   Include /etc/ssh/sshd_config.d/*.conf\n#   #PermitRootLogin prohibit-password\n#   #PubkeyAuthentication yes\n#   #PasswordAuthentication yes\n#   #PermitEmptyPasswords no\n#   KbdInteractiveAuthentication no\ngrep -v '^#' sshd_config",
+      "options": [
+        "KbdInteractiveAuthentication no",
+        "Include /etc/ssh/sshd_config.d/*.conf\nKbdInteractiveAuthentication no",
+        "#PermitRootLogin prohibit-password\n#PubkeyAuthentication yes\n#PasswordAuthentication yes\n#PermitEmptyPasswords no",
+        "PermitRootLogin prohibit-password\nPasswordAuthentication yes"
+      ],
+      "answer": 1,
+      "explanation": "`-v` membuang baris yang diawali `#`. Yang tersisa hanya dua baris yang tidak diawali `#`: `Include` dan `KbdInteractiveAuthentication`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Uji file pengaturan SSH server sebelum restart\nsudo sshd ___",
+      "answers": [
+        "-t"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Login password dan login root lewat SSH dimatikan di /etc/ssh/sshd_config: PasswordAuthentication no dan PermitRootLogin no.",
+        "Baris berawalan # adalah komentar; hapus # supaya pengaturan berlaku.",
+        "File di /etc/ssh/sshd_config.d/ dibaca lebih dulu; periksa nilai akhir dengan sudo sshd -T.",
+        "Selalu sudo sshd -t sebelum sudo systemctl restart ssh.",
+        "Jangan tutup sesi lama; uji login di terminal baru."
+      ]
+    }
+  ]
+}

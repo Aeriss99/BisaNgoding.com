@@ -1,0 +1,110 @@
+{
+  "id": "linux-nginx-06",
+  "moduleId": "linux-nginx",
+  "order": 6,
+  "title": "HTTPS dengan Let's Encrypt",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Website Toko Budi sudah tampil, tapi masih `http://`. Isi permintaan, termasuk password dan alamat pembeli, berjalan tanpa enkripsi. Banyak browser juga menandai halaman HTTP sebagai tidak aman.\n\nUntuk HTTPS, server butuh **sertifikat**: dokumen digital yang membuktikan \"server ini benar-benar pemilik `toko.contoh`\", ditandatangani lembaga yang dipercaya browser. Dengan sertifikat itu, browser dan server bisa berkomunikasi secara terenkripsi.\n\n- **Let's Encrypt** adalah lembaga penerbit sertifikat **gratis**.\n- **certbot** adalah program yang memintakan sertifikat ke Let's Encrypt, memasangnya ke Nginx, dan memperpanjangnya otomatis.\n\nSertifikat itu seperti **KTP website** yang dikeluarkan lembaga resmi. Browser bertindak seperti petugas yang memeriksa KTP: namanya cocok dengan domain yang dibuka? tanda tangan lembaganya asli? Kalau ya, gembok muncul. Setelah itu, semua surat dikirim dalam amplop tertutup: kurir di tengah jalan tidak bisa membaca isinya."
+    },
+    {
+      "type": "theory",
+      "content": "**Syarat sebelum menjalankan certbot:**\n\n1. **Domain mengarah ke IP server.** Di panel pengelola domain, buat *record* DNS jenis **A** (catatan yang menghubungkan nama ke alamat IPv4): `toko.contoh` → `203.0.113.10` dan `www.toko.contoh` → `203.0.113.10`. Perubahan DNS bisa butuh beberapa menit sampai beberapa jam untuk menyebar. Cek dengan `getent hosts toko.contoh` (modul Jaringan).\n2. **Server block dengan `server_name` domain itu sudah aktif** (pelajaran 4).\n3. **Port 80 dan 443 terbuka**: `sudo ufw allow 'Nginx Full'`. Aturan `'Nginx HTTP'` yang lama boleh dihapus karena sudah tercakup (`sudo ufw status numbered`, lalu `sudo ufw delete NOMOR`).\n\n**Memasang dan meminta sertifikat:**\n\n```bash\nsudo apt install certbot python3-certbot-nginx\nsudo certbot --nginx -d toko.contoh -d www.toko.contoh\n```\n\n- `--nginx` = pakai *plugin* (tambahan) Nginx dari paket `python3-certbot-nginx`: certbot membaca dan mengubah server block secara otomatis.\n- `-d` = satu domain. Tulis `-d` untuk setiap domain.\n- Pertama kali, certbot menanyakan alamat email (untuk pemberitahuan) dan meminta persetujuan syarat layanan.\n\n**Yang diubah certbot di server block:** menambahkan `listen 443 ssl`, `ssl_certificate`, dan `ssl_certificate_key` (setiap baris diberi komentar `# managed by Certbot`), serta pengalihan dari `http://` ke `https://` dengan kode 301.\n\n**File penting:**\n\n| File | Isinya |\n|---|---|\n| `/etc/letsencrypt/live/toko.contoh/fullchain.pem` | sertifikat (boleh diketahui umum) |\n| `/etc/letsencrypt/live/toko.contoh/privkey.pem` | **kunci privat** sertifikat: RAHASIA |\n\nSama seperti kunci SSH di modul sebelumnya, `privkey.pem` tidak pernah dikirim ke siapa pun: tidak ke teman, grup chat, chat AI, atau repositori Git.\n\n**Perpanjangan.** Sertifikat Let's Encrypt berlaku sekitar **90 hari** (Let's Encrypt berencana memperpendeknya). certbot memasang *timer* (jadwal milik systemd, mirip cron) bernama `certbot.timer` yang mengecek dua kali sehari dan memperpanjang sertifikat kalau masa berlakunya tersisa sekitar 30 hari. Kamu tidak perlu menjadwalkannya sendiri.\n\n| Perintah | Artinya |\n|---|---|\n| `sudo certbot renew --dry-run` | simulasi perpanjangan, untuk memastikan perpanjangan otomatis akan berhasil |\n| `sudo certbot certificates` | daftar sertifikat beserta tanggal kedaluwarsanya |\n\n**Kalau gagal.** Penyebab paling umum: domain belum mengarah ke server (DNS belum menyebar) atau port 80 diblokir firewall. certbot lalu melaporkan bahwa domain gagal diverifikasi. Let's Encrypt juga tidak menerbitkan sertifikat untuk alamat IP biasa atau domain yang bukan milikmu."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nGambaran layar di server (tanggal di komputermu bisa berbeda).\n\n**1. Memeriksa syarat.**\n\n```text\nsari@server-toko:~$ getent hosts toko.contoh\n203.0.113.10  toko.contoh\nsari@server-toko:~$ sudo ufw allow 'Nginx Full'\nRules updated\nRules updated (v6)\n```\n\nDomain sudah mengarah ke IP server, dan port 80 serta 443 terbuka.\n\n**2. Meminta sertifikat** (sebagian baris; pertanyaan email dan persetujuan di awal tidak ditampilkan):\n\n```text\nsari@server-toko:~$ sudo apt install certbot python3-certbot-nginx\n...\nsari@server-toko:~$ sudo certbot --nginx -d toko.contoh -d www.toko.contoh\nSaving debug log to /var/log/letsencrypt/letsencrypt.log\n...\nRequesting a certificate for toko.contoh and www.toko.contoh\n\nSuccessfully received certificate.\nCertificate is saved at: /etc/letsencrypt/live/toko.contoh/fullchain.pem\nKey is saved at:         /etc/letsencrypt/live/toko.contoh/privkey.pem\nThis certificate expires on 2026-11-30.\nThese files will be updated when the certificate renews.\nCertbot has set up a scheduled task to automatically renew this certificate in the background.\n\nDeploying certificate\nSuccessfully deployed certificate for toko.contoh to /etc/nginx/sites-enabled/toko\nSuccessfully deployed certificate for www.toko.contoh to /etc/nginx/sites-enabled/toko\nCongratulations! You have successfully enabled HTTPS on https://toko.contoh and https://www.toko.contoh\n```\n\nDi antara baris yang ditambahkan certbot ke file `toko`:\n\n```text\n    listen 443 ssl; # managed by Certbot\n    ssl_certificate /etc/letsencrypt/live/toko.contoh/fullchain.pem; # managed by Certbot\n    ssl_certificate_key /etc/letsencrypt/live/toko.contoh/privkey.pem; # managed by Certbot\n```\n\nTeks setelah `#` hanyalah komentar. Sekarang `https://toko.contoh` menampilkan gembok, dan `http://toko.contoh` dialihkan ke `https://` dengan kode 301.\n\n**3. Menghitung tanggal.** Sertifikat terbit 1 September 2026. Budi memakai `date -d` (modul Bash) untuk menghitung kapan masa 90 hari habis, dan kapan sisa masa berlakunya tinggal 30 hari.\n\n```bash\ndate -d \"2026-09-01 +90 days\" +%F\ndate -d \"2026-11-30 -30 days\" +%F\n```\n\nHasilnya:\n\n```text\n$ date -d \"2026-09-01 +90 days\" +%F\n2026-11-30\n$ date -d \"2026-11-30 -30 days\" +%F\n2026-10-31\n```\n\n- 1 September + 90 hari = 30 November, sama dengan tanggal di output certbot (`expires on 2026-11-30`).\n- Sekitar 31 Oktober, sisa masa berlakunya tinggal 30 hari: mulai saat itu `certbot.timer` akan memperpanjangnya.\n\n**4. Menguji perpanjangan otomatis** (sebagian baris):\n\n```text\nsari@server-toko:~$ sudo certbot renew --dry-run\n...\nCongratulations, all simulated renewals succeeded:\n  /etc/letsencrypt/live/toko.contoh/fullchain.pem (success)\n```\n\n`--dry-run` hanya simulasi: sertifikat yang sekarang tidak diganti.\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menjalankan certbot sebelum DNS siap**\n\nSalah:\n\n```bash\n# record A baru dibuat semenit yang lalu\nsudo certbot --nginx -d toko.contoh -d www.toko.contoh\n```\n\nBenar:\n\n```bash\ngetent hosts toko.contoh\n# sudah 203.0.113.10? baru jalankan:\nsudo certbot --nginx -d toko.contoh -d www.toko.contoh\n```\n\nLet's Encrypt memeriksa domain lewat internet. Kalau domain belum mengarah ke server (atau port 80 tertutup), verifikasi gagal.\n\n**2. Mengirim privkey.pem untuk minta bantuan**\n\nSalah:\n\n```text\n# menempel isi privkey.pem ke grup chat,\n# ke chat AI, atau commit ke repositori Git\n```\n\nBenar:\n\n```text\n# bagikan pesan error atau output\n# sudo certbot certificates, bukan kuncinya\n```\n\nSiapa pun yang memegang `privkey.pem` bisa menyamar sebagai situsmu. Kunci privat tidak pernah dikirim ke siapa pun.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi sertifikat pada HTTPS?",
+          "options": [
+            "Mempercepat loading halaman",
+            "Membuktikan identitas situs dan memungkinkan komunikasi terenkripsi",
+            "Menyimpan password pengunjung",
+            "Membuka port 443 di firewall"
+          ],
+          "answer": 1,
+          "explanation": "Sertifikat membuktikan server adalah pemilik domain itu. Setelah dipercaya, browser dan server berkomunikasi terenkripsi.",
+          "remedial": "- Sertifikat = KTP website dari lembaga tepercaya; Let's Encrypt gratis, certbot yang mengurusnya\n- Syarat: record A domain → IP server, server block dengan `server_name` aktif, `ufw allow 'Nginx Full'`\n- `sudo certbot --nginx -d toko.contoh -d www.toko.contoh`\n- Berlaku sekitar 90 hari, diperpanjang otomatis; uji dengan `sudo certbot renew --dry-run`\n- `privkey.pem` rahasia, `fullchain.pem` sertifikat"
+        },
+        {
+          "question": "Sebelum menjalankan certbot untuk `toko.contoh`, apa yang harus sudah benar di DNS?",
+          "options": [
+            "Ada record A toko.contoh yang mengarah ke IP server",
+            "Domain mengarah ke 127.0.0.1",
+            "Tidak perlu apa-apa, certbot mengatur DNS sendiri",
+            "Ada record yang mengarah ke port 3000"
+          ],
+          "answer": 0,
+          "explanation": "Let's Encrypt menghubungi domain lewat internet, jadi domain harus sudah mengarah ke IP server (`203.0.113.10`).",
+          "remedial": "- Sertifikat = KTP website dari lembaga tepercaya; Let's Encrypt gratis, certbot yang mengurusnya\n- Syarat: record A domain → IP server, server block dengan `server_name` aktif, `ufw allow 'Nginx Full'`\n- `sudo certbot --nginx -d toko.contoh -d www.toko.contoh`\n- Berlaku sekitar 90 hari, diperpanjang otomatis; uji dengan `sudo certbot renew --dry-run`\n- `privkey.pem` rahasia, `fullchain.pem` sertifikat"
+        },
+        {
+          "question": "Perintah `sudo ufw allow 'Nginx Full'` membuka port...",
+          "options": [
+            "80 saja",
+            "443 saja",
+            "22 dan 80",
+            "80 dan 443"
+          ],
+          "answer": 3,
+          "explanation": "`Nginx Full` = HTTP (80) dan HTTPS (443). Keduanya dibutuhkan: 80 untuk verifikasi dan pengalihan, 443 untuk HTTPS.",
+          "remedial": "- Sertifikat = KTP website dari lembaga tepercaya; Let's Encrypt gratis, certbot yang mengurusnya\n- Syarat: record A domain → IP server, server block dengan `server_name` aktif, `ufw allow 'Nginx Full'`\n- `sudo certbot --nginx -d toko.contoh -d www.toko.contoh`\n- Berlaku sekitar 90 hari, diperpanjang otomatis; uji dengan `sudo certbot renew --dry-run`\n- `privkey.pem` rahasia, `fullchain.pem` sertifikat"
+        },
+        {
+          "question": "Bagaimana sertifikat Let's Encrypt diperpanjang setelah certbot dipasang?",
+          "options": [
+            "Harus menjalankan certbot --nginx lagi setiap 90 hari",
+            "Tidak perlu diperpanjang, berlaku selamanya",
+            "Otomatis oleh certbot.timer; bisa diuji dengan sudo certbot renew --dry-run",
+            "Dengan me-restart Nginx setiap bulan"
+          ],
+          "answer": 2,
+          "explanation": "certbot memasang timer yang mengecek dua kali sehari dan memperpanjang saat masa berlaku tersisa sekitar 30 hari.",
+          "remedial": "- Sertifikat = KTP website dari lembaga tepercaya; Let's Encrypt gratis, certbot yang mengurusnya\n- Syarat: record A domain → IP server, server block dengan `server_name` aktif, `ufw allow 'Nginx Full'`\n- `sudo certbot --nginx -d toko.contoh -d www.toko.contoh`\n- Berlaku sekitar 90 hari, diperpanjang otomatis; uji dengan `sudo certbot renew --dry-run`\n- `privkey.pem` rahasia, `fullchain.pem` sertifikat"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Sebuah sertifikat terbit 1 Oktober 2026 dan berlaku 90 hari. Apa hasil perintah ini?",
+      "code": "date -d \"2026-10-01 +90 days\" +%F",
+      "options": [
+        "2026-12-31",
+        "2026-12-30",
+        "2027-01-01",
+        "2026-12-01"
+      ],
+      "answer": 1,
+      "explanation": "Oktober 31 hari dan November 30 hari: 1 Oktober + 30 hari = 31 Oktober, + 30 hari = 30 November, + 30 hari = 30 Desember."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Simulasikan perpanjangan sertifikat (tidak benar-benar mengganti)\nsudo certbot renew ___",
+      "answers": [
+        "--dry-run"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "HTTPS butuh sertifikat: bukti identitas situs yang ditandatangani lembaga tepercaya.",
+        "Let's Encrypt menerbitkan sertifikat gratis; certbot memintanya dan memasangnya ke Nginx.",
+        "Syarat: record A domain ke IP server, server block dengan server_name aktif, dan ufw allow 'Nginx Full'.",
+        "Sertifikat berlaku sekitar 90 hari dan diperpanjang otomatis; uji dengan certbot renew --dry-run.",
+        "privkey.pem adalah kunci privat: tidak pernah dibagikan ke siapa pun."
+      ]
+    }
+  ]
+}
