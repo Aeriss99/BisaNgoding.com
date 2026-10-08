@@ -1,0 +1,110 @@
+{
+  "id": "api-rest-07",
+  "moduleId": "api-rest",
+  "order": 7,
+  "title": "Stateless dan Tingkat Kematangan REST",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Stateless** berarti setiap request membawa **semua informasi** yang dibutuhkan server untuk memahaminya. Server tidak mengingat konteks percakapan dengan client di antara request. Token dikirim di setiap request, dan posisi halaman dikirim lewat `?offset=20` atau cursor.\n\nYang tidak disimpan adalah keadaan sesi client. Data resource seperti produk dan pesanan tentu tetap tersimpan di database.\n\nKeuntungannya besar di produksi. Request mana pun bisa dilayani server mana pun di belakang load balancer, sehingga menambah server cukup dengan menyalakan instance baru. Respons lebih mudah di-cache, dan request lebih mudah di-retry. Harganya, setiap request sedikit lebih besar karena token dan konteks dikirim berulang.\n\nBanyak aplikasi web memakai session yang disimpan di server. Secara teori itu melanggar batasan stateless, tapi tetap umum dipakai. Perbandingannya dibahas di modul Keamanan API.\n\nBayangkan minimarket dengan banyak kasir yang tidak menghafal pelanggan. Setiap kali bertransaksi, kamu menunjukkan kartu member. Karena semua informasi ada di kartu itu, kasir mana pun bisa melayanimu, dan antrean bisa dipindah ke kasir lain kapan saja."
+    },
+    {
+      "type": "theory",
+      "content": "**Richardson Maturity Model** dari Leonard Richardson mengelompokkan API ke empat tingkat kematangan:\n\n| Level | Ciri | Contoh |\n|---|---|---|\n| 0 | satu URI, semua lewat POST; HTTP hanya jalur pengiriman | `POST /api` + `{\"action\":\"getProduct\",\"id\":\"P01\"}` |\n| 1 | setiap resource punya URI, tapi method belum dipakai sesuai arti | `POST /products/P01` untuk membaca dan mengubah |\n| 2 | URI resource + method HTTP + status code yang tepat | `GET /products/P01` → 200, `DELETE` → 204 |\n| 3 | hypermedia: respons berisi link ke aksi berikutnya | lihat contoh di bawah |\n\nLevel 3 disebut **HATEOAS** (*Hypermedia As The Engine Of Application State*). Client mengikuti link yang diberikan server, bukan menyusun URL sendiri. Contoh rancangan (bukan output server latihan):\n\n```json\n{\n  \"id\": \"O101\",\n  \"status\": \"paid\",\n  \"links\": [\n    { \"rel\": \"self\", \"href\": \"/orders/O101\" },\n    { \"rel\": \"cancel\", \"href\": \"/orders/O101/cancel\", \"method\": \"POST\" }\n  ]\n}\n```\n\nLink `cancel` hanya muncul selama pesanan masih boleh dibatalkan.\n\n**Jujur soal praktik industri.** Menurut Fielding, hypermedia adalah bagian wajib REST. Kenyataannya, sebagian besar API yang disebut \"REST API\" berhenti di **level 2**. Client membaca dokumentasi seperti OpenAPI lalu menyusun URL sendiri. HATEOAS penuh jarang dipakai karena client tetap butuh kode khusus untuk setiap aksi, format link belum seragam, dan alat bantunya lebih matang untuk level 2. Hypermedia ringan tetap sering kamu temui: header `Location` setelah 201, header `Link` dengan `rel=\"next\"` untuk paging, dan link ke versi pengganti. Target yang realistis untuk tim: **level 2 yang rapi dan konsisten**."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLogin sebagai Budi, panggil `GET /me` dengan token, lalu panggil lagi tanpa token. Lihat apakah server \"ingat\" bahwa Budi baru saja login.\n\n```bash\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\ncurl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -c .\ncurl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/me\n```\n\nYang akan kamu lihat:\n\n```text\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ curl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -c .\n{\"id\":\"U01\",\"name\":\"Budi\",\"email\":\"budi@toko.contoh\",\"role\":\"customer\"}\n$ curl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/me\n401\n```\n\n- Dengan header `Authorization`, server mengenali Budi dan mengembalikan datanya.\n- Tanpa header itu, jawabannya `401`, padahal request sebelumnya dari terminal yang sama sudah berhasil. Server tidak menyimpan \"Budi sedang login\"; setiap request dinilai dari isinya sendiri.\n- Karena itu dua server di belakang load balancer bisa melayani Budi bergantian tanpa koordinasi: keduanya cukup memeriksa token yang dibawa request."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Server mengingat posisi halaman milik setiap pengguna**\n\nSalah:\n\n```bash\ncurl https://api.toko.contoh/products/next-page\n```\n\nBenar:\n\n```bash\ncurl \"https://api.toko.contoh/products?limit=2&offset=2\"\n```\n\nKalau server menyimpan \"halaman terakhir\" per pengguna, request berikutnya harus jatuh ke server yang sama, dan dua tab browser saling mengacaukan posisi. Dengan limit dan offset (atau cursor) di URI, setiap request lengkap dengan sendirinya dan bisa dilayani server mana pun.\n\n**2. Menyimpan keranjang belanja di memori proses server**\n\nSalah:\n\n```javascript\n// keranjang hanya ada di memori instance ini\nconst keranjang = new Map();\nfunction tambahKeKeranjang(userId, item) {\n  keranjang.set(userId, [...(keranjang.get(userId) || []), item]);\n}\n```\n\nBenar:\n\n```javascript\n// keranjang adalah resource di penyimpanan bersama (database)\n// POST /carts/me/items dengan Authorization: Bearer <token>\nasync function tambahKeKeranjang(db, userId, item) {\n  await db.cartItems.insert({ userId, ...item });\n}\n```\n\nData di memori hilang saat server restart atau deploy, dan tidak terlihat oleh instance lain di belakang load balancer. Pengguna akan melihat keranjangnya kadang berisi, kadang kosong. Jadikan keranjang resource di penyimpanan bersama, dan identitas pengguna dibaca dari token di setiap request.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti stateless dalam REST?",
+          "options": [
+            "Server tidak boleh menyimpan data apa pun, termasuk database",
+            "Setiap request membawa semua informasi yang dibutuhkan; server tidak mengingat konteks client di antara request",
+            "Client tidak boleh menyimpan token",
+            "Respons tidak boleh di-cache"
+          ],
+          "answer": 1,
+          "explanation": "Stateless menyangkut keadaan sesi client, bukan data resource. Produk dan pesanan tetap disimpan di database; yang tidak diingat server adalah konteks percakapan dengan client.",
+          "remedial": "Stateless menyangkut keadaan sesi client, bukan data resource. Produk dan pesanan tetap disimpan di database; yang tidak diingat server adalah konteks percakapan dengan client."
+        },
+        {
+          "question": "Setiap resource di API kamu punya URI sendiri, method dipakai sesuai artinya, dan status code tepat, tetapi respons tidak berisi link. Di level berapa API ini dalam Richardson Maturity Model?",
+          "options": [
+            "Level 0",
+            "Level 1",
+            "Level 2",
+            "Level 3"
+          ],
+          "answer": 2,
+          "explanation": "Level 2 = URI resource + method HTTP + status code yang tepat. Level 3 menambahkan hypermedia, yaitu link ke aksi berikutnya di dalam respons.",
+          "remedial": "Level 2 = URI resource + method HTTP + status code yang tepat. Level 3 menambahkan hypermedia, yaitu link ke aksi berikutnya di dalam respons."
+        },
+        {
+          "question": "Pernyataan mana yang paling sesuai dengan praktik industri tentang HATEOAS?",
+          "options": [
+            "Semua REST API produksi wajib memakai HATEOAS penuh",
+            "HATEOAS sudah dilarang oleh RFC 9110",
+            "HATEOAS berarti API memakai JSON, bukan XML",
+            "Sebagian besar API berhenti di level 2; hypermedia dipakai sebagian, misalnya header Link untuk paging"
+          ],
+          "answer": 3,
+          "explanation": "Fielding menganggap hypermedia wajib, tetapi kebanyakan API produksi berada di level 2 dan mengandalkan dokumentasi. Bentuk ringan seperti Location dan Link tetap umum.",
+          "remedial": "Fielding menganggap hypermedia wajib, tetapi kebanyakan API produksi berada di level 2 dan mengandalkan dokumentasi. Bentuk ringan seperti Location dan Link tetap umum."
+        },
+        {
+          "question": "Kenapa API stateless mudah diskalakan dengan menambah server di belakang load balancer?",
+          "options": [
+            "Request mana pun bisa dilayani server mana pun, karena tidak ada server yang harus mengingat client",
+            "Request stateless selalu lebih kecil daripada request biasa",
+            "API stateless tidak membutuhkan database",
+            "Load balancer menyimpan session untuk semua server"
+          ],
+          "answer": 0,
+          "explanation": "Karena setiap request lengkap dengan sendirinya, load balancer bebas membagi request ke instance mana pun. Request justru sedikit lebih besar karena token dikirim berulang.",
+          "remedial": "Karena setiap request lengkap dengan sendirinya, load balancer bebas membagi request ke instance mana pun. Request justru sedikit lebih besar karena token dikirim berulang."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Endpoint /v1/products sudah usang. Apa isi header Link yang dikirim server latihan?",
+      "code": "curl -s -o /dev/null -w \"%header{link}\" https://api.toko.contoh/v1/products",
+      "options": [
+        "</v2/products>; rel=\"successor-version\"",
+        "</v1/products>; rel=\"self\"",
+        "</products?offset=20>; rel=\"next\"",
+        "</v1/products/P01>; rel=\"item\""
+      ],
+      "answer": 0,
+      "explanation": "Server latihan menandai /v1 sebagai usang dan menunjuk penggantinya lewat header Link dengan rel=\"successor-version\". Ini contoh hypermedia ringan: client tahu ke mana harus pindah tanpa menebak URL."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# TOKEN berisi access token Budi dari POST /auth/login. Kirim di SETIAP request.\ncurl -s https://api.toko.contoh/me -H \"___: Bearer $TOKEN\" | jq -r .name",
+      "answers": [
+        "Authorization|authorization"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Stateless: setiap request membawa semua informasi yang dibutuhkan, termasuk token dan posisi halaman.",
+        "Server tetap menyimpan data resource; yang tidak disimpan adalah konteks sesi client di antara request.",
+        "Stateless memudahkan scaling di belakang load balancer, caching, dan retry.",
+        "Richardson Maturity Model: level 0 satu URI, level 1 resource, level 2 method + status code, level 3 hypermedia.",
+        "HATEOAS penuh jarang dipakai; target realistis industri adalah level 2 yang konsisten, ditambah hypermedia ringan seperti Location dan Link."
+      ]
+    }
+  ]
+}

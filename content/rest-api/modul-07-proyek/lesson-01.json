@@ -1,0 +1,110 @@
+{
+  "id": "api-proyek-01",
+  "moduleId": "api-proyek",
+  "order": 1,
+  "title": "Kebutuhan dan Resource",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Modul ini adalah proyek penutup. Kamu berperan sebagai backend engineer yang menerima permintaan dari pemilik Toko Budi. Hasil akhirnya adalah rancangan API yang siap di-review tim: daftar resource, tabel endpoint, dokumen OpenAPI, aturan error, dan aturan akses.\n\nPekerjaan nyata jarang dimulai dari kode. Pekerjaan dimulai dari **cerita kebutuhan** (*user story*), dengan pola \"Sebagai ..., saya ingin ..., supaya ...\". Kebutuhan Toko Budi:\n\n1. Pengunjung melihat katalog, mencari, dan memfilter produk tanpa login.\n2. Pembeli login, mengisi keranjang, lalu checkout menjadi pesanan.\n3. Pembeli membayar pesanan dan melihat riwayat pesanannya sendiri.\n4. Payment gateway memberi tahu toko saat pembayaran berhasil.\n5. Admin (Dewi) mengelola produk, melihat semua pesanan, dan menandai pesanan sudah dikirim.\n\nTeknik sederhananya: garis bawahi **kata benda** sebagai kandidat resource, yaitu produk, keranjang, pesanan, pembayaran, dan pengguna. **Kata kerja** seperti melihat, membayar, dan mengirim menjadi method HTTP atau aksi. Kata seperti \"pengunjung\", \"pembeli\", dan \"admin\" adalah **peran**, bukan resource.\n\nArsitek tidak langsung memasang bata. Ia mendengar kebutuhan keluarga, lalu menggambar denah: ruangan apa saja yang ada dan pintu mana yang menghubungkannya. Daftar resource dan relasinya adalah denah API sebelum endpoint dan kode dibuat."
+    },
+    {
+      "type": "theory",
+      "content": "| Resource | Isi utama | Relasi | Di server latihan |\n|---|---|---|---|\n| `users` | id, name, email, role | satu pengguna punya banyak pesanan | ada, lewat `/me` dan `/admin/users` |\n| `products` | id, name, price, category, stock | satu produk muncul di banyak item | ada |\n| `carts` + item | productId, qty | satu pembeli punya satu keranjang | **rancangan, belum ada di server latihan** |\n| `orders` + item | items, total, status | milik satu pengguna, berisi minimal satu item | ada |\n| `payments` | method, amount, status | milik satu pesanan, bisa lebih dari satu percobaan | **rancangan, belum ada di server latihan** |\n\nRelasinya bisa digambar dengan teks sederhana (1 = satu, n = banyak):\n\n```text\nusers  1 ── n orders 1 ── n order items n ── 1 products\nusers  1 ── 1 carts  1 ── n cart items  n ── 1 products\norders 1 ── n payments\n```\n\nKeputusan desain yang biasa dibahas tim:\n\n- **Item pesanan tidak punya endpoint sendiri.** Item hanya bermakna di dalam pesanannya, jadi dikirim sebagai `order.items`.\n- **Status pesanan berjalan maju.** Server latihan memakai `pending` (dibuat), `paid` (dibayar), dan `shipped` (dikirim). Pesanan `shipped` tidak boleh kembali ke `pending`.\n- **Pembayaran dipisah dari pesanan.** Pembayaran bisa gagal lalu dicoba lagi dengan metode lain. Setiap percobaan menjadi satu payment, sehingga riwayatnya tidak hilang.\n- **Harga disalin saat checkout** (rancangan). Item pesanan menyimpan `unitPrice`, supaya total pesanan lama tidak berubah saat admin menaikkan harga. Server latihan cukup menyimpan `total`.\n- **Total dan pemilik ditentukan server.** Client hanya mengirim `productId` dan `qty`. Harga dibaca dari database, dan pemilik pesanan dibaca dari token."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nSebelum merancang, jelajahi API yang sudah berjalan. Endpoint `/` menyebut resource yang tersedia. Lalu login sebagai Budi dan ikuti relasinya: pengguna, pesanan, lalu produk di dalam pesanan.\n\n```bash\ncurl -s https://api.toko.contoh/\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\ncurl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -c .\ncurl -s https://api.toko.contoh/orders/O101 -H \"Authorization: Bearer $TOKEN\" | jq -c .\ncurl -s https://api.toko.contoh/products/P01 | jq -c '{id, name, price}'\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s https://api.toko.contoh/\n{\n  \"name\": \"API Toko Budi\",\n  \"version\": \"1.0.0\",\n  \"docs\": \"/docs/openapi.yaml\",\n  \"resources\": [\n    \"/products\",\n    \"/orders\",\n    \"/auth/login\",\n    \"/me\"\n  ]\n}\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ curl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -c .\n{\"id\":\"U01\",\"name\":\"Budi\",\"email\":\"budi@toko.contoh\",\"role\":\"customer\"}\n$ curl -s https://api.toko.contoh/orders/O101 -H \"Authorization: Bearer $TOKEN\" | jq -c .\n{\"id\":\"O101\",\"userId\":\"U01\",\"items\":[{\"productId\":\"P01\",\"qty\":3}],\"total\":15000,\"status\":\"paid\",\"createdAt\":\"2026-08-29T02:00:00Z\"}\n$ curl -s https://api.toko.contoh/products/P01 | jq -c '{id, name, price}'\n{\"id\":\"P01\",\"name\":\"Buku Tulis\",\"price\":5000}\n```\n\nPerhatikan:\n\n- `userId` di pesanan O101 bernilai `U01`, sama dengan `id` di `/me`. Itulah relasi pengguna dan pesanan.\n- Setiap item hanya menyimpan `productId` dan `qty`. Nama dan harga dibaca dari resource produk. Total `15000` sama dengan 3 × 5000.\n- Respons `/` menyebut `docs: /docs/openapi.yaml`, tapi server latihan belum menyediakan file itu. Isinya akan kamu tulis di materi Menulis Dokumen OpenAPI.\n- Keranjang dan pembayaran belum ada di daftar `resources`. Keduanya dirancang di atas kertas di modul ini."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Merancang endpoint dari nama layar atau tombol**\n\nSalah:\n\n```text\nPOST /halamanCheckout\nPOST /tombolBayar\nGET  /riwayatSaya\n```\n\nBenar:\n\n```text\nPOST /orders                 (checkout)\nPOST /orders/O103/payments   (bayar; rancangan)\nGET  /orders                 (riwayat; server menyaring milik pemilik token)\n```\n\nLayar berubah setiap kali desain aplikasi diperbarui, dan aplikasi web serta aplikasi HP punya layar berbeda. Resource seperti pesanan dan pembayaran jauh lebih stabil. API yang mengikuti resource bisa dipakai semua layar, termasuk layar yang belum dibuat.\n\n**2. Mengirim baris database apa adanya**\n\nSalah:\n\n```json\n{\"id\": \"U01\", \"name\": \"Budi\", \"email\": \"budi@toko.contoh\", \"password_hash\": \"$2b$12$Qe8...\", \"role\": \"customer\", \"row_version\": 7, \"deleted_at\": null}\n```\n\nBenar:\n\n```json\n{\"id\": \"U01\", \"name\": \"Budi\", \"email\": \"budi@toko.contoh\", \"role\": \"customer\"}\n```\n\nRepresentasi API dipilih dengan sengaja, bukan salinan tabel. Kolom internal seperti hash password bocor ke client, dan gaya nama `snake_case` dari database bercampur dengan `camelCase` API. Setiap perubahan tabel juga menjadi breaking change. Server latihan pun menyembunyikan nomor versi produk dan hanya menampilkannya lewat ETag.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kebutuhan baru: \"Pembeli bisa membayar pesanan, dan kalau gagal boleh mencoba metode lain.\" Rancangan mana yang paling tepat?",
+          "options": [
+            "Satu field paymentStatus di pesanan yang ditimpa setiap kali mencoba",
+            "Resource payments yang terhubung ke pesanan; setiap percobaan bayar menjadi satu payment",
+            "Endpoint POST /bayarSekarang yang mengembalikan teks \"berhasil\"",
+            "Data pembayaran disimpan di dalam keranjang"
+          ],
+          "answer": 1,
+          "explanation": "Resource payments menyimpan setiap percobaan beserta statusnya, jadi riwayat gagal lalu berhasil tetap tercatat. Field yang ditimpa menghapus riwayat itu, dan keranjang sudah selesai tugasnya saat checkout.",
+          "remedial": "Resource payments menyimpan setiap percobaan beserta statusnya, jadi riwayat gagal lalu berhasil tetap tercatat. Field yang ditimpa menghapus riwayat itu, dan keranjang sudah selesai tugasnya saat checkout."
+        },
+        {
+          "question": "Kenapa item pesanan sebaiknya menyimpan salinan harga (`unitPrice`) saat checkout?",
+          "options": [
+            "Supaya respons pesanan lebih kecil",
+            "Karena productId tidak boleh dikirim di JSON",
+            "Supaya client bisa menentukan harga sendiri saat checkout",
+            "Supaya total pesanan lama tidak berubah ketika admin mengubah harga produk"
+          ],
+          "answer": 3,
+          "explanation": "Harga produk bisa berubah kapan saja. Pesanan adalah catatan transaksi, jadi harga saat dibeli harus ikut disimpan. Salinan itu dibuat server, bukan dikirim client.",
+          "remedial": "Harga produk bisa berubah kapan saja. Pesanan adalah catatan transaksi, jadi harga saat dibeli harus ikut disimpan. Salinan itu dibuat server, bukan dikirim client."
+        },
+        {
+          "question": "Dari cerita kebutuhan \"Admin menandai pesanan sudah dikirim\", bagian mana yang menjadi resource?",
+          "options": [
+            "admin",
+            "menandai",
+            "pesanan",
+            "sudah dikirim"
+          ],
+          "answer": 2,
+          "explanation": "Pesanan adalah kata benda yang menjadi resource orders. \"Admin\" adalah peran, \"menandai\" adalah aksi (method), dan \"sudah dikirim\" adalah nilai status shipped.",
+          "remedial": "Pesanan adalah kata benda yang menjadi resource orders. \"Admin\" adalah peran, \"menandai\" adalah aksi (method), dan \"sudah dikirim\" adalah nilai status shipped."
+        },
+        {
+          "question": "Respons `GET /orders/O101` berisi `\"userId\": \"U01\"` dan `items[].productId`. Apa yang ditunjukkan kedua field itu?",
+          "options": [
+            "Relasi: pesanan milik pengguna U01, dan setiap item menunjuk satu produk",
+            "Client boleh mengganti pemilik pesanan lewat field userId",
+            "Produk disimpan di dalam pesanan dan tidak punya endpoint sendiri",
+            "Pesanan itu sudah dibayar"
+          ],
+          "answer": 0,
+          "explanation": "Field berisi ID resource lain menyatakan relasi. Produk tetap punya endpoint sendiri (/products/P01), sedangkan status pembayaran ada di field status.",
+          "remedial": "Field berisi ID resource lain menyatakan relasi. Produk tetap punya endpoint sendiri (/products/P01), sedangkan status pembayaran ada di field status."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa output perintah ini?",
+      "code": "curl -s https://api.toko.contoh/ | jq -c .resources",
+      "options": [
+        "[\"products\",\"orders\",\"users\"]",
+        "[\"/products\",\"/orders\",\"/carts\",\"/payments\"]",
+        "[\"/products\",\"/orders\",\"/auth/login\",\"/me\"]",
+        "[\"/getProducts\",\"/createOrder\"]"
+      ],
+      "answer": 2,
+      "explanation": "Server latihan menyebut empat alamat: produk, pesanan, login, dan profil. Keranjang dan pembayaran belum ada, karena keduanya masih rancangan di modul ini."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# TOKEN berisi token Budi. Tampilkan id produk di item pertama pesanan O101\ncurl -s https://api.toko.contoh/orders/O101 -H \"Authorization: Bearer $TOKEN\" | jq -r '.items[0].___'",
+      "answers": [
+        "productId"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Rancangan API dimulai dari cerita kebutuhan: kata benda menjadi resource, kata kerja menjadi method atau aksi, dan pelaku menjadi peran.",
+        "Resource Toko Budi: users, products, carts, orders, dan payments; keranjang dan pembayaran masih rancangan.",
+        "Tulis relasi satu-banyak secara eksplisit, dan putuskan mana yang menjadi resource sendiri dan mana yang menjadi bagian resource lain.",
+        "Total, harga, dan pemilik pesanan ditentukan server; client hanya mengirim productId dan qty.",
+        "Representasi API dipilih dengan sengaja; jangan mengirim kolom database apa adanya."
+      ]
+    }
+  ]
+}

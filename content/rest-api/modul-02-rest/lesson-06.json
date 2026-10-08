@@ -1,0 +1,112 @@
+{
+  "id": "api-rest-06",
+  "moduleId": "api-rest",
+  "order": 6,
+  "title": "Kode Status 4xx dan 5xx",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saat request gagal, pertanyaan pertama di tim adalah: **siapa yang harus memperbaiki?** Kelas status menjawabnya.\n\n- **4xx**: request dari client yang bermasalah. Mengirim ulang request yang sama tanpa perubahan biasanya tetap gagal. Pengecualiannya `429`: tunggu sesuai `Retry-After`, lalu coba lagi.\n- **5xx**: server gagal memproses request yang mungkin sudah benar. Client tidak bisa memperbaikinya. Untuk `502`, `503`, dan `504`, mencoba lagi beberapa saat kemudian sering berhasil, asalkan request-nya idempotent.\n\nDua pasangan yang paling sering tertukar:\n\n- **401 vs 403.** Namanya `Unauthorized`, tapi artinya \"belum terautentikasi\": token tidak ada, rusak, atau kedaluwarsa. Server wajib menyertakan header `WWW-Authenticate`. `403 Forbidden` berarti server tahu siapa kamu, tapi kamu tidak berhak. Login ulang menyelesaikan 401, tidak menyelesaikan 403.\n- **400 vs 422.** `400` untuk request yang tidak bisa dibaca, misalnya JSON rusak. `422` untuk JSON yang terbaca tapi isinya melanggar aturan. Sebagian API memakai 400 untuk keduanya; yang penting konsisten dan terdokumentasi.\n\nBayangkan loket bank. Formulir yang diisi asal-asalan dikembalikan ke nasabah untuk diperbaiki (4xx). Kalau sistem bank sedang gangguan, nasabah tidak bisa berbuat apa-apa selain menunggu dan mencoba lagi nanti (5xx)."
+    },
+    {
+      "type": "theory",
+      "content": "| Kode | Nama | Kapan | Yang memperbaiki |\n|---|---|---|---|\n| `400` | Bad Request | JSON rusak, parameter tidak dikenal | client |\n| `401` | Unauthorized | token tidak ada, rusak, atau kedaluwarsa | client: login ulang |\n| `403` | Forbidden | identitas dikenal tapi tidak berhak | bukan dengan login ulang; minta akses |\n| `404` | Not Found | resource tidak ada atau sengaja disembunyikan | client |\n| `405` | Method Not Allowed | method tidak didukung di URI itu; wajib header `Allow` | client |\n| `409` | Conflict | bentrok dengan keadaan resource, misalnya stok habis | client: ubah data atau ambil ulang |\n| `415` | Unsupported Media Type | `Content-Type` body tidak didukung | client |\n| `422` | Unprocessable Content | format benar, isinya tidak valid | client |\n| `429` | Too Many Requests | melewati rate limit; sering ada `Retry-After` | client: tunggu |\n| `500` | Internal Server Error | bug atau kesalahan tak terduga | server |\n| `502` | Bad Gateway | gateway menerima respons tidak valid dari server di belakangnya | server/infrastruktur |\n| `503` | Service Unavailable | server sementara tidak bisa melayani (beban penuh, maintenance) | server; client coba lagi nanti |\n| `504` | Gateway Timeout | gateway tidak mendapat respons tepat waktu dari server di belakangnya | server/infrastruktur |\n\nKode `502`, `503`, dan `504` biasanya dibuat oleh **gateway** atau load balancer di depan aplikasimu, bukan oleh kode aplikasinya. Karena itu bentuk body-nya sering berbeda dari error API biasa, bahkan bisa berupa halaman HTML. Server latihan tidak punya gateway, jadi ketiganya tidak bisa dicoba di sini.\n\nSaat menerima `500`, cari ID pelacakan seperti header `X-Request-Id`. Tim backend memakainya untuk menemukan baris log yang tepat."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLogin sebagai Budi (pembeli biasa), lalu bandingkan beberapa kegagalan. Baris pertama menyimpan token ke variabel `TOKEN`, seperti yang biasa dilakukan engineer saat menguji API.\n\n```bash\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\ncurl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/admin/users\ncurl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/admin/users -H \"Authorization: Bearer $TOKEN\"\ncurl -s -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" -d '{\"items\":[{\"productId\":\"P05\",\"qty\":1}]}' | jq -c \"{status, detail}\"\ncurl -i https://api.toko.contoh/bug\n```\n\nYang akan kamu lihat:\n\n```text\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ curl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/admin/users\n401\n$ curl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/admin/users -H \"Authorization: Bearer $TOKEN\"\n403\n$ curl -s -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" -d '{\"items\":[{\"productId\":\"P05\",\"qty\":1}]}' | jq -c \"{status, detail}\"\n{\"status\":409,\"detail\":\"Stok Sepatu Sekolah tidak cukup (tersisa 0).\"}\n$ curl -i https://api.toko.contoh/bug\nHTTP/1.1 500 Internal Server Error\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nContent-Type: application/problem+json\nX-Request-Id: req-7f3a9c\nContent-Length: 175\nConnection: close\n\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Internal Server Error\",\n  \"status\": 500,\n  \"detail\": \"Terjadi kesalahan di server. Hubungi tim kami dengan menyertakan X-Request-Id.\"\n}\n```\n\n- Tanpa token: `401`. Server belum tahu siapa yang meminta.\n- Dengan token Budi: `403`. Server tahu ini Budi, tapi Budi bukan admin. Login ulang tidak akan mengubah jawabannya.\n- Memesan P05 yang stoknya 0: `409 Conflict`. Body request-nya valid, tapi bentrok dengan keadaan resource saat ini.\n- `/bug` mensimulasikan bug: `500` dengan `X-Request-Id: req-7f3a9c`. Pesannya tidak membocorkan detail internal, tapi memberi ID untuk dilaporkan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membalas 401 untuk pengguna yang sudah login tapi tidak berhak**\n\nSalah:\n\n```http\nHTTP/1.1 401 Unauthorized\nContent-Type: application/problem+json\n\n{\"type\": \"about:blank\", \"title\": \"Unauthorized\", \"status\": 401, \"detail\": \"Hanya admin yang boleh mengakses daftar pengguna.\"}\n```\n\nBenar:\n\n```http\nHTTP/1.1 403 Forbidden\nContent-Type: application/problem+json\n\n{\"type\": \"about:blank\", \"title\": \"Forbidden\", \"status\": 403, \"detail\": \"Hanya admin yang boleh mengakses daftar pengguna.\"}\n```\n\nBanyak frontend menangani 401 dengan menghapus token lalu membuka halaman login. Budi login ulang, membuka halaman yang sama, dan mendapat 401 lagi tanpa akhir. 403 memberi tahu client bahwa masalahnya adalah izin, bukan identitas.\n\n**2. Membiarkan input yang salah menjadi 500 dengan stack trace**\n\nSalah:\n\n```http\nHTTP/1.1 500 Internal Server Error\nContent-Type: application/json\n\n{\"error\": \"Error: qty must be >= 1 at validateItem (/app/src/orders.js:42:11)\"}\n```\n\nBenar:\n\n```http\nHTTP/1.1 422 Unprocessable Content\nContent-Type: application/problem+json\n\n{\"type\": \"about:blank\", \"title\": \"Unprocessable Content\", \"status\": 422, \"detail\": \"qty harus bilangan bulat >= 1.\", \"errors\": [{\"field\": \"items.qty\", \"message\": \"harus >= 1\"}]}\n```\n\nInput yang tidak valid adalah kesalahan client, jadi validasi dulu dan jawab dengan 4xx. Status 500 membuat alert monitoring berbunyi, membuat client mengira server rusak lalu mencoba ulang, dan stack trace membocorkan struktur kode ke penyerang.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Token Budi sudah kedaluwarsa, lalu aplikasinya memanggil `GET /me`. Status apa yang dikembalikan server latihan?",
+          "code": "curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN_LAMA\"",
+          "options": [
+            "403",
+            "401",
+            "410",
+            "500"
+          ],
+          "answer": 1,
+          "explanation": "Token kedaluwarsa berarti kredensial tidak lagi valid, jadi server menjawab 401 beserta WWW-Authenticate. Client perlu mendapat token baru, misalnya dengan login ulang.",
+          "remedial": "Token kedaluwarsa berarti kredensial tidak lagi valid, jadi server menjawab 401 beserta WWW-Authenticate. Client perlu mendapat token baru, misalnya dengan login ulang."
+        },
+        {
+          "question": "API mengembalikan `503 Service Unavailable` dengan header `Retry-After: 120`. Apa tindakan client yang tepat?",
+          "options": [
+            "Memperbaiki body request lalu segera mengirim ulang",
+            "Menghapus token dan meminta pengguna login ulang",
+            "Menunggu sekitar 120 detik lalu mencoba lagi",
+            "Menganggap resource sudah dihapus permanen"
+          ],
+          "answer": 2,
+          "explanation": "503 berarti server sementara tidak bisa melayani. Retry-After: 120 memberi tahu client berapa detik sebaiknya menunggu sebelum mencoba lagi. Request-nya sendiri tidak salah.",
+          "remedial": "503 berarti server sementara tidak bisa melayani. Retry-After: 120 memberi tahu client berapa detik sebaiknya menunggu sebelum mencoba lagi. Request-nya sendiri tidak salah."
+        },
+        {
+          "question": "Request ini dijawab `415 Unsupported Media Type`. Apa yang perlu diperbaiki?",
+          "code": "curl -X POST https://api.toko.contoh/products -d '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}'",
+          "options": [
+            "Tambahkan header Content-Type: application/json",
+            "Ganti method menjadi PUT",
+            "Tambahkan header Accept: application/json",
+            "Kirim price sebagai teks \"45000\""
+          ],
+          "answer": 0,
+          "explanation": "Tanpa Content-Type, curl -d mengirim application/x-www-form-urlencoded. Server hanya menerima application/json, jadi menjawab 415. Accept mengatur format respons, bukan format body yang dikirim.",
+          "remedial": "Tanpa Content-Type, curl -d mengirim application/x-www-form-urlencoded. Server hanya menerima application/json, jadi menjawab 415. Accept mengatur format respons, bukan format body yang dikirim."
+        },
+        {
+          "question": "Gateway di depan layanan pesanan menunggu terlalu lama tanpa jawaban dari layanan itu, lalu menyerah. Status apa yang dikirim gateway ke client?",
+          "options": [
+            "500 Internal Server Error",
+            "502 Bad Gateway",
+            "503 Service Unavailable",
+            "504 Gateway Timeout"
+          ],
+          "answer": 3,
+          "explanation": "504 berarti gateway tidak menerima respons tepat waktu dari server di belakangnya. 502 dipakai kalau respons yang diterima tidak valid, dan 503 kalau server menyatakan sedang tidak bisa melayani.",
+          "remedial": "504 berarti gateway tidak menerima respons tepat waktu dari server di belakangnya. 502 dipakai kalau respons yang diterima tidak valid, dan 503 kalau server menyatakan sedang tidak bisa melayani."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "JSON-nya valid dan Content-Type benar, tapi price dikirim sebagai teks. Apa status yang dikembalikan?",
+      "code": "curl -s -o /dev/null -w \"%{http_code}\" -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",\"price\":\"45000\",\"category\":\"aksesoris\",\"stock\":10}'",
+      "options": [
+        "201",
+        "400",
+        "415",
+        "422"
+      ],
+      "answer": 3,
+      "explanation": "Sintaks JSON benar, jadi bukan 400. Content-Type sudah application/json, jadi bukan 415. Namun price harus bilangan bulat, sehingga isinya melanggar aturan dan server menjawab 422."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan status dan ID pelacakan dari respons error server\ncurl -s -o /dev/null -w \"%{http_code} %header{___}\" https://api.toko.contoh/bug",
+      "answers": [
+        "X-Request-Id|x-request-id"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "4xx berarti request client yang perlu diperbaiki; 5xx berarti server gagal dan client hanya bisa menunggu atau mencoba lagi.",
+        "401 berarti belum terautentikasi (login ulang membantu); 403 berarti identitas dikenal tapi tidak berhak.",
+        "400 untuk request yang tidak terbaca, 422 untuk isi yang tidak valid, 409 untuk bentrok dengan keadaan resource, 415 untuk Content-Type yang tidak didukung.",
+        "502, 503, dan 504 biasanya datang dari gateway; 503 dan 429 sering membawa Retry-After.",
+        "Jangan biarkan input salah menjadi 500, dan sertakan ID pelacakan seperti X-Request-Id pada error server."
+      ]
+    }
+  ]
+}

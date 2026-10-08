@@ -1,0 +1,111 @@
+{
+  "id": "api-client-03",
+  "moduleId": "api-client",
+  "order": 3,
+  "title": "fetch: Mengambil Data",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`fetch` adalah fungsi bawaan browser dan Node.js (versi 18 ke atas) untuk mengirim request HTTP dari JavaScript. Hasilnya **Promise** yang berisi objek `Response`.\n\nMembaca data dengan fetch terjadi dalam **dua langkah**, dan keduanya asynchronous:\n\n1. `await fetch(url)` selesai begitu status dan header respons tiba.\n2. `await res.json()` membaca body sampai habis, lalu mengubahnya dari teks JSON menjadi objek JavaScript.\n\nHal terpenting di materi ini: **fetch tidak melempar error untuk status 404 atau 500.** Promise dari fetch hanya ditolak (*reject*) kalau tidak ada respons sama sekali, misalnya jaringan putus, domain salah, atau request diblokir CORS. Respons `404` tetap respons yang sah. Karena itu kamu wajib memeriksa `res.ok` sendiri.\n\nBayangkan memesan barang lewat kurir. Notifikasi \"paket sudah tiba\" datang lebih dulu (status dan header), lalu kamu membuka kotaknya (membaca body). Kalau isinya surat \"maaf, barang habis\", paketnya tetap tiba. Kurir tidak menganggapnya pengiriman gagal, dan fetch juga tidak."
+    },
+    {
+      "type": "theory",
+      "content": "Pola dasar yang dipakai di banyak codebase:\n\n```javascript\nasync function ambilProduk(id) {\n  const res = await fetch(`https://api.toko.contoh/products/${encodeURIComponent(id)}`);\n  if (!res.ok) {\n    throw new Error(`Gagal memuat produk ${id}: status ${res.status}`);\n  }\n  return res.json();\n}\n```\n\nProperti dan method `Response` yang paling sering dipakai:\n\n| Bagian | Isi |\n|---|---|\n| `res.ok` | `true` kalau status 200–299 |\n| `res.status` | status code, misalnya `404` |\n| `res.statusText` | teks status, misalnya `Not Found`; kosong di HTTP/2, jadi jangan diandalkan |\n| `res.headers.get('etag')` | membaca header; nama header tidak peka huruf besar-kecil |\n| `res.url`, `res.redirected` | URL akhir dan apakah fetch mengikuti redirect |\n| `res.json()`, `res.text()` | membaca body; **hanya bisa satu kali** |\n\nUntuk query string, susun dengan `URL` dan `searchParams`, bukan dengan menyambung teks. Nilai seperti `sepatu lari` atau `a&b` akan di-*encode* otomatis.\n\nSecara default fetch mengikuti redirect 3xx sendiri. `GET /produk` yang dijawab `301` akan berakhir sebagai `200` dari `/products`, dengan `res.redirected` bernilai `true`."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nSimpan skrip berikut sebagai `ambil.mjs` (ekstensi `.mjs` membuat `await` boleh dipakai langsung di level atas), lalu jalankan dengan Node.js.\n\nIsi `ambil.mjs`:\n\n```javascript\nconst BASE = 'https://api.toko.contoh';\n\nfor (const path of ['/products/P04', '/products/P99', '/bug']) {\n  const res = await fetch(BASE + path);\n  console.log(path, '→', res.status, res.ok);\n}\n\nconst url = new URL('/products', BASE);\nurl.searchParams.set('category', 'sepatu');\nurl.searchParams.set('sort', '-price');\nconsole.log(url.href);\n\nconst res = await fetch(url);\nconst body = await res.json();\nfor (const p of body.data) {\n  console.log(p.id, p.name, p.price);\n}\n```\n\n```bash\nnode ambil.mjs\n```\n\nYang akan kamu lihat:\n\n```text\n$ node ambil.mjs\n/products/P04 → 200 true\n/products/P99 → 404 false\n/bug → 500 false\nhttps://api.toko.contoh/products?category=sepatu&sort=-price\nP04 Sepatu Lari 350000\nP05 Sepatu Sekolah 210000\n```\n\nPerhatikan tiga baris pertama: `404` dan `500` **tidak** membuat skrip berhenti atau masuk `catch`. fetch mengembalikan `Response` biasa dengan `res.ok` bernilai `false`.\n\nBaris keempat menunjukkan URL yang disusun `searchParams`. Hasilnya dua sepatu, diurutkan dari harga tertinggi karena `sort=-price`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Langsung memakai body tanpa memeriksa res.ok**\n\nSalah:\n\n```javascript\nconst res = await fetch('https://api.toko.contoh/products/P99');\nconst produk = await res.json();\njudul.textContent = produk.name; // tampil \"undefined\", tanpa error\n```\n\nBenar:\n\n```javascript\nconst res = await fetch('https://api.toko.contoh/products/P99');\nif (!res.ok) {\n  const problem = await res.json();\n  throw new Error(problem.detail); // \"Produk P99 tidak ditemukan.\"\n}\nconst produk = await res.json();\njudul.textContent = produk.name;\n```\n\nBody `404` adalah Problem Details yang tidak punya field `name`. Kode salah tidak error, tapi halaman menampilkan \"undefined\". Bug seperti ini sulit dilacak karena tidak ada pesan di console.\n\n**2. Lupa await saat membaca body**\n\nSalah:\n\n```javascript\nconst res = await fetch('https://api.toko.contoh/products');\nconst body = res.json();\nconsole.log(body.data); // undefined, karena body masih Promise\n```\n\nBenar:\n\n```javascript\nconst res = await fetch('https://api.toko.contoh/products');\nconst body = await res.json();\nconsole.log(body.data.length); // 6\n```\n\n`res.json()` mengembalikan Promise karena body dibaca bertahap dari jaringan. Tanpa `await`, `body` adalah Promise, bukan data, sehingga `body.data` bernilai `undefined`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang terjadi kalau `fetch` dipakai untuk mengambil produk yang tidak ada dan server menjawab `404`?",
+          "options": [
+            "Promise ditolak (reject) sehingga kode masuk ke blok catch",
+            "fetch mengembalikan null",
+            "fetch mengulang request otomatis sampai tiga kali",
+            "Promise berhasil (resolve) dengan `res.ok` bernilai false dan `res.status` 404"
+          ],
+          "answer": 3,
+          "explanation": "fetch hanya reject kalau tidak ada respons, misalnya jaringan putus. Respons 404 tetap Response yang sah, jadi kamu yang harus memeriksa res.ok atau res.status.",
+          "remedial": "fetch hanya reject kalau tidak ada respons, misalnya jaringan putus. Respons 404 tetap Response yang sah, jadi kamu yang harus memeriksa res.ok atau res.status."
+        },
+        {
+          "question": "`res.ok` bernilai `true` untuk status code berapa saja?",
+          "options": [
+            "Hanya 200",
+            "200 sampai 299",
+            "200 sampai 399",
+            "Semua status kecuali 5xx"
+          ],
+          "answer": 1,
+          "explanation": "Menurut spesifikasi Fetch, ok bernilai true kalau status berada di rentang 200–299. 304 dan 404 sama-sama menghasilkan ok false.",
+          "remedial": "Menurut spesifikasi Fetch, ok bernilai true kalau status berada di rentang 200–299. 304 dan 404 sama-sama menghasilkan ok false."
+        },
+        {
+          "question": "Kenapa membaca JSON dengan fetch butuh dua `await`?",
+          "options": [
+            "Karena fetch selalu mengirim dua request ke server",
+            "Karena fetch selesai saat header tiba, sedangkan body dibaca terpisah dan juga asynchronous",
+            "Karena await kedua dipakai untuk memeriksa res.ok",
+            "Karena JSON harus diubah dulu menjadi teks dengan await pertama"
+          ],
+          "answer": 1,
+          "explanation": "await fetch(...) memberi Response begitu status dan header tiba. Body bisa besar dan masih mengalir, jadi res.json() juga mengembalikan Promise.",
+          "remedial": "await fetch(...) memberi Response begitu status dan header tiba. Body bisa besar dan masih mengalir, jadi res.json() juga mengembalikan Promise."
+        },
+        {
+          "question": "`/produk` adalah alamat lama yang di-redirect. Apa output skrip ini?",
+          "code": "const res = await fetch('https://api.toko.contoh/produk');\nconsole.log(res.status, res.redirected);",
+          "options": [
+            "301 false",
+            "301 true",
+            "200 true",
+            "200 false"
+          ],
+          "answer": 2,
+          "explanation": "/produk menjawab 301 ke /products. fetch mengikuti redirect secara default, jadi status akhirnya 200 dan res.redirected bernilai true.",
+          "remedial": "/produk menjawab 301 ke /products. fetch mengikuti redirect secara default, jadi status akhirnya 200 dan res.redirected bernilai true."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa output skrip ini?",
+      "code": "try {\n  const res = await fetch('https://api.toko.contoh/bug');\n  console.log('masuk try:', res.status);\n} catch (err) {\n  console.log('masuk catch:', err.message);\n}",
+      "options": [
+        "masuk catch: Internal Server Error",
+        "masuk try: 500",
+        "masuk catch: fetch failed",
+        "masuk try: 200"
+      ],
+      "answer": 1,
+      "explanation": "Server menjawab 500, dan itu tetap respons yang sah. fetch resolve dengan res.status 500, jadi kode berjalan di blok try. catch hanya terpakai kalau tidak ada respons sama sekali."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Cetak status code dan apakah statusnya 2xx\n# (--input-type=module membuat await boleh dipakai di node -e)\nnode --input-type=module -e 'const res = await fetch(\"https://api.toko.contoh/products/P99\"); console.log(res.status, res.___)'",
+      "answers": [
+        "ok"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "fetch mengembalikan Promise<Response>; await pertama untuk status dan header, await kedua (res.json()) untuk body.",
+        "fetch tidak melempar error untuk 404 atau 500; selalu periksa res.ok (true untuk 200–299) atau res.status.",
+        "fetch hanya reject kalau tidak ada respons: jaringan putus, domain salah, atau diblokir CORS.",
+        "Susun query string dengan new URL() dan searchParams supaya nilai di-encode dengan benar.",
+        "Body hanya bisa dibaca sekali, dan fetch mengikuti redirect secara default."
+      ]
+    }
+  ]
+}

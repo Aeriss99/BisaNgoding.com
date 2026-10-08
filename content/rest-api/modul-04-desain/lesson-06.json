@@ -1,0 +1,110 @@
+{
+  "id": "api-desain-06",
+  "moduleId": "api-desain",
+  "order": 6,
+  "title": "Idempotency Key",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Prinsip REST kamu belajar bahwa `POST` tidak idempotent. Mengirim `POST /orders` dua kali bisa membuat dua pesanan. Masalahnya, client sering **tidak tahu** apakah request pertama berhasil. Contohnya, koneksi HP putus setelah request terkirim, tapi sebelum respons sampai. Kalau client mengulang, pembeli bisa membayar dua kali. Kalau tidak mengulang, pesanan bisa hilang.\n\n**Idempotency key** menyelesaikan masalah ini. Client membuat satu ID unik, biasanya UUID, untuk satu **niat** transaksi. ID itu dikirim di header `Idempotency-Key`. Server menyimpan key bersama respons pertamanya. Kalau key yang sama datang lagi dengan body yang sama, server **tidak memproses ulang**. Server cukup mengirim ulang respons yang tersimpan.\n\nPola ini dipakai luas di API pembayaran. IETF juga sedang menyusun standar untuk header `Idempotency-Key`.\n\nBayangkan kamu menyetor uang di teller bank dan memegang nomor slip setoran. Listrik padam sebelum kamu menerima bukti. Kamu kembali dengan nomor slip yang sama. Teller melihat slip itu sudah diproses, lalu mencetak ulang bukti yang sama. Uangmu tidak tersetor dua kali."
+    },
+    {
+      "type": "theory",
+      "content": "| Request | Perilaku server latihan |\n|---|---|\n| Key baru | diproses normal; key, body, dan respons disimpan |\n| Key sama, body sama | **tidak** diproses ulang; respons lama dikirim lagi + header `Idempotent-Replayed: true` |\n| Key sama, body berbeda | `422`: key itu sudah dipakai untuk niat lain |\n| Tanpa key | diproses normal; mengulang request bisa membuat data ganda |\n\nServer latihan mendukung key ini di `POST /products` dan `POST /orders`. Nama header `Idempotent-Replayed` dipakai server latihan; layanan lain bisa memakai nama berbeda atau tidak mengirimnya.\n\n**Praktik industri:**\n\n- Client membuat key **sekali per niat**, misalnya satu klik \"Bayar\". Semua retry untuk niat itu memakai key yang sama. Pesanan lain memakai key baru.\n- Pakai UUID v4 atau nilai acak lain yang sulit ditebak. Jangan pakai nomor urut atau email pengguna.\n- Server menyimpan key untuk waktu terbatas, sering 24 jam, dan mengaitkannya dengan pengguna atau API key. Key milik orang lain tidak boleh bisa dipakai ulang.\n- Kalau request kedua datang saat request pertama **masih diproses**, server biasanya menjawab `409 Conflict`. Client menunggu sebentar lalu mengulang.\n- `PUT` dan `DELETE` sudah idempotent, jadi key terutama dibutuhkan untuk `POST` dan kadang `PATCH`.\n\nIdempotency key melengkapi materi retry di modul Memakai API dari Client. Dengan key, `POST` pun aman diulang dengan *exponential backoff*."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLogin sebagai Budi, buat satu key acak, lalu kirim pesanan yang sama dua kali seolah-olah koneksi putus. Terakhir, cek stok P04.\n\n```bash\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\nKEY=$(node -e 'console.log(crypto.randomUUID())')\ncurl -i -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $KEY\" --json '{\"items\":[{\"productId\":\"P04\",\"qty\":1}]}'\ncurl -i -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $KEY\" --json '{\"items\":[{\"productId\":\"P04\",\"qty\":1}]}'\ncurl -s https://api.toko.contoh/products/P04 | jq .stock\n```\n\nYang akan kamu lihat:\n\n```text\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ KEY=$(node -e 'console.log(crypto.randomUUID())')\n$ curl -i -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $KEY\" --json '{\"items\":[{\"productId\":\"P04\",\"qty\":1}]}'\nHTTP/1.1 201 Created\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nLocation: /orders/O103\nContent-Type: application/json\nContent-Length: 190\nConnection: close\n\n{\n  \"id\": \"O103\",\n  \"userId\": \"U01\",\n  \"items\": [\n    {\n      \"productId\": \"P04\",\n      \"qty\": 1\n    }\n  ],\n  \"total\": 350000,\n  \"status\": \"pending\",\n  \"createdAt\": \"2026-09-01T02:00:00Z\"\n}\n$ curl -i -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $KEY\" --json '{\"items\":[{\"productId\":\"P04\",\"qty\":1}]}'\nHTTP/1.1 201 Created\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nLocation: /orders/O103\nIdempotent-Replayed: true\nContent-Type: application/json\nContent-Length: 190\nConnection: close\n\n{\n  \"id\": \"O103\",\n  \"userId\": \"U01\",\n  \"items\": [\n    {\n      \"productId\": \"P04\",\n      \"qty\": 1\n    }\n  ],\n  \"total\": 350000,\n  \"status\": \"pending\",\n  \"createdAt\": \"2026-09-01T02:00:00Z\"\n}\n$ curl -s https://api.toko.contoh/products/P04 | jq .stock\n7\n```\n\nPerhatikan:\n\n- Kedua respons sama persis: `201 Created`, pesanan `O103`, dan `Location` yang sama. Respons kedua membawa `Idempotent-Replayed: true`.\n- Stok P04 turun dari 8 menjadi 7, bukan 6. Pesanan hanya diproses sekali.\n- Tanpa header `Idempotency-Key`, request kedua akan membuat pesanan `O104` dan mengurangi stok lagi."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membuat key baru di setiap retry**\n\nSalah:\n\n```javascript\nfor (let coba = 1; coba <= 3; coba++) {\n  try {\n    const res = await fetch(url, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },\n      body: JSON.stringify(pesanan),\n    });\n    if (res.status < 500) return res;\n  } catch (err) { /* jaringan putus, coba lagi */ }\n  await new Promise((r) => setTimeout(r, 2 ** coba * 500));\n}\n```\n\nBenar:\n\n```javascript\nconst key = crypto.randomUUID(); // satu key untuk satu niat \"Bayar\"\nfor (let coba = 1; coba <= 3; coba++) {\n  try {\n    const res = await fetch(url, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },\n      body: JSON.stringify(pesanan),\n    });\n    if (res.status < 500) return res;\n  } catch (err) { /* jaringan putus, aman diulang dengan key yang sama */ }\n  await new Promise((r) => setTimeout(r, 2 ** coba * 500));\n}\n```\n\nKalau key dibuat ulang di dalam loop, server melihat setiap retry sebagai transaksi baru. Pesanan ganda tetap terjadi, persis seperti tanpa key. Key harus dibuat sekali sebelum loop, lalu dipakai untuk semua percobaan.\n\n**2. Memakai key yang sama untuk transaksi berbeda**\n\nSalah:\n\n```bash\ncurl -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: pesanan-budi\" --json '{\"items\":[{\"productId\":\"P04\",\"qty\":1}]}'\ncurl -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: pesanan-budi\" --json '{\"items\":[{\"productId\":\"P06\",\"qty\":2}]}'\n```\n\nBenar:\n\n```bash\ncurl -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $(node -e 'console.log(crypto.randomUUID())')\" --json '{\"items\":[{\"productId\":\"P04\",\"qty\":1}]}'\ncurl -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $(node -e 'console.log(crypto.randomUUID())')\" --json '{\"items\":[{\"productId\":\"P06\",\"qty\":2}]}'\n```\n\nSatu key mewakili satu niat. Server latihan menolak pesanan kedua dengan `422` karena body-nya berbeda. Server yang kurang teliti bisa mengirim ulang respons pesanan pertama, sehingga pesanan kedua tidak pernah dibuat. Key `pesanan-budi` juga mudah ditebak orang lain.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Masalah apa yang terutama diselesaikan oleh header `Idempotency-Key`?",
+          "options": [
+            "Request GET yang terlalu lambat",
+            "Token login yang sudah kedaluwarsa",
+            "Data yang disimpan cache terlalu lama",
+            "Pesanan atau pembayaran ganda saat client mengulang POST setelah koneksi putus"
+          ],
+          "answer": 3,
+          "explanation": "POST tidak idempotent. Key membuat server mengenali retry dari niat yang sama dan tidak memprosesnya dua kali.",
+          "remedial": "POST tidak idempotent. Key membuat server mengenali retry dari niat yang sama dan tidak memprosesnya dua kali."
+        },
+        {
+          "question": "Server latihan menerima request kedua dengan `Idempotency-Key` yang sama dan body yang sama. Apa yang terjadi?",
+          "options": [
+            "Pesanan kedua dibuat dengan id baru",
+            "Server menolak request kedua dengan 409",
+            "Server mengirim ulang respons pertama dengan header Idempotent-Replayed: true tanpa memproses ulang",
+            "Server menghapus pesanan pertama lalu membuat pesanan baru"
+          ],
+          "answer": 2,
+          "explanation": "Key dan body sama berarti niatnya sama. Server mengembalikan respons yang tersimpan, termasuk status dan Location yang sama, tanpa membuat data baru.",
+          "remedial": "Key dan body sama berarti niatnya sama. Server mengembalikan respons yang tersimpan, termasuk status dan Location yang sama, tanpa membuat data baru."
+        },
+        {
+          "question": "Kapan client sebaiknya membuat `Idempotency-Key` baru?",
+          "options": [
+            "Setiap kali request diulang karena timeout",
+            "Sekali untuk setiap niat transaksi baru, misalnya setiap klik \"Bayar\" untuk pesanan berbeda",
+            "Sekali per sesi login, lalu dipakai untuk semua request",
+            "Sekali saat aplikasi pertama kali dipasang"
+          ],
+          "answer": 1,
+          "explanation": "Key mengikuti niat, bukan percobaan. Retry dari niat yang sama memakai key lama; niat baru memakai key baru.",
+          "remedial": "Key mengikuti niat, bukan percobaan. Retry dari niat yang sama memakai key lama; niat baru memakai key baru."
+        },
+        {
+          "question": "Kenapa `Idempotency-Key` jarang dibutuhkan untuk `PUT` dan `DELETE`?",
+          "options": [
+            "Keduanya sudah idempotent: mengulangnya menghasilkan keadaan server yang sama",
+            "PUT dan DELETE tidak boleh diulang dalam keadaan apa pun",
+            "PUT dan DELETE tidak bisa membawa header",
+            "Server selalu menyimpan PUT dan DELETE di cache"
+          ],
+          "answer": 0,
+          "explanation": "Mengirim PUT dengan isi yang sama dua kali, atau DELETE dua kali, menghasilkan keadaan server yang sama. POST yang membuat data baru tidak punya sifat itu.",
+          "remedial": "Mengirim PUT dengan isi yang sama dua kali, atau DELETE dua kali, menghasilkan keadaan server yang sama. POST yang membuat data baru tidak punya sifat itu."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Key yang sama dipakai dua kali, tapi harga di request kedua berbeda. Apa output perintah terakhir?",
+      "code": "curl -s -o /dev/null -X POST https://api.toko.contoh/products -H \"Idempotency-Key: 3b8f6c1e-2a4d-4f7b-9c0e-5d1a7e2f8b64\" --json '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}'\ncurl -s -o /dev/null -w \"%{http_code}\" -X POST https://api.toko.contoh/products -H \"Idempotency-Key: 3b8f6c1e-2a4d-4f7b-9c0e-5d1a7e2f8b64\" --json '{\"name\":\"Topi\",\"price\":50000,\"category\":\"aksesoris\",\"stock\":10}'",
+      "options": [
+        "201",
+        "200",
+        "409",
+        "422"
+      ],
+      "answer": 3,
+      "explanation": "Key yang sama dengan body berbeda berarti client salah memakai key. Server latihan menolak dengan 422 dan tidak membuat produk kedua. 409 biasanya dipakai saat request pertama dengan key itu masih diproses."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Kirim produk yang sama dua kali; produk hanya boleh dibuat sekali\nfor i in 1 2; do curl -s -X POST https://api.toko.contoh/products -H \"___: 3b8f6c1e-2a4d-4f7b-9c0e-5d1a7e2f8b64\" --json '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}' | jq -r .id; done",
+      "answers": [
+        "Idempotency-Key|idempotency-key"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "POST tidak idempotent; mengulangnya setelah koneksi putus bisa membuat pesanan atau pembayaran ganda.",
+        "Client membuat satu Idempotency-Key acak (mis. UUID) per niat transaksi dan memakainya untuk semua retry niat itu.",
+        "Key dan body sama: server mengirim ulang respons pertama tanpa memproses ulang.",
+        "Key sama dengan body berbeda ditolak (422 di server latihan); request yang masih diproses biasanya dijawab 409.",
+        "Server menyimpan key untuk waktu terbatas dan mengaitkannya dengan pengguna atau API key."
+      ]
+    }
+  ]
+}

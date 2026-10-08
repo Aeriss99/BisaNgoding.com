@@ -1,0 +1,111 @@
+{
+  "id": "api-keamanan-06",
+  "moduleId": "api-keamanan",
+  "order": 6,
+  "title": "OAuth 2.0 dan PKCE",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**OAuth 2.0** (RFC 6749) adalah standar agar sebuah aplikasi bisa mengakses data pengguna di layanan lain **tanpa meminta password** pengguna. \"Login dengan Google\" adalah contoh paling akrab: aplikasi tokomu mendapat izin membaca profil Google pengguna, tanpa pernah melihat password Google-nya. Secara teknis, fitur login memakai **OpenID Connect**, lapisan identitas di atas OAuth 2.0; OAuth sendiri mengatur izin akses.\n\nEmpat peran dalam OAuth:\n\n- **Resource owner**: pengguna, pemilik data.\n- **Client**: aplikasi yang ingin mengakses data (aplikasi Toko Budi).\n- **Authorization server**: yang memverifikasi pengguna dan menerbitkan token (server Google).\n- **Resource server**: yang menyimpan data dan menerima token (API Google).\n\nAlih-alih menyerahkan password, pengguna login di authorization server, lalu aplikasi menerima **access token** untuk memanggil resource server.\n\nBayangkan kunci valet mobil. Kamu tidak memberi petugas kunci utama rumah dan mobil; kamu memberi kunci khusus yang hanya bisa menjalankan mobil, tidak membuka bagasi. OAuth memberi aplikasi \"kunci valet\" berupa token dengan izin terbatas, bukan password-mu. Sekarang kembali ke istilah client, token, dan scope."
+    },
+    {
+      "type": "theory",
+      "content": "**Authorization Code + PKCE** adalah alur yang disarankan untuk aplikasi web dan HP (OAuth 2.0 Security BCP). **PKCE** (*Proof Key for Code Exchange*, RFC 7636, dibaca \"pixy\") menutup celah pencurian *authorization code*.\n\nLangkah intinya:\n\n1. Client membuat `code_verifier`: string acak rahasia.\n2. Client menghitung `code_challenge` = base64url(SHA-256(`code_verifier`)), dengan `code_challenge_method=S256`.\n3. Client mengarahkan pengguna ke authorization server sambil membawa `code_challenge` dan `state` (nilai acak penangkal CSRF). Contoh bentuk URL (hanya contoh, dipecah per baris dan belum di-encode supaya mudah dibaca):\n\n```text\nhttps://auth.toko.contoh/authorize?response_type=code&client_id=toko-web\n  &redirect_uri=https://toko.contoh/callback&scope=profil pesanan:baca&state=x7Kp2mQ9\n  &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256\n```\n\n4. Pengguna login dan menyetujui. Authorization server mengembalikan `code` singkat ke `redirect_uri`.\n5. Client menukar `code` **beserta `code_verifier` asli** untuk mendapat access token. Server menghitung SHA-256 dari `code_verifier` dan membandingkannya dengan `code_challenge` tadi. Kalau cocok, token diberikan.\n\nGunanya: walau penyerang mencuri `code`, ia tidak punya `code_verifier`, jadi `code` itu tidak bisa ditukar menjadi token.\n\n**Scope.** Scope membatasi izin token, misalnya `profil` atau `pesanan:baca`. Terapkan least privilege: minta scope seperlunya.\n\n**Implicit flow sudah tidak disarankan.** Alur lama ini mengembalikan token langsung di URL (fragment), sehingga token mudah bocor lewat riwayat browser dan log. OAuth 2.0 Security BCP (RFC 9700) menyarankan Authorization Code + PKCE sebagai gantinya, termasuk untuk aplikasi tanpa backend.\n\n**Refresh token.** Seperti di materi JWT, OAuth memberi access token pendek plus refresh token untuk memperbarui akses tanpa login ulang."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nHitung PKCE sungguhan. Dari sebuah `code_verifier` contoh, hitung `code_challenge` dengan SHA-256 lalu encode base64url, persis seperti langkah 2. Inilah nilai yang dikirim client ke authorization server.\n\n```bash\nVERIFIER=\"dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk\"\necho \"verifier: $VERIFIER\"\nnode -e 'const c=require(\"node:crypto\"); const v=process.argv[1]; console.log(\"challenge:\", c.createHash(\"sha256\").update(v).digest(\"base64url\"))' \"$VERIFIER\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ VERIFIER=\"dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk\"\n$ echo \"verifier: $VERIFIER\"\nverifier: dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk\n$ node -e 'const c=require(\"node:crypto\"); const v=process.argv[1]; console.log(\"challenge:\", c.createHash(\"sha256\").update(v).digest(\"base64url\"))' \"$VERIFIER\"\nchallenge: E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM\n```\n\nPerhatikan:\n\n- `code_challenge` adalah SHA-256 dari `code_verifier`, di-encode base64url. Fungsi hash berjalan satu arah: dari challenge, `code_verifier` tidak bisa dihitung balik.\n- Client mengirim `code_challenge` saat meminta `code`, lalu mengirim `code_verifier` asli saat menukar `code` menjadi token. Server mencocokkan keduanya.\n- Nilai `dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk` menghasilkan challenge `E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM`. Pasangan ini adalah contoh resmi di RFC 7636, jadi hasilnya bisa kamu cocokkan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai implicit flow yang mengembalikan token di URL**\n\nSalah:\n\n```text\nhttps://auth.toko.contoh/authorize?response_type=token&client_id=toko-web\n// token muncul di https://toko.contoh/callback#access_token=...\n```\n\nBenar:\n\n```text\nhttps://auth.toko.contoh/authorize?response_type=code&client_id=toko-web\n  &code_challenge=...&code_challenge_method=S256\n// client menukar code + code_verifier menjadi token\n```\n\nresponse_type=token (implicit) menaruh token di fragment URL, yang bocor lewat riwayat browser dan bisa terbaca script lain di halaman. OAuth 2.0 Security BCP menyarankan Authorization Code + PKCE, yang hanya menaruh code singkat di URL dan menukarnya aman.\n\n**2. Meminta scope jauh lebih luas dari yang diperlukan**\n\nSalah:\n\n```text\nscope=profil pesanan:baca pesanan:tulis admin:semua\n```\n\nBenar:\n\n```text\nscope=profil pesanan:baca\n```\n\nAplikasi yang hanya menampilkan profil dan daftar pesanan tidak butuh izin menulis atau admin. Scope berlebih memperbesar kerusakan kalau token bocor. Terapkan least privilege: minta scope seperlunya.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa tujuan utama OAuth 2.0?",
+          "options": [
+            "Mengenkripsi body request menggantikan HTTPS",
+            "Membuat aplikasi bisa mengakses data pengguna di layanan lain tanpa meminta password pengguna",
+            "Mengubah JSON menjadi lebih ringkas",
+            "Membatasi jumlah request per menit"
+          ],
+          "answer": 1,
+          "explanation": "OAuth memungkinkan delegasi akses: pengguna login di authorization server, lalu aplikasi menerima token dengan izin terbatas, tanpa pernah memegang password pengguna.",
+          "remedial": "OAuth memungkinkan delegasi akses: pengguna login di authorization server, lalu aplikasi menerima token dengan izin terbatas, tanpa pernah memegang password pengguna."
+        },
+        {
+          "question": "Dalam alur Authorization Code + PKCE, `code_challenge` dihitung dari apa?",
+          "options": [
+            "base64url dari SHA-256 atas code_verifier",
+            "password pengguna yang di-hash",
+            "client_id digabung redirect_uri",
+            "access token yang sudah diterbitkan"
+          ],
+          "answer": 0,
+          "explanation": "code_challenge = base64url(SHA-256(code_verifier)) saat method S256. Hash satu arah ini membuat code_verifier tidak bisa dihitung balik dari challenge.",
+          "remedial": "code_challenge = base64url(SHA-256(code_verifier)) saat method S256. Hash satu arah ini membuat code_verifier tidak bisa dihitung balik dari challenge."
+        },
+        {
+          "question": "Apa peran yang menerbitkan token setelah pengguna login dan menyetujui izin?",
+          "options": [
+            "Resource owner",
+            "Client",
+            "Resource server",
+            "Authorization server"
+          ],
+          "answer": 3,
+          "explanation": "Authorization server memverifikasi pengguna dan menerbitkan token. Resource owner adalah penggunanya, client adalah aplikasinya, resource server menyimpan data dan menerima token.",
+          "remedial": "Authorization server memverifikasi pengguna dan menerbitkan token. Resource owner adalah penggunanya, client adalah aplikasinya, resource server menyimpan data dan menerima token."
+        },
+        {
+          "question": "Kenapa implicit flow (`response_type=token`) tidak lagi disarankan?",
+          "options": [
+            "Terlalu lambat untuk aplikasi HP",
+            "Tidak mendukung scope",
+            "Token dikembalikan langsung di URL sehingga mudah bocor lewat riwayat browser dan log",
+            "Hanya bekerja di satu browser"
+          ],
+          "answer": 2,
+          "explanation": "Implicit flow menaruh access token di fragment URL. URL itu tercatat di riwayat browser dan bisa terbaca script atau ekstensi. OAuth 2.0 Security BCP menyarankan Authorization Code + PKCE sebagai gantinya.",
+          "remedial": "Implicit flow menaruh access token di fragment URL. URL itu tercatat di riwayat browser dan bisa terbaca script atau ekstensi. OAuth 2.0 Security BCP menyarankan Authorization Code + PKCE sebagai gantinya."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Dengan code_verifier contoh RFC 7636 \"dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk\", apa code_challenge S256 yang dihitung?",
+      "code": "node -e 'const c=require(\"node:crypto\"); console.log(c.createHash(\"sha256\").update(\"dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk\").digest(\"base64url\"))'",
+      "options": [
+        "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+        "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw=",
+        "c2hhMjU2LWNoYWxsZW5nZQ"
+      ],
+      "answer": 0,
+      "explanation": "code_challenge adalah base64url dari SHA-256 code_verifier, tanpa padding =. Opsi kedua adalah verifier-nya sendiri, bukan hash-nya. Opsi ketiga keliru memakai padding =."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Hitung code_challenge S256 (RFC 7636): SHA-256 dari verifier, lalu encode base64url\nnode -e 'console.log(require(\"node:crypto\").createHash(\"___\").update(\"dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk\").digest(\"___\"))'",
+      "answers": [
+        "sha256",
+        "base64url"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "OAuth 2.0 (RFC 6749) memberi aplikasi akses ke data pengguna lewat token, tanpa meminta password pengguna.",
+        "Empat peran: resource owner (pengguna), client (aplikasi), authorization server (penerbit token), resource server (pemilik data).",
+        "Authorization Code + PKCE (RFC 7636) adalah alur yang disarankan; code_challenge = base64url(SHA-256(code_verifier)).",
+        "PKCE menahan pencurian code: tanpa code_verifier, code yang dicuri tidak bisa ditukar jadi token.",
+        "Terapkan scope seperlunya (least privilege); implicit flow sudah tidak disarankan karena token bocor lewat URL."
+      ]
+    }
+  ]
+}

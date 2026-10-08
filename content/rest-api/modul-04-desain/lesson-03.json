@@ -1,0 +1,111 @@
+{
+  "id": "api-desain-03",
+  "moduleId": "api-desain",
+  "order": 3,
+  "title": "Validasi Input",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Validasi di frontend (atribut `required` di form, cek JavaScript) membuat pengalaman pengguna lebih baik. Tapi frontend **tidak bisa dipercaya**. Siapa pun bisa mengirim request langsung dengan curl, Postman, atau skrip, tanpa melewati form. Karena itu **server wajib memvalidasi setiap input**, walaupun frontend sudah memvalidasi.\n\nServer biasanya memeriksa request secara bertahap, dan setiap tahap punya status code sendiri:\n\n1. Apakah **Content-Type** didukung? Kalau tidak → `415 Unsupported Media Type`.\n2. Apakah **body bisa di-parse** sebagai JSON? Kalau tidak → `400 Bad Request`.\n3. Apakah **isinya valid**: field wajib ada, tipe benar, angka dalam rentang? Kalau tidak → `422 Unprocessable Content` (atau `400`, lihat di bawah).\n4. Apakah **aturan bisnis** terpenuhi, misalnya stok cukup? Kalau bentrok dengan keadaan data → biasanya `409 Conflict`.\n\nLoket pengiriman memeriksa kirimanmu bertahap. Petugas menolak barang yang tidak mereka layani, menolak bungkus yang rusak, lalu menolak alamat yang tidak lengkap. Setiap penolakan menyebut alasannya, jadi kamu tahu persis apa yang harus diperbaiki. Validasi di server bekerja dengan urutan yang sama."
+    },
+    {
+      "type": "theory",
+      "content": "| Kasus di `POST /products` | Status server latihan |\n|---|---|\n| `-d` tanpa header `Content-Type: application/json` | `415` |\n| JSON rusak, misalnya `{\"name\":\"Topi\",}` | `400` |\n| `price` berupa teks `\"45000\"` atau pecahan `4500.5` | `422` |\n| Field wajib `stock` tidak dikirim | `422` |\n| `POST /orders` untuk P05 yang stoknya 0 | `409` |\n\n**400 atau 422?** RFC 9110 mendefinisikan 422 untuk request yang formatnya bisa dipahami, tapi isinya tidak bisa diproses. Praktik industri tidak seragam. Banyak API, termasuk panduan API beberapa perusahaan teknologi besar, memakai `400` untuk semua input yang salah. API lain, seperti server latihan, memisahkan `400` (format rusak) dan `422` (isi tidak valid). Keduanya diterima; yang penting konsisten dan tertulis di dokumentasi.\n\n**Pesan error per field.** Kumpulkan **semua** kesalahan, lalu kirim sekaligus. Pengguna bisa memperbaiki seluruh form dalam satu kali kirim, bukan bolak-balik satu field per percobaan. Setiap item menyebut nama field dan alasannya, supaya frontend bisa menampilkan pesan tepat di bawah input yang salah.\n\nAturan validasi yang umum:\n\n- tipe data (integer, string, boolean);\n- field wajib;\n- panjang teks, misalnya `name` maksimal 100 karakter;\n- rentang angka, misalnya `price` dan `stock` minimal 0;\n- format seperti email, tanggal ISO 8601, atau nilai enum.\n\nField yang tidak dikenal harus ditolak atau diabaikan secara konsisten, jangan disimpan begitu saja. Risikonya dibahas di modul Keamanan API (*mass assignment*)."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nKirim tiga request `POST /products` yang salah dengan cara berbeda. Dua yang pertama hanya menampilkan status code.\n\n```bash\ncurl -s -o /dev/null -w \"%{http_code}\\n\" -X POST https://api.toko.contoh/products -d '{\"name\":\"Topi\"}'\ncurl -s -o /dev/null -w \"%{http_code}\\n\" -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",}'\ncurl -i -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"\",\"price\":4500.5,\"category\":\"tas\"}'\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s -o /dev/null -w \"%{http_code}\\n\" -X POST https://api.toko.contoh/products -d '{\"name\":\"Topi\"}'\n415\n$ curl -s -o /dev/null -w \"%{http_code}\\n\" -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",}'\n400\n$ curl -i -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"\",\"price\":4500.5,\"category\":\"tas\"}'\nHTTP/1.1 422 Unprocessable Entity\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nContent-Type: application/problem+json\nContent-Length: 386\nConnection: close\n\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Unprocessable Content\",\n  \"status\": 422,\n  \"detail\": \"Data produk tidak valid.\",\n  \"errors\": [\n    {\n      \"field\": \"name\",\n      \"message\": \"wajib diisi (teks)\"\n    },\n    {\n      \"field\": \"price\",\n      \"message\": \"harus bilangan bulat >= 0 (rupiah)\"\n    },\n    {\n      \"field\": \"stock\",\n      \"message\": \"harus bilangan bulat >= 0\"\n    }\n  ]\n}\n```\n\nPerhatikan:\n\n- `415`: tanpa header, `-d` mengirim `Content-Type: application/x-www-form-urlencoded`. Server menolak sebelum membaca isinya.\n- `400`: koma setelah field terakhir membuat JSON tidak valid.\n- `422`: JSON-nya valid, tapi tiga field salah sekaligus, dan semuanya dilaporkan dalam `errors`.\n- Status line berbunyi `Unprocessable Entity`, sedangkan `title` berbunyi `Unprocessable Content`. RFC 9110 mengganti nama status 422, dan sebagian server masih memakai nama lama. Client cukup membaca angkanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Server menyimpan body apa adanya karena frontend sudah memvalidasi**\n\nSalah:\n\n```javascript\napp.post('/products', async (req, res) => {\n  const produk = await db.simpanProduk(req.body); // langsung simpan\n  res.status(201).json(produk);\n});\n```\n\nBenar:\n\n```javascript\napp.post('/products', async (req, res) => {\n  const errors = validasiProduk(req.body); // tipe, wajib, panjang, rentang\n  if (errors.length > 0) {\n    return res.status(422).type('application/problem+json').json({\n      type: 'about:blank', title: 'Unprocessable Content', status: 422,\n      detail: 'Data produk tidak valid.', errors,\n    });\n  }\n  const { name, price, category, stock } = req.body; // hanya field yang dikenal\n  res.status(201).json(await db.simpanProduk({ name, price, category, stock }));\n});\n```\n\nValidasi frontend bisa dilewati dengan satu perintah curl. Tanpa validasi server, harga negatif atau teks ribuan karakter masuk ke database. Field asing seperti `role` juga bisa ikut tersimpan. Validasi di server adalah pertahanan yang sebenarnya; validasi di frontend hanya untuk kenyamanan.\n\n**2. Pesan validasi umum tanpa nama field**\n\nSalah:\n\n```json\n{\"type\": \"about:blank\", \"title\": \"Unprocessable Content\", \"status\": 422, \"detail\": \"Input tidak valid.\"}\n```\n\nBenar:\n\n```json\n{\"type\": \"about:blank\", \"title\": \"Unprocessable Content\", \"status\": 422, \"detail\": \"Data produk tidak valid.\",\n \"errors\": [{\"field\": \"name\", \"message\": \"wajib diisi (teks)\"}, {\"field\": \"price\", \"message\": \"harus bilangan bulat >= 0 (rupiah)\"}]}\n```\n\nDengan pesan umum, pengguna tidak tahu input mana yang salah dan terpaksa mencoba-coba. Daftar `errors` per field membuat frontend bisa menandai setiap input yang salah dalam satu kali kirim.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Frontend toko sudah memvalidasi form tambah produk. Kenapa server tetap harus memvalidasi?",
+          "options": [
+            "Request bisa dikirim langsung lewat curl atau skrip tanpa melewati form",
+            "Supaya respons server menjadi lebih cepat",
+            "Karena browser tidak bisa menjalankan JavaScript validasi",
+            "Server tidak perlu memvalidasi kalau frontend sudah memvalidasi"
+          ],
+          "answer": 0,
+          "explanation": "Server tidak bisa tahu apakah request datang dari form resmi. Validasi frontend membantu pengguna, validasi server melindungi data.",
+          "remedial": "Server tidak bisa tahu apakah request datang dari form resmi. Validasi frontend membantu pengguna, validasi server melindungi data."
+        },
+        {
+          "question": "Body ini dikirim dengan `Content-Type: application/json`. Status apa yang dikembalikan server latihan?",
+          "code": "curl -s -o /dev/null -w \"%{http_code}\" -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",\"price\":\"45000\",\"category\":\"aksesoris\",\"stock\":10}'",
+          "options": [
+            "201",
+            "400",
+            "415",
+            "422"
+          ],
+          "answer": 3,
+          "explanation": "JSON-nya valid dan Content-Type benar, tapi price berupa teks, bukan integer. Isinya tidak valid, jadi server latihan menjawab 422 dengan errors untuk field price.",
+          "remedial": "JSON-nya valid dan Content-Type benar, tapi price berupa teks, bukan integer. Isinya tidak valid, jadi server latihan menjawab 422 dengan errors untuk field price."
+        },
+        {
+          "question": "Kapan server latihan menjawab `415 Unsupported Media Type` untuk `POST /products`?",
+          "options": [
+            "Body berisi JSON dengan koma berlebih",
+            "Field price berisi teks",
+            "Header Content-Type bukan application/json",
+            "Produk yang dipesan stoknya habis"
+          ],
+          "answer": 2,
+          "explanation": "415 berarti server tidak mendukung format body yang dikirim. Koma berlebih menghasilkan 400, price teks menghasilkan 422, dan stok habis di pesanan menghasilkan 409.",
+          "remedial": "415 berarti server tidak mendukung format body yang dikirim. Koma berlebih menghasilkan 400, price teks menghasilkan 422, dan stok habis di pesanan menghasilkan 409."
+        },
+        {
+          "question": "Form tambah produk punya tiga input yang salah sekaligus. Respons validasi seperti apa yang paling membantu pengguna?",
+          "options": [
+            "Satu pesan umum \"Input tidak valid\"",
+            "Daftar errors berisi setiap field yang salah beserta alasannya",
+            "Hanya error pertama; sisanya dikirim setelah pengguna memperbaikinya",
+            "Status 500 supaya tim backend menerima notifikasi"
+          ],
+          "answer": 1,
+          "explanation": "Semua kesalahan dikirim sekaligus dengan nama field masing-masing, jadi pengguna memperbaiki form dalam satu langkah.",
+          "remedial": "Semua kesalahan dikirim sekaligus dengan nama field masing-masing, jadi pengguna memperbaiki form dalam satu langkah."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Body JSON ini punya koma setelah field terakhir. Apa output perintahnya?",
+      "code": "curl -s -o /dev/null -w \"%{http_code}\" -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",\"price\":45000,}'",
+      "options": [
+        "422",
+        "415",
+        "201",
+        "400"
+      ],
+      "answer": 3,
+      "explanation": "Server mencoba mem-parse body dan gagal karena koma berlebih membuat JSON tidak valid. Itu kesalahan format, jadi 400 Bad Request. Server belum sempat memeriksa field yang hilang."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan nama field yang salah, satu per baris\ncurl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"\",\"price\":4500.5,\"category\":\"tas\"}' | jq -r '.errors[].___'",
+      "answers": [
+        "field"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Validasi di frontend hanya untuk kenyamanan; server wajib memvalidasi setiap input.",
+        "Urutan umum: Content-Type salah 415, JSON rusak 400, isi tidak valid 422 (atau 400), bentrok dengan data 409.",
+        "Memakai 400 untuk semua kesalahan input juga lazim; yang penting konsisten dan terdokumentasi.",
+        "Kirim semua kesalahan sekaligus dalam daftar errors berisi nama field dan alasannya.",
+        "Periksa tipe, field wajib, panjang, rentang, dan format; jangan simpan field yang tidak dikenal."
+      ]
+    }
+  ]
+}

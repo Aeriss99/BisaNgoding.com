@@ -1,0 +1,110 @@
+{
+  "id": "api-desain-08",
+  "moduleId": "api-desain",
+  "order": 8,
+  "title": "Rate Limiting",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tanpa batas, satu client bisa mengirim ribuan request per detik. Penyebabnya bisa bug di aplikasi (loop yang tidak berhenti), skrip yang menyalin seluruh katalog, atau serangan menebak password. Akibatnya server lambat untuk semua pengguna dan biaya infrastruktur membengkak. OWASP API Security Top 10 (2023) memasukkan masalah ini sebagai *Unrestricted Resource Consumption*.\n\n**Rate limiting** membatasi jumlah request per client dalam jangka waktu tertentu, misalnya 100 request per menit. Client dikenali dari API key, token pengguna, atau alamat IP. Endpoint yang mahal atau sensitif dibatasi lebih ketat, misalnya pencarian, login, dan kirim OTP.\n\nKalau batas terlampaui, server menjawab **`429 Too Many Requests`** (RFC 6585). Respons itu sering membawa header **`Retry-After`** (RFC 9110) yang berisi jumlah detik atau tanggal HTTP. Bedakan dengan `503 Service Unavailable`: 429 berarti client ini terlalu banyak meminta, sedangkan 503 berarti server sedang tidak sanggup melayani siapa pun.\n\nWahana di taman bermain hanya memuat 30 orang per putaran. Papan di pintu menunjukkan sisa kursi dan kapan putaran berikutnya dimulai. Pengunjung yang datang saat kursi habis diminta menunggu, bukan didorong masuk. Header rate limit adalah papan itu, dan 429 adalah permintaan untuk menunggu."
+    },
+    {
+      "type": "theory",
+      "content": "| Header (server latihan) | Contoh | Arti |\n|---|---|---|\n| `RateLimit-Limit` | `3` | kuota dalam satu jendela waktu |\n| `RateLimit-Remaining` | `1` | sisa request di jendela ini |\n| `RateLimit-Reset` | `60` | detik sampai kuota pulih |\n| `Retry-After` | `60` | (pada 429) tunggu sekian detik sebelum mencoba lagi |\n\n**Nama header berbeda antar layanan.** Server latihan memakai `RateLimit-Limit`, `RateLimit-Remaining`, dan `RateLimit-Reset`, mengikuti draf awal IETF. Banyak layanan memakai awalan `X-RateLimit-*`. API publik GitHub, misalnya, mengirim `X-RateLimit-Reset` sebagai waktu Unix, bukan jumlah detik. Draf IETF yang lebih baru menggabungkannya menjadi header `RateLimit` dan `RateLimit-Policy`. Jadi baca dokumentasi API yang kamu pakai sebelum menulis kode yang membaca header ini.\n\n**Cara client yang baik:**\n\n- Pantau sisa kuota dan perlambat sebelum habis.\n- Saat menerima 429, tunggu sesuai `Retry-After` sebelum mengulang. Pola retry dan backoff sudah dibahas di modul Memakai API dari Client.\n- Simpan hasil yang sama di cache, dan pakai *debounce* (menunda request sampai pengguna berhenti mengetik) di kotak pencarian.\n\n**Di sisi server**, algoritma yang umum adalah *fixed window* (hitung per menit), *sliding window*, dan *token bucket*. Token bucket mengisi kuota sedikit demi sedikit, sehingga lonjakan singkat masih diizinkan. Rate limit biasanya dipasang di API gateway atau reverse proxy, bukan ditulis ulang di setiap endpoint."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nEndpoint `/search` di server latihan hanya mengizinkan 3 request per 60 detik. Kirim tiga request sambil membaca sisa kuota, lalu kirim request keempat.\n\n```bash\nfor i in 1 2 3; do curl -s -o /dev/null -w \"%{http_code} sisa=%header{ratelimit-remaining}\\n\" \"https://api.toko.contoh/search?q=tas\"; done\ncurl -i \"https://api.toko.contoh/search?q=tas\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ for i in 1 2 3; do curl -s -o /dev/null -w \"%{http_code} sisa=%header{ratelimit-remaining}\\n\" \"https://api.toko.contoh/search?q=tas\"; done\n200 sisa=2\n200 sisa=1\n200 sisa=0\n$ curl -i \"https://api.toko.contoh/search?q=tas\"\nHTTP/1.1 429 Too Many Requests\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nContent-Type: application/problem+json\nRateLimit-Limit: 3\nRateLimit-Remaining: 0\nRateLimit-Reset: 60\nRetry-After: 60\nContent-Length: 147\nConnection: close\n\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Too Many Requests\",\n  \"status\": 429,\n  \"detail\": \"Terlalu banyak permintaan. Coba lagi setelah 60 detik.\"\n}\n```\n\nPerhatikan:\n\n- Opsi `-w \"%header{nama}\"` menampilkan satu header respons. Sisa kuota turun 2, 1, lalu 0.\n- Request keempat dijawab `429` dalam format Problem Details, dengan `Retry-After: 60`.\n- Header `RateLimit-*` tetap dikirim di respons 429, jadi client tahu kuotanya habis dan kapan pulih."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Langsung mengulang setelah 429**\n\nSalah:\n\n```javascript\nasync function cari(q) {\n  const res = await fetch(`https://api.toko.contoh/search?q=${encodeURIComponent(q)}`);\n  if (res.status === 429) return cari(q); // langsung ulang tanpa jeda\n  return res.json();\n}\n```\n\nBenar:\n\n```javascript\nasync function cari(q, coba = 1) {\n  const res = await fetch(`https://api.toko.contoh/search?q=${encodeURIComponent(q)}`);\n  if (res.status === 429 && coba <= 3) {\n    // Retry-After bisa berupa detik atau tanggal; kalau bukan angka, pakai backoff\n    const detik = Number(res.headers.get('Retry-After')) || 2 ** coba;\n    await new Promise((r) => setTimeout(r, detik * 1000));\n    return cari(q, coba + 1);\n  }\n  if (!res.ok) throw new Error(`Gagal: ${res.status}`);\n  return res.json();\n}\n```\n\nMengulang tanpa jeda hanya menghasilkan 429 berikutnya, membebani server, dan bisa membuat client diblokir lebih lama. Tunggu sesuai `Retry-After`, batasi jumlah percobaan, lalu tampilkan pesan ke pengguna kalau tetap gagal.\n\n**2. Mengirim request pencarian di setiap ketikan**\n\nSalah:\n\n```javascript\ninput.addEventListener('input', () => {\n  cari(input.value); // \"sepatu\" = 6 request\n});\n```\n\nBenar:\n\n```javascript\nlet timer;\ninput.addEventListener('input', () => {\n  clearTimeout(timer);\n  timer = setTimeout(() => cari(input.value), 300); // debounce 300 ms\n});\n```\n\nMengetik \"sepatu\" mengirim enam request, dan lima di antaranya tidak berguna. Kuota habis cepat, dan pengguna melihat error 429. Debounce menunggu sampai pengguna berhenti mengetik sebentar, lalu mengirim satu request saja.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Server menjawab `429 Too Many Requests` dengan header `Retry-After: 60`. Apa yang sebaiknya dilakukan client?",
+          "options": [
+            "Mengulang request secepatnya sampai berhasil",
+            "Login ulang karena token pasti kedaluwarsa",
+            "Menunggu 60 detik sebelum mencoba lagi",
+            "Menganggap data tidak ada dan menampilkan daftar kosong"
+          ],
+          "answer": 2,
+          "explanation": "Retry-After memberi tahu berapa lama client harus menunggu. 429 tidak ada hubungannya dengan token, dan bukan berarti data kosong.",
+          "remedial": "Retry-After memberi tahu berapa lama client harus menunggu. 429 tidak ada hubungannya dengan token, dan bukan berarti data kosong."
+        },
+        {
+          "question": "Kenapa kode client tidak boleh menganggap semua API memakai header `X-RateLimit-Remaining`?",
+          "options": [
+            "Nama dan format header rate limit berbeda antar layanan, misalnya ada yang memakai RateLimit-Remaining",
+            "Header itu dilarang oleh RFC 9110",
+            "Header rate limit selalu dienkripsi",
+            "Informasi rate limit hanya boleh dikirim di body"
+          ],
+          "answer": 0,
+          "explanation": "Belum ada satu standar final yang dipakai semua layanan. Ada X-RateLimit-*, RateLimit-*, dan bentuk draf IETF yang lebih baru. Baca dokumentasi tiap API.",
+          "remedial": "Belum ada satu standar final yang dipakai semua layanan. Ada X-RateLimit-*, RateLimit-*, dan bentuk draf IETF yang lebih baru. Baca dokumentasi tiap API."
+        },
+        {
+          "question": "Apa beda status `429` dan `503`?",
+          "options": [
+            "429 kesalahan server, 503 kesalahan client",
+            "429 berarti client ini melebihi kuota; 503 berarti server sedang tidak sanggup melayani secara umum",
+            "Keduanya sama, hanya berbeda nama",
+            "429 untuk password salah, 503 untuk token kedaluwarsa"
+          ],
+          "answer": 1,
+          "explanation": "429 ditujukan ke client tertentu yang terlalu banyak meminta. 503 menandakan server sedang kelebihan beban atau dalam perawatan untuk semua orang.",
+          "remedial": "429 ditujukan ke client tertentu yang terlalu banyak meminta. 503 menandakan server sedang kelebihan beban atau dalam perawatan untuk semua orang."
+        },
+        {
+          "question": "Endpoint mana yang paling perlu batas request paling ketat?",
+          "options": [
+            "GET /health",
+            "GET /products/P01 yang sudah di-cache",
+            "OPTIONS /products",
+            "POST /auth/login"
+          ],
+          "answer": 3,
+          "explanation": "Login menjadi sasaran serangan menebak password. Batas ketat per akun dan per IP memperlambat penyerang. Tiga endpoint lainnya murah dan tidak sensitif.",
+          "remedial": "Login menjadi sasaran serangan menebak password. Batas ketat per akun dan per IP memperlambat penyerang. Tiga endpoint lainnya murah dan tidak sensitif."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Endpoint `/search` mengizinkan 3 request per 60 detik. Apa output perintah terakhir?",
+      "code": "for i in 1 2 3; do curl -s -o /dev/null \"https://api.toko.contoh/search?q=buku\"; done\ncurl -s -o /dev/null -w \"%{http_code} %header{retry-after}\" \"https://api.toko.contoh/search?q=buku\"",
+      "options": [
+        "429 0",
+        "503 60",
+        "200",
+        "429 60"
+      ],
+      "answer": 3,
+      "explanation": "Tiga request pertama menghabiskan kuota. Request keempat dijawab 429 dengan Retry-After: 60. Status 503 dipakai saat server sedang tidak sanggup melayani siapa pun."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan sisa kuota pencarian dari header respons\ncurl -s -o /dev/null -w \"%header{ratelimit-___}\" \"https://api.toko.contoh/search?q=tas\"",
+      "answers": [
+        "remaining"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Rate limiting melindungi server dari bug, scraping, dan serangan dengan membatasi request per client per waktu.",
+        "Batas terlampaui dijawab 429 Too Many Requests, sering dengan Retry-After berisi detik atau tanggal.",
+        "Nama header sisa kuota berbeda antar layanan (RateLimit-*, X-RateLimit-*); selalu cek dokumentasi.",
+        "Client yang baik menunggu sesuai Retry-After, memakai cache, dan memakai debounce di kotak pencarian.",
+        "Endpoint mahal atau sensitif seperti login, pencarian, dan OTP dibatasi paling ketat."
+      ]
+    }
+  ]
+}

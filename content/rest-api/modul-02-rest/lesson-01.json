@@ -1,0 +1,110 @@
+{
+  "id": "api-rest-01",
+  "moduleId": "api-rest",
+  "order": 1,
+  "title": "Apa Itu REST",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**REST** (*Representational State Transfer*) adalah **gaya arsitektur** untuk sistem terdistribusi seperti web. REST bukan protokol, bukan library, dan bukan format data. Istilah ini dirumuskan Roy Fielding dalam disertasinya tahun 2000. Fielding juga salah satu penulis spesifikasi HTTP.\n\nGagasan intinya: setiap hal yang bisa diberi nama adalah **resource** (sumber daya), misalnya produk P01, daftar produk, atau pesanan O101. Setiap resource punya alamat sendiri, yaitu URI. Client tidak pernah menyentuh resource secara langsung. Client menerima **representasi**-nya, yaitu gambaran keadaan resource saat itu dalam format tertentu, biasanya JSON.\n\nDari situlah namanya: yang berpindah lewat jaringan adalah *representasi keadaan* resource. API yang mengikuti gaya ini disebut **REST API** atau **RESTful API**. Dalam praktik REST hampir selalu memakai HTTP, tapi memakai HTTP saja belum membuat API menjadi REST.\n\nBayangkan katalog perpustakaan. Setiap buku punya nomor panggil unik (URI). Kamu tidak membawa pulang rak dan lemarinya, kamu hanya menerima salinan informasi bukunya (representasi). Semua pengunjung memakai formulir yang sama untuk meminjam, memperpanjang, atau mengembalikan buku, sehingga petugas tidak perlu aturan khusus untuk setiap orang."
+    },
+    {
+      "type": "theory",
+      "content": "Fielding menyusun REST dari beberapa **batasan** (*constraint*). Sistem yang memenuhi batasan ini mudah diskalakan dan mudah dipahami oleh banyak jenis client.\n\n| Batasan | Artinya | Contoh di API Toko Budi |\n|---|---|---|\n| Client-server | tampilan dan penyimpanan data dipisah | website dan aplikasi HP memakai API yang sama |\n| Stateless | setiap request membawa semua info yang dibutuhkan | token dikirim di setiap request |\n| Cacheable | respons menyatakan boleh di-cache atau tidak | `Cache-Control: max-age=60` |\n| Uniform interface | cara akses seragam: URI, method standar, representasi | `GET /products/P01` |\n| Layered system | client tidak perlu tahu ada perantara di tengah | load balancer, gateway, CDN |\n| Code on demand (opsional) | server boleh mengirim kode untuk dijalankan client | jarang dipakai di API |\n\n**REST vs RPC.** Gaya RPC (*Remote Procedure Call*) memandang API sebagai kumpulan **fungsi** yang dipanggil dari jauh. REST memandang API sebagai kumpulan **resource** yang dibaca dan diubah dengan method standar.\n\n| Tujuan | Gaya RPC | Gaya REST |\n|---|---|---|\n| ambil produk | `POST /getProduct` + body `{\"id\":\"P01\"}` | `GET /products/P01` |\n| ubah harga | `POST /updatePrice` + body `{\"id\":\"P01\",\"price\":6000}` | `PATCH /products/P01` + body `{\"price\":6000}` |\n| hapus produk | `POST /deleteProduct` + body `{\"id\":\"P01\"}` | `DELETE /products/P01` |\n\nRPC bukan gaya yang salah. gRPC misalnya populer untuk komunikasi antar layanan internal. Kelebihan REST: browser, cache, proxy, dan alat monitoring sudah paham arti `GET`, `DELETE`, dan status code tanpa membaca dokumentasimu."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLihat daftar resource yang diumumkan API Toko Budi, lalu minta representasi produk P01 lengkap dengan header-nya.\n\n```bash\ncurl -s https://api.toko.contoh/\ncurl -i https://api.toko.contoh/products/P01\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s https://api.toko.contoh/\n{\n  \"name\": \"API Toko Budi\",\n  \"version\": \"1.0.0\",\n  \"docs\": \"/docs/openapi.yaml\",\n  \"resources\": [\n    \"/products\",\n    \"/orders\",\n    \"/auth/login\",\n    \"/me\"\n  ]\n}\n$ curl -i https://api.toko.contoh/products/P01\nHTTP/1.1 200 OK\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nETag: \"p01-v1\"\nCache-Control: max-age=60\nContent-Type: application/json\nContent-Length: 142\nConnection: close\n\n{\n  \"id\": \"P01\",\n  \"name\": \"Buku Tulis\",\n  \"price\": 5000,\n  \"category\": \"alat-tulis\",\n  \"stock\": 120,\n  \"createdAt\": \"2026-08-02T02:00:00Z\"\n}\n```\n\nPerhatikan tiga hal:\n\n- `GET /` mendaftar resource yang tersedia: `/products`, `/orders`, dan seterusnya. Setiap resource punya URI sendiri.\n- `Content-Type: application/json` menyatakan format **representasi** yang dikirim. Data aslinya ada di penyimpanan server; yang sampai ke kamu hanya gambarannya.\n- `Cache-Control: max-age=60` dan `ETag` adalah wujud batasan **cacheable**: respons memberi tahu client dan perantara berapa lama salinan ini boleh dipakai ulang."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menganggap API yang memakai JSON otomatis bergaya REST**\n\nSalah:\n\n```bash\ncurl -X POST https://api.toko.contoh/getProduct -H \"Content-Type: application/json\" -d '{\"id\":\"P01\"}'\n```\n\nBenar:\n\n```bash\ncurl https://api.toko.contoh/products/P01\n```\n\nJSON hanya format representasi. API yang semua operasinya lewat `POST` ke URL berisi nama fungsi adalah gaya RPC, walau body-nya JSON. Dengan `GET` pada URI resource, respons bisa di-cache dan di-retry dengan aman oleh client mana pun.\n\n**2. Membalas error dengan 200 lalu menaruh status di body**\n\nSalah:\n\n```http\nHTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"success\": false, \"message\": \"Produk tidak ditemukan\"}\n```\n\nBenar:\n\n```http\nHTTP/1.1 404 Not Found\nContent-Type: application/problem+json\n\n{\"type\": \"about:blank\", \"title\": \"Not Found\", \"status\": 404, \"detail\": \"Produk P99 tidak ditemukan.\"}\n```\n\nUniform interface berarti memakai arti HTTP apa adanya. Cache, load balancer, alat monitoring, dan library client membaca status code, bukan isi body. Respons 200 berisi error bisa ikut di-cache, tidak memicu alert, dan membuat client mengira request berhasil.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pernyataan mana yang paling tepat tentang REST?",
+          "options": [
+            "REST adalah protokol pengganti HTTP untuk mengirim JSON",
+            "REST adalah library JavaScript untuk memanggil API",
+            "REST adalah gaya arsitektur berisi sekumpulan batasan untuk merancang sistem terdistribusi",
+            "REST adalah format data seperti JSON dan XML"
+          ],
+          "answer": 2,
+          "explanation": "REST adalah gaya arsitektur dari disertasi Roy Fielding. Ia tidak menentukan library atau format data; HTTP dan JSON hanya alat yang sering dipakai untuk menerapkannya.",
+          "remedial": "REST adalah gaya arsitektur dari disertasi Roy Fielding. Ia tidak menentukan library atau format data; HTTP dan JSON hanya alat yang sering dipakai untuk menerapkannya."
+        },
+        {
+          "question": "Dalam istilah REST, apa yang dimaksud dengan representasi?",
+          "options": [
+            "Alamat unik resource, misalnya /products/P01",
+            "Gambaran keadaan resource dalam format tertentu yang dikirim lewat jaringan, misalnya JSON",
+            "Method yang dipakai untuk mengubah resource",
+            "Tabel database tempat resource disimpan"
+          ],
+          "answer": 1,
+          "explanation": "Resource adalah konsepnya (produk P01). Representasi adalah wujud yang dikirim ke client, misalnya objek JSON dengan Content-Type: application/json.",
+          "remedial": "Resource adalah konsepnya (produk P01). Representasi adalah wujud yang dikirim ke client, misalnya objek JSON dengan Content-Type: application/json."
+        },
+        {
+          "question": "Respons `GET /products/P01` membawa header `Cache-Control: max-age=60`. Batasan REST mana yang paling jelas terlihat di sini?",
+          "options": [
+            "Stateless",
+            "Layered system",
+            "Code on demand",
+            "Cacheable"
+          ],
+          "answer": 3,
+          "explanation": "Batasan cacheable meminta respons menyatakan apakah ia boleh disimpan dan dipakai ulang. max-age=60 berarti salinan ini boleh dipakai selama 60 detik.",
+          "remedial": "Batasan cacheable meminta respons menyatakan apakah ia boleh disimpan dan dipakai ulang. max-age=60 berarti salinan ini boleh dipakai selama 60 detik."
+        },
+        {
+          "question": "Endpoint mana yang bergaya RPC, bukan REST?",
+          "options": [
+            "POST /updateProductPrice",
+            "GET /products/P01",
+            "DELETE /orders/O101",
+            "PATCH /products/P01"
+          ],
+          "answer": 0,
+          "explanation": "POST /updateProductPrice menamai fungsi (kata kerja) di URL. Gaya REST menamai resource di URI dan menyatakan aksinya lewat method, misalnya PATCH /products/P01.",
+          "remedial": "POST /updateProductPrice menamai fungsi (kata kerja) di URL. Gaya REST menamai resource di URI dan menyatakan aksinya lewat method, misalnya PATCH /products/P01."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Server latihan hanya punya representasi JSON. Apa status yang dikembalikan untuk request ini?",
+      "code": "curl -s -o /dev/null -w \"%{http_code}\" -H \"Accept: text/html\" https://api.toko.contoh/products/P01",
+      "options": [
+        "200",
+        "404",
+        "406",
+        "415"
+      ],
+      "answer": 2,
+      "explanation": "Header Accept menyatakan format representasi yang diinginkan client. Server tidak punya representasi HTML, jadi menjawab 406 Not Acceptable. 415 dipakai untuk kasus lain: format body yang dikirim client (Content-Type) tidak didukung."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Minta representasi JSON produk P03 secara eksplisit lewat header\ncurl -s -H \"___: application/json\" https://api.toko.contoh/products/P03 | jq -r .name",
+      "answers": [
+        "Accept|accept"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "REST adalah gaya arsitektur, bukan protokol, library, atau format data.",
+        "Resource adalah hal yang diberi nama dan alamat (URI); client hanya menerima representasinya, biasanya JSON.",
+        "Batasan REST: client-server, stateless, cacheable, uniform interface, layered system, dan code on demand (opsional).",
+        "Gaya RPC menamai fungsi di URL; gaya REST menamai resource di URI dan memakai method standar untuk aksinya.",
+        "Header Accept meminta format representasi; kalau server tidak punya format itu, jawabannya 406."
+      ]
+    }
+  ]
+}

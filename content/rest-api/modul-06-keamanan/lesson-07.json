@@ -1,0 +1,112 @@
+{
+  "id": "api-keamanan-07",
+  "moduleId": "api-keamanan",
+  "order": 7,
+  "title": "OWASP API Security Top 10",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**OWASP** (*Open Worldwide Application Security Project*) menerbitkan daftar risiko keamanan API yang paling sering terjadi: **OWASP API Security Top 10 (2023)**. Daftar ini jadi acuan umum di industri dan sering ditanyakan saat wawancara kerja.\n\nSepuluh kategori versi 2023, dengan kode resminya:\n\n1. **API1:2023** Broken Object Level Authorization (BOLA)\n2. **API2:2023** Broken Authentication\n3. **API3:2023** Broken Object Property Level Authorization (BOPLA)\n4. **API4:2023** Unrestricted Resource Consumption\n5. **API5:2023** Broken Function Level Authorization (BFLA)\n6. **API6:2023** Unrestricted Access to Sensitive Business Flows\n7. **API7:2023** Server Side Request Forgery (SSRF)\n8. **API8:2023** Security Misconfiguration\n9. **API9:2023** Improper Inventory Management\n10. **API10:2023** Unsafe Consumption of APIs\n\nBenang merahnya: sebagian besar bukan soal enkripsi yang rumit, melainkan **otorisasi yang kurang teliti**. Kita bahas yang paling sering muncul.\n\nAnggap OWASP Top 10 sebagai daftar modus pencurian tersering di sebuah kompleks: pintu yang tidak dikunci, kartu akses yang bisa dipalsukan, jendela yang dibiarkan terbuka. Petugas keamanan menghafal daftar itu agar fokus menutup celah yang paling sering dipakai. Sekarang kembali ke istilah endpoint, token, dan request."
+    },
+    {
+      "type": "theory",
+      "content": "| Kategori | Serangan | Pertahanan |\n|---|---|---|\n| **BOLA** (API1) | ganti ID di URL untuk membaca data orang lain | cek pemilik tiap objek; balas 404 untuk data orang lain |\n| **Broken Authentication** (API2) | token lemah, `alg:none`, brute force login | verifikasi tanda tangan, token pendek, rate limit login |\n| **BOPLA** (API3) | kirim field terlarang (mis. `role`) atau baca field berlebih | terima hanya field yang diizinkan; jangan kirim field sensitif |\n| **Unrestricted Resource Consumption** (API4) | request masif tanpa batas, paging raksasa | rate limit, batasi `limit`, kuota |\n| **BFLA** (API5) | panggil endpoint fungsi admin sebagai user biasa | cek role di setiap fungsi, bukan hanya di menu |\n| **SSRF** (API7) | server dipaksa memanggil URL internal pilihan penyerang | validasi dan batasi URL tujuan; tolak alamat internal |\n\n**BOLA (akses data orang lain dengan ganti ID).** Risiko nomor satu. Budi login dengan benar, lalu meminta `/orders/O102` milik Sari. Server yang aman mengecek pemilik objek dan membalas `404`, bukan menyerahkan data Sari. Autentikasi saja tidak cukup; otorisasi per objek harus diperiksa.\n\n**BOPLA (mass assignment).** Penyerang menambahkan field yang tidak seharusnya, misalnya `PATCH /me` dengan `{\"role\":\"admin\"}`. Server yang aman hanya menerima field yang diizinkan (`name`) dan mengabaikan sisanya. BOPLA juga mencakup *excessive data exposure*: respons membocorkan field sensitif seperti `password`.\n\n**BFLA (endpoint admin).** Mirip BOLA, tapi soal **fungsi**, bukan data. User biasa memanggil endpoint admin seperti `/admin/users`. Server harus memeriksa role di setiap fungsi, bukan hanya menyembunyikannya dari tampilan.\n\n**Unrestricted Resource Consumption.** Tanpa rate limit dan batas `limit`, satu client bisa menyedot data atau membebani server. Pertahanannya dibahas di modul Merancang API yang Rapi.\n\n**SSRF.** Kalau API menerima URL dari client lalu memanggilnya di sisi server (mis. ambil gambar dari URL), penyerang bisa menaruh alamat internal seperti `http://169.254.169.254/` untuk mencuri metadata cloud. Validasi tujuan dan tolak alamat internal."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nUji server latihan dengan request yang biasa dipakai penyerang, lalu lihat pertahanannya bekerja. Login sebagai Budi, coba BOLA (pesanan Sari), BOPLA (naikkan role), dan BFLA (endpoint admin).\n\n```bash\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\necho \"BOLA  -> $(curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/orders/O102 -H \"Authorization: Bearer $TOKEN\") (O102 milik Sari)\"\necho \"BOPLA -> role jadi: $(curl -s -X PATCH https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" --json '{\"name\":\"Budi\",\"role\":\"admin\"}' | jq -r .role)\"\necho \"BFLA  -> $(curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/admin/users -H \"Authorization: Bearer $TOKEN\") (endpoint admin)\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ echo \"BOLA  -> $(curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/orders/O102 -H \"Authorization: Bearer $TOKEN\") (O102 milik Sari)\"\nBOLA  -> 404 (O102 milik Sari)\n$ echo \"BOPLA -> role jadi: $(curl -s -X PATCH https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" --json '{\"name\":\"Budi\",\"role\":\"admin\"}' | jq -r .role)\"\nBOPLA -> role jadi: customer\n$ echo \"BFLA  -> $(curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/admin/users -H \"Authorization: Bearer $TOKEN\") (endpoint admin)\"\nBFLA  -> 403 (endpoint admin)\n```\n\nPerhatikan ketiga pertahanan bekerja:\n\n- **BOLA:** `/orders/O102` milik Sari dijawab `404`, sama seperti pesanan yang tidak ada. Server tidak membocorkan bahwa O102 memang ada. Budi hanya bisa melihat pesanannya sendiri.\n- **BOPLA:** `PATCH /me` mengirim `role:admin`, tapi server mengabaikannya dan `role` tetap `customer`. Hanya field `name` yang boleh diubah.\n- **BFLA:** `/admin/users` dijawab `403`. Role Budi diperiksa di server, bukan hanya disembunyikan dari tampilan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengecek login tapi lupa mengecek pemilik objek (BOLA)**\n\nSalah:\n\n```javascript\napp.get(\"/orders/:id\", auth, (req, res) => {\n  res.json(db.orders.find(o => o.id === req.params.id)); // siapa pun yang login bisa baca pesanan mana pun\n});\n```\n\nBenar:\n\n```javascript\napp.get(\"/orders/:id\", auth, (req, res) => {\n  const o = db.orders.find(o => o.id === req.params.id);\n  if (!o || (req.user.role !== \"admin\" && o.userId !== req.user.id)) return res.status(404).json(problem);\n  res.json(o);\n});\n```\n\nAutentikasi hanya memastikan pengguna login. Tanpa cek pemilik, Budi bisa membaca pesanan Sari dengan menebak ID. Periksa kepemilikan tiap objek, dan balas 404 agar keberadaan data orang lain tidak bocor.\n\n**2. Menyalin seluruh body request ke objek tersimpan (mass assignment)**\n\nSalah:\n\n```javascript\napp.patch(\"/me\", auth, (req, res) => {\n  Object.assign(req.user, req.body); // role, isAdmin, apa pun ikut tertimpa\n  res.json(req.user);\n});\n```\n\nBenar:\n\n```javascript\napp.patch(\"/me\", auth, (req, res) => {\n  if (typeof req.body.name === \"string\") req.user.name = req.body.name.trim(); // hanya field yang diizinkan\n  res.json({ id: req.user.id, name: req.user.name, role: req.user.role });\n});\n```\n\nObject.assign menyalin semua field, termasuk `role` yang dikirim penyerang. Terima hanya field yang kamu izinkan (allowlist), bukan apa pun yang dikirim client. Ini inti pertahanan BOPLA / mass assignment.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Budi (customer) login dengan benar lalu meminta `/orders/O102` milik Sari. Status apa yang dikembalikan server latihan yang aman?",
+          "code": "curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/orders/O102 -H \"Authorization: Bearer $TOKEN\"",
+          "options": [
+            "200 dengan data Sari",
+            "403",
+            "404",
+            "500"
+          ],
+          "answer": 2,
+          "explanation": "Ini BOLA. Server mengecek pemilik objek: O102 bukan milik Budi, jadi dijawab 404 seperti pesanan yang tidak ada. 404 juga menyembunyikan apakah O102 benar-benar ada.",
+          "remedial": "Ini BOLA. Server mengecek pemilik objek: O102 bukan milik Budi, jadi dijawab 404 seperti pesanan yang tidak ada. 404 juga menyembunyikan apakah O102 benar-benar ada."
+        },
+        {
+          "question": "`PATCH /me` dikirim dengan body `{\"name\":\"Budi\",\"role\":\"admin\"}`. Apa nilai `role` setelahnya di server latihan?",
+          "code": "curl -s -X PATCH https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" --json '{\"name\":\"Budi\",\"role\":\"admin\"}' | jq -r .role",
+          "options": [
+            "admin",
+            "null",
+            "customer",
+            "error"
+          ],
+          "answer": 2,
+          "explanation": "Ini BOPLA / mass assignment. Server hanya menerima field name dan mengabaikan role, jadi role tetap customer. Jangan pernah menyalin seluruh body ke objek tersimpan.",
+          "remedial": "Ini BOPLA / mass assignment. Server hanya menerima field name dan mengabaikan role, jadi role tetap customer. Jangan pernah menyalin seluruh body ke objek tersimpan."
+        },
+        {
+          "question": "Apa perbedaan BOLA dan BFLA di OWASP API Top 10?",
+          "options": [
+            "BOLA tentang akses objek/data orang lain; BFLA tentang akses fungsi/endpoint yang tidak berhak",
+            "BOLA hanya terjadi di GET, BFLA hanya di POST",
+            "BOLA soal enkripsi, BFLA soal rate limit",
+            "Keduanya sama persis"
+          ],
+          "answer": 0,
+          "explanation": "BOLA (API1) adalah akses data objek milik orang lain dengan menebak ID. BFLA (API5) adalah mengakses fungsi yang tidak berhak, misalnya endpoint admin, sebagai user biasa.",
+          "remedial": "BOLA (API1) adalah akses data objek milik orang lain dengan menebak ID. BFLA (API5) adalah mengakses fungsi yang tidak berhak, misalnya endpoint admin, sebagai user biasa."
+        },
+        {
+          "question": "API menerima URL dari client lalu mengambil isinya di sisi server. Penyerang mengisi `http://169.254.169.254/`. Risiko apa ini?",
+          "options": [
+            "BFLA",
+            "Rate limiting",
+            "CORS",
+            "SSRF"
+          ],
+          "answer": 3,
+          "explanation": "Ini SSRF (API7): server dipaksa memanggil alamat internal pilihan penyerang, misalnya endpoint metadata cloud. Validasi dan batasi URL tujuan, dan tolak alamat internal.",
+          "remedial": "Ini SSRF (API7): server dipaksa memanggil alamat internal pilihan penyerang, misalnya endpoint metadata cloud. Validasi dan batasi URL tujuan, dan tolak alamat internal."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Server latihan berisi dua pesanan: O101 milik Budi dan O102 milik Sari. Budi meminta daftar pesanan. Berapa jumlah pesanan yang ia terima?",
+      "code": "TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\ncurl -s https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" | jq '.data | length'",
+      "options": [
+        "2",
+        "0",
+        "401",
+        "1"
+      ],
+      "answer": 3,
+      "explanation": "Pertahanan BOLA berlaku juga di daftar: server menyaring pesanan berdasarkan pemiliknya, jadi Budi hanya menerima O101. Hanya admin yang melihat kedua pesanan."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Minta 1000 produk sekaligus, lalu tampilkan batas yang benar-benar dipakai server (cegah Unrestricted Resource Consumption)\ncurl -s \"https://api.toko.contoh/products?limit=1000\" | jq .meta.___",
+      "answers": [
+        "limit"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "OWASP API Security Top 10 (2023) adalah daftar risiko API tersering; kebanyakan soal otorisasi yang kurang teliti.",
+        "BOLA (API1): cek pemilik tiap objek; balas 404 agar data orang lain tidak bocor saat ID ditebak.",
+        "BOPLA / mass assignment (API3): terima hanya field yang diizinkan; jangan bocorkan field sensitif.",
+        "BFLA (API5): periksa role di setiap fungsi admin, bukan sekadar menyembunyikannya di tampilan.",
+        "Unrestricted Resource Consumption (API4) dijawab rate limit; SSRF (API7) dijawab validasi URL tujuan."
+      ]
+    }
+  ]
+}

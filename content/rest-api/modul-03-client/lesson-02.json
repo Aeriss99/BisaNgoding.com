@@ -1,0 +1,110 @@
+{
+  "id": "api-client-02",
+  "moduleId": "api-client",
+  "order": 2,
+  "title": "Postman dan HTTPie",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "curl cocok untuk satu atau dua request. Saat API punya puluhan endpoint, tim butuh tempat untuk **menyimpan, mengelompokkan, dan membagikan** request. Di sinilah **Postman** dipakai: aplikasi grafis untuk menyusun request, melihat respons, dan menyimpannya sebagai koleksi.\n\nKonsep inti Postman:\n\n- **Collection**: kumpulan request yang disimpan, bisa dibagi ke folder, misalnya \"Produk\", \"Auth\", \"Pesanan\". Collection bisa diekspor sebagai berkas JSON dan dibagikan ke tim.\n- **Environment**: sekumpulan *variable* (nilai yang bisa diganti) untuk satu lingkungan, misalnya Lokal, Staging, dan Produksi. Di request, variable ditulis `{{baseUrl}}` atau `{{token}}`.\n- **Example**: respons yang disimpan dari sebuah request. Example menjadi contoh hidup di dokumentasi collection.\n\n**HTTPie** adalah alternatif curl di terminal dengan sintaks yang lebih ringkas dan output berwarna. Perintahnya `http` dan `https`.\n\nCollection mirip buku resep dapur. Resepnya (request) ditulis sekali dan dipakai berulang kali. Environment seperti catatan \"dapur mana yang dipakai hari ini\": bahan dan alatnya berbeda, tapi langkah resepnya tetap sama."
+    },
+    {
+      "type": "theory",
+      "content": "Susunan collection Toko Budi di Postman, ditulis sebagai teks:\n\n```text\nCollection \"API Toko Budi\"   (Authorization: Bearer Token = {{token}})\n├── Auth\n│   └── POST {{baseUrl}}/auth/login    (Auth: No Auth)\n├── Produk\n│   ├── GET  {{baseUrl}}/products?category=sepatu\n│   └── POST {{baseUrl}}/products\n└── Profil\n    └── GET  {{baseUrl}}/me            (Auth: Inherit auth from parent)\n```\n\nEnvironment \"Produksi\" berisi `baseUrl = https://api.toko.contoh` dan `token` yang awalnya kosong. Environment \"Staging\" berisi `baseUrl = https://staging-api.toko.contoh`, dan \"Lokal\" berisi `baseUrl = http://localhost:3000`. Ganti environment di pojok kanan atas, maka semua request ikut pindah server.\n\nSupaya `token` terisi otomatis setelah login, tulis *script* di tab **Scripts → Post-response** pada request login (di versi Postman lama, tab ini bernama **Tests**):\n\n```javascript\npm.environment.set('token', pm.response.json().accessToken);\n```\n\nFitur lain yang sering dipakai:\n\n- **Import**: tempel perintah curl di kotak impor, dan Postman mengubahnya menjadi request.\n- Ikon **Code** (`</>`): mengubah request Postman menjadi curl, fetch, atau bahasa lain.\n- **Save Response → Save as example**: menyimpan respons sebagai Example.\n\nPostman membedakan nilai variable yang ikut dibagikan ke tim dan nilai yang hanya tersimpan di komputermu. Namanya bisa berbeda antar versi, misalnya *initial value* dan *current value*. Simpan token dan password hanya sebagai nilai lokal.\n\nHTTPie memakai `nama=nilai` untuk field teks, `nama:=nilai` untuk angka atau JSON mentah, dan `Nama:nilai` untuk header. Body dikirim sebagai JSON secara default:\n\n```bash\nhttps POST api.toko.contoh/products name=Topi price:=45000 category=aksesoris stock:=10\nhttps api.toko.contoh/me \"Authorization:Bearer $TOKEN\"\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nPostman dan HTTPie tidak bisa dijalankan di sini, jadi kita tiru alur environment dengan curl dan variable shell. `BASE_URL` berperan seperti `{{baseUrl}}`, dan `TOKEN` seperti `{{token}}` yang diisi setelah login. *Access token* adalah tanda bukti login yang dikirim di header `Authorization`; detailnya dibahas di modul Keamanan API.\n\n```bash\nBASE_URL=https://api.toko.contoh\nTOKEN=$(curl -s $BASE_URL/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\necho \"${TOKEN:0:20}...\"\ncurl -s $BASE_URL/me -H \"Authorization: Bearer $TOKEN\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ BASE_URL=https://api.toko.contoh\n$ TOKEN=$(curl -s $BASE_URL/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ echo \"${TOKEN:0:20}...\"\neyJhbGciOiJIUzI1NiIs...\n$ curl -s $BASE_URL/me -H \"Authorization: Bearer $TOKEN\"\n{\n  \"id\": \"U01\",\n  \"name\": \"Budi\",\n  \"email\": \"budi@toko.contoh\",\n  \"role\": \"customer\"\n}\n```\n\nAlurnya sama persis dengan collection di Postman:\n\n1. Request login mengirim email dan password, lalu mengambil `accessToken` dari respons. Di Postman, langkah ini dikerjakan script post-response `pm.environment.set(...)`.\n2. Request berikutnya memakai token itu di header `Authorization: Bearer ...`. Di Postman, header ini dipasang lewat tab Authorization dengan nilai `{{token}}`.\n\nToken server latihan berlaku 900 detik (15 menit). Setelah itu, jalankan request login lagi."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis URL server lengkap di setiap request**\n\nSalah:\n\n```text\nGET https://api.toko.contoh/products\nPOST https://api.toko.contoh/products\nGET https://api.toko.contoh/me\n(... 30 request lain dengan host yang sama)\n```\n\nBenar:\n\n```text\nGET {{baseUrl}}/products\nPOST {{baseUrl}}/products\nGET {{baseUrl}}/me\n(baseUrl diisi di environment Lokal, Staging, dan Produksi)\n```\n\nSaat pindah dari staging ke lokal, kamu harus mengubah puluhan request satu per satu, dan biasanya ada yang terlewat. Dengan `{{baseUrl}}`, cukup ganti environment.\n\n**2. Menempel token langsung di header setiap request**\n\nSalah:\n\n```javascript\n// Header di request GET /me, ditempel manual dari respons login:\n// Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJVMDEi...\n```\n\nBenar:\n\n```javascript\n// Request login → Scripts → Post-response:\npm.environment.set('token', pm.response.json().accessToken);\n// Collection → Authorization: Bearer Token, isinya {{token}}\n```\n\nToken kedaluwarsa dalam 15 menit, jadi kamu harus menempel ulang di banyak tempat. Lebih berbahaya lagi, token ikut tersimpan di collection. Saat collection diekspor atau dibagikan, token itu bisa dipakai orang lain.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Tim kamu punya environment Lokal, Staging, dan Produksi di Postman. Apa keuntungan utama menulis URL sebagai `{{baseUrl}}/products`?",
+          "options": [
+            "Request yang sama bisa diarahkan ke server lain hanya dengan mengganti environment",
+            "Request menjadi lebih cepat karena Postman menyimpan respons",
+            "Postman otomatis membuat dokumentasi OpenAPI dari variable itu",
+            "Server tahu request berasal dari Postman sehingga tidak perlu token"
+          ],
+          "answer": 0,
+          "explanation": "Variable environment memisahkan \"ke server mana\" dari \"request apa\". Ganti environment, maka semua request di collection ikut berpindah server.",
+          "remedial": "Variable environment memisahkan \"ke server mana\" dari \"request apa\". Ganti environment, maka semua request di collection ikut berpindah server."
+        },
+        {
+          "question": "Dengan HTTPie, apa beda `price=45000` dan `price:=45000`?",
+          "options": [
+            "Tidak ada beda, keduanya mengirim angka",
+            "`=` mengirim header, `:=` mengirim body",
+            "`=` mengirim query string, `:=` mengirim body JSON",
+            "`=` mengirim teks `\"45000\"`, `:=` mengirim angka `45000`"
+          ],
+          "answer": 3,
+          "explanation": "Di HTTPie, = selalu menghasilkan string JSON, sedangkan := memasukkan nilai JSON mentah. Server latihan mewajibkan price berupa integer, jadi string \"45000\" akan ditolak dengan 422.",
+          "remedial": "Di HTTPie, = selalu menghasilkan string JSON, sedangkan := memasukkan nilai JSON mentah. Server latihan mewajibkan price berupa integer, jadi string \"45000\" akan ditolak dengan 422."
+        },
+        {
+          "question": "Di mana tempat paling tepat menyimpan access token di Postman supaya tidak ikut tersebar?",
+          "options": [
+            "Ditulis langsung di header setiap request",
+            "Di URL sebagai query string `?token=...`",
+            "Sebagai nilai lokal variable environment yang diisi script setelah login",
+            "Di deskripsi collection supaya teman setim mudah menemukannya"
+          ],
+          "answer": 2,
+          "explanation": "Nilai lokal hanya ada di komputermu dan tidak ikut terbagi saat collection atau environment dibagikan. Script post-response mengisinya otomatis setiap kali login.",
+          "remedial": "Nilai lokal hanya ada di komputermu dan tidak ikut terbagi saat collection atau environment dibagikan. Script post-response mengisinya otomatis setiap kali login."
+        },
+        {
+          "question": "Kamu menemukan bug lewat Postman dan ingin teman backend mengulanginya di terminal mereka. Cara paling cepat?",
+          "options": [
+            "Mengirim screenshot layar Postman",
+            "Memakai ikon Code (`</>`) untuk menyalin request sebagai perintah curl, lalu menempelkannya di tiket",
+            "Mengekspor seluruh workspace beserta semua environment",
+            "Menuliskan ulang request dengan kata-kata di chat"
+          ],
+          "answer": 1,
+          "explanation": "Perintah curl bisa langsung dijalankan dan memuat method, URL, header, dan body yang persis. Periksa dulu supaya token atau password tidak ikut tertempel.",
+          "remedial": "Perintah curl bisa langsung dijalankan dan memuat method, URL, header, dan body yang persis. Periksa dulu supaya token atau password tidak ikut tertempel."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Password yang dikirim salah. Apa output perintah terakhir?",
+      "code": "TOKEN=$(curl -s https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"salah\"}' | jq -r .accessToken)\necho $TOKEN",
+      "options": [
+        "null",
+        "Email atau password salah.",
+        "401",
+        "eyJhbGciOiJIUzI1NiIs..."
+      ],
+      "answer": 0,
+      "explanation": "Login gagal dijawab 401 dengan body Problem Details tanpa field accessToken. jq -r mencetak null untuk field yang tidak ada, sehingga TOKEN berisi teks \"null\". Request berikutnya akan mengirim \"Bearer null\" dan ditolak 401. Di skrip, cek dulu bahwa login berhasil."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Ambil access token dari respons login, lalu pakai untuk GET /me\nTOKEN=$(curl -s https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r ___)\ncurl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -r .name",
+      "answers": [
+        ".accessToken"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Collection menyimpan dan mengelompokkan request supaya bisa dipakai ulang dan dibagikan ke tim.",
+        "Environment berisi variable seperti {{baseUrl}} dan {{token}}; ganti environment untuk pindah server.",
+        "Isi token otomatis dengan script post-response, dan simpan rahasia hanya sebagai nilai lokal.",
+        "Postman bisa mengimpor perintah curl dan mengubah request menjadi curl atau fetch lewat ikon Code.",
+        "HTTPie mengirim JSON secara default: nama=teks untuk string, nama:=nilai untuk angka, Nama:nilai untuk header."
+      ]
+    }
+  ]
+}

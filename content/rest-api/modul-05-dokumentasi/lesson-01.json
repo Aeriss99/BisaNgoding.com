@@ -1,0 +1,110 @@
+{
+  "id": "api-dokumentasi-01",
+  "moduleId": "api-dokumentasi",
+  "order": 1,
+  "title": "Kenapa Dokumentasi API Penting",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "API dipakai oleh orang yang tidak menulisnya: developer frontend, tim aplikasi HP, tim lain di perusahaan, atau mitra seperti jasa kurir. Mereka tidak membaca kode server. Pegangan mereka hanya dokumentasi. Karena itu tim engineering memperlakukan API sebagai **produk**: punya pengguna, punya kontrak, dan punya buku petunjuk.\n\nKonsumen API dibagi dua:\n\n- **Internal**: tim di perusahaan yang sama, misalnya frontend website dan aplikasi HP Toko Budi. Mereka bisa bertanya lewat chat, tapi setiap pertanyaan menghentikan pekerjaan dua tim sekaligus.\n- **Eksternal**: developer di luar perusahaan, misalnya mitra marketplace yang menampilkan produk Toko Budi. Mereka tidak bisa bertanya langsung ke tim backend. Kalau dokumentasinya kurang, mereka salah integrasi atau berhenti memakai API-mu.\n\nDokumentasi yang baik menjawab pertanyaan sebelum ditanyakan. Developer baru seharusnya bisa mengirim request pertama yang berhasil tanpa menghubungi siapa pun.\n\nBayangkan membeli lemari rakitan. Papan dan sekrupnya lengkap, tapi buku petunjuknya hilang. Kamu harus menebak urutan pemasangan, dan satu tebakan salah membuat lemari miring. Endpoint API adalah papan dan sekrupnya. Dokumentasi adalah buku petunjuknya."
+    },
+    {
+      "type": "theory",
+      "content": "Isi dokumentasi API yang lengkap:\n\n| Bagian | Isi | Contoh di Toko Budi |\n|---|---|---|\n| Referensi endpoint | method, path, parameter, body, response per status code | `POST /products` → `201`, `415`, `422` |\n| Autentikasi | cara mendapat dan mengirim token | `Authorization: Bearer <token>` |\n| Error | format error dan arti setiap status | Problem Details (RFC 9457) |\n| Panduan mulai cepat | langkah sampai request pertama berhasil | login → `GET /me` |\n| Batasan | rate limit dan ukuran halaman | `/search` maks 3 request per 60 detik |\n| Changelog | riwayat perubahan dan jadwal penghentian versi | `/v1` berhenti 31 Desember 2026 |\n\nBagian referensi biasanya ditulis dengan **OpenAPI**, format standar yang dibahas di dua materi berikutnya. Panduan dan changelog ditulis sebagai teks biasa.\n\n**Design-first vs code-first.** Ada dua cara menghasilkan dokumen OpenAPI:\n\n| | Design-first | Code-first |\n|---|---|---|\n| Urutan | tulis dokumen → review bersama → tulis kode | tulis kode → dokumen dihasilkan dari kode (anotasi) |\n| Kelebihan | frontend, mobile, dan backend sepakat sebelum ada kode; mock server bisa langsung dibuat | cepat untuk tim kecil; dokumen dibuat otomatis sehingga jarang tertinggal |\n| Risiko | kode bisa menyimpang dari dokumen kalau tidak diuji | desain mengikuti struktur kode; review baru terjadi setelah kode jadi |\n| Cocok untuk | API publik dan API yang dipakai banyak tim | layanan internal kecil dan prototipe |\n\nApa pun caranya, simpan dokumen OpenAPI di repository yang sama dengan kode. Perubahan kode dan perubahan dokumen di-review dalam satu *pull request*. Praktik ini disebut **docs-as-code**. Dokumen yang disimpan terpisah, misalnya di wiki atau chat, cepat basi."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nBayangkan kamu developer aplikasi HP yang baru bergabung dan belum diberi dokumentasi. Lihat info API, lalu coba menebak nama field untuk menambah produk.\n\n```bash\ncurl -s https://api.toko.contoh/\ncurl -s -X POST https://api.toko.contoh/products --json '{\"nama\":\"Topi\",\"harga\":45000}' | jq -c .errors\ncurl -s -o /dev/null -w \"%{http_code}\\n\" -X POST https://api.toko.contoh/products --json '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}'\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s https://api.toko.contoh/\n{\n  \"name\": \"API Toko Budi\",\n  \"version\": \"1.0.0\",\n  \"docs\": \"/docs/openapi.yaml\",\n  \"resources\": [\n    \"/products\",\n    \"/orders\",\n    \"/auth/login\",\n    \"/me\"\n  ]\n}\n$ curl -s -X POST https://api.toko.contoh/products --json '{\"nama\":\"Topi\",\"harga\":45000}' | jq -c .errors\n[{\"field\":\"name\",\"message\":\"wajib diisi (teks)\"},{\"field\":\"price\",\"message\":\"harus bilangan bulat >= 0 (rupiah)\"},{\"field\":\"category\",\"message\":\"wajib diisi (teks)\"},{\"field\":\"stock\",\"message\":\"harus bilangan bulat >= 0\"}]\n$ curl -s -o /dev/null -w \"%{http_code}\\n\" -X POST https://api.toko.contoh/products --json '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}'\n201\n```\n\nPerhatikan:\n\n- Info API menunjuk dokumen di `/docs/openapi.yaml`. Server latihan tidak menyajikan berkas itu; di modul ini kamu yang menulis isinya.\n- Tebakan `nama` dan `harga` ditolak `422` dengan empat error. Server memakai `name`, `price`, `category`, dan `stock`.\n- Request ketiga berhasil (`201`) karena nama field-nya benar. Tanpa dokumentasi, informasi ini hanya didapat dengan coba-coba atau bertanya ke tim backend."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Dokumentasi tersebar di wiki dan chat yang tidak diperbarui**\n\nSalah:\n\n```text\nWiki \"API Produk\" (terakhir diubah 8 bulan lalu):\n  GET /getProducts   → daftar produk\n  field: nama, harga\n\nChat tim: \"eh, sekarang sudah /products ya, field-nya bahasa Inggris\"\n```\n\nBenar:\n\n```text\nrepo-toko/\n├── src/\n└── openapi.yaml   ← diubah di pull request yang sama dengan kodenya\n\nCI menolak pull request kalau openapi.yaml tidak valid.\n```\n\nDokumen yang terpisah dari kode tidak ikut berubah saat kode berubah. Developer baru membaca wiki, memanggil `/getProducts`, lalu mendapat 404. Dengan docs-as-code, reviewer melihat perubahan kode dan dokumen berdampingan, jadi dokumen yang tertinggal langsung ketahuan.\n\n**2. Hanya mendokumentasikan respons sukses**\n\nSalah:\n\n```yaml\npaths:\n  /products:\n    post:\n      summary: Tambah produk\n      responses:\n        '201':\n          description: Produk dibuat\n```\n\nBenar:\n\n```yaml\npaths:\n  /products:\n    post:\n      summary: Tambah produk\n      responses:\n        '201':\n          description: Produk dibuat\n        '415':\n          description: Content-Type bukan application/json\n        '422':\n          description: Isi body tidak valid, detail per field ada di errors\n```\n\nClient paling sering tersandung di jalur gagal. Tanpa daftar error, developer frontend tidak tahu bahwa ia harus menangani `415` dan `422`, apalagi bentuk body-nya. Dokumentasikan setiap status code yang memang bisa dikirim endpoint itu, lengkap dengan contoh body error.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Siapa yang termasuk konsumen **eksternal** API Toko Budi?",
+          "options": [
+            "Tim frontend website Toko Budi",
+            "Developer mitra marketplace yang menampilkan produk Toko Budi di aplikasinya",
+            "Tim aplikasi HP Toko Budi",
+            "Tim backend yang membuat API itu"
+          ],
+          "answer": 1,
+          "explanation": "Konsumen eksternal berada di luar perusahaan dan tidak bisa bertanya langsung ke tim backend. Tim frontend dan aplikasi HP Toko Budi adalah konsumen internal.",
+          "remedial": "Konsumen eksternal berada di luar perusahaan dan tidak bisa bertanya langsung ke tim backend. Tim frontend dan aplikasi HP Toko Budi adalah konsumen internal."
+        },
+        {
+          "question": "Tim kamu menulis dokumen OpenAPI lebih dulu, me-review-nya bersama tim frontend dan mobile, baru kemudian menulis kode server. Pendekatan apa ini?",
+          "options": [
+            "Code-first",
+            "Test-driven development",
+            "Reverse engineering",
+            "Design-first"
+          ],
+          "answer": 3,
+          "explanation": "Design-first berarti kontrak API dirancang dan disepakati sebelum kode ditulis. Code-first kebalikannya: dokumen dihasilkan dari kode yang sudah ada.",
+          "remedial": "Design-first berarti kontrak API dirancang dan disepakati sebelum kode ditulis. Code-first kebalikannya: dokumen dihasilkan dari kode yang sudah ada."
+        },
+        {
+          "question": "Apa kelebihan utama code-first dibanding design-first?",
+          "options": [
+            "Dokumen dihasilkan dari kode sehingga jarang tertinggal, dan cepat untuk tim kecil",
+            "Frontend bisa bekerja dengan mock server sebelum kode server ada",
+            "Desain API di-review semua tim sebelum kode ditulis",
+            "Tidak perlu menulis kode server sama sekali"
+          ],
+          "answer": 0,
+          "explanation": "Code-first membuat dokumen dari anotasi di kode, jadi praktis dan jarang basi. Mock lebih awal dan review sebelum kode adalah kelebihan design-first.",
+          "remedial": "Code-first membuat dokumen dari anotasi di kode, jadi praktis dan jarang basi. Mock lebih awal dan review sebelum kode adalah kelebihan design-first."
+        },
+        {
+          "question": "Kenapa dokumen OpenAPI sebaiknya disimpan di repository yang sama dengan kode server?",
+          "options": [
+            "Supaya server membaca dokumen itu untuk memproses setiap request",
+            "Supaya hanya tim backend yang bisa membaca dokumentasinya",
+            "Supaya perubahan kode dan dokumen di-review dalam pull request yang sama, sehingga dokumen tidak tertinggal",
+            "Karena dokumen OpenAPI tidak bisa disimpan di tempat lain"
+          ],
+          "answer": 2,
+          "explanation": "Inilah docs-as-code. Dokumen di wiki atau chat tidak ikut di-review saat kode berubah, sehingga cepat basi. Server tidak perlu membaca dokumen untuk bekerja.",
+          "remedial": "Inilah docs-as-code. Dokumen di wiki atau chat tidak ikut di-review saat kode berubah, sehingga cepat basi. Server tidak perlu membaca dokumen untuk bekerja."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Developer baru menebak nama field dalam bahasa Indonesia. Apa output perintah ini?",
+      "code": "curl -s -X POST https://api.toko.contoh/products --json '{\"nama\":\"Topi\",\"harga\":45000,\"kategori\":\"aksesoris\",\"stok\":10}' | jq '.errors | length'",
+      "options": [
+        "0",
+        "4",
+        "1",
+        "201"
+      ],
+      "answer": 1,
+      "explanation": "Server tidak mengenal nama, harga, kategori, dan stok. Keempat field wajib (name, price, category, stock) dianggap tidak dikirim, jadi errors berisi 4 item."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Cari tahu dari info API di mana dokumen OpenAPI berada\ncurl -s https://api.toko.contoh/ | jq -r .___",
+      "answers": [
+        "docs"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "API adalah produk: konsumennya tidak membaca kode server, jadi dokumentasi adalah pegangan utama mereka.",
+        "Konsumen internal (tim di perusahaan sendiri) dan eksternal (mitra, developer luar) sama-sama butuh dokumentasi yang lengkap.",
+        "Dokumentasi lengkap memuat referensi endpoint, autentikasi, format error, panduan mulai cepat, batasan, dan changelog.",
+        "Design-first menyepakati kontrak sebelum kode; code-first menghasilkan dokumen dari kode.",
+        "Simpan dokumen OpenAPI di repository yang sama dengan kode dan review bersama (docs-as-code)."
+      ]
+    }
+  ]
+}

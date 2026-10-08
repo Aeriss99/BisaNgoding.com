@@ -1,0 +1,112 @@
+{
+  "id": "api-keamanan-04",
+  "moduleId": "api-keamanan",
+  "order": 4,
+  "title": "Session vs Token",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setelah pengguna login, server perlu mengingat identitasnya di request berikutnya. HTTP sendiri *stateless*, jadi ada dua pola umum: **session cookie** dan **Bearer token**.\n\n- **Session cookie:** server membuat *session* (catatan login) dan menyimpannya di sisi server. Client hanya memegang sebuah *session id* di cookie. Setiap request, browser mengirim cookie itu otomatis, dan server mencari catatannya.\n- **Bearer token:** server memberi token setelah login. Client menyimpannya dan mengirimnya sendiri di header `Authorization: Bearer ...` pada setiap request. Server tidak menyimpan daftar login; token sudah membawa identitasnya (dibahas di materi JWT).\n\nKeduanya dipakai luas di industri. Pilihannya bergantung pada bentuk aplikasi dan model ancaman.\n\nSession cookie seperti nomor antrean: kamu pegang kertas kecil bernomor, dan semua datamu ada di komputer petugas. Bearer token seperti gelang festival yang sudah tercetak nama dan kelasnya; penjaga cukup melihat gelangnya tanpa membuka buku catatan. Sekarang kembali ke istilah cookie, token, dan header."
+    },
+    {
+      "type": "theory",
+      "content": "| | Session cookie | Bearer token (JWT) |\n|---|---|---|\n| Status di server | menyimpan session | tidak menyimpan (stateless) |\n| Dikirim client | otomatis oleh browser | manual di header Authorization |\n| Cocok untuk | web satu domain | API, aplikasi HP, lintas layanan |\n| Cabut akses | hapus session di server (langsung) | sulit sebelum token kedaluwarsa |\n| Risiko khas | CSRF | token bocor dari penyimpanan client |\n\n**Atribut cookie yang aman.** Kalau memakai session cookie, tiga atribut ini penting:\n\n- **`HttpOnly`**: cookie tidak bisa dibaca JavaScript. Ini menahan pencurian cookie lewat serangan XSS (menyuntik script ke halaman).\n- **`Secure`**: cookie hanya dikirim lewat HTTPS, tidak pernah lewat HTTP polos.\n- **`SameSite`**: membatasi pengiriman cookie ke request lintas situs. `Strict` atau `Lax` menahan sebagian besar serangan **CSRF** (*Cross-Site Request Forgery*, situs jahat memaksa browsermu mengirim request diam-diam).\n\nContoh header: `Set-Cookie: sid=abc123; HttpOnly; Secure; SameSite=Lax`.\n\n**Di mana menyimpan Bearer token?** Menaruh token di `localStorage` membuatnya bisa dibaca JavaScript, jadi rentan XSS. Pola yang lebih aman untuk aplikasi web adalah menyimpan token di cookie `HttpOnly`, atau menyimpan di memori saja. Yang penting: jangan pernah di `localStorage` untuk token bernilai tinggi.\n\n**Kapan pakai yang mana?** Web klasik satu domain cocok dengan session cookie. API yang dipakai aplikasi HP atau banyak layanan cocok dengan token, karena tidak bergantung cookie browser. Server latihan memakai Bearer token."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nServer latihan memakai Bearer token, jadi identitas dibawa client sendiri. Login, lalu kirim token di dua request terpisah. Server tidak menyimpan \"Budi sedang login\"; tiap request dinilai dari token-nya.\n\n```bash\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\ncurl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -r .name\ncurl -s -o /dev/null -w \"tanpa token: %{http_code}\\n\" https://api.toko.contoh/me\ncurl -s -i https://api.toko.contoh/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | grep -i \"^set-cookie:\" || echo \"tidak ada Set-Cookie (API memakai token, bukan session cookie)\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ curl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -r .name\nBudi\n$ curl -s -o /dev/null -w \"tanpa token: %{http_code}\\n\" https://api.toko.contoh/me\ntanpa token: 401\n$ curl -s -i https://api.toko.contoh/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | grep -i \"^set-cookie:\" || echo \"tidak ada Set-Cookie (API memakai token, bukan session cookie)\"\ntidak ada Set-Cookie (API memakai token, bukan session cookie)\n```\n\nPerhatikan:\n\n- Request `/me` berhasil karena membawa token sendiri di header. Tidak ada cookie yang dikirim otomatis.\n- Request `/me` tanpa token dijawab `401`. Server tidak mengingat login dari request sebelumnya; identitas harus dibawa setiap kali.\n- Login tidak mengirim `Set-Cookie`. API ini memakai Bearer token, bukan session cookie. Pada aplikasi berbasis session, di sinilah cookie `HttpOnly; Secure; SameSite` akan muncul."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan Bearer token bernilai tinggi di localStorage**\n\nSalah:\n\n```javascript\nlocalStorage.setItem(\"token\", res.accessToken); // bisa dibaca script apa pun\n```\n\nBenar:\n\n```javascript\n// Simpan di cookie HttpOnly (diset server) atau di memori aplikasi\n// Set-Cookie: sid=...; HttpOnly; Secure; SameSite=Lax\n```\n\nlocalStorage bisa dibaca semua JavaScript di halaman. Satu celah XSS membuat script penyerang mencuri token dan memakai akun pengguna. Cookie HttpOnly tidak bisa dibaca JavaScript, jadi token lebih terlindung dari XSS.\n\n**2. Session cookie tanpa atribut keamanan**\n\nSalah:\n\n```http\nSet-Cookie: sid=abc123\n```\n\nBenar:\n\n```http\nSet-Cookie: sid=abc123; HttpOnly; Secure; SameSite=Lax\n```\n\nTanpa HttpOnly, cookie bisa dicuri script lewat XSS. Tanpa Secure, cookie ikut terkirim lewat HTTP polos dan bisa disadap. Tanpa SameSite, situs lain bisa memicu request dengan cookie itu (CSRF). Ketiganya menutup celah yang berbeda.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa beda utama session cookie dan Bearer token soal penyimpanan di server?",
+          "options": [
+            "Session menyimpan catatan login di server; Bearer token membuat server tidak perlu menyimpannya",
+            "Bearer token disimpan di server, session tidak",
+            "Keduanya selalu disimpan di database server",
+            "Keduanya tidak pernah menyentuh server"
+          ],
+          "answer": 0,
+          "explanation": "Pada session, server menyimpan catatan login dan client hanya pegang session id. Pada Bearer token, token membawa identitasnya sendiri sehingga server bisa stateless.",
+          "remedial": "Pada session, server menyimpan catatan login dan client hanya pegang session id. Pada Bearer token, token membawa identitasnya sendiri sehingga server bisa stateless."
+        },
+        {
+          "question": "Atribut cookie mana yang menahan pencurian cookie lewat JavaScript (XSS)?",
+          "options": [
+            "SameSite",
+            "Secure",
+            "HttpOnly",
+            "Path"
+          ],
+          "answer": 2,
+          "explanation": "HttpOnly membuat cookie tidak bisa dibaca JavaScript, sehingga script penyerang dari XSS tidak bisa mencurinya. Secure membatasi ke HTTPS, SameSite menahan CSRF.",
+          "remedial": "HttpOnly membuat cookie tidak bisa dibaca JavaScript, sehingga script penyerang dari XSS tidak bisa mencurinya. Secure membatasi ke HTTPS, SameSite menahan CSRF."
+        },
+        {
+          "question": "Atribut `SameSite=Lax` atau `Strict` pada cookie terutama menahan serangan apa?",
+          "options": [
+            "SQL Injection",
+            "CSRF (request lintas situs yang dipaksakan)",
+            "Serangan brute force password",
+            "Kebocoran lewat query string"
+          ],
+          "answer": 1,
+          "explanation": "SameSite membatasi kapan cookie ikut dikirim pada request lintas situs. Ini menahan CSRF, yaitu situs jahat yang memaksa browser mengirim request diam-diam dengan cookie korban.",
+          "remedial": "SameSite membatasi kapan cookie ikut dikirim pada request lintas situs. Ini menahan CSRF, yaitu situs jahat yang memaksa browser mengirim request diam-diam dengan cookie korban."
+        },
+        {
+          "question": "Tim membuat API untuk aplikasi HP dan beberapa layanan internal. Mana yang umumnya lebih cocok?",
+          "options": [
+            "Bearer token, karena tidak bergantung cookie browser dan mudah dipakai lintas layanan",
+            "Session cookie, karena aplikasi HP mengirim cookie otomatis seperti browser",
+            "Tidak keduanya; API tidak perlu autentikasi",
+            "Session cookie, karena token tidak bisa dipakai di HTTP"
+          ],
+          "answer": 0,
+          "explanation": "Aplikasi HP dan layanan antar server tidak punya cookie browser otomatis. Bearer token dibawa manual di header, jadi lebih cocok untuk API lintas platform.",
+          "remedial": "Aplikasi HP dan layanan antar server tidak punya cookie browser otomatis. Bearer token dibawa manual di header, jadi lebih cocok untuk API lintas platform."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Server latihan memakai Bearer token. Apa output perintah ini setelah login sebagai Budi?",
+      "code": "TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\ncurl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -r .email",
+      "options": [
+        "null",
+        "401",
+        "budi@toko.contoh",
+        "dewi@toko.contoh"
+      ],
+      "answer": 2,
+      "explanation": "Token Budi dibawa di header, jadi server mengenalinya sebagai U01 dan /me mengembalikan email budi@toko.contoh. Tidak ada session yang disimpan server; identitas datang dari token."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Lengkapi tiga atribut cookie: tak terbaca JavaScript, hanya HTTPS, dan batasi lintas situs\nSet-Cookie: sid=abc123; ___; ___; ___=Lax",
+      "answers": [
+        "HttpOnly",
+        "Secure",
+        "SameSite"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Session cookie menyimpan catatan login di server; client hanya pegang session id yang dikirim browser otomatis.",
+        "Bearer token membuat server stateless: token dibawa client di header Authorization setiap request.",
+        "Cookie aman memakai HttpOnly (anti pencurian via JavaScript), Secure (hanya HTTPS), dan SameSite (anti CSRF).",
+        "Jangan simpan token bernilai tinggi di localStorage; pakai cookie HttpOnly atau simpan di memori.",
+        "Session cookie cocok untuk web satu domain; Bearer token cocok untuk API, aplikasi HP, dan lintas layanan."
+      ]
+    }
+  ]
+}

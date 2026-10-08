@@ -1,0 +1,110 @@
+{
+  "id": "api-desain-01",
+  "moduleId": "api-desain",
+  "order": 1,
+  "title": "Konvensi Nama dan Format Data",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Prinsip REST kamu sudah merancang URI. Sekarang giliran isi JSON-nya. Developer frontend dan aplikasi HP membaca field yang sama di puluhan layar. Kalau nama dan formatnya berubah-ubah antar endpoint, mereka harus menebak, dan tebakan yang salah menjadi bug.\n\nKarena itu tim engineering menulis **API style guide** (panduan gaya API) supaya semua endpoint terasa dibuat oleh satu orang. Lima aturan yang hampir selalu ada:\n\n1. **Gaya nama field konsisten.** Pilih `camelCase` (`createdAt`) atau `snake_case` (`created_at`), lalu pakai di semua endpoint.\n2. **ID dikirim sebagai string**, misalnya `\"P01\"`, bukan angka.\n3. **Uang disimpan sebagai bilangan bulat** dalam satuan terkecil, bukan pecahan (*float*).\n4. **Tanggal dan waktu memakai ISO 8601 dalam UTC**, misalnya `\"2026-09-01T02:00:00Z\"`.\n5. **Arti `null` dan field yang tidak ada** dibedakan dan ditulis di dokumentasi.\n\nBayangkan semua cabang Toko Budi mengisi laporan penjualan. Cabang A menulis tanggal `01/09/26`, cabang B menulis `9-1-2026`. Kantor pusat tidak tahu mana bulan dan mana tanggal. Satu format baku untuk semua cabang menghapus tebakan itu. API style guide berperan sama untuk field JSON."
+    },
+    {
+      "type": "theory",
+      "content": "| Aturan | Hindari | Pakai |\n|---|---|---|\n| Nama field | `CreatedAt`, atau `created_at` dan `createdAt` dicampur | `createdAt` di semua endpoint |\n| ID | `\"id\": 9007199254740993` | `\"id\": \"P01\"` |\n| Uang | `\"price\": 19.99` | `\"price\": 1999` (sen) atau `\"price\": 45000` (rupiah utuh) |\n| Tanggal | `\"01/09/2026\"`, `\"2026-09-01 09:00\"` | `\"2026-09-01T02:00:00Z\"` |\n| Nilai kosong | kadang `null`, kadang `\"\"`, kadang hilang | satu aturan tertulis |\n\n**Kenapa ID string?** JavaScript menyimpan angka sebagai *float* 64-bit. Bilangan bulat di atas 9.007.199.254.740.991 (2^53 − 1) tidak semuanya bisa disimpan tepat, jadi nilainya bisa berubah saat di-parse. ID string juga membebaskan server mengganti format, misalnya ke UUID, tanpa mengubah tipe field.\n\n**Kenapa uang integer?** Float tidak bisa menyimpan semua pecahan desimal dengan tepat. Simpan dalam satuan terkecil: USD 19,99 menjadi `1999` sen. Rupiah praktis tidak memakai sen, jadi server latihan menyimpan rupiah utuh. API pembayaran tidak seragam soal rupiah: ada yang memakai rupiah utuh, ada yang meminta dua digit sen. Selalu baca dokumentasinya. Kalau API melayani banyak mata uang, sertakan kode ISO 4217: `{\"amount\": 5000, \"currency\": \"IDR\"}`.\n\n**Kenapa UTC?** Server dan pengguna bisa berada di zona waktu berbeda (WIB, WITA, WIT, atau luar negeri). Kirim waktu dalam UTC dengan akhiran `Z` (format RFC 3339, profil dari ISO 8601). Client yang mengubahnya ke waktu lokal saat ditampilkan. Untuk tanggal tanpa jam, misalnya tanggal lahir, pakai `\"2000-05-17\"`.\n\n**`null` vs field tidak ada.** Di respons, pilih satu aturan: field opsional selalu dikirim dengan nilai `null`, atau tidak dikirim sama sekali. Di `PATCH` dengan JSON Merge Patch (RFC 7396), artinya berbeda. Field yang **tidak dikirim** berarti \"jangan diubah\", sedangkan `null` berarti \"hapus nilainya\".\n\nTidak ada satu gaya yang wajib. API publik GitHub memakai `snake_case`, server latihan memakai `camelCase`. Keduanya benar selama konsisten."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLihat format data produk P01. Lalu buktikan dengan `node` dua masalah yang dihindari aturan di atas: pecahan desimal dan ID angka yang terlalu besar. Perintah terakhir mengubah waktu UTC ke WIB di sisi client.\n\n```bash\ncurl -s https://api.toko.contoh/products/P01\nnode -e 'console.log(0.1 + 0.2)'\nnode -e 'console.log(JSON.parse(\"{\\\"id\\\": 9007199254740993}\").id)'\nnode -e 'console.log(new Date(\"2026-08-02T02:00:00Z\").toLocaleString(\"id-ID\", { timeZone: \"Asia/Jakarta\" }))'\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s https://api.toko.contoh/products/P01\n{\n  \"id\": \"P01\",\n  \"name\": \"Buku Tulis\",\n  \"price\": 5000,\n  \"category\": \"alat-tulis\",\n  \"stock\": 120,\n  \"createdAt\": \"2026-08-02T02:00:00Z\"\n}\n$ node -e 'console.log(0.1 + 0.2)'\n0.30000000000000004\n$ node -e 'console.log(JSON.parse(\"{\\\"id\\\": 9007199254740993}\").id)'\n9007199254740992\n$ node -e 'console.log(new Date(\"2026-08-02T02:00:00Z\").toLocaleString(\"id-ID\", { timeZone: \"Asia/Jakarta\" }))'\n2/8/2026, 09.00.00\n```\n\nPerhatikan:\n\n- Semua field memakai `camelCase`, `id` berupa string, dan `price` berupa integer rupiah.\n- `0.1 + 0.2` tidak menghasilkan `0.3` persis. Harga dalam float bisa meleset satu sen setelah banyak penjumlahan.\n- ID `9007199254740993` berubah menjadi `...992` setelah di-parse. Kode client bisa mengambil data milik ID lain. ID string tidak punya masalah ini.\n- `createdAt` berakhiran `Z` (UTC). Client mengubah `02:00` UTC menjadi `09.00` WIB."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan harga sebagai pecahan (float)**\n\nSalah:\n\n```json\n{\"name\": \"Kaos\", \"price\": 19.99, \"currency\": \"USD\"}\n```\n\nBenar:\n\n```json\n{\"name\": \"Kaos\", \"price\": {\"amount\": 1999, \"currency\": \"USD\"}}\n```\n\nAngka `19.99` disimpan sebagai float biner yang tidak persis. Setelah dikali jumlah barang, didiskon, dan dijumlahkan, total bisa meleset satu sen. Simpan dalam satuan terkecil sebagai integer. Ubah ke tampilan \"$19.99\" atau \"Rp45.000\" hanya saat menampilkan ke pengguna.\n\n**2. Mencampur gaya nama, tipe ID, dan format tanggal**\n\nSalah:\n\n```json\n{\"order_id\": 103, \"createdAt\": \"01/09/2026 09:00\", \"TotalPrice\": 350000}\n```\n\nBenar:\n\n```json\n{\"id\": \"O103\", \"createdAt\": \"2026-09-01T02:00:00Z\", \"total\": 350000}\n```\n\nObjek pertama memakai tiga gaya nama sekaligus. ID-nya angka, dan tanggalnya ambigu: 1 September atau 9 Januari? Zona waktunya juga tidak jelas. Objek kedua mengikuti satu aturan: camelCase, ID string, dan waktu UTC berformat ISO 8601.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Semua endpoint di API tim kamu memakai `camelCase`. Developer baru menambah endpoint pesanan. Nama field mana yang paling sesuai untuk waktu pembayaran?",
+          "options": [
+            "paid_at",
+            "PaidAt",
+            "paidAt",
+            "paid-at"
+          ],
+          "answer": 2,
+          "explanation": "Gaya yang sudah dipilih tim adalah camelCase, jadi paidAt. paid_at memang benar di API yang memilih snake_case, tapi mencampur dua gaya di satu API membuat client harus menebak.",
+          "remedial": "Gaya yang sudah dipilih tim adalah camelCase, jadi paidAt. paid_at memang benar di API yang memilih snake_case, tapi mencampur dua gaya di satu API membuat client harus menebak."
+        },
+        {
+          "question": "Kenapa banyak API mengirim ID sebagai string, misalnya `\"id\": \"P01\"`, bukan angka?",
+          "options": [
+            "Supaya ID bisa dijumlahkan dan dibandingkan dengan operasi matematika",
+            "Karena JSON tidak mendukung tipe angka",
+            "Supaya ukuran respons lebih kecil daripada ID angka",
+            "ID angka besar bisa kehilangan presisi di JavaScript, dan format ID bisa diganti tanpa mengubah tipe"
+          ],
+          "answer": 3,
+          "explanation": "Angka di atas 2^53 − 1 tidak tersimpan tepat di JavaScript. ID juga bukan nilai untuk dihitung. Dengan string, server bebas mengganti format menjadi UUID atau prefiks lain.",
+          "remedial": "Angka di atas 2^53 − 1 tidak tersimpan tepat di JavaScript. ID juga bukan nilai untuk dihitung. Dengan string, server bebas mengganti format menjadi UUID atau prefiks lain."
+        },
+        {
+          "question": "Harga sebuah produk adalah USD 19,99. Representasi mana yang paling aman untuk API?",
+          "options": [
+            "{\"price\": {\"amount\": 1999, \"currency\": \"USD\"}}",
+            "{\"price\": 19.99}",
+            "{\"price\": \"19,99 dolar\"}",
+            "{\"price\": 19.99, \"currency\": \"usd\"}"
+          ],
+          "answer": 0,
+          "explanation": "Integer dalam satuan terkecil (sen) tidak terkena masalah pembulatan float. Kode mata uang ISO 4217 ditulis huruf besar, misalnya USD atau IDR.",
+          "remedial": "Integer dalam satuan terkecil (sen) tidak terkena masalah pembulatan float. Kode mata uang ISO 4217 ditulis huruf besar, misalnya USD atau IDR."
+        },
+        {
+          "question": "API memakai JSON Merge Patch (RFC 7396). Apa beda body `{\"note\": null}` dan `{}` pada request `PATCH`?",
+          "options": [
+            "Keduanya sama: tidak ada field yang berubah",
+            "`{\"note\": null}` menghapus nilai note, sedangkan `{}` tidak mengubah apa pun",
+            "`{}` menghapus semua field, sedangkan `{\"note\": null}` hanya menghapus note",
+            "`{\"note\": null}` pasti ditolak karena null tidak valid di JSON"
+          ],
+          "answer": 1,
+          "explanation": "Di JSON Merge Patch, field yang tidak dikirim berarti \"jangan diubah\", sedangkan null berarti \"hapus nilainya\". null adalah nilai JSON yang sah.",
+          "remedial": "Di JSON Merge Patch, field yang tidak dikirim berarti \"jangan diubah\", sedangkan null berarti \"hapus nilainya\". null adalah nilai JSON yang sah."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Server latihan menyimpan semua waktu dalam UTC. Apa output perintah ini?",
+      "code": "curl -s https://api.toko.contoh/products/P06 | jq -r .createdAt",
+      "options": [
+        "2026-08-30T09:00:00+07:00",
+        "2026-08-30T02:00:00Z",
+        "30/08/2026 09.00",
+        "1788055200"
+      ],
+      "answer": 1,
+      "explanation": "API mengirim waktu dalam UTC berformat ISO 8601 dengan akhiran Z. Mengubahnya ke WIB (09.00) adalah tugas client saat menampilkan. 1788055200 adalah detik Unix untuk waktu yang sama, format yang tidak dipakai server latihan."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Ubah waktu UTC dari API menjadi jam WIB di sisi client\nnode -e 'console.log(new Date(\"2026-09-01T02:00:00Z\").toLocaleString(\"id-ID\", { timeZone: \"___\" }))'",
+      "answers": [
+        "Asia/Jakarta"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Pilih satu gaya nama field (camelCase atau snake_case) dan pakai di semua endpoint.",
+        "Kirim ID sebagai string supaya tidak kehilangan presisi di JavaScript dan formatnya bisa berubah.",
+        "Simpan uang sebagai integer dalam satuan terkecil, plus kode mata uang kalau API melayani banyak mata uang.",
+        "Kirim waktu dalam ISO 8601 UTC berakhiran Z; client yang mengubahnya ke waktu lokal.",
+        "Tentukan arti null dan field yang tidak ada; di JSON Merge Patch, null berarti hapus dan field yang tidak dikirim berarti tidak diubah."
+      ]
+    }
+  ]
+}

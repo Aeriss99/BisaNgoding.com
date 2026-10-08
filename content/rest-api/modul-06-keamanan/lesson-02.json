@@ -1,0 +1,111 @@
+{
+  "id": "api-keamanan-02",
+  "moduleId": "api-keamanan",
+  "order": 2,
+  "title": "Autentikasi vs Otorisasi",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Dua kata ini terdengar mirip dan sering tertukar, padahal menjawab pertanyaan berbeda.\n\n- **Autentikasi** (*authentication*, sering disingkat *authn*): \"siapa kamu?\" Server memastikan identitas pengirim request, misalnya lewat password saat login atau token di header `Authorization`.\n- **Otorisasi** (*authorization*, *authz*): \"kamu boleh melakukan apa?\" Setelah tahu siapa kamu, server memutuskan apakah kamu berhak atas aksi atau data tertentu.\n\nAutentikasi selalu lebih dulu. Kamu tidak bisa memutuskan hak seseorang sebelum tahu dia siapa. Di HTTP, kedua konsep ini terlihat jelas lewat status `401` dan `403`.\n\nBayangkan gedung kantor. Satpam di pintu depan mengecek kartu identitasmu; itu autentikasi. Setelah masuk, kartu yang sama hanya membuka lantai tertentu. Kartu pegawai biasa tidak membuka ruang server; itu otorisasi. Identitas sudah pasti, tapi hak akses tetap dibatasi. Sekarang kembali ke istilah token dan endpoint."
+    },
+    {
+      "type": "theory",
+      "content": "| | Autentikasi (authn) | Otorisasi (authz) |\n|---|---|---|\n| Pertanyaan | Siapa kamu? | Boleh apa? |\n| Contoh | Login, Bearer token, API key | Cek role, pemilik data, scope |\n| Gagal | `401 Unauthorized` | `403 Forbidden` |\n| Header | Server kirim `WWW-Authenticate` | — |\n\nStatus `401` dan `403` sudah muncul di modul Prinsip REST. Di sini kita pakai untuk membedakan dua konsep ini:\n\n- **`401 Unauthorized`** berarti **belum terautentikasi**: token tidak ada, rusak, atau kedaluwarsa. Namanya menyesatkan, tapi artinya \"silakan buktikan dulu siapa kamu\". Server wajib menyertakan `WWW-Authenticate`. Jalan keluarnya: login atau kirim token yang benar.\n- **`403 Forbidden`** berarti **sudah dikenal, tapi tidak berhak**. Budi login dengan benar, tapi bukan admin, jadi `/admin/users` tetap ditolak. Login ulang tidak menolong; yang dibutuhkan adalah izin, bukan identitas baru.\n\nKeputusan otorisasi memakai banyak dasar: *role* (customer, admin), kepemilikan data (pesanan ini milik siapa), atau *scope* token (dibahas di materi OAuth). Aturan pentingnya: **otorisasi selalu diperiksa di server untuk setiap request**, tidak boleh hanya disembunyikan di tampilan frontend."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLogin sebagai Budi (customer). Panggil `/me` untuk melihat autentikasi berhasil, lalu `/admin/users` untuk melihat otorisasi gagal. Bandingkan dengan request tanpa token.\n\n```bash\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\ncurl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -c '{id, role}'\ncurl -s -o /dev/null -w \"admin sbg budi: %{http_code}\\n\" https://api.toko.contoh/admin/users -H \"Authorization: Bearer $TOKEN\"\ncurl -s -o /dev/null -w \"admin tanpa token: %{http_code}\\n\" https://api.toko.contoh/admin/users\n```\n\nYang akan kamu lihat:\n\n```text\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ curl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -c '{id, role}'\n{\"id\":\"U01\",\"role\":\"customer\"}\n$ curl -s -o /dev/null -w \"admin sbg budi: %{http_code}\\n\" https://api.toko.contoh/admin/users -H \"Authorization: Bearer $TOKEN\"\nadmin sbg budi: 403\n$ curl -s -o /dev/null -w \"admin tanpa token: %{http_code}\\n\" https://api.toko.contoh/admin/users\nadmin tanpa token: 401\n```\n\nPerhatikan:\n\n- `/me` berhasil: autentikasi Budi sah, server tahu dia `U01` dengan role `customer`.\n- `/admin/users` dengan token Budi dijawab `403`. Server tahu persis siapa dia, tapi dia tidak berhak. Ini kegagalan otorisasi.\n- `/admin/users` tanpa token dijawab `401`. Server belum tahu siapa yang meminta. Ini kegagalan autentikasi."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai 403 untuk request yang belum membawa token**\n\nSalah:\n\n```http\nHTTP/1.1 403 Forbidden\n\n{\"detail\": \"Silakan login dulu.\"}\n```\n\nBenar:\n\n```http\nHTTP/1.1 401 Unauthorized\nWWW-Authenticate: Bearer realm=\"api.toko.contoh\"\n\n{\"detail\": \"Token tidak ada.\"}\n```\n\nBelum ada token berarti belum terautentikasi, bukan masalah izin. Jawaban yang benar adalah `401` beserta `WWW-Authenticate`. Dengan `403`, client tidak tahu bahwa ia cukup login untuk melanjutkan.\n\n**2. Hanya menyembunyikan tombol admin di frontend, tanpa cek di server**\n\nSalah:\n\n```javascript\n// Frontend: sembunyikan menu kalau bukan admin\nif (user.role === \"admin\") tampilkanMenuAdmin();\n// Endpoint admin tidak memeriksa role sama sekali\n```\n\nBenar:\n\n```javascript\n// Server tetap memeriksa role di setiap request admin\nif (user.role !== \"admin\") return res.status(403).json(problem);\n```\n\nMenyembunyikan tombol hanya mengubah tampilan. Penyerang memanggil endpoint langsung dengan curl, tanpa membuka frontend. Otorisasi wajib diperiksa di server; tampilan frontend hanya kenyamanan.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa beda inti autentikasi dan otorisasi?",
+          "options": [
+            "Autentikasi membatasi jumlah request, otorisasi mengenkripsi data",
+            "Autentikasi memastikan \"siapa kamu\", otorisasi memutuskan \"boleh apa\"",
+            "Autentikasi terjadi di client, otorisasi terjadi di browser",
+            "Keduanya sama, hanya beda ejaan"
+          ],
+          "answer": 1,
+          "explanation": "Autentikasi membuktikan identitas; otorisasi menentukan hak setelah identitas diketahui. Autentikasi selalu lebih dulu.",
+          "remedial": "Autentikasi membuktikan identitas; otorisasi menentukan hak setelah identitas diketahui. Autentikasi selalu lebih dulu."
+        },
+        {
+          "question": "Request `/admin/users` memakai token Budi (customer) yang masih valid. Status apa yang dikembalikan server latihan?",
+          "code": "curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/admin/users -H \"Authorization: Bearer $TOKEN\"",
+          "options": [
+            "401",
+            "404",
+            "403",
+            "200"
+          ],
+          "answer": 2,
+          "explanation": "Token Budi sah, jadi autentikasi berhasil. Namun Budi bukan admin, sehingga otorisasi gagal dan server menjawab 403. Login ulang tidak mengubah hasilnya.",
+          "remedial": "Token Budi sah, jadi autentikasi berhasil. Namun Budi bukan admin, sehingga otorisasi gagal dan server menjawab 403. Login ulang tidak mengubah hasilnya."
+        },
+        {
+          "question": "Aplikasi menerima `401` dengan header `WWW-Authenticate: Bearer`. Tindakan yang tepat?",
+          "options": [
+            "Mengirim atau memperbarui token (login), lalu mengulang request",
+            "Menampilkan pesan \"akses ditolak permanen\"",
+            "Mengubah method menjadi POST",
+            "Menghapus akun pengguna"
+          ],
+          "answer": 0,
+          "explanation": "401 berarti belum terautentikasi. Client perlu mengirim token yang benar atau login ulang. WWW-Authenticate memberi tahu skema yang diharapkan, yaitu Bearer.",
+          "remedial": "401 berarti belum terautentikasi. Client perlu mengirim token yang benar atau login ulang. WWW-Authenticate memberi tahu skema yang diharapkan, yaitu Bearer."
+        },
+        {
+          "question": "Menu admin sudah disembunyikan di frontend untuk non-admin. Apakah itu cukup mengamankan endpoint admin?",
+          "options": [
+            "Cukup, karena tombolnya tidak terlihat",
+            "Cukup, asal memakai HTTPS",
+            "Cukup, karena browser memblokir request",
+            "Tidak, server tetap wajib memeriksa role di setiap request"
+          ],
+          "answer": 3,
+          "explanation": "Menyembunyikan tombol hanya mengubah tampilan. Endpoint bisa dipanggil langsung dengan curl atau Postman. Otorisasi harus ditegakkan di server.",
+          "remedial": "Menyembunyikan tombol hanya mengubah tampilan. Endpoint bisa dipanggil langsung dengan curl atau Postman. Otorisasi harus ditegakkan di server."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Request `/admin/users` dikirim tanpa header Authorization. Status apa yang muncul?",
+      "code": "curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/admin/users",
+      "options": [
+        "401",
+        "403",
+        "200",
+        "404"
+      ],
+      "answer": 0,
+      "explanation": "Tanpa token, server belum tahu siapa pengirimnya, jadi menjawab 401 (belum terautentikasi). 403 dipakai saat identitas dikenal tapi tidak berhak, seperti token Budi di endpoint admin."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan peran (role) dari akun yang tokennya ada di $TOKEN\ncurl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -r .___",
+      "answers": [
+        "role"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Autentikasi menjawab \"siapa kamu\"; otorisasi menjawab \"boleh apa\". Autentikasi selalu lebih dulu.",
+        "401 Unauthorized berarti belum terautentikasi (login atau kirim token); server menyertakan WWW-Authenticate.",
+        "403 Forbidden berarti identitas dikenal tapi tidak berhak; login ulang tidak menolong.",
+        "Otorisasi memakai role, kepemilikan data, atau scope token sebagai dasar keputusan.",
+        "Otorisasi wajib diperiksa di server untuk setiap request, bukan sekadar disembunyikan di frontend."
+      ]
+    }
+  ]
+}

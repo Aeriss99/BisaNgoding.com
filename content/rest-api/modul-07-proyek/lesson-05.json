@@ -1,0 +1,110 @@
+{
+  "id": "api-proyek-05",
+  "moduleId": "api-proyek",
+  "order": 5,
+  "title": "Keamanan dan Peran Pengguna",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Modul Keamanan API membahas teorinya: JWT, autentikasi vs otorisasi, dan OWASP API Security Top 10. Di proyek ini, teori itu diterjemahkan menjadi aturan yang bisa diuji untuk setiap endpoint Toko Budi. Server memeriksa empat lapis secara berurutan:\n\n1. **Autentikasi.** Apakah token valid? Kalau tidak, jawab `401` dengan header `WWW-Authenticate`.\n2. **Otorisasi fungsi.** Apakah peran ini boleh memanggil endpoint ini? Pembeli ke `/admin/users` dijawab `403`. Lapis ini mencegah BFLA.\n3. **Otorisasi objek.** Apakah data ini milik pengguna? Budi meminta pesanan Sari dijawab `404`. Lapis ini mencegah BOLA.\n4. **Otorisasi properti.** Apakah field ini boleh diubah? `role` di `PATCH /me` diabaikan. Lapis ini mencegah *mass assignment*.\n\nSatu aturan mengikat semuanya: **identitas diambil dari token** (klaim `sub` dan `role` yang ditandatangani server). Identitas tidak pernah diambil dari body, query string, atau header buatan client.\n\nDi apartemen, kartu akses membuktikan kamu penghuni. Kartu itu hanya membuka lantaimu, bukan kantor pengelola. Kamu hanya bisa membuka unitmu sendiri, dan di dalam unit pun kamu boleh mengganti gorden tapi tidak boleh membongkar dinding. Empat lapis pemeriksaan API bekerja dengan urutan yang sama."
+    },
+    {
+      "type": "theory",
+      "content": "Aturan akses Toko Budi dalam bentuk yang bisa diuji:\n\n| Skenario | Pengunjung | Budi (pembeli) | Dewi (admin) |\n|---|---|---|---|\n| `GET /orders` | `401` | hanya O101 | semua pesanan |\n| `GET /orders/O102` (milik Sari) | `401` | `404` | `200` |\n| `POST /orders` dengan `\"userId\":\"U02\"` di body | `401` | pesanan tetap milik U01 | pesanan tetap milik U03 |\n| `PATCH /me` dengan `\"role\":\"admin\"` | `401` | `role` tetap `customer` | `role` tetap `admin` |\n| `GET /admin/users` | `401` | `403` | `200` |\n\nSketsa pemeriksaan di server (gaya Node.js, disederhanakan):\n\n```javascript\n// GET /orders/:id\nconst user = verifikasiToken(req);                  // 1. gagal → 401\n// 2. tidak perlu cek peran: pembeli dan admin sama-sama boleh memanggil endpoint ini\nconst order = await db.orders.findById(req.params.id);\nconst boleh = order && (order.userId === user.id || user.role === 'admin');\nif (!boleh) {\n  return kirimProblem(res, 404, `Pesanan ${req.params.id} tidak ditemukan.`); // 3. BOLA\n}\nres.json(order);\n```\n\n**404 atau 403 untuk pesanan orang lain?** Status `403` memberi tahu bahwa pesanan itu ada. Penyerang yang mencoba O100, O101, O102, dan seterusnya bisa memperkirakan jumlah pesanan toko. Status `404` menyembunyikannya, dan detail-nya sama persis dengan pesanan yang memang tidak ada. Untuk endpoint seperti `/admin/users`, keberadaannya bukan rahasia, jadi `403` lebih jelas.\n\n**ID acak bukan pengganti pemeriksaan.** UUID membuat ID sulit ditebak, tapi ID tetap bisa bocor lewat log, link yang dibagikan, atau respons lain. Pemeriksaan kepemilikan tetap wajib di setiap request."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLogin sebagai Budi (`TOKEN`) dan Dewi (`ADMIN`). Lalu uji tiga aturan: pemilik pesanan diambil dari token, satu endpoint yang sama memberi data berbeda per peran, dan pesanan orang lain tidak bisa dibedakan dari pesanan yang tidak ada.\n\n```bash\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\nADMIN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"dewi@toko.contoh\",\"password\":\"admin2026\"}' | jq -r .accessToken)\ncurl -s -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" --json '{\"userId\":\"U02\",\"items\":[{\"productId\":\"P01\",\"qty\":1}]}' | jq -c '{id, userId, total}'\ncurl -s https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" | jq -c '[.data[].id]'\ncurl -s https://api.toko.contoh/orders -H \"Authorization: Bearer $ADMIN\" | jq -c '[.data[].id]'\nfor id in O102 O999; do curl -s https://api.toko.contoh/orders/$id -H \"Authorization: Bearer $TOKEN\" | jq -c '{status, detail}'; done\n```\n\nYang akan kamu lihat:\n\n```text\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ ADMIN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"dewi@toko.contoh\",\"password\":\"admin2026\"}' | jq -r .accessToken)\n$ curl -s -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" --json '{\"userId\":\"U02\",\"items\":[{\"productId\":\"P01\",\"qty\":1}]}' | jq -c '{id, userId, total}'\n{\"id\":\"O103\",\"userId\":\"U01\",\"total\":5000}\n$ curl -s https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" | jq -c '[.data[].id]'\n[\"O101\",\"O103\"]\n$ curl -s https://api.toko.contoh/orders -H \"Authorization: Bearer $ADMIN\" | jq -c '[.data[].id]'\n[\"O101\",\"O102\",\"O103\"]\n$ for id in O102 O999; do curl -s https://api.toko.contoh/orders/$id -H \"Authorization: Bearer $TOKEN\" | jq -c '{status, detail}'; done\n{\"status\":404,\"detail\":\"Pesanan O102 tidak ditemukan.\"}\n{\"status\":404,\"detail\":\"Pesanan O999 tidak ditemukan.\"}\n```\n\nPerhatikan:\n\n- Budi mengirim `\"userId\":\"U02\"`, tapi pesanan O103 tetap tercatat milik `U01`. Server mengabaikan field itu dan memakai klaim `sub` dari token.\n- `GET /orders` yang sama memberi Budi dua pesanannya sendiri, sedangkan Dewi menerima semua pesanan.\n- Pesanan Sari (O102) dan pesanan yang tidak ada (O999) dijawab dengan bentuk yang sama. Budi tidak bisa tahu bahwa O102 ada."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengambil pemilik data dari query string**\n\nSalah:\n\n```javascript\napp.get('/orders', autentikasi, async (req, res) => {\n  // client mengirim ?userId=U01\n  const orders = await db.orders.find({ userId: req.query.userId });\n  res.json({ data: orders });\n});\n```\n\nBenar:\n\n```javascript\napp.get('/orders', autentikasi, async (req, res) => {\n  // req.user diisi middleware dari token yang sudah diverifikasi\n  const filter = req.user.role === 'admin' ? {} : { userId: req.user.id };\n  const orders = await db.orders.find(filter);\n  res.json({ data: orders });\n});\n```\n\nDengan kode pertama, Budi cukup mengganti `?userId=U02` untuk membaca semua pesanan Sari. Token sudah diperiksa, tapi tidak dipakai untuk menyaring data. Nilai dari client bisa diubah siapa saja; hanya token yang ditandatangani server yang membuktikan identitas.\n\n**2. Memeriksa peran hanya di frontend**\n\nSalah:\n\n```javascript\n// frontend: menu admin disembunyikan untuk pembeli\nif (user.role === 'admin') tampilkanMenu('Kelola Pengguna');\n\n// backend: tidak memeriksa peran\napp.get('/admin/users', autentikasi, async (req, res) => {\n  res.json({ data: await db.users.list() });\n});\n```\n\nBenar:\n\n```javascript\nfunction wajibPeran(peran) {\n  return (req, res, next) => (req.user.role === peran\n    ? next()\n    : kirimProblem(res, 403, 'Hanya admin yang boleh mengakses daftar pengguna.'));\n}\n\napp.get('/admin/users', autentikasi, wajibPeran('admin'), async (req, res) => {\n  res.json({ data: await db.users.list() });\n});\n```\n\nMenyembunyikan menu tidak mengunci pintu. Pembeli mana pun bisa memanggil `/admin/users` dengan curl memakai tokennya sendiri. Ini BFLA. Pemeriksaan peran harus ada di server, sebaiknya di satu middleware yang dipasang di semua endpoint admin supaya tidak ada yang terlupa.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Budi memanggil `GET /orders/O102` milik Sari dengan tokennya sendiri. Rancangan Toko Budi menjawab `404`, bukan `403`. Apa alasan utamanya?",
+          "options": [
+            "404 lebih cepat diproses server",
+            "Karena token Budi sudah kedaluwarsa",
+            "Supaya penyerang tidak bisa mengetahui pesanan mana yang ada dengan mencoba ID satu per satu",
+            "Karena 403 hanya untuk endpoint yang tidak ada"
+          ],
+          "answer": 2,
+          "explanation": "403 membocorkan bahwa objek itu ada. Dengan 404 yang sama persis untuk pesanan orang lain dan pesanan yang tidak ada, penyerang tidak mendapat informasi apa pun.",
+          "remedial": "403 membocorkan bahwa objek itu ada. Dengan 404 yang sama persis untuk pesanan orang lain dan pesanan yang tidak ada, penyerang tidak mendapat informasi apa pun."
+        },
+        {
+          "question": "Body `POST /orders` berisi `\"userId\": \"U02\"`, padahal token milik Budi (U01). Perilaku server yang benar menurut rancangan Toko Budi?",
+          "options": [
+            "Mengabaikan userId di body dan memakai klaim sub di token, jadi pesanan milik U01",
+            "Membuat pesanan atas nama U02",
+            "Menjawab 403 lalu memblokir akun Budi",
+            "Menjawab 500"
+          ],
+          "answer": 0,
+          "explanation": "Pemilik pesanan selalu dibaca dari token yang ditandatangani server. Field identitas dari client diabaikan supaya tidak bisa dipakai untuk membuat atau membaca data atas nama orang lain.",
+          "remedial": "Pemilik pesanan selalu dibaca dari token yang ditandatangani server. Field identitas dari client diabaikan supaya tidak bisa dipakai untuk membuat atau membaca data atas nama orang lain."
+        },
+        {
+          "question": "Urutan pemeriksaan mana yang benar untuk `GET /admin/users`?",
+          "options": [
+            "Cek peran admin lebih dulu, lalu cek token",
+            "Cek peran dari field role di body request",
+            "Tidak perlu cek token kalau menu admin sudah disembunyikan di frontend",
+            "Cek token (401 kalau gagal), lalu cek peran admin (403 kalau bukan admin)"
+          ],
+          "answer": 3,
+          "explanation": "Peran hanya bisa diketahui dari token yang valid, jadi autentikasi harus lebih dulu. Setelah identitas terbukti, server memeriksa apakah perannya boleh memakai fungsi itu.",
+          "remedial": "Peran hanya bisa diketahui dari token yang valid, jadi autentikasi harus lebih dulu. Setelah identitas terbukti, server memeriksa apakah perannya boleh memakai fungsi itu."
+        },
+        {
+          "question": "Tim mengganti ID pesanan menjadi UUID acak. Kenapa langkah ini **tidak cukup** untuk mencegah BOLA?",
+          "options": [
+            "UUID terlalu panjang untuk URL",
+            "ID tetap bisa bocor lewat log, link yang dibagikan, atau respons lain, jadi kepemilikan tetap harus dicek",
+            "UUID tidak bisa disimpan di database",
+            "UUID membuat token cepat kedaluwarsa"
+          ],
+          "answer": 1,
+          "explanation": "ID acak hanya mempersulit tebakan. Begitu ID diketahui, server tanpa pemeriksaan kepemilikan tetap menyerahkan datanya. Pertahanan BOLA adalah cek pemilik di setiap request.",
+          "remedial": "ID acak hanya mempersulit tebakan. Begitu ID diketahui, server tanpa pemeriksaan kepemilikan tetap menyerahkan datanya. Pertahanan BOLA adalah cek pemilik di setiap request."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Variabel `TOKEN` berisi token Sari. Apa output perintah ini?",
+      "code": "curl -s https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" | jq -c '[.data[].id]'",
+      "options": [
+        "[\"O101\",\"O102\"]",
+        "[]",
+        "[\"O101\"]",
+        "[\"O102\"]"
+      ],
+      "answer": 3,
+      "explanation": "Sari berperan customer, jadi server menyaring daftar berdasarkan klaim sub di tokennya. Hanya O102 yang milik Sari. Daftar lengkap hanya diterima admin."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# TOKEN berisi token Dewi (admin). Tampilkan peran semua pengguna dari endpoint khusus admin\ncurl -s https://api.toko.contoh/___ -H \"Authorization: Bearer $TOKEN\" | jq -r '.data[].role'",
+      "answers": [
+        "admin/users"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Server memeriksa empat lapis: token (401), peran untuk fungsi (403), kepemilikan objek, dan field yang boleh diubah.",
+        "Identitas dan peran selalu diambil dari token, tidak pernah dari body, query string, atau header buatan client.",
+        "Pesanan orang lain dijawab 404 yang sama persis dengan pesanan yang tidak ada, supaya keberadaannya tidak bocor.",
+        "Pemeriksaan peran wajib di server, sebaiknya di satu middleware untuk semua endpoint admin.",
+        "ID acak hanya mempersulit tebakan; pemeriksaan kepemilikan tetap wajib di setiap request."
+      ]
+    }
+  ]
+}

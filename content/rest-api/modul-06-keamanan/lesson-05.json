@@ -1,0 +1,110 @@
+{
+  "id": "api-keamanan-05",
+  "moduleId": "api-keamanan",
+  "order": 5,
+  "title": "JWT",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**JWT** (*JSON Web Token*, RFC 7519) adalah format token yang paling umum untuk Bearer token. Isinya tiga bagian yang dipisah titik:\n\n```text\nheader.payload.signature\n```\n\nKetiga bagian ditulis dalam **base64url**, yaitu base64 ramah-URL (memakai `-` dan `_`, tanpa `=` padding). Ini **encoding**, bukan **enkripsi**. Siapa pun yang memegang token bisa membaca isi `header` dan `payload`. Yang membuat token tepercaya adalah bagian ketiga: **signature** (tanda tangan).\n\nKata kuncinya: JWT **di-encode, bukan dienkripsi**. Jangan menaruh data rahasia (password, nomor kartu) di dalam payload, karena bisa dibaca semua orang.\n\nJWT seperti tiket konser dengan hologram. Nama dan kelas tiket tercetak jelas dan bisa dibaca siapa saja; itu payload yang hanya di-encode. Yang sulit dipalsukan adalah hologramnya; itu signature. Mengubah tulisan di tiket tidak membuatmu masuk, karena hologramnya tidak lagi cocok. Sekarang kembali ke istilah payload, claim, dan signature."
+    },
+    {
+      "type": "theory",
+      "content": "**Tiga bagian JWT:**\n\n| Bagian | Isi | Contoh |\n|---|---|---|\n| `header` | algoritma tanda tangan | `{\"alg\":\"HS256\",\"typ\":\"JWT\"}` |\n| `payload` | *claim* (pernyataan) tentang pengguna | `{\"sub\":\"U01\",\"role\":\"customer\",\"iat\":...,\"exp\":...}` |\n| `signature` | hasil tanda tangan atas `header.payload` | string base64url |\n\n**Claim standar** (RFC 7519): `sub` (subject, id pengguna), `iat` (issued at, waktu terbit), `exp` (expiration, waktu kedaluwarsa), `aud` (audience, untuk siapa token ini), `iss` (issuer, penerbit). Waktu ditulis sebagai detik Unix.\n\n**Signature.** Server menandatangani `header.payload` dengan kunci rahasia. Server latihan memakai `HS256`, yaitu HMAC-SHA256: satu kunci rahasia yang sama untuk membuat dan memverifikasi. Ada juga `RS256` yang memakai pasangan kunci privat-publik. Saat token datang, server menghitung ulang tanda tangan. Kalau tidak cocok, token ditolak. Karena itu **mengubah payload membatalkan token**: tanda tangannya tidak lagi sesuai.\n\n**Kesalahan umum yang berbahaya:**\n\n- **Menerima `alg: none`.** Beberapa library lama mau menerima token \"tanpa tanda tangan\". Server yang benar menolaknya; server latihan menjawab 401.\n- **Masa berlaku terlalu panjang.** Token yang berlaku berbulan-bulan sulit dicabut kalau bocor. Pakai *access token* pendek (server latihan 900 detik = 15 menit) plus *refresh token* untuk memperbarui.\n- **Menaruh data sensitif di payload**, lupa bahwa payload hanya di-encode.\n- **Tidak memverifikasi tanda tangan** sebelum memercayai isi payload.\n\n**Access token + refresh token.** Access token hidup singkat agar kebocorannya cepat kedaluwarsa. Saat habis, client menukar *refresh token* (hidup lebih lama, disimpan aman) untuk mendapat access token baru, tanpa minta pengguna login lagi."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLogin sebagai Budi, lalu bongkar token. Decode header dan payload (base64url), lalu buktikan JWT hanya di-encode: isinya terbaca tanpa kunci apa pun. Terakhir, buat token palsu yang mengaku admin, dan lihat server menolaknya karena tanda tangan tidak cocok.\n\n```bash\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\necho \"$TOKEN\" | cut -d. -f1 | base64 -d 2>/dev/null | jq .\necho \"$TOKEN\" | cut -d. -f2 | base64 -d 2>/dev/null | jq .\nPALSU=$(node -e 'const [h,p,s]=process.argv[1].split(\".\"); const d=JSON.parse(Buffer.from(p,\"base64url\")); d.role=\"admin\"; const p2=Buffer.from(JSON.stringify(d)).toString(\"base64url\"); console.log([h,p2,s].join(\".\"))' \"$TOKEN\")\necho \"payload palsu: $(echo \"$PALSU\" | cut -d. -f2 | base64 -d 2>/dev/null | jq -c .)\"\ncurl -s https://api.toko.contoh/admin/users -H \"Authorization: Bearer $PALSU\" | jq -r .detail\n```\n\nYang akan kamu lihat:\n\n```text\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ echo \"$TOKEN\" | cut -d. -f1 | base64 -d 2>/dev/null | jq .\n{\n  \"alg\": \"HS256\",\n  \"typ\": \"JWT\"\n}\n$ echo \"$TOKEN\" | cut -d. -f2 | base64 -d 2>/dev/null | jq .\n{\n  \"sub\": \"U01\",\n  \"role\": \"customer\",\n  \"iat\": 1788228000,\n  \"exp\": 1788228900\n}\n$ PALSU=$(node -e 'const [h,p,s]=process.argv[1].split(\".\"); const d=JSON.parse(Buffer.from(p,\"base64url\")); d.role=\"admin\"; const p2=Buffer.from(JSON.stringify(d)).toString(\"base64url\"); console.log([h,p2,s].join(\".\"))' \"$TOKEN\")\n$ echo \"payload palsu: $(echo \"$PALSU\" | cut -d. -f2 | base64 -d 2>/dev/null | jq -c .)\"\npayload palsu: {\"sub\":\"U01\",\"role\":\"admin\",\"iat\":1788228000,\"exp\":1788228900}\n$ curl -s https://api.toko.contoh/admin/users -H \"Authorization: Bearer $PALSU\" | jq -r .detail\nTanda tangan token tidak valid.\n```\n\nPerhatikan:\n\n- `header` dan `payload` terbaca jelas tanpa kunci apa pun. JWT di-encode, bukan dienkripsi; jangan taruh rahasia di payload.\n- Kita mengubah `role` payload menjadi `admin` tanpa mengubah tanda tangan. Payload palsu memang berbunyi `\"role\":\"admin\"`.\n- Server menghitung ulang tanda tangan atas `header.payload` yang baru, hasilnya tidak cocok, jadi token ditolak: *\"Tanda tangan token tidak valid.\"* Memalsukan payload tidak berhasil tanpa kunci rahasia server.\n- Catatan `base64url`: payload sering tidak kelipatan 4 karakter, jadi padding `=` dihilangkan. `base64 -d` tetap men-decode-nya dan `2>/dev/null` menyembunyikan peringatan padding. Cara ini rapuh: kalau bagian token memuat `-` atau `_`, `base64 -d` gagal. Cara yang andal di Node: `Buffer.from(x, \"base64url\")`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memercayai isi payload tanpa memverifikasi tanda tangan**\n\nSalah:\n\n```javascript\n// Langsung decode payload lalu percaya role-nya\nconst p = JSON.parse(Buffer.from(token.split(\".\")[1], \"base64url\"));\nif (p.role === \"admin\") beriAksesAdmin(); // tidak cek tanda tangan!\n```\n\nBenar:\n\n```javascript\n// Verifikasi tanda tangan dulu dengan kunci rahasia, baru percaya isinya\nconst p = jwt.verify(token, process.env.JWT_SECRET, { algorithms: [\"HS256\"] });\nif (p.role === \"admin\") beriAksesAdmin();\n```\n\nTanpa verifikasi, siapa pun bisa mengarang payload `{\"role\":\"admin\"}`. Tanda tangan yang diperiksa dengan kunci rahasia itulah yang membuat isi token tepercaya. Selalu verifikasi sebelum memercayai claim.\n\n**2. Menyimpan data sensitif di dalam payload JWT**\n\nSalah:\n\n```json\n{\"sub\":\"U01\",\"password\":\"rahasia123\",\"nomorKartu\":\"4111 1111 1111 1111\"}\n```\n\nBenar:\n\n```json\n{\"sub\":\"U01\",\"role\":\"customer\",\"iat\":1788228000,\"exp\":1788228900}\n```\n\nPayload hanya di-encode base64url, bukan dienkripsi, jadi terbaca siapa pun yang memegang token. Isi hanya claim yang tidak rahasia, seperti id pengguna dan role. Data sensitif tetap di server.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "JWT terdiri dari tiga bagian yang dipisah titik. Urutannya apa?",
+          "options": [
+            "payload.header.signature",
+            "signature.header.payload",
+            "header.payload.signature",
+            "header.signature.payload"
+          ],
+          "answer": 2,
+          "explanation": "Urutannya header.payload.signature. Header berisi algoritma, payload berisi claim, dan signature adalah tanda tangan atas header.payload.",
+          "remedial": "Urutannya header.payload.signature. Header berisi algoritma, payload berisi claim, dan signature adalah tanda tangan atas header.payload."
+        },
+        {
+          "question": "Payload JWT hanya ditulis dalam base64url. Apa konsekuensinya?",
+          "options": [
+            "Payload terenkripsi dan aman menyimpan password",
+            "Payload hanya bisa dibaca server penerbit",
+            "Payload berubah setiap request",
+            "Siapa pun yang memegang token bisa membaca isi payload"
+          ],
+          "answer": 3,
+          "explanation": "base64url adalah encoding, bukan enkripsi. Isi payload terbaca oleh siapa pun yang memegang token, jadi jangan menaruh data rahasia di dalamnya.",
+          "remedial": "base64url adalah encoding, bukan enkripsi. Isi payload terbaca oleh siapa pun yang memegang token, jadi jangan menaruh data rahasia di dalamnya."
+        },
+        {
+          "question": "Payload sebuah JWT diubah agar `role` menjadi `admin`, tanpa menyentuh bagian tanda tangan. Apa yang terjadi di server yang benar?",
+          "options": [
+            "Token ditolak karena tanda tangan tidak lagi cocok dengan payload",
+            "Token diterima dan pengguna menjadi admin",
+            "Server mengubah payload kembali ke semula",
+            "Server membuat tanda tangan baru otomatis"
+          ],
+          "answer": 0,
+          "explanation": "Server menghitung ulang tanda tangan atas header.payload yang diterima. Payload yang diubah menghasilkan tanda tangan berbeda, sehingga tidak cocok dan token ditolak.",
+          "remedial": "Server menghitung ulang tanda tangan atas header.payload yang diterima. Payload yang diubah menghasilkan tanda tangan berbeda, sehingga tidak cocok dan token ditolak."
+        },
+        {
+          "question": "Kenapa access token sebaiknya berumur pendek dan dilengkapi refresh token?",
+          "options": [
+            "Agar payload bisa menyimpan lebih banyak data",
+            "Agar token yang bocor cepat kedaluwarsa, sementara refresh token memperbarui akses tanpa login ulang",
+            "Agar tanda tangan tidak perlu diverifikasi",
+            "Agar token bisa dibaca tanpa base64url"
+          ],
+          "answer": 1,
+          "explanation": "Access token pendek membatasi kerusakan kalau bocor. Refresh token yang disimpan aman dipakai menukar access token baru, jadi pengguna tidak perlu login berulang.",
+          "remedial": "Access token pendek membatasi kerusakan kalau bocor. Refresh token yang disimpan aman dipakai menukar access token baru, jadi pengguna tidak perlu login berulang."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Sebuah token palsu dibuat dengan mengubah payload menjadi `role:admin`, lalu dipakai ke `/admin/users`. Apa isi field `detail` pada respons?",
+      "code": "TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\nPALSU=$(node -e 'const [h,p,s]=process.argv[1].split(\".\"); const d=JSON.parse(Buffer.from(p,\"base64url\")); d.role=\"admin\"; const p2=Buffer.from(JSON.stringify(d)).toString(\"base64url\"); console.log([h,p2,s].join(\".\"))' \"$TOKEN\")\ncurl -s https://api.toko.contoh/admin/users -H \"Authorization: Bearer $PALSU\" | jq -r .detail",
+      "options": [
+        "Hanya admin yang boleh mengakses daftar pengguna.",
+        "Tanda tangan token tidak valid.",
+        "Token sudah kedaluwarsa. Login ulang.",
+        "Algoritma token tidak diizinkan."
+      ],
+      "answer": 1,
+      "explanation": "Payload diubah tapi tanda tangan tidak. Server menghitung ulang tanda tangan, hasilnya tidak cocok, jadi token ditolak dengan \"Tanda tangan token tidak valid.\" sebelum role sempat diperiksa."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan klaim role di payload JWT tanpa memverifikasi tanda tangan (payload = bagian ke-?)\necho \"$TOKEN\" | cut -d. -f___ | base64 -d 2>/dev/null | jq -r .role",
+      "answers": [
+        "2"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "JWT (RFC 7519) terdiri dari header.payload.signature, ditulis base64url.",
+        "JWT di-encode bukan dienkripsi; payload terbaca siapa pun, jadi jangan menaruh data rahasia di dalamnya.",
+        "Claim umum: sub (id pengguna), iat, exp, aud; waktu dalam detik Unix.",
+        "Tanda tangan dengan kunci rahasia membuat token tepercaya; mengubah payload membatalkan token.",
+        "Pakai access token pendek plus refresh token, verifikasi tanda tangan, dan tolak alg:none."
+      ]
+    }
+  ]
+}
