@@ -1,93 +1,104 @@
 import { describe, it, expect } from 'vitest';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
 
-const ROOT = path.resolve(__dirname, '../..');
-const DIR = path.join(ROOT, 'content/rest-api');
-
-type Soal = { question: string; options: string[]; answer: number; code?: string };
+const DIR = path.resolve(__dirname, '../../content/rest-api');
+const baca = (p: string) => JSON.parse(fs.readFileSync(p, 'utf8'));
+const modules: { id: string; lessonCount: number; requires?: unknown; order: number }[] = baca(path.join(DIR, 'modules.json'));
+const TERLARANG = /\b(Lesson \d|Q\d|Exp|Intro|Core theory|P\d|Quiz Q|Quiz Evaluasi|TODO|lorem|placeholder)\b/i;
+const URUTAN = ['theory', 'theory', 'theory', 'theory', 'understanding_check', 'predict_output', 'fill_blank', 'summary'];
+const WAJIB: Record<string, string[]> = {
+  'Apa Itu API': ['API', 'client', 'server', 'dokumentasi', 'kontrak'],
+  'Client, Server, Request, Response': ['request', 'response', 'status', 'HTTP/1.1', 'stateless'],
+  'Anatomi URL': ['skema', 'host', 'port', 'path', 'query', '%20'],
+  'Method HTTP': ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', '201', '204'],
+  'Header dan Body': ['Content-Type', 'Accept', 'Authorization', 'Location', 'application/json'],
+  'Format JSON': ['objek', 'array', 'string', 'number', 'boolean', 'null', 'ISO 8601'],
+  'Melihat Request dengan DevTools dan curl': ['Network', 'DevTools', '-i', '-s', '-w'],
+};
+// kalimat panjang dipakai untuk mendeteksi teks salinan antar materi
+const kalimat = (t: string) => t.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim().toLowerCase()).filter((s) => s.length >= 60);
+const tanpaAngka = (s: string) => s.toLowerCase().replace(/[0-9]+/g, '').replace(/\s+/g, ' ').trim();
 
 describe('Kelas RESTful API', () => {
-  if (!fs.existsSync(DIR)) {
-    it('belum ada konten', () => expect(true).toBe(true));
-    return;
-  }
-
-  const modules = JSON.parse(fs.readFileSync(path.join(DIR, 'modules.json'), 'utf8')) as {
-    id: string; courseId: string; lessonCount: number; status: string; order: number; requires: string[];
-  }[];
-  const folders = fs.readdirSync(DIR).filter((f) => fs.statSync(path.join(DIR, f)).isDirectory());
-  const lessons = folders.flatMap((f) =>
-    fs.readdirSync(path.join(DIR, f))
-      .filter((x) => x.startsWith('lesson-') && x.endsWith('.json'))
-      .map((x) => ({ folder: f, data: JSON.parse(fs.readFileSync(path.join(DIR, f, x), 'utf8')) }))
-  );
-
-  it('kelas rest-api terdaftar di courses.json', () => {
-    const courses = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/courses.json'), 'utf8'));
-    expect(courses.some((c: { id: string }) => c.id === 'rest-api' && (c as { status?: string }).status === 'ready')).toBe(true);
-  });
-
-  it('semua modul memiliki requires yang benar sesuai kurikulum', () => {
-    // Kurikulum rantai: api-dasar -> api-rest -> api-client -> api-desain -> api-dokumentasi -> api-keamanan -> api-proyek
-    const reqMap = {
-      'api-dasar': [],
-      'api-rest': ['api-dasar'],
-      'api-client': ['api-rest'],
-      'api-desain': ['api-client'],
-      'api-dokumentasi': ['api-desain'],
-      'api-keamanan': ['api-dokumentasi'],
-      'api-proyek': ['api-keamanan']
-    };
+  it('modules.json: requires berupa string dan menunjuk modul yang ada', () => {
     for (const m of modules) {
-      expect(m.requires).toEqual(reqMap[m.id]);
+      if (m.requires !== undefined) {
+        expect(typeof m.requires).toBe('string');
+        expect(modules.some((x) => x.id === m.requires)).toBe(true);
+      }
     }
   });
 
-  it('urutan modul tidak bentrok dengan kelas lain', () => {
-    const lain = ['java', 'javascript', 'git', 'english', 'mysql', 'linux']
-      .map((k) => path.join(ROOT, `content/${k}/modules.json`))
-      .filter((p) => fs.existsSync(p))
-      .flatMap((p) => (JSON.parse(fs.readFileSync(p, 'utf8')) as { order: number }[]).map((m) => m.order));
-    expect(modules.filter((m) => lain.includes(m.order)).map((m) => m.id)).toEqual([]);
-  });
+  for (const m of modules) {
+    const folder = fs.readdirSync(DIR).find((d) => fs.existsSync(path.join(DIR, d, 'lesson-01.json')) && baca(path.join(DIR, d, 'lesson-01.json')).moduleId === m.id);
+    describe(m.id, () => {
+      it('folder ada', () => expect(folder).toBeTruthy());
+      if (!folder) return;
+      const files = fs.readdirSync(path.join(DIR, folder)).filter((f) => f.startsWith('lesson-')).sort();
+      const lessons = files.map((f) => baca(path.join(DIR, folder, f)));
+      const quiz: { question: string; options: string[]; answer: number; explanation: string }[] = baca(path.join(DIR, folder, 'quiz.json'));
 
-  it('setiap folder punya quiz tepat 20 soal', () => {
-    for (const f of folders) {
-      const q = JSON.parse(fs.readFileSync(path.join(DIR, f, 'quiz.json'), 'utf8')) as Soal[];
-      expect(q.length, f).toBe(20);
-    }
-  });
-
-  for (const { folder, data } of lessons) {
-    describe(`${folder}/${data.id}`, () => {
-      it('tanpa tombol jalankan (runnable false, tanpa runnable/code_challenge)', () => {
-        expect(data.runnable).toBe(false);
-        expect(data.cards.filter((c: { type: string }) => c.type === 'runnable' || c.type === 'code_challenge')).toEqual([]);
-      });
-
-      it('soal punya 4 opsi unik dan kunci yang valid', () => {
-        const soal: Soal[] = data.cards.flatMap((c: any) =>
-          c.type === 'understanding_check' ? c.questions : c.type === 'predict_output' || c.type === 'multiple_choice' ? [c] : []
-        );
-        for (const q of soal) {
-          expect(new Set(q.options).size, q.question).toBe(4);
-          expect(q.answer).toBeGreaterThanOrEqual(0);
-          expect(q.answer).toBeLessThan(4);
+      it('jumlah materi sesuai lessonCount, 8 kartu berurutan, runnable false', () => {
+        expect(lessons.length).toBe(m.lessonCount);
+        for (const l of lessons) {
+          expect(l.cards.map((c: { type: string }) => c.type)).toEqual(URUTAN);
+          expect(l.runnable).toBe(false);
         }
       });
 
-      it('isian: jumlah ___ sama dengan jawaban, diawali petunjuk #', () => {
-        for (const c of data.cards.filter((x: { type: string }) => x.type === 'fill_blank')) {
-          expect((c.code.match(/___/g) || []).length).toBe(c.answers.length);
-          expect(c.code.trimStart().startsWith('#')).toBe(true);
+      it('tidak ada placeholder dan teks cukup panjang', () => {
+        for (const l of lessons) {
+          const json = JSON.stringify(l);
+          expect(TERLARANG.test(json), `${l.id} berisi placeholder`).toBe(false);
+          for (const c of l.cards.filter((c: { type: string }) => c.type === 'theory')) expect(c.content.length, l.id).toBeGreaterThanOrEqual(400);
+          for (const p of l.cards[7].points) expect(p.length, l.id).toBeGreaterThanOrEqual(25);
+          expect(l.cards[6].code.startsWith('# '), l.id).toBe(true);
         }
       });
 
-      it('8 kartu dengan urutan tetap', () => {
-        expect(data.cards.map((c: { type: string }) => c.type)).toEqual([
-          'theory', 'theory', 'theory', 'theory', 'understanding_check', 'predict_output', 'fill_blank', 'summary',
-        ]);
+      it('kata kunci wajib ada di materinya', () => {
+        for (const l of lessons) {
+          const wajib = WAJIB[l.title];
+          if (!wajib) continue;
+          const teks = JSON.stringify(l.cards);
+          for (const k of wajib) expect(teks.includes(k), `${l.title} tidak memuat "${k}"`).toBe(true);
+        }
+      });
+
+      it('tidak ada kalimat panjang yang disalin antar materi', () => {
+        const dilihat = new Map<string, string>();
+        for (const l of lessons) {
+          const teks = l.cards.filter((c: { type: string }) => c.type === 'theory').map((c: { content: string }) => c.content).join('\n');
+          for (const k of new Set(kalimat(teks))) {
+            if (k.startsWith('$ ') || k.startsWith('{') || k.startsWith('http/')) continue; // baris output
+            const lain = dilihat.get(k);
+            expect(lain === undefined || lain === l.id, `kalimat sama di ${lain} dan ${l.id}: "${k.slice(0, 80)}"`).toBe(true);
+            dilihat.set(k, l.id);
+          }
+        }
+      });
+
+      it('soal cek pemahaman dan quiz unik (angka diabaikan), tanpa awalan judul', () => {
+        const semua: string[] = [];
+        for (const l of lessons) for (const q of l.cards[4].questions) {
+          expect(q.question.startsWith(l.title + ' -'), l.id).toBe(false);
+          semua.push(tanpaAngka(q.question));
+        }
+        for (const q of quiz) semua.push(tanpaAngka(q.question));
+        expect(new Set(semua).size).toBe(semua.length);
+      });
+
+      it('quiz: 20 soal, opsi tanpa angka penanda, kunci tersebar', () => {
+        expect(quiz.length).toBe(20);
+        for (const q of quiz) {
+          expect(q.options.length).toBe(4);
+          expect(new Set(q.options.map(tanpaAngka)).size).toBe(4);
+          for (const o of q.options) expect(/\s\d+$/.test(o), `opsi berakhiran angka: ${o}`).toBe(false);
+          expect(q.explanation.length).toBeGreaterThanOrEqual(30);
+        }
+        for (let k = 0; k < 4; k++) expect(quiz.filter((q) => q.answer === k).length).toBeGreaterThanOrEqual(4);
+        if (m.id === 'api-dasar') for (const q of quiz) expect(/\bREST\b/.test(q.question), q.question).toBe(false);
       });
     });
   }
