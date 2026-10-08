@@ -1,0 +1,111 @@
+{
+  "id": "api-dasar-06",
+  "moduleId": "api-dasar",
+  "order": 6,
+  "title": "Format JSON",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**JSON** (*JavaScript Object Notation*) adalah format teks untuk bertukar data, distandarkan di RFC 8259. Hampir semua web API modern memakai JSON. Bentuknya mirip objek JavaScript, tapi aturannya lebih ketat.\n\nJSON hanya punya enam tipe data:\n\n| Tipe | Contoh | Catatan |\n|---|---|---|\n| string | `\"Buku Tulis\"` | wajib kutip ganda |\n| number | `5000`, `-2`, `3.5` | tanpa kutip; tidak ada `NaN` atau `Infinity` |\n| boolean | `true`, `false` | huruf kecil |\n| null | `null` | nilai kosong yang disengaja |\n| object | `{\"id\": \"P01\", \"stock\": 120}` | pasangan kunci–nilai; kunci selalu string |\n| array | `[\"P01\", \"P02\"]` | daftar berurutan |\n\nTidak ada `undefined`, fungsi, komentar, atau tipe tanggal di JSON.\n\nJSON seperti formulir baku yang diterima semua kantor: isinya bebas, tapi cara menulisnya sama di mana-mana. Karena aturannya sama, program JavaScript, Java, dan Python bisa membaca data yang sama tanpa perjanjian tambahan."
+    },
+    {
+      "type": "theory",
+      "content": "Object dan array bisa bersarang. Contoh data pesanan:\n\n```json\n{\n  \"id\": \"O101\",\n  \"userId\": \"U01\",\n  \"items\": [\n    { \"productId\": \"P01\", \"qty\": 3 }\n  ],\n  \"total\": 15000,\n  \"status\": \"paid\",\n  \"createdAt\": \"2026-08-29T02:00:00Z\"\n}\n```\n\n**Kesalahan JSON yang sering terjadi**\n\n| Salah | Benar | Aturan |\n|---|---|---|\n| `{'name': 'Topi'}` | `{\"name\": \"Topi\"}` | hanya kutip ganda |\n| `{name: \"Topi\"}` | `{\"name\": \"Topi\"}` | kunci wajib berkutip |\n| `{\"stock\": 10,}` | `{\"stock\": 10}` | tidak boleh koma setelah elemen terakhir |\n| `{\"aktif\": True}` | `{\"aktif\": true}` | boolean huruf kecil |\n| `{\"price\": 05000}` | `{\"price\": 5000}` | angka tidak boleh diawali nol |\n\n**Tanggal dan waktu** ditulis sebagai string berformat **ISO 8601**:\n\n- `2026-09-01T09:00:00+07:00` berarti 1 September 2026 pukul 09.00 WIB.\n- `2026-09-01T02:00:00Z` adalah waktu yang sama dalam UTC (`Z` = UTC).\n\nAPI umumnya mengirim waktu dalam UTC. Aplikasi lalu mengubahnya ke zona waktu pengguna. Hindari format seperti `01/09/2026`, karena bisa dibaca 1 September atau 9 Januari.\n\nDi JavaScript, `JSON.stringify(objek)` mengubah objek menjadi teks JSON. `JSON.parse(teks)` mengubah teks JSON menjadi objek, dan melempar `SyntaxError` kalau teksnya rusak.\n\nServer yang menerima JSON rusak menjawab **`400 Bad Request`**. JSON yang valid tapi isinya tidak sesuai aturan, misalnya `\"price\": \"45000\"` berupa teks, ditolak dengan kode lain (dibahas di modul Merancang API yang Rapi)."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nKirim dua file JSON ke server. `rusak.json` punya koma setelah field terakhir. `jq .` memeriksa file di komputermu sebelum dikirim. `-d @nama-file` membaca body dari file. `jq -r \".id, .createdAt\"` mengambil dua field dari response.\n\nIsi `rusak.json`:\n\n```json\n{\n  \"name\": \"Topi Rajut\",\n  \"price\": 45000,\n  \"category\": \"aksesoris\",\n  \"stock\": 10,\n}\n```\n\nIsi `benar.json`:\n\n```json\n{\n  \"name\": \"Topi Rajut\",\n  \"price\": 45000,\n  \"category\": \"aksesoris\",\n  \"stock\": 10\n}\n```\n\n```bash\njq . rusak.json\ncurl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d @rusak.json\ncurl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d @benar.json | jq -r \".id, .createdAt\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ jq . rusak.json\njq: parse error: Expected another key-value pair at line 6, column 1\n$ curl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d @rusak.json\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Body bukan JSON yang valid.\"\n}\n$ curl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d @benar.json | jq -r \".id, .createdAt\"\nP07\n2026-09-01T02:00:00Z\n```\n\nPerhatikan:\n\n- `jq` melaporkan error di baris 6: setelah koma di baris 5, ia mengharapkan pasangan kunci–nilai berikutnya, tapi bertemu `}`. Memeriksa JSON di komputer sendiri lebih cepat daripada menebak dari pesan error server.\n- Server menolak JSON rusak dengan `400 Bad Request` dan detail `Body bukan JSON yang valid.`\n- Setelah koma dihapus, produk dibuat. `createdAt` memakai ISO 8601 dalam UTC: `02:00Z` sama dengan 09.00 WIB."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis JSON dengan gaya objek JavaScript**\n\nSalah:\n\n```bash\ncurl -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d \"{name: 'Topi', price: 45000, category: 'aksesoris', stock: 10}\"\n```\n\nBenar:\n\n```bash\ncurl -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\": \"Topi\", \"price\": 45000, \"category\": \"aksesoris\", \"stock\": 10}'\n```\n\nObjek JavaScript boleh memakai kunci tanpa kutip dan kutip tunggal, JSON tidak. Server menjawab `400 Bad Request`. Di kode JavaScript, buat body dengan `JSON.stringify(objek)` supaya hasilnya selalu JSON valid.\n\n**2. Mengirim angka sebagai string**\n\nSalah:\n\n```json\n{ \"name\": \"Topi\", \"price\": \"45000\", \"stock\": \"10\" }\n```\n\nBenar:\n\n```json\n{ \"name\": \"Topi\", \"price\": 45000, \"stock\": 10 }\n```\n\nDi JSON, `\"45000\"` adalah string, bukan number. Client JavaScript yang menjumlahkan `price + 5000` akan mendapat teks `\"450005000\"`. Tulis angka tanpa kutip supaya tipe datanya jelas bagi semua client.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Mana yang merupakan JSON valid?",
+          "options": [
+            "`{'name': 'Topi'}`",
+            "`{\"name\": \"Topi\", \"stock\": 10}`",
+            "`{name: \"Topi\"}`",
+            "`{\"name\": \"Topi\", \"stock\": 10,}`"
+          ],
+          "answer": 1,
+          "explanation": "JSON valid memakai kutip ganda untuk kunci dan string, dan tidak boleh ada koma setelah elemen terakhir.",
+          "remedial": "JSON valid memakai kutip ganda untuk kunci dan string, dan tidak boleh ada koma setelah elemen terakhir."
+        },
+        {
+          "question": "Kamu perlu mengirim waktu 1 September 2026 pukul 09.00 WIB ke API. Penulisan mana yang paling tepat?",
+          "options": [
+            "`\"01/09/2026 09:00\"`",
+            "`\"2026-09-01 09.00 WIB\"`",
+            "`20260901`",
+            "`\"2026-09-01T09:00:00+07:00\"`"
+          ],
+          "answer": 3,
+          "explanation": "ISO 8601 dengan offset zona waktu (+07:00 untuk WIB) tidak ambigu dan bisa dibaca semua bahasa pemrograman.",
+          "remedial": "ISO 8601 dengan offset zona waktu (+07:00 untuk WIB) tidak ambigu dan bisa dibaca semua bahasa pemrograman."
+        },
+        {
+          "question": "Server menjawab `400 Bad Request` dengan detail `Body bukan JSON yang valid.` Apa langkah pertama yang paling masuk akal?",
+          "options": [
+            "Periksa body: kutip ganda, koma di akhir, dan kurung yang belum ditutup",
+            "Ganti method dari POST ke PUT, lalu kirim ulang request-nya",
+            "Ganti Content-Type menjadi text/plain supaya server tidak memeriksa JSON",
+            "Kirim ulang request yang sama beberapa kali sampai server menerimanya"
+          ],
+          "answer": 0,
+          "explanation": "Pesan itu menunjuk ke sintaks body. Mengirim ulang body yang sama akan menghasilkan error yang sama; mengganti method atau Content-Type tidak memperbaiki JSON yang rusak.",
+          "remedial": "Pesan itu menunjuk ke sintaks body. Mengirim ulang body yang sama akan menghasilkan error yang sama; mengganti method atau Content-Type tidak memperbaiki JSON yang rusak."
+        },
+        {
+          "question": "Apa tipe data nilai `price` pada JSON ini?",
+          "code": "{\"id\": \"P01\", \"price\": 5000, \"stock\": \"120\"}",
+          "options": [
+            "string",
+            "boolean",
+            "number",
+            "object"
+          ],
+          "answer": 2,
+          "explanation": "5000 ditulis tanpa kutip, jadi bertipe number. Sebaliknya, \"120\" di field stock adalah string karena diberi kutip.",
+          "remedial": "5000 ditulis tanpa kutip, jadi bertipe number. Sebaliknya, \"120\" di field stock adalah string karena diberi kutip."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Produk P05 (Sepatu Sekolah) stoknya habis. Apa output perintah ini?",
+      "code": "curl -s https://api.toko.contoh/products/P05 | jq \".stock > 0\"",
+      "options": [
+        "true",
+        "0",
+        "null",
+        "false"
+      ],
+      "answer": 3,
+      "explanation": "Field stock P05 bernilai 0 (number). Ekspresi 0 > 0 bernilai false, dan jq mencetaknya sebagai boolean JSON false."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Kirim JSON produk yang valid (perhatikan kutip pada nama field)\ncurl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",\"price\":45000,___:\"aksesoris\",\"stock\":10}' | jq -r .category",
+      "answers": [
+        "\"category\""
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "JSON punya enam tipe: string, number, boolean, null, object, dan array.",
+        "Kunci dan string wajib memakai kutip ganda; tidak boleh ada koma setelah elemen terakhir, dan JSON tidak mendukung komentar.",
+        "Tanggal ditulis sebagai string ISO 8601, mis. 2026-09-01T09:00:00+07:00 atau 2026-09-01T02:00:00Z.",
+        "JSON yang rusak dijawab server dengan 400 Bad Request; periksa dulu di komputermu dengan jq.",
+        "Di JavaScript, buat body dengan JSON.stringify dan baca response dengan JSON.parse atau res.json()."
+      ]
+    }
+  ]
+}

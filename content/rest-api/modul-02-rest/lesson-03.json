@@ -1,0 +1,112 @@
+{
+  "id": "api-rest-03",
+  "moduleId": "api-rest",
+  "order": 3,
+  "title": "Method untuk CRUD",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Hampir semua aplikasi bisnis berputar di empat operasi **CRUD**: *Create*, *Read*, *Update*, *Delete*. Di modul Dasar HTTP dan API kamu sudah mengenal method-nya. Sekarang kita pasangkan method itu dengan dua jenis URI: **koleksi** (`/products`) dan **item** (`/products/P01`).\n\nBagian yang paling sering keliru adalah **update**. `PUT` berarti \"jadikan resource ini persis seperti body yang kukirim\". Field yang tidak dikirim tidak dipertahankan: ada server yang menolak request itu, ada pula yang mengosongkan field-nya. `PATCH` berarti \"terapkan perubahan ini saja\", jadi cukup kirim field yang berubah.\n\nMenurut RFC 9110, `PUT` juga boleh **membuat** resource kalau client yang menentukan URI-nya, misalnya `PUT /settings/theme`. Banyak API tidak mengizinkannya untuk data dengan id buatan server. Server latihan menjawab `PUT /products/P99` dengan `404` karena P99 belum ada.\n\nBayangkan dokumen di map arsip. PUT seperti mencabut seluruh lembar lama lalu memasukkan lembar baru yang sudah lengkap. PATCH seperti menempel catatan koreksi pada satu baris saja. Kalau kamu memakai cara PUT tapi hanya membawa satu baris, isi lembar lainnya ikut hilang."
+    },
+    {
+      "type": "theory",
+      "content": "| Operasi | Method + URI | Body request | Respons sukses yang umum |\n|---|---|---|---|\n| Create | `POST /products` | data produk baru | `201 Created` + `Location` + data baru |\n| Read daftar | `GET /products` | tidak ada | `200 OK` + daftar |\n| Read satu | `GET /products/P01` | tidak ada | `200 OK` + data |\n| Update penuh | `PUT /products/P01` | representasi lengkap | `200 OK` + data terbaru, atau `204` |\n| Update sebagian | `PATCH /products/P01` | field yang berubah | `200 OK` + data terbaru, atau `204` |\n| Delete | `DELETE /products/P01` | tidak ada | `204 No Content`, atau `200` + body |\n\nMethod yang tidak didukung di sebuah URI dijawab `405 Method Not Allowed` beserta header `Allow`. Contohnya `DELETE /products`: menghapus seluruh katalog sekaligus biasanya sengaja tidak disediakan.\n\n**Format body PATCH.** Banyak API menerima `application/json` biasa untuk PATCH. Format standarnya ada dua:\n\n- `application/merge-patch+json` (RFC 7396): objek berisi field yang diganti. Nilai `null` berarti **hapus field itu**.\n- `application/json-patch+json` (RFC 6902): daftar operasi seperti `{\"op\":\"replace\",\"path\":\"/price\",\"value\":6000}`. Lebih lengkap, tapi lebih jarang dipakai.\n\nServer latihan menerima `application/json` dan `application/merge-patch+json` untuk PATCH."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nJalankan satu siklus CRUD penuh pada produk baru. `-w \"%{http_code} %header{location}\"` mencetak status dan header `Location` dalam satu baris.\n\n```bash\ncurl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}' -o /dev/null -w \"%{http_code} %header{location}\\n\"\ncurl -s -X PUT https://api.toko.contoh/products/P07 -H \"Content-Type: application/json\" -d '{\"name\":\"Topi Rimba\",\"price\":55000,\"category\":\"aksesoris\",\"stock\":10}' | jq -c .\ncurl -s -X PATCH https://api.toko.contoh/products/P07 -H \"Content-Type: application/json\" -d '{\"stock\":7}' | jq -c \"{name, price, stock}\"\ncurl -s -X DELETE https://api.toko.contoh/products/P07 -o /dev/null -w \"%{http_code}\\n\"\ncurl -s https://api.toko.contoh/products/P07 -o /dev/null -w \"%{http_code}\\n\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}' -o /dev/null -w \"%{http_code} %header{location}\\n\"\n201 /products/P07\n$ curl -s -X PUT https://api.toko.contoh/products/P07 -H \"Content-Type: application/json\" -d '{\"name\":\"Topi Rimba\",\"price\":55000,\"category\":\"aksesoris\",\"stock\":10}' | jq -c .\n{\"id\":\"P07\",\"name\":\"Topi Rimba\",\"price\":55000,\"category\":\"aksesoris\",\"stock\":10,\"createdAt\":\"2026-09-01T02:00:00Z\"}\n$ curl -s -X PATCH https://api.toko.contoh/products/P07 -H \"Content-Type: application/json\" -d '{\"stock\":7}' | jq -c \"{name, price, stock}\"\n{\"name\":\"Topi Rimba\",\"price\":55000,\"stock\":7}\n$ curl -s -X DELETE https://api.toko.contoh/products/P07 -o /dev/null -w \"%{http_code}\\n\"\n204\n$ curl -s https://api.toko.contoh/products/P07 -o /dev/null -w \"%{http_code}\\n\"\n404\n```\n\n- **Create**: `201` dan `Location: /products/P07`. Semua langkah berikutnya memakai alamat ini.\n- **PUT** mengirim keempat field dan mengembalikan data lengkap terbaru.\n- **PATCH** hanya mengirim `stock`; `name` dan `price` hasil PUT tetap utuh.\n- **DELETE** dijawab `204`, lalu `GET` ke alamat yang sama menjadi `404`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengirim null untuk field yang tidak ingin diubah**\n\nSalah:\n\n```bash\ncurl -X PATCH https://api.toko.contoh/products/P01 -H \"Content-Type: application/merge-patch+json\" -d '{\"name\":\"Buku Tulis A5\",\"price\":null,\"category\":null,\"stock\":null}'\n```\n\nBenar:\n\n```bash\ncurl -X PATCH https://api.toko.contoh/products/P01 -H \"Content-Type: application/merge-patch+json\" -d '{\"name\":\"Buku Tulis A5\"}'\n```\n\nKesalahan ini sering muncul saat form frontend mengirim semua field, termasuk yang kosong. Dalam JSON Merge Patch, null berarti \"hapus field ini\", bukan \"biarkan\". Server latihan menolaknya dengan 422 karena price, category, dan stock tidak boleh kosong. Kirim hanya field yang memang berubah.\n\n**2. Memakai POST ke URI item untuk mengubah data**\n\nSalah:\n\n```bash\ncurl -X POST https://api.toko.contoh/products/P01 -H \"Content-Type: application/json\" -d '{\"name\":\"Buku Tulis\",\"price\":6000,\"category\":\"alat-tulis\",\"stock\":120}'\n```\n\nBenar:\n\n```bash\ncurl -X PUT https://api.toko.contoh/products/P01 -H \"Content-Type: application/json\" -d '{\"name\":\"Buku Tulis\",\"price\":6000,\"category\":\"alat-tulis\",\"stock\":120}'\n```\n\nKebiasaan ini berasal dari form HTML yang hanya mendukung GET dan POST. Di API, POST ke item tidak menjelaskan apakah data diganti, ditambah, atau diproses. Server latihan menjawabnya 405 dengan Allow: GET, HEAD, PUT, PATCH, DELETE, OPTIONS.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Method mana yang artinya \"jadikan resource ini persis seperti body yang kukirim\"?",
+          "options": [
+            "POST",
+            "PATCH",
+            "PUT",
+            "HEAD"
+          ],
+          "answer": 2,
+          "explanation": "PUT mengganti seluruh keadaan resource dengan representasi di body. PATCH hanya menerapkan perubahan sebagian, dan POST memproses data menurut aturan resource tujuannya.",
+          "remedial": "PUT mengganti seluruh keadaan resource dengan representasi di body. PATCH hanya menerapkan perubahan sebagian, dan POST memproses data menurut aturan resource tujuannya."
+        },
+        {
+          "question": "Server latihan mewajibkan representasi lengkap untuk PUT. Status apa yang keluar?",
+          "code": "curl -s -X PUT https://api.toko.contoh/products/P02 -H \"Content-Type: application/json\" -d '{\"price\":4000}' -o /dev/null -w \"%{http_code}\"",
+          "options": [
+            "200",
+            "204",
+            "400",
+            "422"
+          ],
+          "answer": 3,
+          "explanation": "JSON-nya valid, tapi name, category, dan stock tidak dikirim. Representasi untuk PUT tidak lengkap, jadi server menolak dengan 422. Untuk mengubah harga saja, pakai PATCH.",
+          "remedial": "JSON-nya valid, tapi name, category, dan stock tidak dikirim. Representasi untuk PUT tidak lengkap, jadi server menolak dengan 422. Untuk mengubah harga saja, pakai PATCH."
+        },
+        {
+          "question": "Kenapa `DELETE /products` (tanpa id) dijawab `405 Method Not Allowed` oleh server latihan?",
+          "options": [
+            "Koleksi produk tidak menyediakan hapus massal; header Allow menyebut method yang didukung di URI itu",
+            "Semua produk sudah terhapus sehingga koleksinya kosong",
+            "DELETE wajib membawa body JSON berisi daftar id",
+            "Request DELETE wajib membawa token admin"
+          ],
+          "answer": 0,
+          "explanation": "405 berarti method tersebut tidak didukung pada URI tujuan. Server wajib menyertakan header Allow, di sini GET, HEAD, POST, OPTIONS untuk /products.",
+          "remedial": "405 berarti method tersebut tidak didukung pada URI tujuan. Server wajib menyertakan header Allow, di sini GET, HEAD, POST, OPTIONS untuk /products."
+        },
+        {
+          "question": "Server menjawab POST dengan `201 Created` dan `Location: /products/P07`. Kamu ingin mengambil ulang data produk itu. Request apa yang tepat?",
+          "options": [
+            "POST /products dengan body yang sama",
+            "GET /products/P07",
+            "GET /products lalu cari produk dengan nama yang sama",
+            "PATCH /products/P07 dengan body kosong"
+          ],
+          "answer": 1,
+          "explanation": "Header Location adalah alamat resource baru. Cukup GET ke alamat itu. Mengirim POST lagi membuat produk kedua, dan mencari lewat nama bisa salah kalau ada nama kembar.",
+          "remedial": "Header Location adalah alamat resource baru. Cukup GET ke alamat itu. Mengirim POST lagi membuat produk kedua, dan mencari lewat nama bisa salah kalau ada nama kembar."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "PATCH hanya mengirim field stock. Apa output perintah terakhir?",
+      "code": "curl -s -o /dev/null -X PATCH https://api.toko.contoh/products/P06 -H \"Content-Type: application/json\" -d '{\"stock\":35}'\ncurl -s https://api.toko.contoh/products/P06 | jq -c \"{name, price, stock}\"",
+      "options": [
+        "{\"name\":\"Botol Minum\",\"price\":45000,\"stock\":35}",
+        "{\"stock\":35}",
+        "{\"name\":null,\"price\":null,\"stock\":35}",
+        "{\"name\":\"Botol Minum\",\"price\":45000,\"stock\":40}"
+      ],
+      "answer": 0,
+      "explanation": "PATCH mengubah sebagian: stok menjadi 35, sedangkan name dan price tetap seperti semula. Resource tidak menyusut menjadi hanya field yang dikirim."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Ubah stok produk P04 menjadi 5 tanpa mengirim field lain\ncurl -s -X ___ https://api.toko.contoh/products/___ -H \"Content-Type: application/json\" -d '{\"stock\":5}' | jq .stock",
+      "answers": [
+        "PATCH",
+        "P04"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "CRUD dipetakan ke POST (create), GET (read), PUT/PATCH (update), dan DELETE (delete) pada URI koleksi atau item.",
+        "PUT mengganti seluruh representasi; field yang tidak dikirim tidak dipertahankan.",
+        "PATCH mengirim perubahan saja; di JSON Merge Patch, null berarti menghapus field.",
+        "Respons umum: 201 + Location untuk create, 200 untuk read dan update, 204 untuk delete.",
+        "Method yang tidak didukung di sebuah URI dijawab 405 beserta header Allow."
+      ]
+    }
+  ]
+}

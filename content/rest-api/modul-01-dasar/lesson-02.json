@@ -1,0 +1,111 @@
+{
+  "id": "api-dasar-02",
+  "moduleId": "api-dasar",
+  "order": 2,
+  "title": "Client, Server, Request, Response",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setiap komunikasi HTTP melibatkan dua peran:\n\n- **Client** memulai komunikasi dengan mengirim **request** (permintaan).\n- **Server** menunggu request, memprosesnya, lalu mengirim **response** (jawaban).\n\nServer tidak mengirim response tanpa ada request lebih dulu. Setiap request dijawab dengan satu response. Kalau client butuh data lain, client mengirim request baru.\n\nClient bukan hanya browser. Contohnya:\n\n- browser yang membuka `toko.contoh`,\n- aplikasi HP Toko Budi,\n- program di server lain, misalnya layanan ekspedisi yang mengecek status pesanan,\n- `curl` dan skrip `fetch` di terminalmu.\n\nPeran ditentukan oleh siapa yang memulai. Backend Toko Budi adalah server bagi aplikasi HP. Backend yang sama menjadi **client** saat ia memanggil API payment gateway.\n\nBayangkan meja informasi di stasiun. Kamu yang datang dan bertanya; petugas hanya menjawab saat ditanya. Satu pertanyaan, satu jawaban. Petugas tidak menghampirimu untuk memberi kabar baru. Kalau ingin tahu hal lain, kamu bertanya lagi."
+    },
+    {
+      "type": "theory",
+      "content": "Satu siklus request–response:\n\n1. Client menyusun request: method, URL, header, dan body (kalau perlu).\n2. Request dikirim lewat jaringan, biasanya terenkripsi dengan HTTPS.\n3. Server memproses: memeriksa data, membaca atau menulis database.\n4. Server mengirim response: status code, header, dan body (kalau ada).\n5. Client membaca status code dulu, baru memakai body.\n\nDi HTTP/1.1, pesan berbentuk teks. Request untuk produk P03:\n\n```http\nGET /products/P03 HTTP/1.1\nHost: api.toko.contoh\nAccept: application/json\n```\n\nBaris pertama response disebut **status line**:\n\n```http\nHTTP/1.1 200 OK\nContent-Type: application/json\n```\n\n| Bagian | Request | Response |\n|---|---|---|\n| Baris pertama | method, path, versi HTTP | versi HTTP, status code, *reason phrase* |\n| Header | keterangan tambahan, mis. `Host`, `Accept` | keterangan tambahan, mis. `Content-Type` |\n| Baris kosong | pemisah header dan body | pemisah header dan body |\n| Body | opsional, mis. data produk baru | opsional, mis. data produk |\n\n**Status code** adalah angka tiga digit yang meringkas hasil request:\n\n| Kelompok | Arti |\n|---|---|\n| `2xx` | berhasil |\n| `3xx` | pengalihan ke alamat lain |\n| `4xx` | kesalahan dari sisi client, mis. data salah atau resource tidak ada |\n| `5xx` | kesalahan di sisi server |\n\nRincian tiap kode dibahas di modul Prinsip REST. HTTP/2 dan HTTP/3 mengirim pesan dalam bentuk biner, tapi isinya sama: method, path, status code, header, dan body."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nClient tidak harus browser. Skrip Node.js ini menjadi client: ia mengirim dua request, lalu membaca status code dan body dari setiap response. `fetch` dibahas lengkap di modul Memakai API dari Client.\n\nIsi `klien.mjs`:\n\n```javascript\nfor (const id of ['P03', 'P99']) {\n  const res = await fetch(`https://api.toko.contoh/products/${id}`);\n  const body = await res.json();\n  console.log(id, '->', res.status, res.statusText, '|', body.name ?? body.detail);\n}\n```\n\n```bash\nnode klien.mjs\n```\n\nYang akan kamu lihat:\n\n```text\n$ node klien.mjs\nP03 -> 200 OK | Tas Sekolah\nP99 -> 404 Not Found | Produk P99 tidak ditemukan.\n```\n\nDua request menghasilkan dua response:\n\n- P03 ada, jadi server menjawab `200 OK` dengan data produk.\n- P99 tidak ada, jadi server menjawab `404 Not Found`. Ini tetap response yang sah, lengkap dengan body berisi pesan error di field `detail`.\n\nKarena itu client harus selalu membaca status code sebelum memakai body."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Langsung memakai body tanpa memeriksa status code**\n\nSalah:\n\n```javascript\nconst res = await fetch('https://api.toko.contoh/products/P99');\nconst produk = await res.json();\ntampilkan(produk.name); // undefined\n```\n\nBenar:\n\n```javascript\nconst res = await fetch('https://api.toko.contoh/products/P99');\nif (!res.ok) throw new Error(`Gagal memuat produk: ${res.status}`);\nconst produk = await res.json();\ntampilkan(produk.name);\n```\n\nResponse `404` dan `500` juga punya body, biasanya berisi pesan error. Kalau status tidak dicek, program memproses pesan error seolah-olah data produk. `res.ok` bernilai `true` hanya untuk status 200–299.\n\n**2. Mengirim banyak request untuk data yang bisa diambil sekali**\n\nSalah:\n\n```bash\nfor id in P01 P02 P03 P04 P05 P06; do\n  curl -s https://api.toko.contoh/products/$id\ndone\n```\n\nBenar:\n\n```bash\ncurl -s https://api.toko.contoh/products\n```\n\nSetiap request punya biaya: waktu tempuh jaringan, pembukaan koneksi, dan beban server. Enam request berarti enam kali menunggu. Kalau API menyediakan endpoint daftar (koleksi), ambil sekaligus. Bedanya sangat terasa di aplikasi HP dengan sinyal lemah.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Backend Toko Budi memanggil API payment gateway untuk menagih pembayaran. Dalam komunikasi itu, backend Toko Budi berperan sebagai apa?",
+          "options": [
+            "Client, karena ia yang mengirim request",
+            "Server, karena ia adalah backend",
+            "Bukan keduanya, karena tidak ada browser yang terlibat",
+            "Server, karena ia menyimpan data pesanan"
+          ],
+          "answer": 0,
+          "explanation": "Peran ditentukan oleh siapa yang memulai komunikasi. Backend yang mengirim request ke layanan lain adalah client bagi layanan itu.",
+          "remedial": "Peran ditentukan oleh siapa yang memulai komunikasi. Backend yang mengirim request ke layanan lain adalah client bagi layanan itu."
+        },
+        {
+          "question": "Bagian mana yang **selalu** ada di setiap HTTP response?",
+          "options": [
+            "Body berisi JSON",
+            "Header `Location`",
+            "Header `Accept`",
+            "Status code"
+          ],
+          "answer": 3,
+          "explanation": "Setiap response diawali status code, misalnya 200 atau 404. Body tidak selalu ada (contohnya 204 No Content), dan Location hanya muncul pada kasus tertentu.",
+          "remedial": "Setiap response diawali status code, misalnya 200 atau 404. Body tidak selalu ada (contohnya 204 No Content), dan Location hanya muncul pada kasus tertentu."
+        },
+        {
+          "question": "Server menjawab sebuah request dengan status `503`. Status itu termasuk kelompok apa?",
+          "options": [
+            "Berhasil (2xx)",
+            "Kesalahan di sisi server (5xx)",
+            "Kesalahan dari sisi client (4xx)",
+            "Pengalihan (3xx)"
+          ],
+          "answer": 1,
+          "explanation": "Digit pertama menentukan kelompok. Kode 5xx berarti server gagal memproses request yang sebenarnya bisa saja valid.",
+          "remedial": "Digit pertama menentukan kelompok. Kode 5xx berarti server gagal memproses request yang sebenarnya bisa saja valid."
+        },
+        {
+          "question": "Ke host mana request ini dikirim?",
+          "code": "GET /products?category=tas HTTP/1.1\nHost: api.toko.contoh\nAccept: application/json",
+          "options": [
+            "`/products`",
+            "`HTTP/1.1`",
+            "`api.toko.contoh`",
+            "`application/json`"
+          ],
+          "answer": 2,
+          "explanation": "Header Host berisi nama server tujuan. /products adalah path, HTTP/1.1 adalah versi protokol, dan application/json adalah format yang diminta lewat Accept.",
+          "remedial": "Header Host berisi nama server tujuan. /products adalah path, HTTP/1.1 adalah versi protokol, dan application/json adalah format yang diminta lewat Accept."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Produk P99 tidak ada di API Toko Budi. Apa output kode JavaScript ini?",
+      "code": "const res = await fetch('https://api.toko.contoh/products/P99');\nconsole.log(res.status, res.ok);",
+      "options": [
+        "200 true",
+        "404 true",
+        "TypeError: fetch failed",
+        "404 false"
+      ],
+      "answer": 3,
+      "explanation": "Server tetap mengirim response, hanya statusnya 404. fetch tidak melempar error untuk 404; error baru terjadi kalau tidak ada response sama sekali, misalnya jaringan putus. res.ok bernilai true hanya untuk status 200 sampai 299."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan status line dan header response, tidak hanya body\ncurl ___ https://api.toko.contoh/health",
+      "answers": [
+        "-i|--include"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Client memulai dengan request; server menjawab dengan tepat satu response untuk setiap request.",
+        "Client bisa berupa browser, aplikasi HP, curl, atau server lain; peran ditentukan oleh siapa yang memulai.",
+        "Request berisi method, path, header, dan body opsional; response berisi status code, header, dan body opsional.",
+        "Status code 2xx berhasil, 3xx pengalihan, 4xx kesalahan dari client, 5xx kesalahan di server.",
+        "Response 404 atau 500 tetap response; selalu periksa status code sebelum memakai body."
+      ]
+    }
+  ]
+}

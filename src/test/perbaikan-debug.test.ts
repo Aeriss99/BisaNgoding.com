@@ -76,3 +76,11 @@ describe('Teks kode tidak memakai ligature (strip ganda tetap terlihat dua)', ()
     expect(blok).toContain("font-feature-settings: 'liga' 0, 'calt' 0");
   });
 });
+
+describe('Opsi jawaban panjang tanpa spasi tidak melebar di HP', () => {
+  it('tombol opsi quiz dan prediksi memakai overflow-wrap:anywhere', () => {
+    const src = baca(path.join(ROOT, 'src/components/cards/QuizCards.tsx'));
+    expect(src.match(/whitespace-pre-wrap \[overflow-wrap:anywhere\]/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(src).not.toContain('whitespace-pre-wrap break-words');
+  });
+});

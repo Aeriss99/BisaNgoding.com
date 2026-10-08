@@ -1,0 +1,111 @@
+{
+  "id": "api-rest-02",
+  "moduleId": "api-rest",
+  "order": 2,
+  "title": "Merancang URI Resource",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "URI yang baik **menamai resource** (kata benda), bukan aksi. Aksinya sudah dinyatakan oleh method HTTP. Aturan yang umum dipakai tim engineering:\n\n- **Kata benda jamak** untuk koleksi: `/products`, `/orders`. Satu item di koleksi ditulis dengan id-nya: `/products/P01`.\n- **Huruf kecil**, kata dipisah tanda hubung (*kebab-case*): `/product-categories`. Menurut RFC 3986, path peka huruf besar-kecil, jadi `/Products` dan `/products` bisa dianggap resource berbeda.\n- **Filter, urutan, dan paging lewat query string**: `/products?category=sepatu&sort=price`. Segmen path menyatakan identitas resource, sedangkan query string menyatakan pilihan tampilan.\n- **Relasi bersarang paling banyak 2 tingkat**: `/users/U01/orders` berarti pesanan milik pengguna U01. Kalau lebih dalam, beri resource itu alamatnya sendiri, misalnya `/orders/O101`.\n\nURI seperti alamat rumah: \"Jl. Mawar No. 5\" menunjuk tempat, bukan perintah. Kurir yang datang ke alamat itu bisa mengantar, menjemput, atau mengambil paket. Jenis pekerjaannya ditentukan oleh surat tugas kurir, yang di HTTP disebut method."
+    },
+    {
+      "type": "theory",
+      "content": "Perbandingan URI yang sering ditemui saat code review:\n\n| Kurang tepat | Lebih baik | Alasan |\n|---|---|---|\n| `GET /getProducts` | `GET /products` | kata kerja sudah diwakili method |\n| `POST /createOrder` | `POST /orders` | membuat item baru di koleksi |\n| `GET /product/P01` | `GET /products/P01` | koleksi selalu jamak, konsisten |\n| `GET /productCategories` | `GET /product-categories` | huruf kecil, kebab-case |\n| `GET /products/sepatu/murah` | `GET /products?category=sepatu&sort=price` | filter dan urutan masuk query |\n| `GET /users/U01/orders/O101/items/1` | `GET /orders/O101` | sarang terlalu dalam |\n\n**Aksi yang bukan CRUD.** Membatalkan pesanan tidak sama dengan menghapusnya, karena riwayat pesanan tetap harus ada. Dua rancangan yang umum:\n\n1. **Ubah status**: `PATCH /orders/O101` dengan body `{\"status\":\"cancelled\"}`. Cocok kalau aksinya memang hanya mengganti satu field.\n2. **Sub-resource aksi**: `POST /orders/O101/cancel`. Cocok kalau aksi memicu proses bisnis, misalnya mengembalikan stok, memulai refund, dan mengirim notifikasi.\n\nPilihan kedua memakai `POST` karena aksinya memicu pemrosesan di server dan mengubah data. `PUT` berarti mengganti, dan `DELETE` berarti menghapus, jadi keduanya tidak cocok. Ini pengecualian yang disengaja, bukan izin untuk menaruh kata kerja di semua URI. Kedua contoh ini rancangan, bukan endpoint server latihan."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nAmbil koleksi produk dengan filter di query string, ambil satu item dengan id-nya, lalu bandingkan dengan URI yang tidak sesuai konvensi. `jq -c` meringkas JSON menjadi satu baris per objek.\n\n```bash\ncurl -s \"https://api.toko.contoh/products?category=sepatu\" | jq -c \".data[] | {id, name, stock}\"\ncurl -s https://api.toko.contoh/products/P04 | jq -c \"{id, name, price}\"\ncurl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/getProducts\ncurl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/Products\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s \"https://api.toko.contoh/products?category=sepatu\" | jq -c \".data[] | {id, name, stock}\"\n{\"id\":\"P04\",\"name\":\"Sepatu Lari\",\"stock\":8}\n{\"id\":\"P05\",\"name\":\"Sepatu Sekolah\",\"stock\":0}\n$ curl -s https://api.toko.contoh/products/P04 | jq -c \"{id, name, price}\"\n{\"id\":\"P04\",\"name\":\"Sepatu Lari\",\"price\":350000}\n$ curl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/getProducts\n404\n$ curl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/Products\n404\n```\n\n- `/products?category=sepatu` tetap resource koleksi yang sama; query string hanya menyaring isinya.\n- `/products/P04` menunjuk satu item di koleksi itu.\n- `/getProducts` dan `/Products` dijawab `404`. Server latihan hanya mengenal `/products` huruf kecil, persis seperti yang didokumentasikan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menaruh aksi dan id di body, bukan di method dan URI**\n\nSalah:\n\n```bash\ncurl -X POST https://api.toko.contoh/updateProduct -H \"Content-Type: application/json\" -d '{\"id\":\"P01\",\"price\":6000}'\n```\n\nBenar:\n\n```bash\ncurl -X PATCH https://api.toko.contoh/products/P01 -H \"Content-Type: application/json\" -d '{\"price\":6000}'\n```\n\nId menunjuk resource, jadi tempatnya di path. Aksi \"ubah sebagian\" sudah diwakili PATCH. Dengan begitu log akses, aturan izin di gateway, dan cache bisa membaca maksud request hanya dari method dan URI.\n\n**2. Menjadikan filter sebagai segmen path**\n\nSalah:\n\n```bash\ncurl \"https://api.toko.contoh/products/category/sepatu/sort/price\"\n```\n\nBenar:\n\n```bash\ncurl \"https://api.toko.contoh/products?category=sepatu&sort=price\"\n```\n\nFilter bersifat opsional, bisa dikombinasikan bebas, dan urutannya tidak penting. Kalau dijadikan path, setiap kombinasi butuh route baru. Query string memang dirancang untuk itu, dan client bisa menambah atau menghapus filter tanpa mengubah alamat resource.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Mana URI yang paling sesuai konvensi untuk koleksi kategori produk?",
+          "options": [
+            "/productCategories",
+            "/product-categories",
+            "/Product_Categories",
+            "/getProductCategories"
+          ],
+          "answer": 1,
+          "explanation": "Konvensi umum: kata benda jamak, huruf kecil, kata dipisah tanda hubung (kebab-case). Kata kerja seperti get tidak perlu karena sudah diwakili method.",
+          "remedial": "Konvensi umum: kata benda jamak, huruf kecil, kata dipisah tanda hubung (kebab-case). Kata kerja seperti get tidak perlu karena sudah diwakili method."
+        },
+        {
+          "question": "Tim kamu perlu endpoint untuk membatalkan pesanan O101. Pembatalan harus mengembalikan stok dan memulai refund, dan data pesanan tetap disimpan untuk riwayat. Rancangan mana yang paling tepat?",
+          "options": [
+            "GET /orders/O101/cancel",
+            "POST /cancelOrder?id=O101",
+            "DELETE /orders/O101",
+            "POST /orders/O101/cancel"
+          ],
+          "answer": 3,
+          "explanation": "Pembatalan memicu proses bisnis dan tidak menghapus pesanan, jadi DELETE kurang tepat. GET tidak boleh mengubah data. POST ke sub-resource aksi di bawah pesanan itu adalah pola yang umum.",
+          "remedial": "Pembatalan memicu proses bisnis dan tidak menghapus pesanan, jadi DELETE kurang tepat. GET tidak boleh mengubah data. POST ke sub-resource aksi di bawah pesanan itu adalah pola yang umum."
+        },
+        {
+          "question": "Kamu ingin menampilkan produk kategori tas dengan harga paling banyak 200000. URI mana yang paling tepat?",
+          "options": [
+            "/products?category=tas&maxPrice=200000",
+            "/products/tas/200000",
+            "/products/category/tas/max/200000",
+            "/tas-products-under-200000"
+          ],
+          "answer": 0,
+          "explanation": "Kategori dan batas harga adalah filter atas koleksi /products, jadi keduanya masuk query string. Bentuk lain membuat route baru untuk setiap kombinasi filter.",
+          "remedial": "Kategori dan batas harga adalah filter atas koleksi /products, jadi keduanya masuk query string. Bentuk lain membuat route baru untuk setiap kombinasi filter."
+        },
+        {
+          "question": "Server latihan mendokumentasikan resource `/products/P01`. Apa status untuk request ini?",
+          "code": "curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/Products/P01",
+          "options": [
+            "200",
+            "301",
+            "404",
+            "400"
+          ],
+          "answer": 2,
+          "explanation": "Path di URI peka huruf besar-kecil. /Products/P01 bukan URI yang dikenal server, jadi jawabannya 404. Itulah alasan konvensi huruf kecil semua: tidak ada yang perlu menebak kapitalisasinya.",
+          "remedial": "Path di URI peka huruf besar-kecil. /Products/P01 bukan URI yang dikenal server, jadi jawabannya 404. Itulah alasan konvensi huruf kecil semua: tidak ada yang perlu menebak kapitalisasinya."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Dua filter digabung di query string. Berapa jumlah produk yang dikembalikan?",
+      "code": "curl -s \"https://api.toko.contoh/products?category=sepatu&maxPrice=300000\" | jq \".data | length\"",
+      "options": [
+        "0",
+        "1",
+        "2",
+        "6"
+      ],
+      "answer": 1,
+      "explanation": "Kategori sepatu berisi P04 (350000) dan P05 (210000). Dengan maxPrice=300000 hanya P05 yang lolos. Filter di query string bisa digabung dengan &, dan semuanya harus terpenuhi."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Ambil semua produk kategori alat-tulis dari koleksi produk\ncurl -s \"https://api.toko.contoh/___?category=alat-tulis\" | jq -c \"[.data[].id]\"",
+      "answers": [
+        "products"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "URI menamai resource dengan kata benda jamak (/products, /products/P01); aksi dinyatakan lewat method.",
+        "Pakai huruf kecil dan kebab-case, karena path peka huruf besar-kecil.",
+        "Filter, urutan, dan paging masuk query string, bukan segmen path.",
+        "Relasi bersarang cukup sampai 2 tingkat seperti /users/U01/orders; lebih dalam dari itu, beri resource alamat sendiri.",
+        "Aksi bisnis yang bukan CRUD boleh berbentuk POST /orders/O101/cancel, atau PATCH status kalau hanya mengganti field."
+      ]
+    }
+  ]
+}

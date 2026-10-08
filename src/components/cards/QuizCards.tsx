@@ -97,7 +97,7 @@ export function UnderstandingCheckCardComponent({
       </div>
 
       <div className="space-y-4">
-        <h3 className="font-bold text-lg">{q.question}</h3>
+        <h3 className="font-bold text-lg [overflow-wrap:anywhere]">{q.question}</h3>
         {q.code && (
           <div className="border-2 border-[var(--color-text-main)] rounded-xl overflow-hidden">
             <CodeMirror
@@ -133,7 +133,7 @@ export function UnderstandingCheckCardComponent({
                 key={i}
                 disabled={showResult}
                 onClick={() => handleSelect(i)}
-                className={`w-full text-left p-4 rounded-xl transition-all font-sans font-medium text-base brutal-btn bg-white whitespace-pre-wrap break-words ${btnClass}`}
+                className={`w-full text-left p-4 rounded-xl transition-all font-sans font-medium text-base brutal-btn bg-white whitespace-pre-wrap [overflow-wrap:anywhere] ${btnClass}`}
               >
                 {opt}
               </button>
@@ -350,7 +350,7 @@ export function PredictOutputCardComponent({
 
   return (
     <div className="space-y-4">
-      <h3 className="font-bold text-lg">{card.question ?? 'Apa output dari program ini?'}</h3>
+      <h3 className="font-bold text-lg [overflow-wrap:anywhere]">{card.question ?? 'Apa output dari program ini?'}</h3>
       <div className="border rounded-lg overflow-hidden border-gray-300">
         <CodeMirror
           value={card.code}
@@ -379,7 +379,7 @@ export function PredictOutputCardComponent({
               key={i}
               disabled={showExplanation && isSuccess}
               onClick={() => handleSelect(i)}
-              className={`w-full text-left p-4 rounded-xl transition-colors font-mono text-sm brutal-btn bg-white whitespace-pre-wrap break-words ${btnClass}`}
+              className={`w-full text-left p-4 rounded-xl transition-colors font-mono text-sm brutal-btn bg-white whitespace-pre-wrap [overflow-wrap:anywhere] ${btnClass}`}
             >
               {opt}
             </button>
@@ -478,7 +478,7 @@ export function ReorderCardComponent({
 
   return (
     <div className="space-y-4">
-      <h3 className="font-bold text-lg">{card.prompt}</h3>
+      <h3 className="font-bold text-lg [overflow-wrap:anywhere]">{card.prompt}</h3>
       <p className="text-sm text-gray-500 mb-2">
         Gunakan tombol ⬆️ dan ⬇️ untuk menyusun baris kode yang benar.
       </p>

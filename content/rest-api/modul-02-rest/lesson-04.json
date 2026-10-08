@@ -1,0 +1,110 @@
+{
+  "id": "api-rest-04",
+  "moduleId": "api-rest",
+  "order": 4,
+  "title": "Safe dan Idempotent",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "RFC 9110 memberi dua sifat penting pada method HTTP.\n\n**Safe** (aman): method yang artinya hanya membaca. Client tidak meminta perubahan apa pun di server. Server tetap boleh mencatat log atau menambah statistik kunjungan. Yang penting, client tidak meminta perubahan itu dan tidak bertanggung jawab atasnya.\n\n**Idempotent**: mengirim request yang sama berkali-kali memberi **efek di server** yang sama dengan mengirimnya sekali. Yang dinilai adalah keadaan server, bukan respons. `DELETE` kedua bisa dijawab `404`, tapi produknya tetap sama-sama sudah terhapus.\n\nSemua method safe pasti idempotent. Sebaliknya tidak: `PUT` dan `DELETE` mengubah data, tapi hasil akhirnya sama walau diulang.\n\nBayangkan tombol lift. Melihat angka lantai di layar tidak mengubah apa pun (safe). Menekan tombol lantai 5 sekali atau sepuluh kali hasilnya sama, lift berhenti di lantai 5 (idempotent). Memasukkan uang ke mesin minuman dua kali menghasilkan dua minuman, seperti POST yang tidak idempotent."
+    },
+    {
+      "type": "theory",
+      "content": "| Method | Safe | Idempotent | Catatan |\n|---|---|---|---|\n| `GET` | ya | ya | hanya membaca |\n| `HEAD` | ya | ya | seperti GET tanpa body |\n| `OPTIONS` | ya | ya | menanyakan kemampuan server |\n| `PUT` | tidak | ya | isi yang sama dikirim ulang, hasil akhirnya sama |\n| `DELETE` | tidak | ya | percobaan kedua bisa 404, keadaan server tetap sama |\n| `POST` | tidak | tidak | dua kali bisa membuat dua resource |\n| `PATCH` | tidak | tidak dijamin | `{\"stock\":7}` aman diulang, operasi \"kurangi 1\" tidak |\n\n**Kenapa penting?** Jaringan bisa putus setelah server memproses request tapi sebelum respons sampai. Client tidak tahu apakah request-nya berhasil. RFC 9110 menyebut request dengan method idempotent boleh diulang otomatis. Library HTTP, proxy, dan load balancer memanfaatkan sifat ini untuk retry.\n\nUntuk `POST`, retry buta berbahaya: pesanan atau pembayaran bisa tercatat dua kali. Itu sebabnya browser meminta konfirmasi sebelum mengirim ulang form POST. Solusi industri untuk API adalah header `Idempotency-Key`: client mengirim kunci unik, dan server mengenali percobaan ulang dengan kunci yang sama. Detailnya dibahas di modul Merancang API yang Rapi.\n\nSifat ini adalah **janji** yang harus kamu tepati saat membuat API. Kalau `GET` di API-mu ternyata mengubah data, semua alat yang mempercayai janji itu bisa merusak data tanpa sengaja."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nKirim `POST` yang sama dua kali, lalu `PUT` yang sama dua kali. Bandingkan efeknya pada data di server.\n\n```bash\ncurl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}' -o /dev/null -w \"%{http_code} %header{location}\\n\"\ncurl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}' -o /dev/null -w \"%{http_code} %header{location}\\n\"\ncurl -s https://api.toko.contoh/products | jq .meta.total\ncurl -s -X PUT https://api.toko.contoh/products/P03 -H \"Content-Type: application/json\" -d '{\"name\":\"Tas Sekolah\",\"price\":130000,\"category\":\"tas\",\"stock\":15}' -o /dev/null -w \"%{http_code}\\n\"\ncurl -s -X PUT https://api.toko.contoh/products/P03 -H \"Content-Type: application/json\" -d '{\"name\":\"Tas Sekolah\",\"price\":130000,\"category\":\"tas\",\"stock\":15}' -o /dev/null -w \"%{http_code}\\n\"\ncurl -s https://api.toko.contoh/products/P03 | jq -c \"{name, price, stock}\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}' -o /dev/null -w \"%{http_code} %header{location}\\n\"\n201 /products/P07\n$ curl -s -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}' -o /dev/null -w \"%{http_code} %header{location}\\n\"\n201 /products/P08\n$ curl -s https://api.toko.contoh/products | jq .meta.total\n8\n$ curl -s -X PUT https://api.toko.contoh/products/P03 -H \"Content-Type: application/json\" -d '{\"name\":\"Tas Sekolah\",\"price\":130000,\"category\":\"tas\",\"stock\":15}' -o /dev/null -w \"%{http_code}\\n\"\n200\n$ curl -s -X PUT https://api.toko.contoh/products/P03 -H \"Content-Type: application/json\" -d '{\"name\":\"Tas Sekolah\",\"price\":130000,\"category\":\"tas\",\"stock\":15}' -o /dev/null -w \"%{http_code}\\n\"\n200\n$ curl -s https://api.toko.contoh/products/P03 | jq -c \"{name, price, stock}\"\n{\"name\":\"Tas Sekolah\",\"price\":130000,\"stock\":15}\n```\n\n- Dua `POST` identik membuat **dua** produk, P07 dan P08. Total produk naik dari 6 menjadi 8. POST tidak idempotent.\n- Dua `PUT` identik memberi hasil akhir yang sama: harga P03 menjadi 130000, tidak berubah lagi pada percobaan kedua. PUT idempotent."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengulang POST otomatis tanpa Idempotency-Key**\n\nSalah:\n\n```javascript\n// ulangi sampai 3 kali kalau jaringan gagal\nfor (let i = 0; i < 3; i++) {\n  try {\n    return await fetch('https://api.toko.contoh/orders', { method: 'POST', headers, body });\n  } catch (e) { /* jaringan putus, coba lagi */ }\n}\n```\n\nBenar:\n\n```javascript\nconst key = crypto.randomUUID(); // satu key untuk semua percobaan pesanan ini\nfor (let i = 0; i < 3; i++) {\n  try {\n    return await fetch('https://api.toko.contoh/orders', {\n      method: 'POST', headers: { ...headers, 'Idempotency-Key': key }, body });\n  } catch (e) { /* aman dicoba lagi: server mengenali key yang sama */ }\n}\n```\n\nKalau request pertama sudah diproses tapi responsnya hilang, percobaan kedua tanpa key membuat pesanan baru dan stok terpotong dua kali. Dengan key yang sama, server latihan memutar ulang respons pertama dan menandainya dengan Idempotent-Replayed: true.\n\n**2. Memakai PATCH dengan nilai relatif**\n\nSalah:\n\n```bash\ncurl -X PATCH https://api.toko.contoh/products/P04 -H \"Content-Type: application/json\" -d '{\"stockChange\":-1}'\n```\n\nBenar:\n\n```bash\ncurl -X PATCH https://api.toko.contoh/products/P04 -H \"Content-Type: application/json\" -H 'If-Match: \"p04-v1\"' -d '{\"stock\":7}'\n```\n\nOperasi \"kurangi 1\" tidak idempotent: kalau di-retry, stok berkurang dua kali. Nilai absolut seperti stock 7 menghasilkan keadaan yang sama walau diulang. If-Match mencegah perubahanmu menimpa perubahan orang lain (dibahas di modul Merancang API yang Rapi).\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Menurut RFC 9110, method mana yang idempotent tetapi TIDAK safe?",
+          "options": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH"
+          ],
+          "answer": 2,
+          "explanation": "PUT mengubah data, jadi tidak safe. Namun mengirim PUT yang sama berkali-kali menghasilkan keadaan akhir yang sama, jadi idempotent. GET safe sekaligus idempotent; POST dan PATCH tidak dijamin idempotent.",
+          "remedial": "PUT mengubah data, jadi tidak safe. Namun mengirim PUT yang sama berkali-kali menghasilkan keadaan akhir yang sama, jadi idempotent. GET safe sekaligus idempotent; POST dan PATCH tidak dijamin idempotent."
+        },
+        {
+          "question": "Aplikasi kasir mengirim `POST /orders`, lalu koneksi putus sebelum respons diterima. Apa risiko kalau aplikasi langsung mengulang request yang sama tanpa pengaman?",
+          "options": [
+            "Tidak ada risiko, karena POST idempotent",
+            "Pesanan bisa tercatat dua kali kalau request pertama ternyata sudah diproses",
+            "Server pasti menolak request kedua dengan 409",
+            "Data pesanan pertama otomatis tertimpa oleh yang kedua"
+          ],
+          "answer": 1,
+          "explanation": "POST tidak idempotent. Client tidak tahu apakah request pertama sampai ke server. Tanpa Idempotency-Key, server menganggap request kedua sebagai pesanan baru.",
+          "remedial": "POST tidak idempotent. Client tidak tahu apakah request pertama sampai ke server. Tanpa Idempotency-Key, server menganggap request kedua sebagai pesanan baru."
+        },
+        {
+          "question": "Server mencatat setiap `GET /products/P01` ke log akses. Apakah GET masih disebut safe?",
+          "options": [
+            "Tidak, karena server menulis sesuatu ke disk",
+            "Tidak, kecuali server memakai cache",
+            "Ya, karena GET tidak punya body",
+            "Ya, karena client hanya meminta membaca; efek samping seperti log adalah tanggung jawab server"
+          ],
+          "answer": 3,
+          "explanation": "Safe berarti client tidak meminta perubahan pada resource. Log, metrik, dan statistik adalah efek samping yang dipilih server sendiri, dan tidak mengubah sifat safe GET.",
+          "remedial": "Safe berarti client tidak meminta perubahan pada resource. Log, metrik, dan statistik adalah efek samping yang dipilih server sendiri, dan tidak mengubah sifat safe GET."
+        },
+        {
+          "question": "Mana body PATCH yang aman diulang, yaitu hasil akhirnya sama walau dikirim dua kali?",
+          "options": [
+            "{\"stock\": 7}",
+            "{\"stockChange\": -1}",
+            "{\"op\": \"increment\", \"field\": \"stock\"}",
+            "{\"appendNote\": \"dicek gudang\"}"
+          ],
+          "answer": 0,
+          "explanation": "Nilai absolut menghasilkan keadaan yang sama berapa kali pun dikirim. Mengurangi, menambah, atau menambahkan catatan mengubah hasil setiap kali diulang.",
+          "remedial": "Nilai absolut menghasilkan keadaan yang sama berapa kali pun dikirim. Mengurangi, menambah, atau menambahkan catatan mengubah hasil setiap kali diulang."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Request POST dikirim dua kali dengan Idempotency-Key yang sama dan body yang sama. Berapa jumlah produk di akhir?",
+      "code": "curl -s -o /dev/null -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -H \"Idempotency-Key: topi-001\" -d '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}'\ncurl -s -o /dev/null -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -H \"Idempotency-Key: topi-001\" -d '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}'\ncurl -s https://api.toko.contoh/products | jq .meta.total",
+      "options": [
+        "6",
+        "7",
+        "8",
+        "409"
+      ],
+      "answer": 1,
+      "explanation": "Request pertama membuat P07, jadi total menjadi 7. Request kedua membawa key yang sama dengan body sama, sehingga server memutar ulang respons pertama tanpa membuat produk baru."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Cek apakah produk P03 ada dengan method safe yang hanya mengambil header\ncurl -s ___ https://api.toko.contoh/products/P03",
+      "answers": [
+        "-I|--head"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Safe berarti client hanya meminta membaca: GET, HEAD, dan OPTIONS.",
+        "Idempotent berarti efek di server sama walau request diulang; dinilai dari keadaan server, bukan dari respons.",
+        "PUT dan DELETE idempotent tapi tidak safe; POST tidak idempotent, PATCH tidak dijamin.",
+        "Request idempotent boleh di-retry otomatis saat jaringan putus; POST butuh Idempotency-Key supaya aman diulang.",
+        "Tepati janji ini saat membuat API: GET tidak boleh mengubah data."
+      ]
+    }
+  ]
+}

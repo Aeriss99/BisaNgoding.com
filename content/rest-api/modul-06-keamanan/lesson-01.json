@@ -1,0 +1,110 @@
+{
+  "id": "api-keamanan-01",
+  "moduleId": "api-keamanan",
+  "order": 1,
+  "title": "HTTPS dan Dasar Keamanan API",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sampai modul ini, kamu fokus membuat API yang benar dan rapi. Keamanan menambah satu pertanyaan: bagaimana kalau ada yang berniat jahat? Request bisa datang dari siapa saja, bukan hanya dari frontend buatan timmu.\n\nFondasi pertama adalah **HTTPS**, yaitu HTTP yang berjalan di atas **TLS** (*Transport Layer Security*, lapisan yang mengenkripsi data saat lewat jaringan). TLS memberi tiga hal: kerahasiaan (data disadap tetap acak), keutuhan (data yang diubah di jalan ketahuan), dan identitas server (sertifikat membuktikan kamu bicara dengan server yang benar). API produksi wajib HTTPS, tanpa kecuali.\n\nDua prinsip dasar lain menemani HTTPS: jangan menaruh rahasia di tempat yang gampang bocor, dan beri setiap pihak hak seminimal mungkin (*least privilege*).\n\nBayangkan mengirim surat berisi nomor rekening. Kartu pos bisa dibaca semua orang yang memegangnya di perjalanan; itu HTTP biasa. Amplop tertutup dan tersegel yang hanya bisa dibuka penerima resmi itu HTTPS. Setelah paragraf ini kita kembali ke istilah TLS, request, dan header seperti biasa."
+    },
+    {
+      "type": "theory",
+      "content": "**Kenapa HTTP polos berbahaya.** Tanpa TLS, siapa pun di jaringan yang sama (Wi-Fi kafe, router, penyedia internet) bisa membaca dan mengubah request. Token, password, dan data pelanggan lewat sebagai teks biasa.\n\n**Jangan taruh rahasia di query string.** Bagian `?...` dari URL ikut tercatat di banyak tempat walau koneksinya HTTPS:\n\n| Tempat | Apa yang tercatat |\n|---|---|\n| Log server dan proxy | URL lengkap, termasuk query |\n| Riwayat browser | URL lengkap |\n| Header `Referer` | URL bisa ikut terkirim ke situs lain saat pindah halaman (tergantung `Referrer-Policy`) |\n\nJadi token dan password dikirim lewat **header** atau **body**, bukan query. Server latihan mengikuti ini: login memakai body JSON, dan responsnya memakai `Cache-Control: no-store` supaya token tidak disimpan cache.\n\n**Least privilege.** Beri hak paling sedikit yang diperlukan. Satu API key untuk baca katalog tidak perlu bisa menghapus produk. Akun aplikasi tidak perlu hak admin database. Kalau satu kredensial bocor, kerusakannya terbatas.\n\n**HSTS.** Header respons `Strict-Transport-Security` menyuruh browser selalu memakai HTTPS ke domain itu, sehingga serangan \"turunkan ke HTTP\" lebih sulit. Ini pelengkap, bukan pengganti, konfigurasi TLS yang benar."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLogin memakai body, bukan query string. Lihat bahwa responsnya melarang cache menyimpan token. Lalu coba login dengan password salah dan dengan email yang tidak terdaftar.\n\n```bash\ncurl -i -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}'\ncurl -s -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"salah\"}' | jq -r .detail\ncurl -s -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"andi@toko.contoh\",\"password\":\"salah\"}' | jq -r .detail\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -i -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}'\nHTTP/1.1 200 OK\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nCache-Control: no-store\nContent-Type: application/json\nContent-Length: 237\nConnection: close\n\n{\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJVMDEiLCJyb2xlIjoiY3VzdG9tZXIiLCJpYXQiOjE3ODgyMjgwMDAsImV4cCI6MTc4ODIyODkwMH0.YId88gWZnThf95OHQlZSRtELeEo-33JJP68QubR0kuw\",\n  \"tokenType\": \"Bearer\",\n  \"expiresIn\": 900\n}\n$ curl -s -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"salah\"}' | jq -r .detail\nEmail atau password salah.\n$ curl -s -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"andi@toko.contoh\",\"password\":\"salah\"}' | jq -r .detail\nEmail atau password salah.\n```\n\nPerhatikan:\n\n- Respons login memakai `Cache-Control: no-store`. Cache, proxy, dan browser tidak boleh menyimpan token. Token ada di dalam body JSON, bukan di URL.\n- Password salah dan email yang tidak terdaftar mendapat pesan yang **sama**. Kalau pesannya berbeda (\"email tidak ditemukan\"), penyerang bisa menebak email mana yang terdaftar. Prinsipnya: beri informasi seperlunya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengirim token atau password di query string**\n\nSalah:\n\n```bash\ncurl \"https://api.toko.contoh/me?access_token=eyJhbGciOiJIUzI1NiIs...\"\n```\n\nBenar:\n\n```bash\ncurl https://api.toko.contoh/me -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIs...\"\n```\n\nWalau koneksinya HTTPS, query string tercatat di log server, proxy, riwayat browser, dan header `Referer`. Token jadi mudah bocor. Kirim kredensial lewat header `Authorization` atau body request.\n\n**2. Menganggap HTTPS membuat validasi input tidak perlu**\n\nSalah:\n\n```javascript\n// \"Sudah pakai HTTPS, jadi request pasti dari aplikasi kita\"\napp.post(\"/orders\", (req, res) => simpan(req.body));\n```\n\nBenar:\n\n```javascript\n// HTTPS mengamankan jalur; isi request tetap wajib divalidasi\napp.post(\"/orders\", (req, res) => simpan(validasi(req.body)));\n```\n\nTLS hanya mengamankan data selama di perjalanan. Ia tidak memeriksa isi request dan tidak tahu siapa pengirimnya. Penyerang tetap bisa mengirim request HTTPS yang sah secara teknis tapi isinya jahat. Autentikasi dan validasi tetap wajib.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dijamin TLS (HTTPS) untuk sebuah request API?",
+          "options": [
+            "Request pasti berasal dari aplikasi resmi milik tim",
+            "Isi body sudah otomatis tervalidasi oleh server",
+            "Data terenkripsi di perjalanan, perubahan di jalan ketahuan, dan identitas server terbukti",
+            "Pengguna pasti sudah login dan berhak"
+          ],
+          "answer": 2,
+          "explanation": "TLS memberi kerahasiaan, keutuhan, dan identitas server. Ia tidak memeriksa siapa pengirim request atau apakah isinya valid; itu tugas autentikasi dan validasi.",
+          "remedial": "TLS memberi kerahasiaan, keutuhan, dan identitas server. Ia tidak memeriksa siapa pengirim request atau apakah isinya valid; itu tugas autentikasi dan validasi."
+        },
+        {
+          "question": "Kenapa token sebaiknya tidak dikirim di query string meski koneksinya sudah HTTPS?",
+          "options": [
+            "Query string tidak bisa memuat karakter token",
+            "Query string ikut tercatat di log server, riwayat browser, dan header Referer",
+            "HTTPS tidak mengenkripsi query string",
+            "Query string selalu dibatasi 10 karakter"
+          ],
+          "answer": 1,
+          "explanation": "HTTPS mengenkripsi seluruh URL di jaringan, tapi query string tetap muncul utuh di log, riwayat, dan Referer. Karena itu rahasia dikirim lewat header atau body.",
+          "remedial": "HTTPS mengenkripsi seluruh URL di jaringan, tapi query string tetap muncul utuh di log, riwayat, dan Referer. Karena itu rahasia dikirim lewat header atau body."
+        },
+        {
+          "question": "Prinsip *least privilege* diterapkan pada API key integrasi. Mana contoh penerapannya?",
+          "options": [
+            "Key dipakai bersama oleh semua layanan agar praktis",
+            "Key disimpan di repo agar mudah ditemukan tim",
+            "Key tidak pernah diganti supaya integrasi tidak putus",
+            "Key hanya diberi izin baca katalog, tidak bisa menghapus atau mengubah produk"
+          ],
+          "answer": 3,
+          "explanation": "Least privilege berarti memberi hak paling sedikit yang diperlukan. Key untuk membaca katalog tidak perlu izin tulis, sehingga kebocorannya tidak bisa merusak data.",
+          "remedial": "Least privilege berarti memberi hak paling sedikit yang diperlukan. Key untuk membaca katalog tidak perlu izin tulis, sehingga kebocorannya tidak bisa merusak data."
+        },
+        {
+          "question": "Server menjawab login dengan header `Cache-Control: no-store`. Apa tujuannya?",
+          "options": [
+            "Agar token tidak disimpan oleh cache, proxy, atau browser",
+            "Agar token berlaku selamanya",
+            "Agar respons dikompres lebih kecil",
+            "Agar browser mengulang login otomatis"
+          ],
+          "answer": 0,
+          "explanation": "no-store melarang semua pihak menyimpan respons. Token yang sensitif tidak boleh mengendap di cache bersama, karena bisa terbaca pihak lain.",
+          "remedial": "no-store melarang semua pihak menyimpan respons. Token yang sensitif tidak boleh mengendap di cache bersama, karena bisa terbaca pihak lain."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa nilai header `Cache-Control` pada respons login server latihan?",
+      "code": "curl -s -o /dev/null -w \"%header{cache-control}\\n\" -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}'",
+      "options": [
+        "max-age=60",
+        "no-store",
+        "public",
+        "private, max-age=0"
+      ],
+      "answer": 1,
+      "explanation": "Respons yang berisi token memakai no-store supaya tidak ada pihak yang menyimpannya. max-age dan public justru mengizinkan penyimpanan, yang berbahaya untuk token."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Kirim kredensial login di body JSON (bukan query string), lalu tampilkan jenis token\ncurl -s -X POST https://api.toko.contoh/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"budi@toko.contoh\",\"___\":\"rahasia123\"}' | jq -r .tokenType",
+      "answers": [
+        "password"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "HTTPS (HTTP di atas TLS) memberi kerahasiaan, keutuhan data, dan bukti identitas server; API produksi wajib memakainya.",
+        "TLS mengamankan jalur, tetapi tidak menggantikan autentikasi dan validasi input di server.",
+        "Jangan taruh token atau password di query string; ia bocor lewat log, riwayat browser, dan header Referer.",
+        "Terapkan least privilege: beri setiap kredensial hak paling sedikit yang diperlukan.",
+        "Respons berisi token memakai Cache-Control: no-store, dan pesan login gagal tidak membedakan email salah atau password salah."
+      ]
+    }
+  ]
+}

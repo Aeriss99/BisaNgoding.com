@@ -197,7 +197,7 @@ export default function QuizPage() {
                   <div className="shrink-0 w-8 h-8 bg-red-100 text-red-600 rounded-full flex items-center justify-center font-bold">
                     {i + 1}
                   </div>
-                  <div className="font-bold text-lg">{q.question}</div>
+                  <div className="font-bold text-lg [overflow-wrap:anywhere]">{q.question}</div>
                 </div>
                 {q.code && (
                   <div className="border rounded-lg overflow-hidden border-gray-300">
@@ -262,7 +262,7 @@ export default function QuizPage() {
       <div className="flex-1 flex flex-col items-center md:py-6">
         <div className="w-full h-[calc(100dvh-60px)] lg:h-[calc(100dvh-64px)] max-w-[100vw] sm:max-w-xl md:max-w-3xl md:h-[calc(100dvh-64px-48px)] md:rounded-2xl bg-white flex flex-col brutal-border relative overflow-hidden">
           <main className="flex-1 overflow-y-auto p-6 pb-32 space-y-6">
-          <h3 className="font-bold text-xl">{q.question}</h3>
+          <h3 className="font-bold text-xl [overflow-wrap:anywhere]">{q.question}</h3>
 
           {q.code && (
             <div className="border rounded-lg overflow-hidden border-gray-300">

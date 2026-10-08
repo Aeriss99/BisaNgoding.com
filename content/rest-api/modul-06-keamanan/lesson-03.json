@@ -1,0 +1,110 @@
+{
+  "id": "api-keamanan-03",
+  "moduleId": "api-keamanan",
+  "order": 3,
+  "title": "API Key",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**API key** adalah string rahasia yang dipakai sebuah aplikasi untuk mengenal dirinya ke API. Cocok untuk komunikasi **server ke server**: backend tokomu memanggil API cuaca, API pembayaran, atau API pengiriman. Key menandai \"ini aplikasi Toko Budi\", bukan \"ini pengguna Budi\".\n\nAPI key sederhana dan praktis, tapi punya batas penting. Ia mengidentifikasi **aplikasi**, bukan pengguna akhir. Siapa pun yang memegang key bisa memakainya. Karena itu key wajib dirahasiakan dengan ketat, mudah diganti (dirotasi), dan diberi hak sesempit mungkin.\n\nAPI key seperti kartu akses gedung milik perusahaan, bukan kartu identitas pribadi. Kartu itu membuka pintu atas nama perusahaan. Siapa pun yang memegangnya bisa masuk, jadi perusahaan menjaganya ketat dan segera menonaktifkan kartu yang hilang. Setelah ini kita pakai istilah key, header, dan request."
+    },
+    {
+      "type": "theory",
+      "content": "**Cara mengirim API key.** Lewat **header**, bukan query string. Nama header belum dibakukan; yang umum:\n\n```text\nX-API-Key: tb_live_9fK2xQ7LmA3vR8sW1zY6bN4c\nAuthorization: Bearer tb_live_9fK2xQ7LmA3vR8sW1zY6bN4c\n```\n\nHindari `?api_key=...` karena query string bocor lewat log dan riwayat, seperti dibahas di materi HTTPS.\n\n**Praktik mengelola API key:**\n\n- **Rahasiakan.** Key milik backend disimpan di *environment variable* atau *secret manager*, bukan di dalam kode yang masuk ke repo.\n- **Jangan di frontend.** Key yang ditempel di JavaScript browser atau aplikasi HP bisa dibaca siapa saja lewat DevTools. Panggil API pihak ketiga dari backend-mu, lalu backend yang menyimpan key.\n- **Rotasi.** Sediakan cara mengganti key tanpa mematikan layanan, misalnya izinkan dua key aktif saat transisi. Ganti berkala dan segera saat diduga bocor.\n- **Batasi.** Beri key hanya izin yang perlu (least privilege), dan batasi per kuota (rate limit) agar kebocoran tidak dipakai menyedot data.\n\n**API key vs token pengguna.** API key cocok saat tidak ada pengguna akhir, misalnya *cron job* atau integrasi antar layanan. Untuk aksi atas nama pengguna tertentu (melihat pesanan Budi), pakai token pengguna seperti JWT, yang dibahas di materi berikutnya. Beberapa API besar memakai keduanya: key menandai aplikasi, token menandai pengguna."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLihat kenapa API key tidak boleh di query string. Perintah pertama membocorkan key ke URL yang tercetak alat. Perintah kedua menunjukkan bentuk yang lebih aman: key dikirim lewat header.\n\n```bash\ncurl -s -o /dev/null -w \"URL tercatat: %{url_effective}\\n\" \"https://api.toko.contoh/products?api_key=tb_live_9fK2xQ7L\"\ncurl -s -o /dev/null -w \"status: %{http_code}\\n\" https://api.toko.contoh/products -H \"X-API-Key: tb_live_9fK2xQ7L\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s -o /dev/null -w \"URL tercatat: %{url_effective}\\n\" \"https://api.toko.contoh/products?api_key=tb_live_9fK2xQ7L\"\nURL tercatat: https://api.toko.contoh/products?api_key=tb_live_9fK2xQ7L\n$ curl -s -o /dev/null -w \"status: %{http_code}\\n\" https://api.toko.contoh/products -H \"X-API-Key: tb_live_9fK2xQ7L\"\nstatus: 200\n```\n\nPerhatikan:\n\n- Perintah pertama menaruh key di query string, dan `%{url_effective}` menampilkannya utuh. Di dunia nyata, nilai itu ikut masuk ke log server dan riwayat browser.\n- Perintah kedua mengirim key lewat header `X-API-Key`. Server latihan tidak memakai API key, jadi request `/products` tetap `200`; yang penting di sini adalah **letak** key: di header, bukan di URL.\n- Nama header API key berbeda antar layanan (`X-API-Key`, `Authorization: Bearer`, dan lainnya). Selalu cek dokumentasi API yang kamu pakai."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menaruh API key di kode frontend**\n\nSalah:\n\n```javascript\nconst res = await fetch(\"https://api.cuaca.contoh/v1/now\", {\n  headers: { \"X-API-Key\": \"tb_live_9fK2xQ7LmA3vR8sW1zY6bN4c\" },\n});\n```\n\nBenar:\n\n```javascript\n// Frontend memanggil backend-mu sendiri; backend yang menyimpan key\nconst res = await fetch(\"/api/cuaca\");\n// server: fetch ke API cuaca dengan key dari process.env.CUACA_KEY\n```\n\nApa pun yang dikirim browser bisa dibaca pengguna lewat DevTools, termasuk key di header. Key milik backend tidak boleh sampai ke client. Jadikan backend-mu perantara yang menyimpan key.\n\n**2. Menyimpan API key di dalam repo Git**\n\nSalah:\n\n```javascript\n// config.js yang ikut ter-commit\nexport const PAYMENT_KEY = \"pk_rahasia_9fK2xQ7LmA3vR8sW1zY6bN4c\";\n```\n\nBenar:\n\n```javascript\n// Baca dari environment variable, jangan commit nilainya\nexport const PAYMENT_KEY = process.env.PAYMENT_KEY;\n```\n\nKey di repo akan tersimpan selamanya di riwayat Git, walau nanti dihapus dari file. Repo yang ter-publish atau bocor langsung membocorkan key. Simpan di environment variable atau secret manager, dan masukkan file rahasia ke .gitignore.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kapan API key paling cocok dipakai?",
+          "options": [
+            "Komunikasi server ke server, misalnya backend memanggil API pembayaran",
+            "Membedakan dua pengguna akhir yang login di aplikasi yang sama",
+            "Menggantikan HTTPS saat jaringan tidak aman",
+            "Menyimpan keranjang belanja pengguna di browser"
+          ],
+          "answer": 0,
+          "explanation": "API key mengenali aplikasi, bukan pengguna akhir. Ia cocok untuk integrasi antar server. Untuk membedakan pengguna, pakai token pengguna seperti JWT.",
+          "remedial": "API key mengenali aplikasi, bukan pengguna akhir. Ia cocok untuk integrasi antar server. Untuk membedakan pengguna, pakai token pengguna seperti JWT."
+        },
+        {
+          "question": "Di mana API key milik backend sebaiknya disimpan?",
+          "options": [
+            "Di dalam kode JavaScript frontend agar mudah dipakai",
+            "Di query string setiap request",
+            "Di komentar kode supaya tim ingat",
+            "Di environment variable atau secret manager, tidak ikut ke repo"
+          ],
+          "answer": 3,
+          "explanation": "Key rahasia tidak boleh sampai ke client atau ke repo. Environment variable dan secret manager menyimpannya di sisi server tanpa menuliskannya di kode.",
+          "remedial": "Key rahasia tidak boleh sampai ke client atau ke repo. Environment variable dan secret manager menyimpannya di sisi server tanpa menuliskannya di kode."
+        },
+        {
+          "question": "Kenapa API key sebaiknya bisa dirotasi (diganti) dengan mudah?",
+          "options": [
+            "Agar ukuran request mengecil",
+            "Agar key yang diduga bocor bisa cepat diganti tanpa mematikan layanan",
+            "Agar key otomatis terenkripsi",
+            "Agar API tidak perlu memakai HTTPS"
+          ],
+          "answer": 1,
+          "explanation": "Kebocoran key bisa terjadi kapan saja. Rotasi yang mudah, misalnya mengizinkan dua key aktif saat transisi, membuat key lama bisa dinonaktifkan tanpa memutus integrasi.",
+          "remedial": "Kebocoran key bisa terjadi kapan saja. Rotasi yang mudah, misalnya mengizinkan dua key aktif saat transisi, membuat key lama bisa dinonaktifkan tanpa memutus integrasi."
+        },
+        {
+          "question": "Frontend perlu menampilkan data dari API pihak ketiga yang butuh API key rahasia. Pendekatan mana yang aman?",
+          "options": [
+            "Tempel key di fetch frontend, tapi samarkan dengan base64",
+            "Kirim key lewat query string agar tidak terlihat di header",
+            "Frontend memanggil backend sendiri; backend memegang key dan meneruskan ke API pihak ketiga",
+            "Simpan key di localStorage browser"
+          ],
+          "answer": 2,
+          "explanation": "Key rahasia harus tetap di server. Jadikan backend-mu perantara: frontend memanggil backend, backend yang menyimpan key dan memanggil API pihak ketiga. base64 dan localStorage tetap terbaca di browser.",
+          "remedial": "Key rahasia harus tetap di server. Jadikan backend-mu perantara: frontend memanggil backend, backend yang menyimpan key dan memanggil API pihak ketiga. base64 dan localStorage tetap terbaca di browser."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa yang ditampilkan `%{url_effective}` untuk perintah ini, dan kenapa itu masalah?",
+      "code": "curl -s -o /dev/null -w \"%{url_effective}\\n\" \"https://api.toko.contoh/products?q=tas&api_key=tb_live_9fK2xQ7L\"",
+      "options": [
+        "https://api.toko.contoh/products (query disembunyikan)",
+        "https://api.toko.contoh/products?q=tas (api_key dihapus curl)",
+        "[api_key disensor otomatis]",
+        "https://api.toko.contoh/products?q=tas&api_key=tb_live_9fK2xQ7L"
+      ],
+      "answer": 3,
+      "explanation": "URL dicetak utuh, termasuk api_key. Itulah masalahnya: query string tercatat apa adanya di log dan riwayat. Kirim key lewat header agar tidak ikut tercatat di URL."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Lengkapi nama header kustom yang umum dipakai untuk mengirim API key\ncurl https://api.toko.contoh/products -H \"___: tb_live_9fK2xQ7L\"",
+      "answers": [
+        "X-API-Key"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "API key mengidentifikasi aplikasi (server ke server), bukan pengguna akhir seperti token pengguna.",
+        "Kirim key lewat header, bukan query string; nama header berbeda antar layanan, jadi cek dokumentasi.",
+        "Simpan key di environment variable atau secret manager; jangan di frontend dan jangan di repo Git.",
+        "Sediakan rotasi key yang mudah agar kebocoran bisa cepat ditangani tanpa memutus layanan.",
+        "Beri key hak paling sedikit (least privilege) dan batasi dengan rate limit."
+      ]
+    }
+  ]
+}

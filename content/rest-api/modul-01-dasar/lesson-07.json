@@ -1,0 +1,111 @@
+{
+  "id": "api-dasar-07",
+  "moduleId": "api-dasar",
+  "order": 7,
+  "title": "Melihat Request dengan DevTools dan curl",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saat API bermasalah, engineer tidak menebak. Langkah pertama: lihat request dan response yang **benar-benar** terjadi. Ada dua alat utama:\n\n- **DevTools** di browser, untuk request yang dikirim website.\n- **curl**, untuk mengirim dan mengulang request dari terminal.\n\nCara memakai tab **Network** di Chrome atau Firefox:\n\n1. Buka website, lalu tekan `F12` (atau `Ctrl+Shift+I`; di macOS `Cmd+Option+I`).\n2. Pilih tab **Network**.\n3. Aktifkan **Preserve log** (di Firefox: **Persist Logs**) supaya daftar tidak terhapus saat pindah halaman.\n4. Pilih filter **Fetch/XHR** (di Firefox: **XHR**) supaya hanya request API yang tampil, tanpa gambar dan CSS.\n5. Muat ulang halaman, lalu klik satu baris request.\n\nPanel detail berisi beberapa tab. **Headers** menampilkan URL, method, status code, request header, dan response header. **Payload** (di Firefox: **Request**) menampilkan query string dan body request. **Preview** menampilkan body response JSON yang dirapikan, dan **Response** menampilkan teks mentahnya. Di Firefox, keduanya ada di tab **Response**.\n\nTab Network seperti buku catatan kurir: setiap paket yang keluar dan masuk dicatat alamatnya, isinya, dan waktunya. Saat ada keluhan, kamu membuka catatan itu, bukan menebak apa yang terjadi."
+    },
+    {
+      "type": "theory",
+      "content": "Dari DevTools ke terminal: klik kanan sebuah request, lalu pilih **Copy → Copy as cURL**. Kamu mendapat perintah curl lengkap untuk mengulang request itu. Hapus header `Authorization` dan `Cookie` sebelum membagikannya, karena isinya kredensial.\n\nOpsi curl untuk melihat request dan response:\n\n| Opsi | Fungsi |\n|---|---|\n| `-i` | tampilkan status line dan header response, lalu body |\n| `-I` | kirim request `HEAD`: hanya header, tanpa body |\n| `-s` | mode senyap: sembunyikan progress meter dan pesan error curl |\n| `-o /dev/null` | buang body (di Windows: `-o NUL`) |\n| `-w \"%{http_code}\\n\"` | setelah selesai, cetak informasi tertentu, mis. status code |\n| `-v` | tampilkan detail request dan response |\n\nCara membaca output `curl -i`:\n\n1. Baris pertama adalah status line, mis. `HTTP/1.1 200 OK`.\n2. Baris berikutnya adalah header, sampai bertemu baris kosong.\n3. Setelah baris kosong, body.\n\nOpsi `-v` (*verbose*) menampilkan lebih banyak detail. Baris diawali `>` adalah request yang dikirim curl. Baris diawali `<` adalah response dari server. Baris diawali `*` adalah info koneksi, mis. DNS dan TLS.\n\nExit code curl bernilai `0` selama server menjawab, termasuk untuk `404` dan `500`. Di skrip, periksa status code dengan `-w`, atau tambahkan `--fail` (`-f`) supaya curl keluar dengan kode 22 untuk status 400 ke atas. Kalau memakai `-s`, tambahkan `-S` supaya pesan error curl tetap tampil."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLihat response produk P02 dalam tiga cara: lengkap dengan header, header saja, dan status code saja.\n\n```bash\ncurl -i https://api.toko.contoh/products/P02\ncurl -I https://api.toko.contoh/products/P02\ncurl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/products/P02\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -i https://api.toko.contoh/products/P02\nHTTP/1.1 200 OK\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nETag: \"p02-v1\"\nCache-Control: max-age=60\nContent-Type: application/json\nContent-Length: 143\nConnection: close\n\n{\n  \"id\": \"P02\",\n  \"name\": \"Pulpen Biru\",\n  \"price\": 3500,\n  \"category\": \"alat-tulis\",\n  \"stock\": 300,\n  \"createdAt\": \"2026-08-07T02:00:00Z\"\n}\n$ curl -I https://api.toko.contoh/products/P02\nHTTP/1.1 200 OK\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nETag: \"p02-v1\"\nCache-Control: max-age=60\nContent-Type: application/json\nContent-Length: 143\nConnection: close\n$ curl -s -o /dev/null -w \"%{http_code}\\n\" https://api.toko.contoh/products/P02\n200\n```\n\nCara membacanya:\n\n- `curl -i`: status line `200 OK`, header sampai baris kosong, lalu body JSON. Header `ETag` dan `Cache-Control` dipakai untuk caching (dibahas di modul Merancang API yang Rapi).\n- `curl -I` mengirim `HEAD`. Status dan header-nya sama dengan `curl -i`, tapi body tidak dikirim. `Content-Length: 143` tetap menyebut panjang body yang akan dikirim untuk `GET`.\n- Kombinasi `-s -o /dev/null -w \"%{http_code}\"` hanya mencetak status code. Pola ini sering dipakai di skrip pengecekan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai -X HEAD untuk mengambil header**\n\nSalah:\n\n```bash\ncurl -X HEAD https://api.toko.contoh/products/P01\n```\n\nBenar:\n\n```bash\ncurl -I https://api.toko.contoh/products/P01\n```\n\n`-X` hanya mengganti kata method. curl tetap menunggu body sepanjang `Content-Length`, padahal server tidak mengirim body untuk `HEAD`. Akibatnya curl menggantung, atau berakhir dengan error `(18) transfer closed with 142 bytes remaining to read`. curl sendiri memperingatkan: `Consider using -I/--head instead.`\n\n**2. Menganggap exit code 0 berarti request berhasil**\n\nSalah:\n\n```bash\ncurl -s https://api.toko.contoh/products/P99 > produk.json && echo \"berhasil\"\n```\n\nBenar:\n\n```bash\nstatus=$(curl -s -o produk.json -w \"%{http_code}\" https://api.toko.contoh/products/P99)\n[ \"$status\" = \"200\" ] && echo \"berhasil\" || echo \"gagal: $status\"\n```\n\nExit code 0 hanya berarti curl menerima response. Response `404` pun dianggap sukses oleh curl, jadi skrip mencetak \"berhasil\" dan menyimpan pesan error sebagai data produk. Periksa status code dengan `-w`, atau pakai `--fail`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Skrip pengecekan hanya butuh status code dari sebuah endpoint. Perintah mana yang paling tepat?",
+          "options": [
+            "`curl -s -o /dev/null -w \"%{http_code}\" URL`",
+            "`curl -i URL`",
+            "`curl -v URL`",
+            "`curl -o status.txt URL`"
+          ],
+          "answer": 0,
+          "explanation": "-o /dev/null membuang body, -s menyembunyikan progress, dan -w \"%{http_code}\" mencetak status code saja. -i dan -v menampilkan terlalu banyak teks, dan -o status.txt menyimpan body, bukan status.",
+          "remedial": "-o /dev/null membuang body, -s menyembunyikan progress, dan -w \"%{http_code}\" mencetak status code saja. -i dan -v menampilkan terlalu banyak teks, dan -o status.txt menyimpan body, bukan status."
+        },
+        {
+          "question": "Website toko.contoh menampilkan \"Gagal memuat produk\". Di DevTools, di mana kamu melihat status code dan response header dari request API itu?",
+          "options": [
+            "Tab Elements, pada elemen HTML yang menampilkan pesan error",
+            "Tab Application, pada bagian Storage untuk data halaman",
+            "Tab Network, panel Headers setelah mengklik baris request",
+            "Tab Sources, pada file JavaScript yang memanggil API"
+          ],
+          "answer": 2,
+          "explanation": "Tab Network mencatat setiap request. Klik barisnya, lalu panel Headers menampilkan method, URL, status code, request header, dan response header.",
+          "remedial": "Tab Network mencatat setiap request. Klik barisnya, lalu panel Headers menampilkan method, URL, status code, request header, dan response header."
+        },
+        {
+          "question": "Apa yang dilakukan `curl -I`?",
+          "options": [
+            "Menampilkan header dan body response",
+            "Mengirim request `HEAD` sehingga yang diterima hanya header",
+            "Mengirim request tanpa header sama sekali",
+            "Menampilkan request yang dikirim curl"
+          ],
+          "answer": 1,
+          "explanation": "-I (huruf i besar) mengirim HEAD: server menjawab dengan header yang sama seperti GET, tanpa body. Untuk header plus body, pakai -i (huruf kecil).",
+          "remedial": "-I (huruf i besar) mengirim HEAD: server menjawab dengan header yang sama seperti GET, tanpa body. Untuk header plus body, pakai -i (huruf kecil)."
+        },
+        {
+          "question": "Apa yang bisa kamu simpulkan dari output `curl -i` ini?",
+          "code": "HTTP/1.1 404 Not Found\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nContent-Type: application/problem+json\nContent-Length: 112\nConnection: close",
+          "options": [
+            "Produk ditemukan dan dikirim sebagai JSON sepanjang 112 byte",
+            "Server mati, jadi curl membuat status 404 sendiri",
+            "Request tidak sampai ke server karena header-nya salah",
+            "Server hidup dan menjawab bahwa resource tidak ditemukan"
+          ],
+          "answer": 3,
+          "explanation": "Status line, Date, dan header lain dikirim oleh server, jadi server hidup. Statusnya 404 Not Found. Content-Type application/problem+json menunjukkan body berisi pesan error, bukan data produk.",
+          "remedial": "Status line, Date, dan header lain dikirim oleh server, jadi server hidup. Statusnya 404 Not Found. Content-Type application/problem+json menunjukkan body berisi pesan error, bukan data produk."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Produk P99 tidak ada di API Toko Budi. Apa output perintah ini?",
+      "code": "curl -s -o /dev/null -w \"%{http_code}\" -I https://api.toko.contoh/products/P99",
+      "options": [
+        "404",
+        "200",
+        "204",
+        "000"
+      ],
+      "answer": 0,
+      "explanation": "HEAD menghasilkan status yang sama dengan GET, hanya tanpa body. Produk tidak ada, jadi statusnya 404. Nilai 000 hanya muncul kalau curl tidak mendapat response sama sekali."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan hanya status code, tanpa body dan tanpa progress\ncurl -s -o /dev/null ___ \"%{http_code}\" https://api.toko.contoh/products/P03",
+      "answers": [
+        "-w|--write-out"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tab Network di DevTools mencatat method, URL, status code, header, dan body setiap request; aktifkan Preserve log dan filter Fetch/XHR.",
+        "\"Copy as cURL\" mengulang request browser di terminal; hapus header Authorization dan Cookie sebelum membagikannya.",
+        "curl -i menampilkan status line, header, baris kosong, lalu body; curl -I mengirim HEAD untuk header saja.",
+        "Pola curl -s -o /dev/null -w \"%{http_code}\" mencetak status code saja, cocok untuk skrip.",
+        "Exit code curl 0 tetap muncul untuk 404 dan 500; periksa status code atau pakai --fail."
+      ]
+    }
+  ]
+}

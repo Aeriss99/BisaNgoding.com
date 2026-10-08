@@ -1,0 +1,112 @@
+{
+  "id": "api-client-06",
+  "moduleId": "api-client",
+  "order": 6,
+  "title": "CORS",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Origin** adalah gabungan skema, host, dan port dari sebuah URL. `https://toko.contoh` dan `https://api.toko.contoh` adalah **dua origin berbeda** karena host-nya berbeda, walau domainnya mirip.\n\nBrowser menerapkan **same-origin policy**: JavaScript di halaman `https://toko.contoh` tidak boleh membaca respons dari origin lain, kecuali server tujuan mengizinkannya. Mekanisme izin itu bernama **CORS** (*Cross-Origin Resource Sharing*).\n\nCara kerjanya:\n\n1. Browser menambahkan header `Origin: https://toko.contoh` ke request lintas origin secara otomatis.\n2. Server menjawab dengan header `Access-Control-Allow-Origin` kalau origin itu diizinkan.\n3. Browser memeriksa header tersebut. Kalau tidak cocok, respons tidak diberikan ke JavaScript, dan fetch reject dengan `TypeError`.\n\nCORS **hanya ditegakkan oleh browser**. curl, Postman, dan server lain tidak peduli CORS. Itulah kenapa request yang \"jalan di Postman\" bisa gagal di browser.\n\nBayangkan satpam gedung (browser) yang mengantar tamu ke kantor lain. Satpam tidak memutuskan sendiri siapa yang boleh masuk. Ia melihat daftar tamu yang dipasang kantor tujuan (header dari server). Kalau nama tamu tidak ada di daftar, pesan dari kantor itu tidak diteruskan ke tamu."
+    },
+    {
+      "type": "theory",
+      "content": "Untuk request tertentu, browser lebih dulu mengirim **preflight**, yaitu request `OPTIONS` yang menanyakan izin sebelum request asli dikirim. Preflight terjadi kalau request:\n\n- memakai method selain `GET`, `HEAD`, atau `POST`, misalnya `PUT`, `PATCH`, atau `DELETE`,\n- membawa header di luar daftar aman, misalnya `Authorization` atau `Idempotency-Key`,\n- memakai `Content-Type` selain `application/x-www-form-urlencoded`, `multipart/form-data`, atau `text/plain`. Artinya `POST` dengan `application/json` **selalu** memicu preflight.\n\nHeader yang terlibat:\n\n| Header | Arah | Isi |\n|---|---|---|\n| `Origin` | request | origin halaman pemanggil |\n| `Access-Control-Request-Method` | request preflight | method yang akan dipakai |\n| `Access-Control-Request-Headers` | request preflight | header tambahan yang akan dikirim |\n| `Access-Control-Allow-Origin` | respons | origin yang diizinkan |\n| `Access-Control-Allow-Methods` / `-Headers` | respons preflight | method dan header yang diizinkan |\n| `Access-Control-Max-Age` | respons preflight | berapa detik hasil preflight boleh diingat browser |\n| `Access-Control-Expose-Headers` | respons | header tambahan yang boleh dibaca JavaScript, misalnya `Location` |\n| `Access-Control-Allow-Credentials` | respons | `true` kalau cookie boleh ikut; tidak boleh dipadukan dengan origin `*` |\n\nMisalnya dasbor baru di `https://admin.toko.contoh` belum didaftarkan di server. Console browser akan menampilkan pesan seperti \"Access to fetch at 'https://api.toko.contoh/products' from origin 'https://admin.toko.contoh' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.\" Di JavaScript kamu hanya menerima `TypeError` (\"Failed to fetch\" di Chrome). Penyebab lengkapnya hanya terlihat di console dan tab Network.\n\nPerbaikannya selalu **di server**: daftarkan origin frontend di konfigurasi CORS. Kirim juga `Vary: Origin` kalau nilai `Access-Control-Allow-Origin` berbeda per origin, supaya cache tidak tertukar.\n\nIngat juga: CORS bukan pengganti autentikasi. Untuk `GET` atau `POST` sederhana, request tetap sampai ke server; browser hanya menyembunyikan responsnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nTiru request browser dengan menambahkan header `Origin` sendiri. Server latihan hanya mengizinkan `https://toko.contoh`. Kita cetak header saja.\n\n```bash\ncurl -s -o /dev/null -D - https://api.toko.contoh/products -H \"Origin: https://toko.contoh\"\ncurl -s -o /dev/null -D - https://api.toko.contoh/products -H \"Origin: https://penipu.contoh\"\ncurl -i -X OPTIONS https://api.toko.contoh/products -H \"Origin: https://toko.contoh\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: content-type\"\ncurl -i -X OPTIONS https://api.toko.contoh/products -H \"Origin: https://penipu.contoh\" -H \"Access-Control-Request-Method: POST\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s -o /dev/null -D - https://api.toko.contoh/products -H \"Origin: https://toko.contoh\"\nHTTP/1.1 200 OK\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nVary: Origin\nAccess-Control-Allow-Origin: https://toko.contoh\nContent-Type: application/json\nContent-Length: 1128\nConnection: close\n$ curl -s -o /dev/null -D - https://api.toko.contoh/products -H \"Origin: https://penipu.contoh\"\nHTTP/1.1 200 OK\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nVary: Origin\nContent-Type: application/json\nContent-Length: 1128\nConnection: close\n$ curl -i -X OPTIONS https://api.toko.contoh/products -H \"Origin: https://toko.contoh\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: content-type\"\nHTTP/1.1 204 No Content\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nAllow: GET, HEAD, POST, OPTIONS\nVary: Origin\nAccess-Control-Allow-Origin: https://toko.contoh\nAccess-Control-Allow-Methods: GET, HEAD, POST, OPTIONS\nAccess-Control-Allow-Headers: Content-Type, Authorization, Idempotency-Key\nAccess-Control-Max-Age: 600\nContent-Length: 0\nConnection: close\n$ curl -i -X OPTIONS https://api.toko.contoh/products -H \"Origin: https://penipu.contoh\" -H \"Access-Control-Request-Method: POST\"\nHTTP/1.1 204 No Content\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nAllow: GET, HEAD, POST, OPTIONS\nVary: Origin\nContent-Length: 0\nConnection: close\n```\n\nBandingkan hasilnya:\n\n- Untuk `https://toko.contoh`, server mengirim `Access-Control-Allow-Origin: https://toko.contoh` dan `Vary: Origin`.\n- Untuk `https://penipu.contoh`, statusnya tetap `200` dan body tetap dikirim, tapi tanpa `Access-Control-Allow-Origin`. Browser akan memblokir JavaScript membaca respons ini. curl tetap menampilkannya karena curl tidak menegakkan CORS.\n- Preflight yang diizinkan dijawab `204` dengan method, header, dan `Max-Age` yang diizinkan. Preflight dari origin lain tidak mendapat header izin, jadi browser tidak akan mengirim request aslinya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menambahkan header CORS di request dari client**\n\nSalah:\n\n```javascript\nawait fetch('https://api.toko.contoh/products', {\n  headers: { 'Access-Control-Allow-Origin': '*' },\n});\n```\n\nBenar:\n\n```javascript\n// Konfigurasi di SERVER API, dikirim sebagai header respons:\n// Access-Control-Allow-Origin: https://toko.contoh\n// Vary: Origin\nawait fetch('https://api.toko.contoh/products');\n```\n\n`Access-Control-Allow-Origin` adalah header **respons**. Hanya server yang bisa memberi izin. Menambahkannya di request tidak berguna, malah membuat browser mengirim preflight karena header itu bukan header aman.\n\n**2. Memakai mode no-cors untuk \"menghilangkan\" error**\n\nSalah:\n\n```javascript\nconst res = await fetch('https://api.toko.contoh/products', { mode: 'no-cors' });\nconst body = await res.json(); // gagal: respons opaque, status 0, body kosong\n```\n\nBenar:\n\n```javascript\n// Minta tim backend mendaftarkan origin frontend:\n// Access-Control-Allow-Origin: https://toko.contoh\nconst res = await fetch('https://api.toko.contoh/products');\nconst body = await res.json();\n```\n\n`mode: 'no-cors'` membuat error di console hilang, tapi respons menjadi *opaque*: status `0` dan body tidak bisa dibaca. Mematikan keamanan browser atau memasang ekstensi juga hanya berlaku di komputermu, bukan di komputer pengguna.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pasangan URL mana yang termasuk **origin yang sama**?",
+          "options": [
+            "https://toko.contoh dan https://api.toko.contoh",
+            "https://toko.contoh dan http://toko.contoh",
+            "https://toko.contoh:443/produk dan https://toko.contoh/keranjang",
+            "https://toko.contoh dan https://toko.contoh:8443"
+          ],
+          "answer": 2,
+          "explanation": "Origin = skema + host + port, sedangkan path tidak dihitung. Port default HTTPS adalah 443, jadi keduanya sama-sama https, toko.contoh, 443. Pasangan lain berbeda host, skema, atau port.",
+          "remedial": "Origin = skema + host + port, sedangkan path tidak dihitung. Port default HTTPS adalah 443, jadi keduanya sama-sama https, toko.contoh, 443. Pasangan lain berbeda host, skema, atau port."
+        },
+        {
+          "question": "Perintah ini mencetak `200`. Kenapa request dari origin yang tidak diizinkan tetap berhasil?",
+          "code": "curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/products -H \"Origin: https://penipu.contoh\"",
+          "options": [
+            "Server latihan lupa memeriksa header Origin",
+            "CORS ditegakkan browser; server tetap menjawab dan hanya tidak menyertakan header izin",
+            "curl mengirim token rahasia yang melewati CORS",
+            "Origin hanya diperiksa untuk method POST"
+          ],
+          "answer": 1,
+          "explanation": "Server latihan menjawab 200 tanpa Access-Control-Allow-Origin. Browser yang akan menolak memberikan respons itu ke JavaScript. curl tidak menegakkan CORS, jadi status tetap terlihat.",
+          "remedial": "Server latihan menjawab 200 tanpa Access-Control-Allow-Origin. Browser yang akan menolak memberikan respons itu ke JavaScript. curl tidak menegakkan CORS, jadi status tetap terlihat."
+        },
+        {
+          "question": "Dari `https://toko.contoh`, request mana yang memicu preflight `OPTIONS`?",
+          "options": [
+            "GET /products tanpa header tambahan",
+            "HEAD /products/P01",
+            "POST /auth/login dengan Content-Type: application/json",
+            "POST form dengan Content-Type: application/x-www-form-urlencoded"
+          ],
+          "answer": 2,
+          "explanation": "application/json bukan salah satu dari tiga Content-Type yang dianggap aman, jadi browser bertanya dulu lewat preflight. GET, HEAD, dan POST form tanpa header tambahan dikirim langsung.",
+          "remedial": "application/json bukan salah satu dari tiga Content-Type yang dianggap aman, jadi browser bertanya dulu lewat preflight. GET, HEAD, dan POST form tanpa header tambahan dikirim langsung."
+        },
+        {
+          "question": "Frontend di `https://toko.contoh` mendapat error CORS saat memanggil API. Di mana perbaikan yang benar?",
+          "options": [
+            "Di server API: izinkan origin https://toko.contoh di konfigurasi CORS",
+            "Di fetch: tambahkan header Access-Control-Allow-Origin: *",
+            "Di fetch: pakai mode no-cors",
+            "Di browser: pasang ekstensi yang mematikan CORS"
+          ],
+          "answer": 0,
+          "explanation": "Izin CORS adalah header respons dari server. Perubahan di client tidak bisa memberi izin, dan ekstensi browser hanya berlaku di komputermu sendiri.",
+          "remedial": "Izin CORS adalah header respons dari server. Perubahan di client tidak bisa memberi izin, dan ekstensi browser hanya berlaku di komputermu sendiri."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa output perintah ini?",
+      "code": "curl -s -o /dev/null -w \"%{http_code} [%header{access-control-allow-origin}]\" -X OPTIONS https://api.toko.contoh/products -H \"Origin: https://penipu.contoh\" -H \"Access-Control-Request-Method: POST\"",
+      "options": [
+        "204 [https://penipu.contoh]",
+        "403 []",
+        "204 [*]",
+        "204 []"
+      ],
+      "answer": 3,
+      "explanation": "Server latihan tetap menjawab preflight dengan 204, tapi tanpa Access-Control-Allow-Origin karena origin itu tidak diizinkan. Tidak adanya header izin itulah yang membuat browser memblokir, bukan status 403."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Kirim preflight: tanyakan apakah https://toko.contoh boleh memakai PATCH\ncurl -s -o /dev/null -w \"%header{access-control-allow-origin}\" -X ___ https://api.toko.contoh/products/P01 -H \"Origin: https://toko.contoh\" -H \"Access-Control-Request-___: PATCH\"",
+      "answers": [
+        "OPTIONS",
+        "Method|method"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Origin = skema + host + port; toko.contoh dan api.toko.contoh adalah origin berbeda.",
+        "Browser hanya memberikan respons lintas origin ke JavaScript kalau server mengirim Access-Control-Allow-Origin yang cocok.",
+        "PUT, PATCH, DELETE, header Authorization, dan Content-Type application/json memicu preflight OPTIONS.",
+        "CORS diperbaiki di server, bukan diakali dengan header di fetch, mode no-cors, atau ekstensi browser.",
+        "curl dan Postman tidak menegakkan CORS; detail error CORS hanya terlihat di console dan tab Network."
+      ]
+    }
+  ]
+}

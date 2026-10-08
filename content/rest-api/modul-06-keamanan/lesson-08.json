@@ -1,0 +1,110 @@
+{
+  "id": "api-keamanan-08",
+  "moduleId": "api-keamanan",
+  "order": 8,
+  "title": "Praktik Aman Sehari-hari",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Keamanan API bukan satu fitur besar, melainkan kumpulan kebiasaan kecil yang konsisten. Materi ini merangkum praktik harian yang dipakai tim engineering, banyak di antaranya sudah muncul di modul-modul sebelumnya.\n\nIntinya: anggap setiap request bisa berasal dari penyerang, jangan percaya input apa pun, batasi akses seketat mungkin, dan jangan pernah membocorkan rahasia, baik ke client maupun ke log. Checklist ini yang biasa diperiksa saat *code review* soal keamanan.\n\nKeamanan sehari-hari seperti kebiasaan menutup toko: kunci pintu, matikan yang tidak perlu, jangan tinggalkan kunci cadangan di bawah keset, dan catat siapa yang masuk tanpa menyalin isi dompet pelanggan. Bukan satu gembok raksasa, melainkan rutinitas kecil yang tertib. Sekarang kembali ke istilah request, header, dan log."
+    },
+    {
+      "type": "theory",
+      "content": "**Daftar praktik aman:**\n\n- **Validasi input selalu di server.** Frontend bisa dilewati dengan curl. Periksa tipe, panjang, rentang, dan nilai yang diizinkan. Sudah dibahas di modul Merancang API yang Rapi.\n- **CORS ketat.** Izinkan hanya origin yang kamu percaya, bukan `*` untuk request bercredential. Server latihan hanya mengizinkan `https://toko.contoh`.\n- **Rate limit.** Batasi request per client, terutama pada login, OTP, dan pencarian, untuk menahan brute force dan penyedotan data.\n- **Logging tanpa data sensitif.** Catat peristiwa untuk pelacakan, tapi **jangan pernah** menuliskan token, password, API key, atau nomor kartu ke log. Log sering dibaca banyak orang dan disimpan lama.\n- **Request ID untuk pelacakan.** Beri setiap request ID unik (mis. header `X-Request-Id`). Saat ada error, client melaporkan ID itu dan tim mencari log yang tepat tanpa perlu data sensitif.\n- **Rahasia di environment variable / secret manager.** Kunci dan password konfigurasi tidak ditulis di kode dan tidak ikut ke repo Git.\n- **Pesan error secukupnya.** Jangan kirim stack trace, query SQL, atau versi library ke client. Sudah dibahas di modul Merancang API yang Rapi (Problem Details).\n\n**Contoh log yang benar vs salah:**\n\n```text\nSALAH: login user=budi@toko.contoh password=rahasia123 token=eyJhbG...\nBENAR: login user=U01 status=ok requestId=req-7f3a9c\n```\n\nLog yang benar cukup untuk menelusuri masalah, tapi tidak membocorkan kredensial. Kalau kredensial sempat tertulis ke log, anggap ia bocor dan segera diganti."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLihat dua praktik bekerja di server latihan: request ID pada respons error, dan CORS yang menolak origin asing. Request ID dipakai tim untuk menemukan log tanpa membuka data sensitif.\n\n```bash\ncurl -s -o /dev/null -w \"request id: %header{x-request-id}\\n\" https://api.toko.contoh/bug\necho \"origin toko  -> [$(curl -s -o /dev/null -w \"%header{access-control-allow-origin}\" https://api.toko.contoh/products/P01 -H \"Origin: https://toko.contoh\")]\"\necho \"origin asing -> [$(curl -s -o /dev/null -w \"%header{access-control-allow-origin}\" https://api.toko.contoh/products/P01 -H \"Origin: https://penipu.contoh\")]\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s -o /dev/null -w \"request id: %header{x-request-id}\\n\" https://api.toko.contoh/bug\nrequest id: req-7f3a9c\n$ echo \"origin toko  -> [$(curl -s -o /dev/null -w \"%header{access-control-allow-origin}\" https://api.toko.contoh/products/P01 -H \"Origin: https://toko.contoh\")]\"\norigin toko  -> [https://toko.contoh]\n$ echo \"origin asing -> [$(curl -s -o /dev/null -w \"%header{access-control-allow-origin}\" https://api.toko.contoh/products/P01 -H \"Origin: https://penipu.contoh\")]\"\norigin asing -> []\n```\n\nPerhatikan:\n\n- `/bug` mengirim `X-Request-Id: req-7f3a9c`. Pesannya umum, tanpa detail internal. Pengguna cukup melaporkan ID ini, dan tim menelusuri log yang tepat.\n- Origin `https://toko.contoh` mendapat header `Access-Control-Allow-Origin`, jadi browser mengizinkan JavaScript membaca respons.\n- Origin `https://penipu.contoh` mendapat kurung kosong `[]`: tidak ada header izin, jadi browser memblokir. CORS ketat hanya mempercayai origin tertentu."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menuliskan token atau password ke log**\n\nSalah:\n\n```javascript\nconsole.log(`login ${email} pass=${password} token=${token}`);\n```\n\nBenar:\n\n```javascript\nconsole.log(`login userId=${user.id} status=ok requestId=${reqId}`);\n```\n\nLog sering dibaca banyak orang dan disimpan lama di banyak sistem. Token dan password di log sama saja membocorkannya. Catat identitas non-sensitif dan request ID; jangan pernah kredensial. Kalau terlanjur tertulis, anggap bocor dan ganti.\n\n**2. CORS dibuka lebar dengan wildcard untuk request bercredential**\n\nSalah:\n\n```http\nAccess-Control-Allow-Origin: *\nAccess-Control-Allow-Credentials: true\n```\n\nBenar:\n\n```http\nAccess-Control-Allow-Origin: https://toko.contoh\nAccess-Control-Allow-Credentials: true\nVary: Origin\n```\n\nSpesifikasi CORS melarang wildcard * dipadukan dengan credentials, dan membuka ke semua origin itu berbahaya. Balas origin yang persis dan hanya untuk yang kamu percaya, lalu tambahkan Vary: Origin agar cache tidak tertukar.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Mana yang boleh ikut ditulis ke log server?",
+          "options": [
+            "userId dan requestId, tanpa token atau password",
+            "Token Bearer lengkap agar mudah menelusuri",
+            "Password pengguna untuk verifikasi manual",
+            "Nomor kartu pembayaran lengkap"
+          ],
+          "answer": 0,
+          "explanation": "Log boleh memuat identitas non-sensitif dan request ID untuk pelacakan. Token, password, dan nomor kartu tidak boleh ke log, karena log dibaca banyak orang dan disimpan lama.",
+          "remedial": "Log boleh memuat identitas non-sensitif dan request ID untuk pelacakan. Token, password, dan nomor kartu tidak boleh ke log, karena log dibaca banyak orang dan disimpan lama."
+        },
+        {
+          "question": "Kenapa setiap request diberi ID unik seperti `X-Request-Id`?",
+          "options": [
+            "Agar respons dikompres lebih kecil",
+            "Agar token tidak perlu diverifikasi",
+            "Agar error bisa ditelusuri di log dengan ID itu, tanpa membutuhkan data sensitif",
+            "Agar request otomatis diulang saat gagal"
+          ],
+          "answer": 2,
+          "explanation": "Request ID menghubungkan laporan error pengguna dengan baris log yang tepat. Tim bisa menelusuri masalah tanpa meminta token atau data pribadi.",
+          "remedial": "Request ID menghubungkan laporan error pengguna dengan baris log yang tepat. Tim bisa menelusuri masalah tanpa meminta token atau data pribadi."
+        },
+        {
+          "question": "Konfigurasi CORS mana yang paling aman untuk API yang menerima cookie bercredential?",
+          "options": [
+            "Access-Control-Allow-Origin: * tanpa batas",
+            "Izinkan origin yang persis dan tepercaya, misalnya https://toko.contoh",
+            "Matikan CORS sepenuhnya di server",
+            "Izinkan semua origin yang diawali https"
+          ],
+          "answer": 1,
+          "explanation": "Wildcard * berbahaya dan dilarang untuk request bercredential. Balas origin spesifik yang kamu percaya. Mematikan CORS tidak mengizinkan frontend sah membaca respons.",
+          "remedial": "Wildcard * berbahaya dan dilarang untuk request bercredential. Balas origin spesifik yang kamu percaya. Mematikan CORS tidak mengizinkan frontend sah membaca respons."
+        },
+        {
+          "question": "Di mana password konfigurasi dan kunci rahasia layanan sebaiknya disimpan?",
+          "options": [
+            "Ditulis langsung di kode agar tim mudah membacanya",
+            "Di komentar file konfigurasi",
+            "Di pesan commit Git",
+            "Di environment variable atau secret manager, tidak ikut ke repo"
+          ],
+          "answer": 3,
+          "explanation": "Rahasia tidak boleh tertulis di kode atau masuk ke riwayat Git. Environment variable dan secret manager menyimpannya terpisah dari kode sumber.",
+          "remedial": "Rahasia tidak boleh tertulis di kode atau masuk ke riwayat Git. Environment variable dan secret manager menyimpannya terpisah dari kode sumber."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Endpoint `/bug` mensimulasikan bug di server. Apa isi field `detail` yang dikirim ke client?",
+      "code": "curl -s https://api.toko.contoh/bug | jq -r .detail",
+      "options": [
+        "TypeError: Cannot read properties of undefined (reading 'total') at /srv/toko/orders.js:42",
+        "SELECT * FROM orders WHERE user_id = 'U01'",
+        "Terjadi kesalahan di server. Hubungi tim kami dengan menyertakan X-Request-Id.",
+        "Error: koneksi database 10.0.3.7:5432 ditolak"
+      ],
+      "answer": 2,
+      "explanation": "Pesan ke client sengaja umum dan hanya meminta request ID. Stack trace, query SQL, dan alamat database internal tetap di log server, karena membantu penyerang memetakan sistem."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan nilai header ID pelacakan dari respons error server\ncurl -s -o /dev/null -w \"%header{___}\" https://api.toko.contoh/bug",
+      "answers": [
+        "x-request-id"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Validasi input selalu di server; frontend bisa dilewati dengan curl atau Postman.",
+        "Terapkan CORS ketat (origin tepercaya, bukan * untuk credential) dan rate limit pada endpoint sensitif.",
+        "Jangan pernah menulis token, password, API key, atau nomor kartu ke log.",
+        "Beri setiap request ID unik (X-Request-Id) agar error bisa ditelusuri tanpa data sensitif.",
+        "Simpan rahasia di environment variable atau secret manager, jangan di kode atau repo Git."
+      ]
+    }
+  ]
+}
