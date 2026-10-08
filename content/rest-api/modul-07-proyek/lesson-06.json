@@ -1,0 +1,110 @@
+{
+  "id": "api-proyek-06",
+  "moduleId": "api-proyek",
+  "order": 6,
+  "title": "Review dan Langkah Berikutnya",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di perusahaan, rancangan API tidak langsung dikerjakan. Rancangan masuk **API review**: engineer senior, tim frontend dan mobile, dan kadang tim keamanan membaca design doc serta file OpenAPI. Mengubah kontrak saat review itu murah. Mengubahnya setelah aplikasi HP rilis berarti versi baru.\n\nChecklist review berikut merangkum seluruh kelas ini:\n\n- **Resource dan URI:** kata benda jamak, kebab-case, tanpa kata kerja, sarang paling banyak 2 tingkat.\n- **Method dan status:** GET aman, PUT dan DELETE idempotent, 201 + `Location`, 204 tanpa body.\n- **Format data:** camelCase konsisten, ID string, uang integer, waktu ISO 8601 UTC.\n- **Error:** Problem Details di semua endpoint, tanpa stack trace, ada request ID.\n- **Koleksi:** paging dengan batas maksimal, filter dan sort terdokumentasi.\n- **Keandalan:** `Idempotency-Key` untuk POST penting, `If-Match` untuk update admin, rate limit.\n- **Keamanan:** tabel siapa-boleh-apa, uji BOLA, BFLA, dan mass assignment, token tidak di URL, `no-store` untuk respons berisi token.\n- **Dokumen dan uji:** OpenAPI sama dengan server, uji kontrak dan end-to-end lulus, changelog untuk setiap perubahan.\n\nKomentar review yang baik berupa pertanyaan konkret. Contohnya, \"Apa yang terjadi kalau request ini terkirim dua kali?\" atau \"Apa yang dilihat Budi kalau ia mengganti ID ini?\"\n\nPilot membaca checklist sebelum lepas landas, walaupun sudah ribuan kali terbang. Checklist bukan tanda tidak percaya diri; checklist mencegah hal kecil terlewat saat semua orang sibuk. API review memakai cara yang sama."
+    },
+    {
+      "type": "theory",
+      "content": "**REST bukan satu-satunya pilihan.** Saat review, kamu mungkin ditanya kenapa tidak memakai gaya lain:\n\n| Gaya | Bentuk | Cocok untuk | Perlu diwaspadai |\n|---|---|---|---|\n| REST | resource + method HTTP, biasanya JSON | API publik, web dan aplikasi HP, integrasi antar perusahaan | satu layar bisa butuh beberapa request; field ditentukan server |\n| GraphQL | biasanya satu endpoint `POST /graphql`; client menulis query berisi field yang dibutuhkan | aplikasi dengan banyak layar yang menggabungkan banyak data | cache HTTP lebih sulit, perlu batas kedalaman dan biaya query, error sering dikirim di field `errors` dengan status 200 |\n| gRPC | kontrak file `.proto`, data biner Protocol Buffers di atas HTTP/2, kode client dibuat otomatis | komunikasi antar layanan internal yang butuh cepat, termasuk streaming | browser tidak bisa memanggilnya langsung tanpa proxy gRPC-Web; tidak bisa dicoba dengan curl biasa |\n| Webhook | penyedia layanan memanggil URL milikmu saat ada kejadian (*push*) | notifikasi pembayaran, status pengiriman, event repository | verifikasi tanda tangan, tangani event yang terkirim lebih dari sekali, jawab 2xx dengan cepat |\n\nPilihan ini tidak saling meniadakan. Rancangan Toko Budi memakai REST untuk aplikasi dan webhook dari payment gateway. Banyak perusahaan memakai REST untuk API publik dan gRPC antar layanan internal. Mulailah dengan REST kecuali ada alasan yang jelas. \"Sedang tren\" bukan alasan.\n\n**Langkah berikutnya: membuat API ini dengan kode.** Kelas ini sengaja tidak terikat bahasa. Di kelas Spring Boot dan kelas Node.js, rancangan yang sama kamu ubah menjadi server:\n\n| Rancangan | Spring Boot (Java) | Node.js |\n|---|---|---|\n| tabel endpoint | `@RestController`, `@GetMapping(\"/products/{id}\")` | router, mis. `app.get('/products/:id', ...)` |\n| validasi `422` | Bean Validation (`@Valid`, `@NotBlank`) | skema validasi di middleware |\n| Problem Details | kelas `ProblemDetail` bawaan Spring Framework 6 | helper yang mengirim `application/problem+json` |\n| token dan peran | Spring Security | middleware autentikasi dan otorisasi |\n\nDokumen OpenAPI dan skrip uji di modul ini tetap berguna. Arahkan skrip yang sama ke server buatanmu. Kalau semuanya lulus, server barumu menepati kontrak yang sama dengan server latihan."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nSebelum rancangan dibawa ke review, tim biasanya menyertakan bukti bahwa alur utama berjalan. Skrip `e2e.mjs` menjalankan alur lengkap pembeli dengan `fetch`: login, lihat produk, buat pesanan dengan `Idempotency-Key`, ulangi request yang sama, lihat pesanan, lalu coba membuka pesanan orang lain.\n\nIsi `e2e.mjs`:\n\n```javascript\n// Uji end-to-end alur pembeli. Jalankan ulang setiap kali server berubah.\nconst BASE = 'https://api.toko.contoh';\nlet gagal = 0;\n\nfunction cek(nama, lulus, info = '') {\n  console.log(`${lulus ? 'lulus' : 'GAGAL'}  ${nama}${info ? ` (${info})` : ''}`);\n  if (!lulus) gagal++;\n}\n\nasync function panggil(method, path, { token, body, key } = {}) {\n  const headers = { Accept: 'application/json' };\n  if (token) headers.Authorization = `Bearer ${token}`;\n  if (key) headers['Idempotency-Key'] = key;\n  if (body) headers['Content-Type'] = 'application/json';\n  const res = await fetch(BASE + path, { method, headers, body: body && JSON.stringify(body) });\n  const teks = await res.text();\n  return { status: res.status, headers: res.headers, data: teks ? JSON.parse(teks) : null };\n}\n\n// 1. Login\nconst login = await panggil('POST', '/auth/login', { body: { email: 'budi@toko.contoh', password: 'rahasia123' } });\ncek('login Budi', login.status === 200 && login.headers.get('cache-control') === 'no-store');\nconst token = login.data.accessToken;\n\n// 2. Lihat produk\nconst awal = await panggil('GET', '/products/P03');\ncek('lihat produk P03', awal.status === 200, `stok ${awal.data.stock}`);\n\n// 3. Buat pesanan dengan Idempotency-Key\nconst key = crypto.randomUUID();\nconst pesanan = { items: [{ productId: 'P03', qty: 2 }] };\nconst buat = await panggil('POST', '/orders', { token, body: pesanan, key });\ncek('buat pesanan', buat.status === 201 && buat.headers.get('location') === `/orders/${buat.data.id}`,\n  `${buat.data.id}, total ${buat.data.total}`);\n\n// 4. Ulangi request yang sama, seolah koneksi putus\nconst ulang = await panggil('POST', '/orders', { token, body: pesanan, key });\ncek('ulangi request', ulang.headers.get('idempotent-replayed') === 'true' && ulang.data.id === buat.data.id,\n  `replayed, tetap ${ulang.data.id}`);\nconst akhir = await panggil('GET', '/products/P03');\ncek('stok berkurang sekali', akhir.data.stock === awal.data.stock - 2, `${awal.data.stock} -> ${akhir.data.stock}`);\n\n// 5. Lihat pesanan sendiri\nconst daftar = await panggil('GET', '/orders', { token });\ncek('lihat pesanan sendiri', daftar.data.data.every((o) => o.userId === 'U01'),\n  daftar.data.data.map((o) => o.id).join(', '));\n\n// 6. Coba pesanan orang lain\nconst lain = await panggil('GET', '/orders/O102', { token });\ncek('pesanan Sari tertutup', lain.status === 404, `status ${lain.status}`);\n\nconsole.log(gagal === 0 ? 'SEMUA LULUS' : `${gagal} GAGAL`);\nprocess.exitCode = gagal === 0 ? 0 : 1;\n```\n\n```bash\nnode e2e.mjs\n```\n\nYang akan kamu lihat:\n\n```text\n$ node e2e.mjs\nlulus  login Budi\nlulus  lihat produk P03 (stok 15)\nlulus  buat pesanan (O103, total 250000)\nlulus  ulangi request (replayed, tetap O103)\nlulus  stok berkurang sekali (15 -> 13)\nlulus  lihat pesanan sendiri (O101, O103)\nlulus  pesanan Sari tertutup (status 404)\nSEMUA LULUS\n```\n\nPerhatikan:\n\n- Setiap langkah memeriksa janji kontrak, bukan sekadar \"tidak error\": `no-store` di login, `Location` yang cocok dengan id, dan header replay.\n- Stok P03 turun dari 15 ke 13, bukan 11. Retry tidak menggandakan pesanan.\n- Langkah terakhir adalah uji negatif. Uji ini akan `GAGAL` kalau suatu hari pemeriksaan kepemilikan terhapus dari server.\n- `process.exitCode` bernilai 1 kalau ada yang gagal, jadi skrip ini bisa langsung dipakai di CI."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Webhook pembayaran dipercaya begitu saja**\n\nSalah:\n\n```javascript\napp.post('/webhooks/payments', async (req, res) => {\n  await db.orders.tandaiLunas(req.body.orderId); // siapa pun bisa memanggil\n  res.status(200).end();\n});\n```\n\nBenar:\n\n```javascript\nimport crypto from 'node:crypto';\n\napp.post('/webhooks/payments', async (req, res) => {\n  // 1. Verifikasi tanda tangan HMAC dari body mentah\n  const harap = crypto.createHmac('sha256', process.env.WEBHOOK_SECRET).update(req.rawBody).digest('hex');\n  const kiriman = req.get('X-Signature') ?? '';\n  if (kiriman.length !== harap.length || !crypto.timingSafeEqual(Buffer.from(kiriman), Buffer.from(harap))) {\n    return res.status(401).end();\n  }\n  // 2. Event yang sama bisa dikirim ulang: proses sekali saja\n  const event = JSON.parse(req.rawBody);\n  if (await db.webhookEvents.exists(event.id)) return res.status(204).end();\n  await db.transaksi(async (tx) => {\n    await tx.webhookEvents.insert({ id: event.id });\n    if (event.type === 'payment.paid') await tx.orders.tandaiLunas(event.data.orderId);\n  });\n  // 3. Jawab cepat dengan 2xx\n  res.status(204).end();\n});\n```\n\nTanpa verifikasi, siapa pun bisa mengirim \"pembayaran berhasil\" untuk pesanannya sendiri lalu mendapat barang tanpa membayar. Payment gateway juga mengirim ulang event kalau respons lambat atau gagal, jadi handler harus idempotent. Nama header dan cara membuat tanda tangan berbeda antar penyedia; ikuti dokumentasinya.\n\n**2. Uji end-to-end hanya jalur sukses**\n\nSalah:\n\n```javascript\nconst buat = await panggil('POST', '/orders', { token, body: pesanan });\ncek('buat pesanan', buat.status === 201);\n```\n\nBenar:\n\n```javascript\nconst key = crypto.randomUUID();\ncek('buat pesanan', (await panggil('POST', '/orders', { token, body: pesanan, key })).status === 201);\ncek('retry tidak dobel', (await panggil('POST', '/orders', { token, body: pesanan, key })).headers.get('idempotent-replayed') === 'true');\ncek('stok habis ditolak', (await panggil('POST', '/orders', { token, body: { items: [{ productId: 'P05', qty: 1 }] } })).status === 409);\ncek('pesanan orang lain tertutup', (await panggil('GET', '/orders/O102', { token })).status === 404);\ncek('pembeli bukan admin', (await panggil('GET', '/admin/users', { token })).status === 403);\n```\n\nBug yang paling mahal biasanya ada di jalur negatif: pesanan dobel, stok minus, dan data orang lain terbuka. Tes yang hanya mengecek `201` tetap lulus walaupun semua pemeriksaan keamanan hilang. Ubah setiap sel \"tidak\" di tabel endpoint menjadi satu kasus uji.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Saat review, engineer senior bertanya: \"Apa yang terjadi kalau rancangan `POST /orders/{id}/payments` terkirim dua kali karena timeout?\" Jawaban mana yang paling tepat?",
+          "options": [
+            "Tidak mungkin terjadi karena koneksi aplikasi HP stabil",
+            "Server menagih dua kali, lalu admin mengembalikan uangnya secara manual",
+            "Client dilarang mengulang request apa pun",
+            "Client mengirim Idempotency-Key yang sama, sehingga server mengembalikan pembayaran pertama tanpa menagih lagi"
+          ],
+          "answer": 3,
+          "explanation": "Pembayaran wajib membawa Idempotency-Key di rancangan Toko Budi. Retry dengan key yang sama mengembalikan hasil pertama, jadi pembeli hanya ditagih sekali.",
+          "remedial": "Pembayaran wajib membawa Idempotency-Key di rancangan Toko Budi. Retry dengan key yang sama mengembalikan hasil pertama, jadi pembeli hanya ditagih sekali."
+        },
+        {
+          "question": "Layanan pesanan dan layanan gudang Toko Budi berkomunikasi di jaringan internal dan butuh respons cepat serta streaming perubahan stok. Gaya mana yang paling sering dipilih untuk kebutuhan ini?",
+          "options": [
+            "Webhook ke browser pembeli",
+            "gRPC",
+            "GraphQL publik",
+            "REST dengan polling GET setiap detik"
+          ],
+          "answer": 1,
+          "explanation": "gRPC dengan Protocol Buffers di atas HTTP/2 dirancang untuk komunikasi antar layanan yang cepat dan mendukung streaming. Polling setiap detik boros, dan webhook tidak ditujukan ke browser.",
+          "remedial": "gRPC dengan Protocol Buffers di atas HTTP/2 dirancang untuk komunikasi antar layanan yang cepat dan mendukung streaming. Polling setiap detik boros, dan webhook tidak ditujukan ke browser."
+        },
+        {
+          "question": "Payment gateway memberi tahu server Toko Budi bahwa pembayaran O103 berhasil. Mekanisme apa ini, dan apa yang wajib dilakukan server toko?",
+          "options": [
+            "Webhook; verifikasi tanda tangan dan tangani event yang terkirim lebih dari sekali",
+            "GraphQL subscription; tidak perlu verifikasi",
+            "gRPC streaming dari browser pembeli",
+            "Polling oleh admin setiap jam"
+          ],
+          "answer": 0,
+          "explanation": "Penyedia layanan yang memanggil URL milikmu saat ada kejadian disebut webhook. Tanda tangan membuktikan pengirimnya asli, dan pencatatan id event mencegah pesanan diproses dua kali.",
+          "remedial": "Penyedia layanan yang memanggil URL milikmu saat ada kejadian disebut webhook. Tanda tangan membuktikan pengirimnya asli, dan pencatatan id event mencegah pesanan diproses dua kali."
+        },
+        {
+          "question": "Aplikasi HP Toko Budi punya puluhan layar, masing-masing butuh kombinasi field berbeda dari produk, ulasan, dan stok. Tim mempertimbangkan GraphQL. Hal apa yang harus ikut direncanakan?",
+          "options": [
+            "Tidak ada, karena GraphQL otomatis aman dan cepat",
+            "Mengganti semua status code menjadi 404",
+            "Batas kedalaman dan biaya query, serta strategi cache yang tidak bergantung pada cache HTTP GET",
+            "Menghapus dokumentasi karena GraphQL tidak butuh kontrak"
+          ],
+          "answer": 2,
+          "explanation": "Query bersarang yang dalam bisa membebani server, jadi butuh batas biaya. Karena query biasanya dikirim lewat POST ke satu endpoint, cache HTTP bawaan tidak banyak membantu. Schema GraphQL tetap berfungsi sebagai kontrak.",
+          "remedial": "Query bersarang yang dalam bisa membebani server, jadi butuh batas biaya. Karena query biasanya dikirim lewat POST ke satu endpoint, cache HTTP bawaan tidak banyak membantu. Schema GraphQL tetap berfungsi sebagai kontrak."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Salah satu butir checklist: respons berisi token tidak boleh disimpan cache. Apa output perintah ini?",
+      "code": "curl -s -o /dev/null -w \"%header{cache-control}\" -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}'",
+      "options": [
+        "no-cache",
+        "no-store",
+        "max-age=900",
+        "private"
+      ],
+      "answer": 1,
+      "explanation": "Server latihan mengirim Cache-Control: no-store di respons login, jadi token tidak disimpan cache mana pun. no-cache masih mengizinkan penyimpanan, dan max-age=900 malah mengizinkan pemakaian ulang."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Uji negatif dari checklist: TOKEN berisi token Budi; pesanan P05 (stok 0) harus ditolak\n[ \"$(curl -s -o /dev/null -w \"%{http_code}\" -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" --json '{\"items\":[{\"productId\":\"P05\",\"qty\":1}]}')\" = \"___\" ] && echo lulus",
+      "answers": [
+        "409"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "API review menguji rancangan sebelum kode ditulis, karena mengubah kontrak setelah rilis jauh lebih mahal.",
+        "Checklist review mencakup URI, method, format data, error, paging, keandalan, keamanan, serta dokumen dan uji.",
+        "REST cocok untuk API publik, GraphQL untuk layar yang butuh banyak kombinasi data, gRPC antar layanan internal, dan webhook untuk notifikasi kejadian.",
+        "Webhook wajib diverifikasi tanda tangannya dan diproses idempotent, karena event bisa terkirim lebih dari sekali.",
+        "Uji end-to-end dan uji kontrak yang sama bisa dijalankan ke server buatanmu di kelas Spring Boot atau Node.js."
+      ]
+    }
+  ]
+}

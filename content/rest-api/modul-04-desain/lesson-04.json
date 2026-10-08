@@ -1,0 +1,110 @@
+{
+  "id": "api-desain-04",
+  "moduleId": "api-desain",
+  "order": 4,
+  "title": "Paging, Filter, dan Urutan",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Toko besar bisa punya ratusan ribu produk. Mengirim semuanya dalam satu respons membuat database bekerja berat, jaringan lambat, dan aplikasi HP kehabisan memori. Karena itu endpoint koleksi seperti `GET /products` hampir selalu punya tiga fitur lewat query string:\n\n- **Paging** (*pagination*, membagi hasil per halaman): `limit` + `offset`, atau `limit` + `cursor`.\n- **Filter**: hanya data yang cocok, misalnya `?category=sepatu&maxPrice=300000`. Beberapa filter digabung dengan arti \"dan\".\n- **Urutan** (*sorting*): `?sort=price` dari kecil ke besar, `?sort=-price` dari besar ke kecil. Tanda minus untuk urutan menurun adalah konvensi yang banyak dipakai.\n\nContoh untuk pesanan: `GET /orders?status=paid&sort=-createdAt` berarti pesanan yang sudah dibayar, terbaru lebih dulu. Server latihan hanya menerapkan filter dan sort di `/products`.\n\nServer juga wajib memasang batas. Di server latihan, `limit` default 20 dan maksimal 100. Tanpa batas, satu request `?limit=1000000` bisa membebani database.\n\nKatalog toko yang tebal dibagi per halaman. Kamu bisa langsung membuka halaman 5, seperti offset. Kamu juga bisa melanjutkan dari pembatas buku yang kamu selipkan terakhir kali, seperti cursor. Filter mirip membuka bab \"Sepatu\" saja, dan sorting mirip daftar harga dari yang termurah."
+    },
+    {
+      "type": "theory",
+      "content": "| | Offset + limit | Cursor + limit |\n|---|---|---|\n| Bentuk | `?limit=20&offset=40` | `?limit=20&cursor=UDAy` |\n| Lompat ke halaman tertentu | bisa | tidak bisa, harus berurutan |\n| Jumlah total | mudah (`meta.total`) | sering tidak tersedia |\n| Data sangat besar | makin lambat di offset besar, karena database tetap melewati baris sebelumnya | tetap cepat, karena mulai dari posisi terakhir |\n| Data bertambah saat paging | item bisa terlewat atau muncul dua kali | stabil |\n| Cocok untuk | tabel admin dengan nomor halaman | feed, *infinite scroll*, ekspor, sinkronisasi |\n\n**Cursor bersifat *opaque*** (tidak untuk dibaca atau dibuat client). Client cukup menyalin `meta.nextCursor` ke request berikutnya. Nilai `null` berarti tidak ada halaman lagi. Di server latihan, cursor kebetulan hanya id terakhir yang di-encode base64url. Jangan bergantung pada itu, karena server bebas mengubah isinya.\n\n**Metadata paging** bisa dikirim di body, seperti `meta` di server latihan. Cara lain adalah header **`Link`** (RFC 8288) yang berisi alamat halaman berikutnya:\n\n```text\nLink: <https://api.toko.contoh/products?limit=20&offset=40>; rel=\"next\"\n```\n\nAPI publik GitHub memakai header `Link` untuk paging. Keduanya praktik industri yang sah.\n\n**Aturan filter dan sort yang rapi:**\n\n- Nama parameter mengikuti nama field (`category`, `minPrice`, `createdAt`).\n- Nilai `sort` yang tidak dikenal ditolak dengan `400`, bukan diabaikan diam-diam. Server latihan melakukan ini.\n- Untuk paging cursor, urutan harus stabil. Tambahkan `id` sebagai urutan kedua kalau nilai field utama bisa sama."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nBandingkan paging offset dan cursor dengan 2 produk per halaman. Lalu coba filter, sort, dan nilai sort yang salah. `jq -c` meringkas output menjadi satu baris.\n\n```bash\ncurl -s \"https://api.toko.contoh/products?limit=2&offset=2\" | jq -c '{ids: [.data[].id], meta}'\ncurl -s \"https://api.toko.contoh/products?limit=2&cursor=\" | jq -c '{ids: [.data[].id], meta}'\ncurl -s \"https://api.toko.contoh/products?limit=2&cursor=UDAy\" | jq -c '{ids: [.data[].id], meta}'\ncurl -s \"https://api.toko.contoh/products?category=sepatu&sort=-price\" | jq -c '[.data[] | {id, price}]'\ncurl -s \"https://api.toko.contoh/products?sort=harga\" | jq -c .\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s \"https://api.toko.contoh/products?limit=2&offset=2\" | jq -c '{ids: [.data[].id], meta}'\n{\"ids\":[\"P03\",\"P04\"],\"meta\":{\"total\":6,\"limit\":2,\"offset\":2}}\n$ curl -s \"https://api.toko.contoh/products?limit=2&cursor=\" | jq -c '{ids: [.data[].id], meta}'\n{\"ids\":[\"P01\",\"P02\"],\"meta\":{\"limit\":2,\"nextCursor\":\"UDAy\"}}\n$ curl -s \"https://api.toko.contoh/products?limit=2&cursor=UDAy\" | jq -c '{ids: [.data[].id], meta}'\n{\"ids\":[\"P03\",\"P04\"],\"meta\":{\"limit\":2,\"nextCursor\":\"UDA0\"}}\n$ curl -s \"https://api.toko.contoh/products?category=sepatu&sort=-price\" | jq -c '[.data[] | {id, price}]'\n[{\"id\":\"P04\",\"price\":350000},{\"id\":\"P05\",\"price\":210000}]\n$ curl -s \"https://api.toko.contoh/products?sort=harga\" | jq -c .\n{\"type\":\"about:blank\",\"title\":\"Bad Request\",\"status\":400,\"detail\":\"sort tidak dikenal: harga\"}\n```\n\nPerhatikan:\n\n- Paging offset mengirim `total`, jadi client bisa menghitung jumlah halaman (6 produk = 3 halaman).\n- `cursor=` kosong berarti halaman pertama. Request berikutnya memakai `nextCursor` dari respons sebelumnya (`UDAy`), bukan nomor halaman.\n- Filter `category=sepatu` digabung dengan `sort=-price`, jadi sepatu termahal muncul pertama.\n- `sort=harga` ditolak dengan `400` dalam format Problem Details. Client langsung tahu ada parameter yang salah ketik."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memfilter di client setelah mengambil satu halaman**\n\nSalah:\n\n```bash\n# Ambil daftar produk, lalu saring sepatu di client\ncurl -s https://api.toko.contoh/products | jq '[.data[] | select(.category == \"sepatu\")]'\n```\n\nBenar:\n\n```bash\n# Minta server yang menyaring\ncurl -s \"https://api.toko.contoh/products?category=sepatu&limit=20\"\n```\n\nRespons tanpa parameter hanya berisi halaman pertama (default 20 item). Sepatu di halaman berikutnya tidak pernah terlihat, jadi hasil filter di client salah. Selain itu, data yang tidak perlu ikut terkirim. Filter harus dikerjakan server, yang bisa memakai index database.\n\n**2. Membuat isi cursor sendiri**\n\nSalah:\n\n```bash\n# Menebak cursor dari id produk\nCURSOR=$(echo -n P04 | base64)\ncurl -s \"https://api.toko.contoh/products?limit=2&cursor=$CURSOR\"\n```\n\nBenar:\n\n```bash\n# Pakai nextCursor yang dikirim server\nNEXT=$(curl -s \"https://api.toko.contoh/products?limit=2&cursor=\" | jq -r .meta.nextCursor)\ncurl -s \"https://api.toko.contoh/products?limit=2&cursor=$NEXT\"\n```\n\nCursor adalah urusan server. Server bisa menambahkan urutan, waktu kedaluwarsa, atau enkripsi ke cursor tanpa pemberitahuan. Kode yang menebak isinya akan rusak diam-diam. Selalu salin `nextCursor` apa adanya.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Tim kamu membuat fitur *infinite scroll* untuk feed produk yang terus bertambah. Metode paging mana yang paling cocok?",
+          "options": [
+            "Offset dan limit, karena bisa lompat ke halaman mana pun",
+            "Tanpa paging, kirim semua produk sekaligus",
+            "Paging di client dengan memotong array setelah semua data diterima",
+            "Cursor, karena stabil walau data bertambah dan tetap cepat untuk data besar"
+          ],
+          "answer": 3,
+          "explanation": "Infinite scroll selalu bergerak maju dan tidak butuh nomor halaman. Cursor melanjutkan dari posisi terakhir, jadi tidak ada item yang dobel atau terlewat saat data baru masuk.",
+          "remedial": "Infinite scroll selalu bergerak maju dan tidak butuh nomor halaman. Cursor melanjutkan dari posisi terakhir, jadi tidak ada item yang dobel atau terlewat saat data baru masuk."
+        },
+        {
+          "question": "Apa arti parameter `?sort=-createdAt` pada `GET /orders`?",
+          "options": [
+            "Urutkan dari yang terlama",
+            "Urutkan dari yang terbaru",
+            "Hapus field createdAt dari respons",
+            "Filter pesanan yang tidak punya createdAt"
+          ],
+          "answer": 1,
+          "explanation": "Tanda minus berarti urutan menurun. Untuk waktu, nilai terbesar adalah yang paling baru, jadi pesanan terbaru muncul pertama.",
+          "remedial": "Tanda minus berarti urutan menurun. Untuk waktu, nilai terbesar adalah yang paling baru, jadi pesanan terbaru muncul pertama."
+        },
+        {
+          "question": "Field yang bisa diurutkan hanya `price`, `name`, `createdAt`, dan `stock`. Client mengirim `?sort=harga`. Respons mana yang paling tepat?",
+          "options": [
+            "200 dengan urutan bawaan, nilai sort diabaikan",
+            "404 karena field harga tidak ditemukan",
+            "400 dengan pesan bahwa nilai sort tidak dikenal",
+            "500 karena server gagal mengurutkan"
+          ],
+          "answer": 2,
+          "explanation": "Parameter yang salah adalah kesalahan client, jadi 400. Mengabaikannya diam-diam membuat client mengira data sudah terurut. 404 untuk resource yang tidak ada, bukan parameter.",
+          "remedial": "Parameter yang salah adalah kesalahan client, jadi 400. Mengabaikannya diam-diam membuat client mengira data sudah terurut. 404 untuk resource yang tidak ada, bukan parameter."
+        },
+        {
+          "question": "Respons paging cursor berisi `\"meta\": {\"limit\": 2, \"nextCursor\": null}`. Apa artinya?",
+          "options": [
+            "Ini halaman terakhir; tidak ada data berikutnya",
+            "Cursor yang dikirim client tidak valid",
+            "Server gagal membuat cursor dan client harus mencoba lagi",
+            "Client harus mengulang dari halaman pertama"
+          ],
+          "answer": 0,
+          "explanation": "nextCursor null menandakan akhir daftar. Cursor yang tidak valid dijawab 400 oleh server latihan, bukan respons 200 dengan null.",
+          "remedial": "nextCursor null menandakan akhir daftar. Cursor yang tidak valid dijawab 400 oleh server latihan, bukan respons 200 dengan null."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Filter produk dengan harga 10.000 sampai 200.000, diurutkan dari yang termurah. Apa output perintah ini?",
+      "code": "curl -s \"https://api.toko.contoh/products?minPrice=10000&maxPrice=200000&sort=price\" | jq -c '[.data[].id]'",
+      "options": [
+        "[\"P03\",\"P06\"]",
+        "[\"P06\",\"P03\"]",
+        "[\"P06\",\"P03\",\"P05\"]",
+        "[\"P01\",\"P02\",\"P06\",\"P03\"]"
+      ],
+      "answer": 1,
+      "explanation": "Hanya P06 (45.000) dan P03 (125.000) yang ada di rentang itu. P05 (210.000) melewati maxPrice, sedangkan P01 dan P02 di bawah minPrice. sort=price mengurutkan naik, jadi P06 lebih dulu."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Ambil halaman ketiga, 2 produk per halaman, dengan paging offset\ncurl -s \"https://api.toko.contoh/products?limit=2&offset=___\" | jq -c '[.data[].id]'",
+      "answers": [
+        "4"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Endpoint koleksi butuh paging, filter, dan sort lewat query string, plus batas limit maksimal di server.",
+        "Offset mudah dan bisa lompat halaman, tapi lambat di data besar dan tidak stabil saat data berubah.",
+        "Cursor stabil dan cepat untuk feed atau infinite scroll; perlakukan cursor sebagai nilai opaque.",
+        "Metadata paging bisa di body (meta) atau di header Link dengan rel=\"next\".",
+        "Pakai konvensi sort=-field untuk urutan menurun dan tolak nilai sort yang tidak dikenal dengan 400."
+      ]
+    }
+  ]
+}

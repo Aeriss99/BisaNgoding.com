@@ -94,7 +94,7 @@ describe('formatTahap dan pemakaianKelas', () => {
     expect(pemakaianKelas('linux')).toEqual([
       { judul: 'Fondasi', keterangan: 'semua jalur, bagian Dasar' },
       { judul: 'DevOps Engineer', keterangan: 'tahap 1 dan 2' },
-      { judul: 'Backend Developer', keterangan: 'tahap 4' },
+      { judul: 'Backend Developer', keterangan: 'tahap 5' },
     ]);
   });
 

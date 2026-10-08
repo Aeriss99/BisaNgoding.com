@@ -1,0 +1,111 @@
+{
+  "id": "api-rest-05",
+  "moduleId": "api-rest",
+  "order": 5,
+  "title": "Kode Status 2xx dan 3xx",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setiap respons diawali **status code** tiga digit. Digit pertama menyatakan **kelas**:\n\n- `1xx` informasi sementara, jarang kamu tangani langsung;\n- `2xx` berhasil;\n- `3xx` pengalihan (*redirection*), client perlu langkah lanjutan;\n- `4xx` kesalahan di sisi client;\n- `5xx` kesalahan di sisi server.\n\nMenurut RFC 9110, client wajib memahami kelas status. Kode yang tidak dikenal diperlakukan seperti `x00` di kelasnya, jadi `299` dianggap `200`. Teks setelah angka, misalnya `OK` atau `Created`, hanya keterangan untuk manusia. Program harus membaca angkanya, dan HTTP/2 bahkan tidak mengirim teks itu.\n\nStatus code mirip kode di resi pengiriman. Kode \"terkirim\" berarti urusan selesai. Kode \"alamat pindah, lihat alamat baru\" berarti kurir harus berangkat lagi ke tempat lain. Petugas gudang membaca kodenya, bukan kalimat panjang di bawahnya."
+    },
+    {
+      "type": "theory",
+      "content": "**2xx: berhasil**\n\n| Kode | Arti | Kapan dipakai |\n|---|---|---|\n| `200 OK` | berhasil, body berisi hasil | GET, serta PUT/PATCH yang mengembalikan data |\n| `201 Created` | resource baru dibuat | POST berhasil; sertakan `Location` |\n| `202 Accepted` | diterima, tapi **belum selesai** diproses | ekspor laporan, kirim email massal |\n| `204 No Content` | berhasil, tanpa body | DELETE, atau update yang tidak mengembalikan data |\n\nUntuk `202`, server sebaiknya memberi cara memantau proses, misalnya URI status pekerjaan di body.\n\n**3xx: pengalihan**\n\n| Kode | Arti | Catatan |\n|---|---|---|\n| `301 Moved Permanently` | pindah permanen ke `Location` | perbarui link dan bookmark |\n| `302 Found` | pindah sementara | tetap pakai URI lama di kemudian hari |\n| `304 Not Modified` | salinan di cache client masih berlaku | jawaban untuk request bersyarat, tanpa body |\n| `307` / `308` | sementara / permanen, **method dan body dipertahankan** | dipakai kalau yang dialihkan adalah POST/PUT |\n\nKarena alasan sejarah, client boleh mengubah POST menjadi GET saat mengikuti `301` atau `302`. Akibatnya body ikut hilang. Kalau endpoint yang menerima POST dipindah, pakai `307` atau `308`.\n\n`curl` tidak mengikuti redirect kecuali diberi `-L` (`--location`). `fetch` di browser dan Node mengikutinya otomatis."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nURI lama `/produk` sudah diganti `/products`. Lihat respons pengalihannya, lalu kirim request bersyarat dengan `If-None-Match` berisi ETag produk P01 (`\"p01-v1\"`).\n\n```bash\ncurl -i https://api.toko.contoh/produk\ncurl -i -H 'If-None-Match: \"p01-v1\"' https://api.toko.contoh/products/P01\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -i https://api.toko.contoh/produk\nHTTP/1.1 301 Moved Permanently\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nLocation: /products\nContent-Length: 0\nConnection: close\n$ curl -i -H 'If-None-Match: \"p01-v1\"' https://api.toko.contoh/products/P01\nHTTP/1.1 304 Not Modified\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nETag: \"p01-v1\"\nCache-Control: max-age=60\nContent-Length: 0\nConnection: close\n```\n\n- `301` membawa header `Location: /products`. Body-nya kosong (`Content-Length: 0`), karena informasi pentingnya ada di header.\n- `304 Not Modified` juga tanpa body. Server hanya mengatakan \"versi `p01-v1` yang kamu simpan masih yang terbaru\", jadi client memakai salinan di cache-nya. Byte yang dikirim jauh lebih sedikit daripada respons `200`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira API rusak karena curl tidak mencetak apa pun**\n\nSalah:\n\n```bash\ncurl https://api.toko.contoh/produk\n```\n\nBenar:\n\n```bash\ncurl -L https://api.toko.contoh/produk\n```\n\nRespons 301 tidak punya body, dan curl tanpa -L berhenti di situ sehingga layar kosong. Selalu cek status dengan -i saat output kosong, lalu pakai -L untuk mengikuti header Location.\n\n**2. Memakai 301 untuk memindahkan endpoint yang menerima POST**\n\nSalah:\n\n```http\nHTTP/1.1 301 Moved Permanently\nLocation: /v2/orders\n```\n\nBenar:\n\n```http\nHTTP/1.1 308 Permanent Redirect\nLocation: /v2/orders\n```\n\nSaat mengikuti 301 atau 302, banyak client mengubah POST menjadi GET, termasuk curl -L. Body pesanan hilang, dan client lama malah membaca daftar pesanan alih-alih membuat pesanan. 308 (permanen) dan 307 (sementara) wajib mempertahankan method dan body.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Tim kamu membuat endpoint ekspor laporan penjualan. Prosesnya makan waktu beberapa menit, jadi server hanya mencatat permintaan lalu mengerjakannya di latar belakang. Status apa yang paling tepat untuk respons pertama?",
+          "options": [
+            "200 OK",
+            "201 Created",
+            "202 Accepted",
+            "204 No Content"
+          ],
+          "answer": 2,
+          "explanation": "202 berarti permintaan diterima tetapi pemrosesannya belum selesai. 200 dan 204 menyiratkan pekerjaan sudah tuntas, dan 201 dipakai saat resource yang diminta sudah benar-benar dibuat.",
+          "remedial": "202 berarti permintaan diterima tetapi pemrosesannya belum selesai. 200 dan 204 menyiratkan pekerjaan sudah tuntas, dan 201 dipakai saat resource yang diminta sudah benar-benar dibuat."
+        },
+        {
+          "question": "Apa beda `301` dan `302`?",
+          "options": [
+            "301 untuk GET, 302 untuk POST",
+            "301 berarti pindah permanen, 302 berarti pindah sementara",
+            "301 berarti resource dihapus, 302 berarti resource dibuat",
+            "301 dikirim oleh server, 302 dikirim oleh client"
+          ],
+          "answer": 1,
+          "explanation": "Keduanya membawa header Location. 301 memberi tahu client untuk memakai URI baru seterusnya, sedangkan 302 hanya untuk request ini.",
+          "remedial": "Keduanya membawa header Location. 301 memberi tahu client untuk memakai URI baru seterusnya, sedangkan 302 hanya untuk request ini."
+        },
+        {
+          "question": "Respons `304 Not Modified` tidak membawa body. Dari mana client mendapatkan datanya?",
+          "options": [
+            "Dari salinan yang sudah tersimpan di cache client",
+            "Dari header Location",
+            "Client harus mengirim GET kedua tanpa header If-None-Match",
+            "Dari body kosong yang harus diisi client sendiri"
+          ],
+          "answer": 0,
+          "explanation": "304 menjawab request bersyarat: ETag yang dikirim client masih cocok. Artinya salinan di cache client masih berlaku dan boleh dipakai.",
+          "remedial": "304 menjawab request bersyarat: ETag yang dikirim client masih cocok. Artinya salinan di cache client masih berlaku dan boleh dipakai."
+        },
+        {
+          "question": "Opsi `-L` dipakai pada URI lama yang sudah dipindah. Apa output perintah ini?",
+          "code": "curl -s -L -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/produk",
+          "options": [
+            "301",
+            "200",
+            "302",
+            "404"
+          ],
+          "answer": 1,
+          "explanation": "Dengan -L, curl mengikuti Location: /products dan mencetak status respons terakhir, yaitu 200. Tanpa -L, outputnya 301.",
+          "remedial": "Dengan -L, curl mengikuti Location: /products dan mencetak status respons terakhir, yaitu 200. Tanpa -L, outputnya 301."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "ETag produk P02 adalah \"p02-v1\". Apa status yang dikembalikan?",
+      "code": "curl -s -o /dev/null -w \"%{http_code}\" -H 'If-None-Match: \"p01-v1\"' https://api.toko.contoh/products/P02",
+      "options": [
+        "304",
+        "200",
+        "412",
+        "404"
+      ],
+      "answer": 1,
+      "explanation": "ETag yang dikirim (\"p01-v1\") milik P01, tidak cocok dengan versi P02. Server mengirim data lengkap dengan 200. 304 hanya muncul kalau ETag cocok, dan 412 dipakai untuk If-Match yang gagal."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Ikuti redirect dari URI lama sampai ke koleksi produk\ncurl -s ___ https://api.toko.contoh/produk | jq .meta.total",
+      "answers": [
+        "-L|--location"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Digit pertama status code menyatakan kelas; kode yang tidak dikenal diperlakukan seperti x00 di kelasnya.",
+        "200 berhasil dengan body, 201 resource dibuat (+ Location), 202 diterima tapi belum selesai, 204 berhasil tanpa body.",
+        "301 pindah permanen, 302 pindah sementara; untuk POST/PUT pakai 308 atau 307 supaya method tidak berubah.",
+        "304 Not Modified berarti salinan di cache client masih berlaku, jadi server tidak mengirim body.",
+        "curl butuh -L untuk mengikuti redirect, sedangkan fetch mengikutinya otomatis."
+      ]
+    }
+  ]
+}

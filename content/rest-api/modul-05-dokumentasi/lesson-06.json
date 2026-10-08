@@ -1,0 +1,110 @@
+{
+  "id": "api-dokumentasi-06",
+  "moduleId": "api-dokumentasi",
+  "order": 6,
+  "title": "Changelog dan Breaking Change",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Merancang API yang Rapi kamu sudah belajar memisahkan `/v1` dan `/v2` untuk breaking change. Materi ini membahas sisi prosesnya: mengenali perubahan mana yang breaking, mencatatnya, dan mengumumkannya.\n\nUkurannya sederhana. Sebuah perubahan disebut **breaking** kalau client yang sudah benar menjadi gagal **tanpa mengubah kodenya**. Sebagian kasus mudah dikenali, sebagian lagi sering terlewat saat review:\n\n| Perubahan | Breaking? | Kenapa |\n|---|---|---|\n| Menghapus field `stock` dari respons | ya | client yang membaca `stock` mendapat `undefined` |\n| Mengubah tipe `price` dari angka menjadi objek | ya | `price * qty` menjadi `NaN` |\n| Sukses `POST /orders` berubah dari `200` menjadi `201` | ya | client yang memeriksa `status === 200` mengira gagal |\n| `404` untuk pesanan orang lain diganti `403` | ya | arti status berubah, penanganan error di client salah |\n| `price` kini sudah termasuk pajak | ya | schema sama, tapi **arti** nilainya berubah |\n| Batas `name` diperketat dari 100 menjadi 50 karakter | ya | request yang dulu diterima kini ditolak `422` |\n| Menambah nilai enum `refunded` di `status` pesanan | bisa | client dengan `switch` tanpa cabang default bisa gagal |\n| Menambah field opsional di respons | tidak | client mengabaikan field yang tidak dikenalnya |\n| Menambah endpoint atau query parameter opsional | tidak | client lama tidak memakainya |\n\nSaat perusahaan mengganti nomor rekening, pelanggan diberi surat resmi jauh hari sebelumnya. Rekening lama tetap aktif beberapa bulan, dan surat itu menyebut tanggal terakhirnya. Perusahaan yang diam-diam menutup rekening lama akan menerima banyak transfer yang gagal."
+    },
+    {
+      "type": "theory",
+      "content": "**Changelog** adalah catatan perubahan API, diurutkan dari yang terbaru. Format yang banyak dipakai mengelompokkan perubahan menjadi **Added**, **Changed**, **Deprecated**, **Removed**, **Fixed**, dan **Security**:\n\n```markdown\n# Changelog API Toko Budi\n\n## 2026-09-01\n### Added\n- `/v2/products`: `price` berbentuk objek `{\"amount\": 5000, \"currency\": \"IDR\"}`.\n### Deprecated\n- `/v1/products`, berhenti 31 Desember 2026. Panduan migrasi: /docs/migrasi-v2.\n\n## 2026-08-15\n### Added\n- Query opsional `minPrice` dan `maxPrice` di `GET /products`.\n### Fixed\n- `GET /products?q=` kini tidak membedakan huruf besar dan kecil.\n```\n\nSetiap entri breaking menyebut tanggal, endpoint yang terdampak, apa yang berubah, langkah migrasi, dan batas waktu versi lama.\n\n**Cara mengumumkan breaking change:**\n\n1. Tulis entri di changelog dan siapkan panduan migrasi.\n2. Tandai operation lama dengan `deprecated: true` di dokumen OpenAPI. Swagger UI menampilkannya dicoret.\n3. Kirim header `Deprecation`, `Sunset`, dan `Link` di respons versi lama.\n4. Kirim email ke pemilik API key atau tim yang terdaftar memakai API.\n5. Pantau log untuk melihat client yang masih memanggil versi lama, lalu hubungi mereka.\n6. Matikan versi lama hanya setelah tanggal `Sunset` lewat.\n\n```yaml\npaths:\n  /v1/products:\n    get:\n      summary: Daftar produk (versi lama, price berupa integer)\n      operationId: listProductsV1\n      deprecated: true\n      responses:\n        '200':\n          description: Satu halaman produk\n          headers:\n            Deprecation:\n              description: Waktu mulai deprecated, dalam detik Unix (RFC 9745)\n              schema:\n                type: string\n              example: '@1788220800'\n            Sunset:\n              description: Waktu endpoint boleh berhenti (RFC 8594)\n              schema:\n                type: string\n              example: Thu, 31 Dec 2026 23:59:59 GMT\n```\n\n**Menjaga kompatibilitas mundur.** Untuk mengganti field tanpa versi baru, pakai pola *expand and contract*. Tambah field baru dulu dan tetap kirim field lama yang ditandai `deprecated: true` di schema. Setelah semua client pindah, hapus field lama di versi berikutnya. `info.version` dokumen biasanya mengikuti *semantic versioning*: angka mayor naik untuk breaking change, minor untuk penambahan, dan patch untuk perbaikan.\n\nBanyak tim juga membandingkan dokumen OpenAPI lama dan baru secara otomatis di CI. Pull request yang mengandung breaking change tanpa versi baru langsung ditandai."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLihat pengumuman di header `/v1`, deteksi perbedaan tipe antara `/v1` dan `/v2` dengan `diff`, lalu jalankan skrip client `sisa.mjs` yang membaca header itu dan mencatat peringatan.\n\nIsi `sisa.mjs`:\n\n```javascript\n// Client mencatat peringatan saat memakai endpoint yang akan dihentikan\nconst res = await fetch('https://api.toko.contoh/v1/products/P01');\nconst deprecation = res.headers.get('deprecation');\n\nif (deprecation) {\n  const sejak = new Date(Number(deprecation.slice(1)) * 1000);\n  const berhenti = new Date(res.headers.get('sunset'));\n  const sekarang = new Date(res.headers.get('date'));\n  const sisaHari = Math.floor((berhenti - sekarang) / 86_400_000);\n  console.log(`PERINGATAN: ${res.url} deprecated sejak ${sejak.toISOString()}`);\n  console.log(`Berhenti ${berhenti.toISOString()} (${sisaHari} hari lagi)`);\n  console.log(`Pengganti: ${res.headers.get('link')}`);\n}\n```\n\n```bash\ncurl -sI https://api.toko.contoh/v1/products/P01 | grep -iE \"^(deprecation|sunset|link):\"\ndiff <(curl -s https://api.toko.contoh/v1/products/P01 | jq -S 'map_values(type)') <(curl -s https://api.toko.contoh/v2/products/P01 | jq -S 'map_values(type)')\nnode sisa.mjs\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -sI https://api.toko.contoh/v1/products/P01 | grep -iE \"^(deprecation|sunset|link):\"\nDeprecation: @1788220800\nSunset: Thu, 31 Dec 2026 23:59:59 GMT\nLink: </v2/products>; rel=\"successor-version\"\n$ diff <(curl -s https://api.toko.contoh/v1/products/P01 | jq -S 'map_values(type)') <(curl -s https://api.toko.contoh/v2/products/P01 | jq -S 'map_values(type)')\n6c6\n<   \"price\": \"number\",\n---\n>   \"price\": \"object\",\n$ node sisa.mjs\nPERINGATAN: https://api.toko.contoh/v1/products/P01 deprecated sejak 2026-09-01T00:00:00.000Z\nBerhenti 2026-12-31T23:59:59.000Z (121 hari lagi)\nPengganti: </v2/products>; rel=\"successor-version\"\n```\n\nPerhatikan:\n\n- `curl -sI` meminta header saja (`HEAD`). Ketiga header pengumuman ada di respons `/v1`.\n- `diff` hanya menampilkan baris yang berbeda: tipe `price` berubah dari `number` menjadi `object`. Itulah breaking change yang menjadi alasan `/v2` dibuat. Pemeriksaan seperti ini bisa dipasang di CI.\n- Skrip client mengubah `@1788220800` menjadi tanggal, lalu menghitung sisa hari sampai `Sunset` dari header `Date` respons. Peringatan seperti ini di log aplikasi membuat tim client sadar sebelum endpoint dimatikan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Changelog yang menyembunyikan breaking change**\n\nSalah:\n\n```markdown\n## 2026-09-01\n- Perbaikan dan peningkatan performa.\n```\n\nBenar:\n\n```markdown\n## 2026-09-01\n### Changed\n- **BREAKING** `POST /orders`: sukses kini dijawab `201 Created`\n  (sebelumnya `200 OK`) plus header `Location`.\n  Migrasi: periksa `res.ok` atau `status === 201`, bukan `status === 200`.\n```\n\nTim client membaca \"perbaikan\" lalu tidak memeriksa apa pun. Aplikasi mereka mulai menampilkan pesan gagal walaupun pesanan berhasil dibuat. Entri changelog harus menyebut endpoint, apa yang berubah, dan langkah migrasinya. Tandai breaking change dengan jelas supaya tidak terlewat.\n\n**2. Mengganti nama field dalam satu rilis**\n\nSalah:\n\n```yaml\n# rilis hari ini: stock langsung diganti quantity\nProduct:\n  type: object\n  properties:\n    quantity:\n      type: integer\n```\n\nBenar:\n\n```yaml\n# tahap 1: tambah quantity, stock tetap dikirim dan ditandai deprecated\nProduct:\n  type: object\n  properties:\n    stock:\n      type: integer\n      deprecated: true\n      description: Pakai quantity. Dihapus di /v2.\n    quantity:\n      type: integer\n```\n\nClient lama yang membaca `stock` langsung rusak pada hari rilis. Dengan expand and contract, client lama tetap bekerja karena `stock` masih dikirim. Client baru sudah bisa memakai `quantity`. `stock` baru dihapus setelah log menunjukkan tidak ada lagi yang membacanya.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Perubahan mana yang breaking walaupun schema JSON-nya tidak berubah sama sekali?",
+          "options": [
+            "Menambah endpoint GET /categories",
+            "Menambah field weight di respons produk",
+            "Nilai price yang dulu belum termasuk pajak kini sudah termasuk pajak",
+            "Memperbaiki salah ketik di description dokumen OpenAPI"
+          ],
+          "answer": 2,
+          "explanation": "Tipe dan nama field tetap, tapi arti nilainya berubah. Client yang menambahkan pajak sendiri akan menagih pajak dua kali. Perubahan arti juga breaking change.",
+          "remedial": "Tipe dan nama field tetap, tapi arti nilainya berubah. Client yang menambahkan pajak sendiri akan menagih pajak dua kali. Perubahan arti juga breaking change."
+        },
+        {
+          "question": "Field `status` pesanan selama ini hanya berisi `paid` atau `shipped`. Tim menambah nilai `refunded`. Kenapa perubahan ini bisa merusak client?",
+          "options": [
+            "Karena nilai enum harus berupa angka",
+            "Karena field status harus dipindah ke header",
+            "Karena setiap penambahan pada respons selalu breaking",
+            "Client yang memakai switch tanpa cabang default bisa gagal menangani nilai yang tidak dikenalnya"
+          ],
+          "answer": 3,
+          "explanation": "Menambah nilai enum di respons terlihat seperti penambahan biasa. Tapi client yang hanya menyiapkan dua kemungkinan bisa error atau menampilkan layar kosong. Umumkan perubahan seperti ini dan sarankan client menyiapkan cabang default.",
+          "remedial": "Menambah nilai enum di respons terlihat seperti penambahan biasa. Tapi client yang hanya menyiapkan dua kemungkinan bisa error atau menampilkan layar kosong. Umumkan perubahan seperti ini dan sarankan client menyiapkan cabang default."
+        },
+        {
+          "question": "Kategori changelog mana yang tepat untuk mencatat bahwa `/v1/products` akan dihentikan tanggal 31 Desember 2026, tapi saat ini masih berjalan?",
+          "options": [
+            "Deprecated",
+            "Removed",
+            "Fixed",
+            "Security"
+          ],
+          "answer": 0,
+          "explanation": "Deprecated berarti masih berjalan tapi dijadwalkan berhenti. Removed dipakai saat endpoint benar-benar sudah dimatikan.",
+          "remedial": "Deprecated berarti masih berjalan tapi dijadwalkan berhenti. Removed dipakai saat endpoint benar-benar sudah dimatikan."
+        },
+        {
+          "question": "Tim kamu ingin mengganti nama field `stock` menjadi `quantity` tanpa merusak client. Urutan mana yang paling aman?",
+          "options": [
+            "Ganti nama hari ini, lalu umumkan di changelog",
+            "Tambah quantity, tetap kirim stock sebagai deprecated, tunggu client pindah, lalu hapus stock di versi baru",
+            "Hapus stock dulu, lalu tambah quantity bulan depan",
+            "Ganti nama di dokumen OpenAPI dulu, server menyusul saat sempat"
+          ],
+          "answer": 1,
+          "explanation": "Pola expand and contract menambah dulu, memindahkan client, baru menghapus. Mengganti nama sekaligus atau menghapus duluan langsung merusak client lama.",
+          "remedial": "Pola expand and contract menambah dulu, memindahkan client, baru menghapus. Mengganti nama sekaligus atau menghapus duluan langsung merusak client lama."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa output perintah ini?",
+      "code": "curl -sI https://api.toko.contoh/v2/products/P01 | grep -ci deprecation",
+      "options": [
+        "1",
+        "0",
+        "3",
+        "@1788220800"
+      ],
+      "answer": 1,
+      "explanation": "/v2 adalah versi pengganti, jadi responsnya tidak membawa header Deprecation. grep -c menghitung baris yang cocok, yaitu 0. Header itu hanya ada di respons /v1."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Periksa tipe price di /v1 untuk dibandingkan dengan /v2\ncurl -s https://api.toko.contoh/v1/products/P01 | jq -r '.price | ___'",
+      "answers": [
+        "type"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Breaking change membuat client yang sudah benar gagal tanpa mengubah kodenya: hapus field, ganti tipe, ubah arti status atau nilai, perketat validasi.",
+        "Changelog mencatat perubahan per tanggal dalam kategori Added, Changed, Deprecated, Removed, Fixed, dan Security.",
+        "Entri breaking menyebut endpoint, apa yang berubah, langkah migrasi, dan batas waktu versi lama.",
+        "Umumkan lewat changelog, deprecated: true di OpenAPI, header Deprecation/Sunset/Link, email, lalu pantau log.",
+        "Jaga kompatibilitas mundur dengan expand and contract: tambah dulu, pindahkan client, baru hapus."
+      ]
+    }
+  ]
+}

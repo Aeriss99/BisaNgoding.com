@@ -1,0 +1,110 @@
+{
+  "id": "api-dokumentasi-05",
+  "moduleId": "api-dokumentasi",
+  "order": 5,
+  "title": "Menguji API",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Dokumen OpenAPI adalah janji. **Test** membuktikan bahwa server menepati janji itu, dan tetap menepatinya setelah setiap perubahan kode.\n\n| | Pengujian manual | Pengujian otomatis |\n|---|---|---|\n| Cara | orang mengirim request lewat Postman, curl, atau Swagger UI, lalu memeriksa respons | skrip mengirim request dan memeriksa respons dengan *assertion* (pernyataan yang harus benar) |\n| Kelebihan | cepat untuk eksplorasi dan bug baru | bisa diulang ratusan kali tanpa lelah, dijalankan otomatis di CI |\n| Kekurangan | lambat, mudah terlewat, hasilnya bergantung pada orang | perlu waktu untuk menulis dan merawat |\n\nUntuk setiap endpoint, tulis tiga jenis kasus uji:\n\n- **Positif**: input benar menghasilkan respons sukses yang sesuai dokumen.\n- **Negatif**: input salah ditolak dengan status dan format error yang benar.\n- **Batas** (*boundary*): nilai tepat di batas aturan dan satu langkah di luarnya. Bug sering bersembunyi di sini, misalnya `>` yang seharusnya `>=`.\n\n| Aturan di dokumen | Nilai di batas (harus diterima) | Satu langkah di luar (harus ditolak) |\n|---|---|---|\n| `stock`: integer, `minimum: 0` | `0` | `-1` |\n| `name`: `maxLength: 100` | 100 karakter | 101 karakter |\n| `limit`: `minimum: 1` | `1` | `0` |\n\nTest sebaiknya berjalan di CI pada setiap pull request, ke server test atau staging dengan data awal yang diketahui. Jangan jalankan test yang membuat atau menghapus data ke server produksi.\n\nSebelum mobil baru dijual, pabrik mengujinya di jalan normal, dengan rem mendadak, dan dengan muatan tepat di batas maksimum. Mobil yang hanya lulus di jalan mulus belum terbukti aman. API juga begitu: jalur sukses saja belum cukup."
+    },
+    {
+      "type": "theory",
+      "content": "**Test di Postman.** Setiap request bisa diberi script di tab **Scripts → Post-response** (di versi lama bernama **Tests**). Hasilnya tampil di tab **Test Results** sebagai lulus atau gagal:\n\n```javascript\npm.test('status 201', () => {\n  pm.response.to.have.status(201);\n});\npm.test('header Location menunjuk produk baru', () => {\n  pm.expect(pm.response.headers.get('Location')).to.match(/^\\/products\\/P\\d+$/);\n});\npm.test('price berupa integer', () => {\n  pm.expect(Number.isInteger(pm.response.json().price)).to.be.true;\n});\npm.test('respons di bawah 500 ms', () => {\n  pm.expect(pm.response.responseTime).to.be.below(500);\n});\n```\n\nCollection beserta test-nya bisa dijalankan dari terminal dan CI dengan **Newman**, alat baris perintah dari Postman:\n\n```bash\nnewman run toko.postman_collection.json -e staging.postman_environment.json\n```\n\n**Test dengan kode.** Tim backend sering menulis test dengan bahasa yang sama dengan servernya. Di JavaScript, `node:assert` dan `fetch` sudah cukup untuk memulai, seperti di kartu berikutnya.\n\n**Contract test.** Test yang memeriksa bahwa request dan respons asli sesuai **kontrak**, biasanya dokumen OpenAPI. Contohnya: setiap respons `GET /products/{id}` divalidasi terhadap schema `Product`, dan setiap error harus `application/problem+json`. Ada juga *consumer-driven contract test*: tim frontend menulis harapannya sebagai kontrak, dan test backend gagal kalau harapan itu dilanggar. Contract test menangkap perbedaan antara dokumen dan server sebelum client rusak.\n\nWaktu respons boleh diperiksa, tapi batasnya harus longgar. Server test bisa lebih lambat dari produksi, dan batas yang terlalu ketat membuat test gagal secara acak."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nSimpan skrip uji berikut sebagai `uji.mjs`. Skrip ini menguji server latihan dengan kasus positif, negatif, dan batas. Fungsi `uji` mencatat lulus atau gagal tanpa menghentikan test berikutnya.\n\nIsi `uji.mjs`:\n\n```javascript\nimport assert from 'node:assert/strict';\n\nconst BASE = 'https://api.toko.contoh';\nconst topi = { name: 'Topi', price: 45000, category: 'aksesoris', stock: 10 };\nlet lulus = 0;\nlet gagal = 0;\n\nasync function uji(nama, fn) {\n  try {\n    await fn();\n    lulus++;\n    console.log('LULUS', nama);\n  } catch (err) {\n    gagal++;\n    console.log('GAGAL', nama, '→', err.message);\n  }\n}\n\nfunction kirimProduk(body) {\n  return fetch(`${BASE}/products`, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify(body),\n  });\n}\n\nawait uji('positif: GET produk P01 → 200, bentuk sesuai schema', async () => {\n  const res = await fetch(`${BASE}/products/P01`);\n  assert.equal(res.status, 200);\n  assert.match(res.headers.get('content-type'), /^application\\/json/);\n  const p = await res.json();\n  for (const f of ['id', 'name', 'price', 'category', 'stock', 'createdAt']) assert.ok(f in p, `field ${f} hilang`);\n  assert.ok(Number.isInteger(p.price), 'price harus integer');\n});\n\nawait uji('positif: POST produk valid → 201 + Location', async () => {\n  const res = await kirimProduk(topi);\n  assert.equal(res.status, 201);\n  assert.match(res.headers.get('location'), /^\\/products\\/P\\d+$/);\n});\n\nawait uji('negatif: produk tidak ada → 404 problem+json', async () => {\n  const res = await fetch(`${BASE}/products/P99`);\n  assert.equal(res.status, 404);\n  assert.equal(res.headers.get('content-type'), 'application/problem+json');\n});\n\nawait uji('negatif: price berupa teks → 422, error di price', async () => {\n  const res = await kirimProduk({ ...topi, price: '45000' });\n  assert.equal(res.status, 422);\n  const body = await res.json();\n  assert.deepEqual(body.errors.map((e) => e.field), ['price']);\n});\n\nawait uji('negatif: body tanpa Content-Type JSON → 415', async () => {\n  const res = await fetch(`${BASE}/products`, { method: 'POST', body: JSON.stringify(topi) });\n  assert.equal(res.status, 415);\n});\n\nawait uji('batas: stock 0 diterima, stock -1 ditolak', async () => {\n  assert.equal((await kirimProduk({ ...topi, stock: 0 })).status, 201);\n  assert.equal((await kirimProduk({ ...topi, stock: -1 })).status, 422);\n});\n\nawait uji('batas: name 100 karakter diterima, 101 ditolak', async () => {\n  assert.equal((await kirimProduk({ ...topi, name: 'a'.repeat(100) })).status, 201);\n  assert.equal((await kirimProduk({ ...topi, name: 'a'.repeat(101) })).status, 422);\n});\n\nawait uji('batas: limit 100 diterima, limit 0 ditolak', async () => {\n  assert.equal((await fetch(`${BASE}/products?limit=100`)).status, 200);\n  assert.equal((await fetch(`${BASE}/products?limit=0`)).status, 400);\n});\n\nconsole.log(`\\n${lulus} lulus, ${gagal} gagal`);\nprocess.exitCode = gagal > 0 ? 1 : 0;\n```\n\n```bash\nnode uji.mjs && echo \"CI: semua test lulus\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ node uji.mjs && echo \"CI: semua test lulus\"\nLULUS positif: GET produk P01 → 200, bentuk sesuai schema\nLULUS positif: POST produk valid → 201 + Location\nLULUS negatif: produk tidak ada → 404 problem+json\nLULUS negatif: price berupa teks → 422, error di price\nLULUS negatif: body tanpa Content-Type JSON → 415\nLULUS batas: stock 0 diterima, stock -1 ditolak\nLULUS batas: name 100 karakter diterima, 101 ditolak\nLULUS batas: limit 100 diterima, limit 0 ditolak\n\n8 lulus, 0 gagal\nCI: semua test lulus\n```\n\nPerhatikan:\n\n- Test positif tidak hanya memeriksa status. Ia juga memeriksa media type, field wajib, dan tipe `price` sesuai schema. Ini bentuk sederhana contract test.\n- Test negatif memeriksa status dan bentuk error, bukan teks `detail` yang bisa berubah.\n- `process.exitCode` bernilai `1` kalau ada test yang gagal. CI membaca exit code ini untuk menandai pull request gagal, sehingga `echo` setelah `&&` hanya jalan kalau semua test lulus.\n- Setiap test membuat data yang ia butuhkan sendiri. Test tidak bergantung pada hasil test lain."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Hanya menguji jalur sukses**\n\nSalah:\n\n```javascript\n// Satu-satunya test untuk POST /products\nconst res = await kirimProduk({ name: 'Topi', price: 45000, category: 'aksesoris', stock: 10 });\nassert.equal(res.status, 201);\n```\n\nBenar:\n\n```javascript\nassert.equal((await kirimProduk(topi)).status, 201);                        // positif\nassert.equal((await kirimProduk({ ...topi, price: '45000' })).status, 422);  // negatif\nassert.equal((await kirimProduk({ ...topi, stock: 0 })).status, 201);        // batas\nassert.equal((await kirimProduk({ ...topi, stock: -1 })).status, 422);       // lewat batas\n```\n\nTest yang hanya mengirim data benar tetap lulus walaupun server menerima stok negatif. Bug paling sering muncul di input yang salah dan di tepi aturan. Untuk setiap aturan validasi, uji satu nilai tepat di batas dan satu nilai yang melewatinya.\n\n**2. Mencocokkan teks detail di test**\n\nSalah:\n\n```javascript\nconst res = await fetch(`${BASE}/products/P99`);\nconst body = await res.json();\nassert.equal(body.detail, 'Produk P99 tidak ditemukan.');\n```\n\nBenar:\n\n```javascript\nconst res = await fetch(`${BASE}/products/P99`);\nassert.equal(res.status, 404);\nassert.equal(res.headers.get('content-type'), 'application/problem+json');\nconst body = await res.json();\nassert.equal(body.status, 404);\n```\n\nTeks `detail` ditujukan untuk manusia dan boleh berubah, misalnya diterjemahkan atau diperbaiki ejaannya. Test yang mencocokkan teks itu gagal padahal API tidak rusak. Test seperti ini disebut rapuh (*brittle*). Uji bagian yang dijanjikan kontrak: status code, media type, `type`, dan bentuk body.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Aturan di dokumen: `stock` harus bilangan bulat ≥ 0. Pasangan nilai mana yang paling tepat untuk uji batas?",
+          "options": [
+            "100 dan 1000",
+            "0 dan -1",
+            "10 dan 20",
+            "\"0\" dan \"-1\" dalam bentuk teks"
+          ],
+          "answer": 1,
+          "explanation": "0 adalah nilai tepat di batas dan harus diterima. -1 adalah satu langkah di luar batas dan harus ditolak. Teks \"0\" menguji tipe data, bukan batas.",
+          "remedial": "0 adalah nilai tepat di batas dan harus diterima. -1 adalah satu langkah di luar batas dan harus ditolak. Teks \"0\" menguji tipe data, bukan batas."
+        },
+        {
+          "question": "Apa yang diperiksa *contract test* untuk API?",
+          "options": [
+            "Bahwa request dan respons asli server sesuai kontrak, misalnya dokumen OpenAPI, yang dipakai client",
+            "Bahwa server sanggup menerima 10.000 request per detik",
+            "Bahwa tampilan halaman frontend sama dengan desain",
+            "Bahwa kode server ditulis dengan gaya yang rapi"
+          ],
+          "answer": 0,
+          "explanation": "Contract test fokus pada kesepakatan antara client dan server: status code, media type, dan bentuk body. Uji beban, uji tampilan, dan linter adalah jenis pemeriksaan lain.",
+          "remedial": "Contract test fokus pada kesepakatan antara client dan server: status code, media type, dan bentuk body. Uji beban, uji tampilan, dan linter adalah jenis pemeriksaan lain."
+        },
+        {
+          "question": "Kenapa test API otomatis biasanya dijalankan di CI setiap ada pull request?",
+          "options": [
+            "Supaya server produksi menjadi lebih cepat",
+            "Supaya dokumentasi OpenAPI tidak perlu ditulis lagi",
+            "Karena test otomatis tidak bisa dijalankan di laptop",
+            "Supaya perubahan yang merusak kontrak ketahuan sebelum digabung ke cabang utama"
+          ],
+          "answer": 3,
+          "explanation": "CI menjalankan semua test untuk setiap perubahan. Kalau ada yang gagal, pull request ditandai gagal sebelum kodenya sampai ke pengguna.",
+          "remedial": "CI menjalankan semua test untuk setiap perubahan. Kalau ada yang gagal, pull request ditandai gagal sebelum kodenya sampai ke pengguna."
+        },
+        {
+          "question": "Test mana yang termasuk kasus **negatif**?",
+          "options": [
+            "GET /products/P01 dijawab 200",
+            "POST produk dengan stock 0 dijawab 201",
+            "GET /products/P99 dijawab 404 dengan application/problem+json",
+            "GET /products?limit=100 dijawab 200"
+          ],
+          "answer": 2,
+          "explanation": "Kasus negatif memastikan permintaan yang tidak bisa dipenuhi ditolak dengan benar. stock 0 dan limit 100 adalah kasus batas, sedangkan GET P01 adalah kasus positif.",
+          "remedial": "Kasus negatif memastikan permintaan yang tidak bisa dipenuhi ditolak dengan benar. stock 0 dan limit 100 adalah kasus batas, sedangkan GET P01 adalah kasus positif."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Skrip uji ini memeriksa bahwa produk P05 masih punya stok. Apa output-nya?",
+      "code": "import assert from 'node:assert/strict';\n\nconst res = await fetch('https://api.toko.contoh/products/P05');\nconst p = await res.json();\ntry {\n  assert.ok(p.stock > 0, `stok ${p.id} habis`);\n  console.log('LULUS');\n} catch (err) {\n  console.log('GAGAL:', err.message);\n}",
+      "options": [
+        "GAGAL: stok P05 habis",
+        "LULUS",
+        "GAGAL: 404",
+        "TypeError: p.stock is undefined"
+      ],
+      "answer": 0,
+      "explanation": "Data awal P05 (Sepatu Sekolah) punya stock 0. Ekspresi 0 > 0 bernilai false, jadi assert.ok melempar error dengan pesan yang kita tulis sendiri, lalu catch mencetaknya."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Pastikan produk yang tidak ada dijawab 404\nnode -e 'const assert = require(\"node:assert/strict\"); fetch(\"https://api.toko.contoh/products/P99\").then((res) => { assert.___(res.status, 404); console.log(\"LULUS: 404\"); })'",
+      "answers": [
+        "equal|strictEqual"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Pengujian manual cocok untuk eksplorasi; pengujian otomatis bisa diulang dan dijalankan di CI pada setiap pull request.",
+        "Untuk setiap endpoint, tulis kasus positif, negatif, dan batas (tepat di batas dan satu langkah di luarnya).",
+        "Postman test memakai pm.test dan pm.expect untuk status, header, isi body, dan waktu respons; Newman menjalankannya di CI.",
+        "Contract test memeriksa bahwa respons asli sesuai dokumen OpenAPI, sehingga perbedaan ketahuan sebelum client rusak.",
+        "Uji bagian kontrak (status, media type, bentuk body), bukan teks detail; setiap test menyiapkan datanya sendiri."
+      ]
+    }
+  ]
+}

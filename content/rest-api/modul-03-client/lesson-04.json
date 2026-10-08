@@ -1,0 +1,112 @@
+{
+  "id": "api-client-04",
+  "moduleId": "api-client",
+  "order": 4,
+  "title": "fetch: Mengirim Data",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Untuk mengirim data, `fetch` menerima argumen kedua berisi pengaturan request. Tiga yang hampir selalu kamu tulis:\n\n- `method`: `'POST'`, `'PUT'`, `'PATCH'`, atau `'DELETE'`. Tanpa `method`, fetch memakai `GET`.\n- `headers`: minimal `'Content-Type': 'application/json'` supaya server tahu body berisi JSON.\n- `body`: **teks** JSON hasil `JSON.stringify(objek)`.\n\nfetch tidak mengubah objek menjadi JSON secara otomatis. Kalau kamu menulis `body: { name: 'Topi' }`, yang terkirim adalah teks `[object Object]` dengan `Content-Type: text/plain;charset=UTF-8`. Server JSON akan menolaknya dengan `415`.\n\nSetelah `POST` berhasil, server menjawab `201 Created` dan header `Location` berisi alamat resource baru. Di server latihan, isinya path relatif seperti `/products/P07`. Ubah menjadi URL lengkap dengan `new URL(lokasi, res.url)`.\n\nMengirim data mirip mengirim surat resmi. Isinya harus ditulis dalam format yang disepakati (teks JSON dari `JSON.stringify`). Amplopnya diberi keterangan jenis isi (`Content-Type`) supaya penerima tahu cara membacanya. Surat tanpa keterangan bisa dikembalikan tanpa dibaca."
+    },
+    {
+      "type": "theory",
+      "content": "Respons yang biasa kamu terima saat mengirim data:\n\n| Request | Body yang dikirim | Respons sukses di server latihan |\n|---|---|---|\n| `POST /products` | objek lengkap | `201` + `Location` + body produk baru |\n| `PUT /products/P01` | objek lengkap (4 field wajib) | `200` + body produk |\n| `PATCH /products/P01` | hanya field yang berubah | `200` + body produk |\n| `DELETE /products/P01` | tanpa body | `204`, **tanpa body** |\n\nKalau validasi gagal, server latihan menjawab `422` dengan daftar `errors` per field. Tampilkan pesan itu di samping input yang salah, bukan sebagai satu pesan umum.\n\nNilai dari `<input>` di HTML selalu berupa **string**, termasuk input angka. Ubah dulu dengan `Number(...)` sebelum `JSON.stringify`. Kalau tidak, `price` terkirim sebagai `\"45000\"` dan ditolak.\n\nDua catatan untuk aplikasi di browser:\n\n- `DELETE` yang dijawab `204` tidak punya body. Memanggil `res.json()` akan melempar `SyntaxError`.\n- Dari halaman di origin lain, `res.headers.get('Location')` hanya terbaca kalau server mengirim `Access-Control-Expose-Headers: Location`. Selain itu hasilnya `null`. Ini dibahas di materi CORS."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nSkrip ini membuat produk, mengubah stoknya lewat URL dari header `Location`, menghapusnya, lalu mengirim data yang tidak valid.\n\nIsi `kirim.mjs`:\n\n```javascript\nconst BASE = 'https://api.toko.contoh';\nconst JSON_HEADERS = { 'Content-Type': 'application/json' };\n\nconst res = await fetch(`${BASE}/products`, {\n  method: 'POST',\n  headers: JSON_HEADERS,\n  body: JSON.stringify({ name: 'Topi', price: 45000, category: 'aksesoris', stock: 10 }),\n});\nconst lokasi = new URL(res.headers.get('Location'), res.url);\nconsole.log('POST', res.status, lokasi.href);\n\nconst ubah = await fetch(lokasi, {\n  method: 'PATCH',\n  headers: JSON_HEADERS,\n  body: JSON.stringify({ stock: 7 }),\n});\nconsole.log('PATCH', ubah.status, 'stok sekarang', (await ubah.json()).stock);\n\nconst hapus = await fetch(lokasi, { method: 'DELETE' });\nconsole.log('DELETE', hapus.status);\n\nconst gagal = await fetch(`${BASE}/products`, {\n  method: 'POST',\n  headers: JSON_HEADERS,\n  body: JSON.stringify({ name: 'Topi', price: '45000' }),\n});\nconst problem = await gagal.json();\nconsole.log('POST', gagal.status, problem.detail);\nfor (const e of problem.errors) console.log(' -', e.field + ':', e.message);\n```\n\n```bash\nnode kirim.mjs\n```\n\nYang akan kamu lihat:\n\n```text\n$ node kirim.mjs\nPOST 201 https://api.toko.contoh/products/P07\nPATCH 200 stok sekarang 7\nDELETE 204\nPOST 422 Data produk tidak valid.\n - price: harus bilangan bulat >= 0 (rupiah)\n - category: wajib diisi (teks)\n - stock: harus bilangan bulat >= 0\n```\n\nPerhatikan:\n\n- `PATCH` dan `DELETE` memakai URL dari header `Location`, bukan id yang ditebak sendiri.\n- `DELETE` dijawab `204`, jadi skrip tidak memanggil `res.json()`.\n- Request terakhir ditolak `422`. `price` dikirim sebagai string `'45000'`, sementara `category` dan `stock` tidak dikirim. Setiap field yang salah punya pesannya sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengirim objek sebagai body tanpa JSON.stringify**\n\nSalah:\n\n```javascript\nawait fetch('https://api.toko.contoh/products', {\n  method: 'POST',\n  body: { name: 'Topi', price: 45000, category: 'aksesoris', stock: 10 },\n});\n// terkirim: \"[object Object]\", Content-Type: text/plain → 415\n```\n\nBenar:\n\n```javascript\nawait fetch('https://api.toko.contoh/products', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ name: 'Topi', price: 45000, category: 'aksesoris', stock: 10 }),\n});\n```\n\nfetch mengubah objek biasa menjadi teks `[object Object]`. Bahkan dengan `JSON.stringify`, tanpa header `Content-Type` fetch memasang `text/plain;charset=UTF-8`, dan server latihan tetap menjawab `415`. Keduanya harus ada.\n\n**2. Memanggil res.json() pada respons 204**\n\nSalah:\n\n```javascript\nconst res = await fetch('https://api.toko.contoh/products/P02', { method: 'DELETE' });\nconst body = await res.json(); // SyntaxError: Unexpected end of JSON input\n```\n\nBenar:\n\n```javascript\nconst res = await fetch('https://api.toko.contoh/products/P02', { method: 'DELETE' });\nif (!res.ok) throw new Error(`Gagal menghapus: ${res.status}`);\nconst body = res.status === 204 ? null : await res.json();\n```\n\n`204 No Content` berarti body kosong. `res.json()` mencoba mem-parse teks kosong dan melempar `SyntaxError`, padahal penghapusannya sudah berhasil. Pengguna jadi melihat pesan gagal untuk aksi yang sebenarnya sukses.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Body sudah di-JSON.stringify, tapi header lupa ditulis. Status apa yang dicetak?",
+          "code": "const res = await fetch('https://api.toko.contoh/products', {\n  method: 'POST',\n  body: JSON.stringify({ name: 'Topi', price: 45000, category: 'aksesoris', stock: 10 }),\n});\nconsole.log(res.status);",
+          "options": [
+            "415",
+            "201",
+            "400",
+            "422"
+          ],
+          "answer": 0,
+          "explanation": "Body sudah berupa teks JSON, tapi tanpa header Content-Type fetch mengirim text/plain;charset=UTF-8. Server latihan hanya menerima application/json, jadi menjawab 415 Unsupported Media Type.",
+          "remedial": "Body sudah berupa teks JSON, tapi tanpa header Content-Type fetch mengirim text/plain;charset=UTF-8. Server latihan hanya menerima application/json, jadi menjawab 415 Unsupported Media Type."
+        },
+        {
+          "question": "Header `Location` berisi `/products/P07` dan `res.url` berisi `https://api.toko.contoh/products`. Cara paling tepat mendapatkan URL lengkap produk baru?",
+          "options": [
+            "res.url + res.headers.get('Location')",
+            "'https://api.toko.contoh' + '/products/' + body.id",
+            "new URL(res.headers.get('Location'), res.url).href",
+            "res.headers.get('Location').replace('/', res.url)"
+          ],
+          "answer": 2,
+          "explanation": "new URL(relatif, dasar) mengikuti aturan URL standar. Hasilnya https://api.toko.contoh/products/P07, dan tetap benar kalau Location berisi URL lengkap. Menyambung teks menghasilkan .../products/products/P07, dan menyusun sendiri berarti menebak bentuk URL server.",
+          "remedial": "new URL(relatif, dasar) mengikuti aturan URL standar. Hasilnya https://api.toko.contoh/products/P07, dan tetap benar kalau Location berisi URL lengkap. Menyambung teks menghasilkan .../products/products/P07, dan menyusun sendiri berarti menebak bentuk URL server."
+        },
+        {
+          "question": "Form tambah produk mengirim `price` dari `<input type=\"number\">` dan server menjawab `422` dengan pesan \"price: harus bilangan bulat\". Perbaikan yang tepat?",
+          "options": [
+            "Ganti Content-Type menjadi text/plain",
+            "Kirim dengan PUT, bukan POST",
+            "Bungkus nilai price dengan tanda kutip tambahan",
+            "Ubah nilai input menjadi angka dengan Number(...) sebelum JSON.stringify"
+          ],
+          "answer": 3,
+          "explanation": "Nilai input HTML selalu string, termasuk type=\"number\". JSON.stringify lalu menghasilkan \"price\":\"45000\". Konversi dulu supaya terkirim \"price\":45000.",
+          "remedial": "Nilai input HTML selalu string, termasuk type=\"number\". JSON.stringify lalu menghasilkan \"price\":\"45000\". Konversi dulu supaya terkirim \"price\":45000."
+        },
+        {
+          "question": "Request mana yang **tidak** perlu header `Content-Type`?",
+          "options": [
+            "DELETE /products/P02 tanpa body",
+            "POST /products dengan body JSON",
+            "PATCH /products/P01 dengan body {\"stock\":7}",
+            "PUT /products/P01 dengan body lengkap"
+          ],
+          "answer": 0,
+          "explanation": "Content-Type menjelaskan jenis body yang dikirim. DELETE tanpa body tidak punya isi untuk dijelaskan. Tiga request lain mengirim JSON, jadi wajib memasang Content-Type: application/json.",
+          "remedial": "Content-Type menjelaskan jenis body yang dikirim. DELETE tanpa body tidak punya isi untuk dijelaskan. Tiga request lain mengirim JSON, jadi wajib memasang Content-Type: application/json."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa output skrip ini?",
+      "code": "const res = await fetch('https://api.toko.contoh/products/P03', {\n  method: 'PATCH',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ stock: 12 }),\n});\nconst p = await res.json();\nconsole.log(res.status, p.name, p.stock);",
+      "options": [
+        "204 undefined undefined",
+        "200 undefined 12",
+        "201 Tas Sekolah 12",
+        "200 Tas Sekolah 12"
+      ],
+      "answer": 3,
+      "explanation": "PATCH hanya mengubah stock. Field lain seperti name tetap ada, dan server latihan mengembalikan produk lengkap dengan status 200."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Kirim produk baru sebagai JSON, lalu cetak status dan alamat produk baru\nnode --input-type=module -e 'const res = await fetch(\"https://api.toko.contoh/products\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.___({ name: \"Topi\", price: 45000, category: \"aksesoris\", stock: 10 }) }); console.log(res.status, res.headers.get(\"___\"))'",
+      "answers": [
+        "stringify",
+        "Location|location"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Kirim data dengan method, header Content-Type: application/json, dan body hasil JSON.stringify.",
+        "Tanpa JSON.stringify atau tanpa Content-Type, server JSON menolak request dengan 415.",
+        "POST yang berhasil dijawab 201; ambil alamat resource baru dari header Location dengan new URL(lokasi, res.url).",
+        "Jangan memanggil res.json() pada respons 204 karena body-nya kosong.",
+        "Nilai input HTML selalu string; ubah ke angka sebelum dikirim, dan tampilkan errors 422 per field."
+      ]
+    }
+  ]
+}

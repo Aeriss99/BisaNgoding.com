@@ -1,0 +1,110 @@
+{
+  "id": "api-dokumentasi-04",
+  "moduleId": "api-dokumentasi",
+  "order": 4,
+  "title": "Swagger UI dan Mock Server",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Dokumen OpenAPI ditulis untuk dibaca program. Manusia lebih nyaman membacanya lewat **Swagger UI**, halaman web yang mengubah dokumen OpenAPI menjadi dokumentasi interaktif. Banyak framework backend menyajikannya otomatis di path seperti `/docs`. Kamu juga bisa memasangnya sendiri dari paket npm `swagger-ui-dist`:\n\n```javascript\nSwaggerUIBundle({\n  url: '/openapi.yaml',\n  dom_id: '#swagger-ui',\n});\n```\n\nCara membaca dokumen Toko Budi di Swagger UI:\n\n1. Di bagian atas ada judul dan versi dari `info`, serta pilihan **Servers** dari `servers`.\n2. Endpoint dikelompokkan menurut `tags`. Setiap baris menampilkan method berwarna, path, dan `summary`. Operation yang ditandai `deprecated: true` tampil dicoret.\n3. Klik satu endpoint untuk melihat parameter, contoh request body, dan daftar response per status code beserta schema-nya.\n4. Klik **Try it out**, isi parameter, lalu **Execute**. Swagger UI mengirim request sungguhan, lalu menampilkan perintah curl, Request URL, status, header, dan body respons.\n5. Tombol **Authorize** menerima token sekali. Setelah itu, header `Authorization: Bearer ...` dipasang otomatis di operation yang memakai `bearerAuth`.\n6. Bagian **Schemas** di bawah halaman menampilkan semua schema dari `components/schemas`.\n\nRequest dari **Try it out** dikirim oleh browser. Jadi aturan CORS dari modul Memakai API dari Client tetap berlaku: server harus mengizinkan origin halaman dokumentasi.\n\nPengembang perumahan punya gambar teknis rumah. Untuk calon pembeli, mereka membuat brosur interaktif dan rumah contoh. Rumah contoh bisa dimasuki dan pintunya bisa dibuka, tapi air dan listriknya belum tersambung. Swagger UI adalah brosurnya, dan mock server adalah rumah contohnya."
+    },
+    {
+      "type": "theory",
+      "content": "**Mock server** adalah server tiruan yang menjawab request dengan **contoh respons dari dokumen OpenAPI**. Mock tidak punya database dan tidak menjalankan logika bisnis.\n\nMock membuat tim bisa bekerja **paralel** dalam pendekatan design-first:\n\n| Minggu | Tim backend | Tim frontend dan mobile |\n|---|---|---|\n| 1 | dokumen OpenAPI disepakati bersama | dokumen OpenAPI disepakati bersama |\n| 2–3 | menulis kode endpoint | membuat layar dengan data dari mock server |\n| 4 | endpoint jalan di staging | mengganti base URL dari mock ke staging |\n\nAlat yang umum:\n\n- **Postman** bisa membuat mock server dari collection atau dokumen OpenAPI.\n- **Prism**, alat open source, menjalankan mock langsung dari berkas: `prism mock openapi.yaml`.\n- Skrip kecil seperti di kartu berikutnya, kalau kebutuhannya sederhana.\n\nBanyak alat mock mendukung header `Prefer: code=404` untuk memilih contoh respons lain. Fitur ini penting, karena frontend juga harus membuat tampilan error, bukan hanya tampilan sukses.\n\n| | Mock server | Server sungguhan |\n|---|---|---|\n| Sumber jawaban | contoh di dokumen | database dan logika bisnis |\n| Data setelah `POST` | tidak tersimpan | tersimpan |\n| Validasi dan aturan bisnis | biasanya tidak ada | lengkap |\n| Kegunaan | mulai kerja lebih awal, demo, uji tampilan | produk sungguhan |\n\nMock hanya membuktikan bahwa frontend memahami **dokumen**. Kesesuaian server sungguhan dengan dokumen dibuktikan dengan test, yang dibahas di materi berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nJalankan mock server di latar belakang dengan `&`. Di terminal sendiri, kamu juga bisa menjalankannya di jendela terminal lain. Opsi `--retry-connrefused` membuat curl mencoba ulang sampai mock siap menerima koneksi.\n\nIsi `mock.mjs`:\n\n```javascript\n// Mock server sederhana: menjawab dengan contoh respons dari dokumen OpenAPI.\nimport http from 'node:http';\n\nconst contoh = {\n  200: { id: 'P01', name: 'Buku Tulis', price: 5000, category: 'alat-tulis', stock: 120, createdAt: '2026-08-02T02:00:00Z' },\n  404: { type: 'about:blank', title: 'Not Found', status: 404, detail: 'Produk P99 tidak ditemukan.' },\n};\n\nhttp.createServer((req, res) => {\n  if (req.method !== 'GET' || !req.url.startsWith('/products/')) {\n    res.writeHead(501, { 'Content-Type': 'text/plain' });\n    return res.end('Belum ada contoh untuk endpoint ini\\n');\n  }\n  // \"Prefer: code=404\" memilih contoh respons lain, konvensi yang dipakai alat mock\n  const kode = req.headers['prefer'] === 'code=404' ? 404 : 200;\n  const type = kode === 200 ? 'application/json' : 'application/problem+json';\n  res.writeHead(kode, { 'Content-Type': type });\n  res.end(JSON.stringify(contoh[kode]) + '\\n');\n}).listen(4010);\n```\n\n```bash\nnode mock.mjs &\ncurl -s --retry 5 --retry-connrefused http://localhost:4010/products/P01\ncurl -s http://localhost:4010/products/P99 | jq -r .name\ncurl -s -w \"%{http_code}\\n\" http://localhost:4010/products/P01 -H \"Prefer: code=404\"\ncurl -s http://localhost:4010/products/P01 | jq -c keys\ncurl -s https://api.toko.contoh/products/P01 | jq -c keys\nkill %1\n```\n\nYang akan kamu lihat:\n\n```text\n$ node mock.mjs &\n$ curl -s --retry 5 --retry-connrefused http://localhost:4010/products/P01\n{\"id\":\"P01\",\"name\":\"Buku Tulis\",\"price\":5000,\"category\":\"alat-tulis\",\"stock\":120,\"createdAt\":\"2026-08-02T02:00:00Z\"}\n$ curl -s http://localhost:4010/products/P99 | jq -r .name\nBuku Tulis\n$ curl -s -w \"%{http_code}\\n\" http://localhost:4010/products/P01 -H \"Prefer: code=404\"\n{\"type\":\"about:blank\",\"title\":\"Not Found\",\"status\":404,\"detail\":\"Produk P99 tidak ditemukan.\"}\n404\n$ curl -s http://localhost:4010/products/P01 | jq -c keys\n[\"category\",\"createdAt\",\"id\",\"name\",\"price\",\"stock\"]\n$ curl -s https://api.toko.contoh/products/P01 | jq -c keys\n[\"category\",\"createdAt\",\"id\",\"name\",\"price\",\"stock\"]\n$ kill %1\n```\n\nPerhatikan:\n\n- Mock menjawab `P99` dengan **Buku Tulis**. Mock tidak tahu bahwa P99 tidak ada, karena ia hanya mengirim contoh.\n- Dengan `Prefer: code=404`, mock mengirim contoh respons `404` dalam format Problem Details. Frontend bisa membuat tampilan \"produk tidak ditemukan\" sebelum backend selesai.\n- Key respons mock dan server sungguhan sama. Selama keduanya mengikuti dokumen yang sama, frontend cukup mengganti base URL saat pindah ke server sungguhan.\n- `kill %1` mematikan mock yang berjalan di latar belakang."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Alamat mock tertanam di banyak komponen**\n\nSalah:\n\n```javascript\n// ProductPage.js\nconst res = await fetch('http://localhost:4010/products/P01');\n\n// CartPage.js\nconst res = await fetch('http://localhost:4010/products/P03');\n```\n\nBenar:\n\n```javascript\n// config.js: satu tempat, diisi per environment saat build\n// lokal: http://localhost:4010 (mock) · produksi: https://api.toko.contoh\nexport const API_URL = import.meta.env.VITE_API_URL;\n\n// ProductPage.js\nconst res = await fetch(`${API_URL}/products/P01`);\n```\n\nAlamat mock yang tertanam di kode bisa ikut terbawa ke build produksi. Aplikasi lalu gagal memuat data di HP pengguna, karena `localhost:4010` hanya ada di laptop developer. Simpan base URL di satu konfigurasi per environment, sama seperti environment di Postman.\n\n**2. Try it out di halaman dokumentasi publik langsung ke produksi**\n\nSalah:\n\n```yaml\nservers:\n  - url: https://api.toko.contoh\n    description: Produksi\n```\n\nBenar:\n\n```yaml\nservers:\n  - url: https://staging-api.toko.contoh\n    description: Staging, aman untuk Try it out\n  - url: https://api.toko.contoh\n    description: Produksi\n```\n\nSwagger UI memakai server pertama di daftar sebagai pilihan awal. Kalau hanya ada produksi, tombol **Execute** pada `DELETE /products/{id}` menghapus produk sungguhan. Taruh staging di urutan pertama, dan pakai token staging yang haknya terbatas.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di Swagger UI, apa yang terjadi saat kamu menekan **Try it out** lalu **Execute**?",
+          "options": [
+            "Dokumen OpenAPI diunduh sebagai berkas YAML",
+            "Mock server dibuat otomatis dari dokumen",
+            "Isi dokumen YAML diperiksa kesalahannya",
+            "Request sungguhan dikirim ke server yang dipilih, lalu responsnya ditampilkan"
+          ],
+          "answer": 3,
+          "explanation": "Execute mengirim request HTTP sungguhan dari browser ke server di pilihan Servers. Swagger UI juga menampilkan perintah curl yang setara.",
+          "remedial": "Execute mengirim request HTTP sungguhan dari browser ke server di pilihan Servers. Swagger UI juga menampilkan perintah curl yang setara."
+        },
+        {
+          "question": "Tim backend butuh tiga minggu untuk menyelesaikan endpoint pesanan. Bagaimana tim frontend tetap bisa mulai bekerja?",
+          "options": [
+            "Menunggu sampai backend selesai",
+            "Memakai mock server yang dibuat dari dokumen OpenAPI yang sudah disepakati",
+            "Memanggil database produksi langsung dari frontend",
+            "Membuat bentuk respons sendiri berdasarkan tebakan"
+          ],
+          "answer": 1,
+          "explanation": "Dokumen yang disepakati menjadi kontrak. Mock server menjawab sesuai kontrak itu, sehingga frontend bisa membuat layar tanpa menunggu backend.",
+          "remedial": "Dokumen yang disepakati menjadi kontrak. Mock server menjawab sesuai kontrak itu, sehingga frontend bisa membuat layar tanpa menunggu backend."
+        },
+        {
+          "question": "Frontend mengirim `POST /products` ke mock server, lalu `GET /products/P07`. Mock menjawab dengan contoh produk P01, bukan produk yang baru dikirim. Kenapa?",
+          "options": [
+            "Mock server rusak dan harus diganti",
+            "Request POST ditolak karena tidak ada token",
+            "Mock server tidak menyimpan data; ia hanya mengirim contoh respons dari dokumen",
+            "Mock server menyimpan respons di cache selama 60 detik"
+          ],
+          "answer": 2,
+          "explanation": "Mock tidak punya database dan logika bisnis. Ia memilih contoh berdasarkan endpoint dan status code, bukan berdasarkan data yang pernah dikirim.",
+          "remedial": "Mock tidak punya database dan logika bisnis. Ia memilih contoh berdasarkan endpoint dan status code, bukan berdasarkan data yang pernah dikirim."
+        },
+        {
+          "question": "Kamu menekan Execute di Swagger UI yang dibuka dari `https://docs.toko.contoh`, tapi console browser menampilkan error CORS. Apa penyebab yang paling mungkin?",
+          "options": [
+            "Server API tidak mengizinkan origin halaman dokumentasi lewat header Access-Control-Allow-Origin",
+            "Dokumen OpenAPI ditulis dalam YAML, bukan JSON",
+            "Operation itu tidak punya operationId",
+            "Swagger UI hanya bisa memanggil API di localhost"
+          ],
+          "answer": 0,
+          "explanation": "Try it out dikirim oleh browser dari origin halaman dokumentasi. Server harus mengizinkan origin itu. Format dokumen dan operationId tidak berpengaruh pada CORS.",
+          "remedial": "Try it out dikirim oleh browser dari origin halaman dokumentasi. Server harus mengizinkan origin itu. Format dokumen dan operationId tidak berpengaruh pada CORS."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Mock server di `localhost:4010` menjawab `GET /products/{id}` dengan contoh respons 200 dari dokumen OpenAPI, yaitu produk P01 Buku Tulis. Apa output perintah ini?",
+      "code": "curl -s http://localhost:4010/products/P99 | jq -r .name",
+      "options": [
+        "Produk P99 tidak ditemukan.",
+        "null",
+        "Buku Tulis",
+        "404"
+      ],
+      "answer": 2,
+      "explanation": "Mock tidak memeriksa apakah P99 ada. Ia selalu mengirim contoh 200 kecuali diminta contoh lain, misalnya dengan header Prefer: code=404. Server sungguhan akan menjawab 404."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Mock server mengirim contoh ini sebagai body respons 200\n'200':\n  description: Produk ditemukan\n  content:\n    application/json:\n      schema:\n        $ref: '#/components/schemas/Product'\n      ___:\n        id: P01\n        name: Buku Tulis\n        price: 5000",
+      "answers": [
+        "example"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Swagger UI menampilkan dokumen OpenAPI sebagai halaman interaktif: endpoint per tag, schema, dan tombol Try it out.",
+        "Try it out mengirim request sungguhan dari browser, jadi aturan CORS berlaku dan sebaiknya diarahkan ke staging.",
+        "Mock server menjawab dengan contoh dari dokumen, tanpa database dan tanpa logika bisnis.",
+        "Mock membuat frontend dan backend bisa bekerja paralel setelah dokumen disepakati (design-first).",
+        "Simpan base URL di konfigurasi per environment supaya pindah dari mock ke server sungguhan cukup satu perubahan."
+      ]
+    }
+  ]
+}

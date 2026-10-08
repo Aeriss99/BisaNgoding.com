@@ -1,0 +1,110 @@
+{
+  "id": "api-desain-05",
+  "moduleId": "api-desain",
+  "order": 5,
+  "title": "Versi API",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "API yang sudah dipakai aplikasi HP tidak bisa diubah sembarangan. Tidak semua pengguna memperbarui aplikasinya, jadi aplikasi versi lama bisa tetap memanggil API selama berbulan-bulan. Perubahan yang membuat client lama rusak disebut **breaking change**.\n\nContoh breaking change:\n\n- menghapus atau mengganti nama field (`price` menjadi `harga`);\n- mengubah tipe field (`\"price\": 5000` menjadi `\"price\": {\"amount\": 5000, \"currency\": \"IDR\"}`);\n- menambah field **wajib** di request;\n- mengubah arti status code atau nilai enum.\n\nPerubahan yang **tidak** breaking: menambah field baru di respons, menambah endpoint baru, atau menambah query parameter opsional. Syaratnya, client mengabaikan field yang tidak dikenalnya. Prinsip ini disebut *tolerant reader*.\n\nKalau breaking change tidak bisa dihindari, buat **versi baru** dan biarkan versi lama tetap berjalan sampai client sempat pindah.\n\nSaat jalur bus kota diganti, jalur lama tidak langsung ditutup. Di halte dipasang pengumuman: \"Jalur ini dihapus tanggal sekian, gunakan jalur baru nomor sekian.\" Header `Deprecation`, `Sunset`, dan `Link` adalah pengumuman itu untuk client API."
+    },
+    {
+      "type": "theory",
+      "content": "| Letak versi | Contoh | Catatan |\n|---|---|---|\n| Di URI | `GET /v1/products` | paling umum; terlihat jelas di log dan mudah dicoba dengan curl atau browser |\n| Header khusus | `Api-Version: 2` | URI tetap bersih, tapi versi tidak terlihat di URL |\n| Media type | `Accept: application/vnd.toko.v2+json` | memakai *content negotiation*; lebih jarang |\n| Query string | `?api-version=2026-09-01` | dipakai sebagian layanan cloud, sering berbasis tanggal |\n\nVersi di URI biasanya hanya angka **mayor** (`v1`, `v2`), bukan `v1.3.2`. Perubahan yang tidak breaking tidak menaikkan versi.\n\n**Mengumumkan bahwa versi lama akan dihentikan:**\n\n- `Deprecation: @1788220800` (RFC 9745). Versi ini sudah *deprecated* (tidak disarankan lagi) sejak waktu itu. Angkanya detik Unix; di contoh ini berarti 1 September 2026 pukul 00.00 UTC.\n- `Sunset: Thu, 31 Dec 2026 23:59:59 GMT` (RFC 8594). Setelah waktu ini, endpoint boleh berhenti bekerja.\n- `Link: </v2/products>; rel=\"successor-version\"`. Alamat versi penggantinya.\n\nHeader saja tidak cukup, karena jarang ada orang yang membacanya. Tim juga mengumumkan lewat changelog dan email ke pemilik API key, lalu memantau log untuk melihat client yang masih memanggil versi lama. Cara menulis changelog dibahas di modul Dokumentasi dan Pengujian API."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nPanggil produk yang sama lewat `/v1` dan `/v2`. Server latihan masih melayani keduanya.\n\n```bash\ncurl -i https://api.toko.contoh/v1/products/P01\ncurl -s https://api.toko.contoh/v1/products/P01 | jq -c .price\ncurl -s https://api.toko.contoh/v2/products/P01 | jq -c .price\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -i https://api.toko.contoh/v1/products/P01\nHTTP/1.1 200 OK\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nETag: \"p01-v1\"\nCache-Control: max-age=60\nDeprecation: @1788220800\nSunset: Thu, 31 Dec 2026 23:59:59 GMT\nLink: </v2/products>; rel=\"successor-version\"\nContent-Type: application/json\nContent-Length: 142\nConnection: close\n\n{\n  \"id\": \"P01\",\n  \"name\": \"Buku Tulis\",\n  \"price\": 5000,\n  \"category\": \"alat-tulis\",\n  \"stock\": 120,\n  \"createdAt\": \"2026-08-02T02:00:00Z\"\n}\n$ curl -s https://api.toko.contoh/v1/products/P01 | jq -c .price\n5000\n$ curl -s https://api.toko.contoh/v2/products/P01 | jq -c .price\n{\"amount\":5000,\"currency\":\"IDR\"}\n```\n\nPerhatikan:\n\n- `/v1` masih bekerja normal, tapi membawa tiga header pengumuman: `Deprecation`, `Sunset`, dan `Link` ke `/v2/products`.\n- Di `/v2`, `price` berubah dari angka menjadi objek berisi `amount` dan `currency`. Ini breaking change. Aplikasi lama yang menghitung `price * qty` akan mendapat `NaN`. Karena itu perubahan ini diterbitkan sebagai `/v2`, bukan menimpa `/v1`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengubah tipe field di versi yang sama**\n\nSalah:\n\n```text\nGET /products/P01 (kemarin)\n{\"id\": \"P01\", \"price\": 5000}\n\nGET /products/P01 (hari ini, URL sama)\n{\"id\": \"P01\", \"price\": {\"amount\": 5000, \"currency\": \"IDR\"}}\n```\n\nBenar:\n\n```text\nGET /v1/products/P01 (tetap seperti dulu, plus header Deprecation dan Sunset)\n{\"id\": \"P01\", \"price\": 5000}\n\nGET /v2/products/P01 (bentuk baru)\n{\"id\": \"P01\", \"price\": {\"amount\": 5000, \"currency\": \"IDR\"}}\n```\n\nAplikasi HP versi lama tidak ikut berubah. Kode `price * qty` di aplikasi itu tiba-tiba menghasilkan `NaN`, dan keranjang belanja rusak untuk semua pengguna yang belum memperbarui aplikasi. Breaking change harus terbit di versi baru, sementara versi lama tetap berjalan sampai tanggal Sunset.\n\n**2. Menaikkan versi untuk setiap perubahan kecil**\n\nSalah:\n\n```text\nv2: menambah field \"weight\" di respons produk\nv3: menambah endpoint GET /categories\nv4: menambah query parameter opsional ?minPrice\n```\n\nBenar:\n\n```text\nv1: menambah field \"weight\", endpoint GET /categories, dan ?minPrice (semuanya tidak breaking)\nv2: hanya saat price berubah menjadi objek (breaking)\n```\n\nSetiap versi yang aktif harus dirawat, diuji, dan didokumentasikan. Terlalu banyak versi membuat client bingung memilih. Perubahan yang hanya menambah sesuatu cukup masuk ke versi yang sama, asalkan client mengabaikan field yang tidak dikenalnya.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Perubahan mana yang termasuk breaking change?",
+          "options": [
+            "Menambah field weight di respons produk",
+            "Menambah endpoint GET /categories",
+            "Mengganti nama field price menjadi harga",
+            "Menambah query parameter opsional minPrice"
+          ],
+          "answer": 2,
+          "explanation": "Client lama masih membaca field price. Setelah diganti nama, nilainya hilang dan client rusak. Tiga perubahan lainnya hanya menambah sesuatu tanpa mengubah yang sudah ada.",
+          "remedial": "Client lama masih membaca field price. Setelah diganti nama, nilainya hilang dan client rusak. Tiga perubahan lainnya hanya menambah sesuatu tanpa mengubah yang sudah ada."
+        },
+        {
+          "question": "Apa fungsi header `Sunset` di respons API?",
+          "options": [
+            "Memberi tahu kapan cache harus dihapus",
+            "Memberi tahu waktu setelah endpoint itu boleh berhenti bekerja",
+            "Memberi tahu zona waktu server",
+            "Memberi tahu kapan kuota rate limit pulih"
+          ],
+          "answer": 1,
+          "explanation": "Sunset (RFC 8594) memberi tanggal kapan resource itu kemungkinan tidak tersedia lagi. Client perlu pindah ke versi pengganti sebelum tanggal itu.",
+          "remedial": "Sunset (RFC 8594) memberi tanggal kapan resource itu kemungkinan tidak tersedia lagi. Client perlu pindah ke versi pengganti sebelum tanggal itu."
+        },
+        {
+          "question": "Kenapa versi di URI seperti `/v1/products` paling sering dipakai?",
+          "options": [
+            "Karena diwajibkan oleh RFC 9110",
+            "Karena HTTP tidak mendukung versi lewat header",
+            "Karena membuat respons lebih cepat",
+            "Karena mudah terlihat di URL dan log, serta mudah dicoba dengan curl atau browser"
+          ],
+          "answer": 3,
+          "explanation": "Tidak ada RFC yang mewajibkan letak versi, dan versi lewat header juga sah. Versi di URI populer karena paling mudah dilihat dan dicoba.",
+          "remedial": "Tidak ada RFC yang mewajibkan letak versi, dan versi lewat header juga sah. Versi di URI populer karena paling mudah dilihat dan dicoba."
+        },
+        {
+          "question": "Aplikasi HP versi lama menerima field baru `weight` yang tidak dikenalnya. Bagaimana client yang dirancang baik bersikap?",
+          "options": [
+            "Mengabaikan field yang tidak dikenal dan tetap bekerja",
+            "Menolak respons dan menampilkan pesan error",
+            "Mengirim ulang request ke /v2",
+            "Meminta pengguna memperbarui aplikasi sebelum bisa lanjut"
+          ],
+          "answer": 0,
+          "explanation": "Prinsip tolerant reader: abaikan field yang tidak dikenal. Dengan begitu server bisa menambah field tanpa merusak client lama.",
+          "remedial": "Prinsip tolerant reader: abaikan field yang tidak dikenal. Dengan begitu server bisa menambah field tanpa merusak client lama."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa output perintah ini?",
+      "code": "curl -s https://api.toko.contoh/v2/products/P04 | jq -c .price",
+      "options": [
+        "350000",
+        "\"Rp350.000\"",
+        "{\"amount\":350000,\"currency\":\"IDR\"}",
+        "{\"amount\":3500.00,\"currency\":\"IDR\"}"
+      ],
+      "answer": 2,
+      "explanation": "Di /v2, price menjadi objek berisi amount dan currency. amount tetap integer rupiah utuh (350000), bukan pecahan dan bukan teks berformat."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Ambil alamat versi pengganti dari header respons /v1\ncurl -s -o /dev/null -w \"%header{___}\" https://api.toko.contoh/v1/products/P01",
+      "answers": [
+        "link|Link"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Breaking change adalah perubahan yang merusak client lama: hapus atau ganti nama field, ganti tipe, tambah field wajib, ubah arti.",
+        "Menambah field, endpoint, atau parameter opsional tidak breaking, asalkan client mengabaikan field yang tidak dikenal.",
+        "Versi di URI (/v1, /v2) paling umum; versi lewat header atau media type juga sah.",
+        "Umumkan penghentian dengan header Deprecation, Sunset, dan Link rel=\"successor-version\", ditambah changelog dan email.",
+        "Biarkan versi lama berjalan sampai tanggal Sunset supaya client sempat pindah."
+      ]
+    }
+  ]
+}

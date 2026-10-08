@@ -1,0 +1,111 @@
+{
+  "id": "api-dokumentasi-02",
+  "moduleId": "api-dokumentasi",
+  "order": 2,
+  "title": "OpenAPI 3.1: Struktur Dasar",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**OpenAPI Specification** (OAS) adalah standar terbuka untuk mendeskripsikan HTTP API dalam satu dokumen yang bisa dibaca manusia dan program. Dari satu dokumen itu, alat lain bisa menghasilkan halaman dokumentasi interaktif, mock server, kode client, dan test.\n\nKelas ini memakai **OpenAPI 3.1**. Versi 3.0 masih banyak ditemui di proyek lama. Perbedaan terbesarnya: schema di 3.1 sepenuhnya mengikuti **JSON Schema** (draf 2020-12). Nama lama formatnya, **Swagger 2.0**, juga masih sering terdengar. Sekarang \"Swagger\" adalah nama keluarga alat, misalnya Swagger UI dan Swagger Editor.\n\nDokumen OpenAPI ditulis dalam **YAML** atau JSON. YAML lebih sering dipakai karena ringkas dan bisa diberi komentar. Aturan YAML yang perlu kamu tahu:\n\n- Struktur ditentukan oleh **indentasi spasi**, biasanya 2 spasi. Tab tidak boleh dipakai.\n- `kunci: nilai` membuat field objek. Baris yang diawali `- ` adalah item daftar (array).\n- Teks biasanya tanpa kutip. Beri kutip kalau nilainya bisa salah dibaca, misalnya `'200'` atau teks yang diawali `@`.\n- Baris yang diawali `#` adalah komentar.\n\nDokumen OpenAPI mirip formulir izin bangunan. Ada bagian identitas pemilik, alamat lokasi, daftar ruangan beserta fungsinya, dan lampiran gambar yang dirujuk berkali-kali. Petugas mana pun bisa membacanya karena urutan bagiannya selalu sama."
+    },
+    {
+      "type": "theory",
+      "content": "Field di tingkat paling atas dokumen:\n\n| Field | Wajib? | Isi |\n|---|---|---|\n| `openapi` | wajib | versi **spesifikasi** OpenAPI, misalnya `3.1.0`; bukan versi API-mu |\n| `info` | wajib | `title` dan `version` (wajib), plus `description` dan `contact` |\n| `servers` | opsional | daftar base URL; kalau kosong dianggap `/` |\n| `paths` | minimal satu dari `paths`, `components`, `webhooks` | daftar endpoint |\n| `components` | opsional | bagian yang dipakai ulang: schema, response, parameter, security scheme |\n| `security`, `tags` | opsional | aturan autentikasi umum dan pengelompokan endpoint |\n\n`info.version` adalah versi dokumen API-mu, misalnya `1.0.0`. Nilainya berubah setiap kali kontrak berubah. `openapi` hanya berubah kalau kamu pindah versi spesifikasi.\n\nDokumen paling kecil yang valid:\n\n```yaml\nopenapi: 3.1.0\ninfo:\n  title: API Toko Budi\n  version: 1.0.0\nservers:\n  - url: https://api.toko.contoh\npaths:\n  /health:\n    get:\n      summary: Cek apakah server hidup\n      responses:\n        '200':\n          description: Server berjalan normal\n```\n\nDi dalam `paths`, susunannya selalu bertingkat seperti ini:\n\n```text\npaths\n└── /products/{id}                  ← path (boleh berisi parameter {id})\n    └── get                         ← method: satu operation\n        ├── summary, operationId    ← ringkasan dan nama unik operation\n        ├── parameters              ← parameter path, query, header\n        └── responses\n            └── '200'               ← status code, ditulis dengan kutip\n                ├── description     ← wajib untuk setiap response\n                └── content\n                    └── application/json   ← media type\n                        └── schema          ← bentuk body\n```\n\n`operationId` adalah nama unik setiap operation, misalnya `getProduct`. Generator kode memakainya sebagai nama fungsi di client. Parameter di path seperti `{id}` wajib dideklarasikan dengan `in: path` dan `required: true`."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nSimpan dokumen berikut sebagai `openapi.yaml`. Isinya menjelaskan dua endpoint dan dua schema. Lalu baca strukturnya dengan `grep` dan cocokkan dengan respons server sungguhan.\n\nIsi `openapi.yaml`:\n\n```text\nopenapi: 3.1.0\ninfo:\n  title: API Toko Budi\n  version: 1.0.0\n  description: Katalog produk Toko Budi untuk website dan aplikasi HP.\nservers:\n  - url: https://api.toko.contoh\n    description: Produksi\npaths:\n  /health:\n    get:\n      summary: Cek apakah server hidup\n      operationId: getHealth\n      responses:\n        '200':\n          description: Server berjalan normal\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  status:\n                    type: string\n              example:\n                status: ok\n  /products/{id}:\n    get:\n      summary: Ambil satu produk\n      operationId: getProduct\n      parameters:\n        - name: id\n          in: path\n          required: true\n          schema:\n            type: string\n          example: P01\n      responses:\n        '200':\n          description: Produk ditemukan\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/Product'\n        '404':\n          description: Produk tidak ditemukan\n          content:\n            application/problem+json:\n              schema:\n                $ref: '#/components/schemas/Problem'\ncomponents:\n  schemas:\n    Product:\n      type: object\n      properties:\n        id:\n          type: string\n        name:\n          type: string\n        price:\n          type: integer\n    Problem:\n      type: object\n      properties:\n        title:\n          type: string\n        status:\n          type: integer\n        detail:\n          type: string\n```\n\n```bash\ngrep -E \"^[a-z]+:\" openapi.yaml\ngrep -E \"^  /\" openapi.yaml\ncurl -s https://api.toko.contoh/health\ncurl -s -o /dev/null -w \"%{http_code} %{content_type}\\n\" https://api.toko.contoh/products/P99\n```\n\nYang akan kamu lihat:\n\n```text\n$ grep -E \"^[a-z]+:\" openapi.yaml\nopenapi: 3.1.0\ninfo:\nservers:\npaths:\ncomponents:\n$ grep -E \"^  /\" openapi.yaml\n  /health:\n  /products/{id}:\n$ curl -s https://api.toko.contoh/health\n{\n  \"status\": \"ok\"\n}\n$ curl -s -o /dev/null -w \"%{http_code} %{content_type}\\n\" https://api.toko.contoh/products/P99\n404 application/problem+json\n```\n\nPerhatikan:\n\n- Baris tanpa indentasi adalah lima bagian utama: `openapi`, `info`, `servers`, `paths`, dan `components`.\n- Baris dengan dua spasi di bawah `paths` adalah daftar path. Tanda `$ref: '#/components/schemas/Product'` merujuk schema di bagian `components`; detailnya dibahas di materi berikutnya.\n- Respons `/health` sama dengan `example` di dokumen, yaitu `{\"status\": \"ok\"}`.\n- `P99` dijawab `404` dengan media type `application/problem+json`, persis seperti yang tertulis di respons `'404'`. Dokumen yang baik selalu cocok dengan perilaku server."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Parameter path tanpa required: true**\n\nSalah:\n\n```yaml\npaths:\n  /products/{id}:\n    get:\n      summary: Ambil satu produk\n      parameters:\n        - name: id\n          in: path\n          schema:\n            type: string\n```\n\nBenar:\n\n```yaml\npaths:\n  /products/{id}:\n    get:\n      summary: Ambil satu produk\n      parameters:\n        - name: id\n          in: path\n          required: true\n          schema:\n            type: string\n```\n\nSpesifikasi OpenAPI mewajibkan `required: true` untuk setiap parameter `in: path`, karena URL tidak lengkap tanpa nilai itu. Swagger Editor dan linter OpenAPI menandai dokumen pertama sebagai tidak valid. Generator kode juga bisa menghasilkan fungsi client yang mengizinkan `id` kosong.\n\n**2. Status code ditulis tanpa kutip**\n\nSalah:\n\n```yaml\nresponses:\n  200:\n    description: Produk ditemukan\n  404:\n    description: Produk tidak ditemukan\n```\n\nBenar:\n\n```yaml\nresponses:\n  '200':\n    description: Produk ditemukan\n  '404':\n    description: Produk tidak ditemukan\n```\n\nTanpa kutip, parser YAML membaca `200` sebagai angka, padahal kunci objek JSON selalu berupa teks. Spesifikasi OpenAPI meminta status code ditulis dalam kutip supaya YAML dan JSON membacanya sama. Sebagian alat menerima keduanya, tapi alat lain menolak atau salah membaca. Kutip selalu aman.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Field `openapi: 3.1.0` di baris pertama dokumen menyatakan apa?",
+          "options": [
+            "Versi API Toko Budi",
+            "Versi Swagger UI yang dipakai untuk menampilkannya",
+            "Versi spesifikasi OpenAPI yang dipakai dokumen ini",
+            "Tanggal dokumen terakhir diubah"
+          ],
+          "answer": 2,
+          "explanation": "openapi menyatakan versi spesifikasi yang menjadi aturan penulisan dokumen. Versi API-mu sendiri ditulis di info.version.",
+          "remedial": "openapi menyatakan versi spesifikasi yang menjadi aturan penulisan dokumen. Versi API-mu sendiri ditulis di info.version."
+        },
+        {
+          "question": "Di bagian mana kamu menulis base URL server produksi dan staging?",
+          "options": [
+            "servers",
+            "info",
+            "paths",
+            "components"
+          ],
+          "answer": 0,
+          "explanation": "servers berisi daftar base URL beserta deskripsinya. Path di bagian paths ditempel di belakang base URL yang dipilih.",
+          "remedial": "servers berisi daftar base URL beserta deskripsinya. Path di bagian paths ditempel di belakang base URL yang dipilih."
+        },
+        {
+          "question": "Dua field mana yang wajib ada di dalam `info`?",
+          "options": [
+            "description dan contact",
+            "title dan servers",
+            "version dan license",
+            "title dan version"
+          ],
+          "answer": 3,
+          "explanation": "info.title dan info.version wajib. description, contact, dan license opsional. servers bukan bagian dari info, melainkan field tingkat atas.",
+          "remedial": "info.title dan info.version wajib. description, contact, dan license opsional. servers bukan bagian dari info, melainkan field tingkat atas."
+        },
+        {
+          "question": "Endpoint `GET /products/{id}` memakai parameter `id` di path. Apa yang wajib ditulis untuk parameter itu?",
+          "options": [
+            "in: query dan required: false",
+            "in: path dan required: true",
+            "in: header dan required: true",
+            "Tidak perlu ditulis; OpenAPI membacanya otomatis dari URL"
+          ],
+          "answer": 1,
+          "explanation": "Setiap {nama} di path harus dideklarasikan sebagai parameter dengan in: path dan required: true. Tanpa deklarasi itu dokumen tidak valid.",
+          "remedial": "Setiap {nama} di path harus dideklarasikan sebagai parameter dengan in: path dan required: true. Tanpa deklarasi itu dokumen tidak valid."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Dokumen OpenAPI Toko Budi menulis bahwa produk yang tidak ada dijawab `404` dengan media type `application/problem+json`. Apa output perintah ini?",
+      "code": "curl -s -o /dev/null -w \"%{http_code} %{content_type}\" https://api.toko.contoh/products/P99",
+      "options": [
+        "200 application/json",
+        "404 application/json",
+        "404 text/html",
+        "404 application/problem+json"
+      ],
+      "answer": 3,
+      "explanation": "Server latihan mengirim error dalam format Problem Details, jadi Content-Type-nya application/problem+json, sesuai dokumen. Kalau server mengirim media type lain, dokumen dan server tidak cocok, dan salah satunya harus diperbaiki."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Lengkapi versi spesifikasi dan bagian yang berisi daftar endpoint\nopenapi: ___\ninfo:\n  title: API Toko Budi\n  version: 1.0.0\n___:\n  /health:\n    get:\n      responses:\n        '200':\n          description: Server berjalan normal",
+      "answers": [
+        "3.1.0|3.1.1",
+        "paths"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "OpenAPI adalah standar untuk mendeskripsikan HTTP API dalam YAML atau JSON; versi 3.1 memakai JSON Schema 2020-12.",
+        "Field tingkat atas: openapi (versi spesifikasi), info (title dan version wajib), servers, paths, dan components.",
+        "info.version adalah versi dokumen API-mu, berbeda dengan field openapi.",
+        "Susunan paths: path → method (operation) → responses → status code dalam kutip → description dan content.",
+        "Parameter path seperti {id} wajib ditulis dengan in: path dan required: true."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "id": "api-client-05",
+  "moduleId": "api-client",
+  "order": 5,
+  "title": "Menangani Error, Timeout, dan Retry",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Request dari client bisa gagal dengan tiga cara. Masing-masing ditangani berbeda:\n\n1. **Server menjawab dengan error** (4xx atau 5xx). fetch resolve seperti biasa. Kamu memeriksa `res.ok`, membaca body Problem Details, lalu memutuskan pesan untuk pengguna.\n2. **Tidak ada respons sama sekali**: domain salah, server mati, koneksi putus, atau diblokir CORS. fetch reject dengan `TypeError`. Tangkap dengan `try/catch`.\n3. **Server terlalu lama menjawab.** fetch tidak punya opsi timeout. Tanpa batas waktu, request bisa menggantung lama dan pengguna hanya melihat loading. Pasang `signal: AbortSignal.timeout(ms)`; kalau waktunya habis, fetch reject dengan error bernama `TimeoutError`.\n\nUntuk membatalkan request secara manual, misalnya saat pengguna menutup halaman, pakai `AbortController`. Panggil `pengendali.abort()`, dan fetch reject dengan `AbortError`.\n\nSebagian kegagalan bersifat sementara, misalnya server sibuk atau jaringan sempat putus. Untuk kasus ini client boleh **mengulang** (*retry*), tapi dengan aturan yang ketat.\n\nBayangkan menelepon toko. Nomor yang salah tidak pernah tersambung (error jaringan). Telepon yang tidak diangkat-angkat akhirnya kamu tutup (timeout). Telepon yang diangkat lalu dijawab \"barangnya habis\" tetap telepon yang tersambung (respons 4xx). Kalau penjual bilang \"telepon lagi satu jam lagi\", kamu tidak menelepon ulang setiap detik (Retry-After)."
+    },
+    {
+      "type": "theory",
+      "content": "Kapan request boleh diulang otomatis:\n\n| Situasi | Ulangi? |\n|---|---|\n| Jaringan putus atau timeout pada `GET`, `HEAD`, `PUT`, `DELETE` | ya, dengan jeda |\n| `429 Too Many Requests` | ya, setelah waktu di `Retry-After` |\n| `502`, `503`, `504` | ya, dengan jeda (hormati `Retry-After` kalau ada) |\n| `400`, `401`, `403`, `404`, `409`, `422` | **tidak**, hasilnya akan sama; perbaiki request-nya |\n| `POST` atau `PATCH` yang gagal di tengah jalan | **tidak otomatis**, kecuali API mendukung `Idempotency-Key` |\n\nAlasannya ada di modul Prinsip REST. Method *idempotent* (`GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`) aman diulang karena hasil akhirnya sama. `POST /orders` yang diulang bisa membuat pesanan ganda. Bisa jadi request pertama sebenarnya sudah diproses, hanya responsnya yang hilang di jalan.\n\nCara mengatur jeda:\n\n- **Exponential backoff**: jeda berlipat dua setiap percobaan, misalnya 0,5 detik, 1 detik, lalu 2 detik. Batasi jumlah percobaan, misalnya 3.\n- **Jitter**: tambahkan nilai acak pada jeda. Tanpa jitter, ribuan client yang gagal bersamaan akan mengulang bersamaan juga dan membuat server tumbang lagi.\n- **`Retry-After`**: kalau server mengirim header ini, ikuti nilainya. Isinya bisa jumlah detik (`Retry-After: 60`) atau tanggal HTTP (`Retry-After: Tue, 01 Sep 2026 02:01:00 GMT`), sesuai RFC 9110.\n\nKalau `Retry-After` terlalu lama untuk pengguna yang sedang menunggu, lebih baik berhenti dan tampilkan pesan \"coba lagi nanti\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nSkrip pertama memperlihatkan jenis kegagalan yang berbeda. Skrip kedua menerapkan retry dengan backoff dan `Retry-After` ke endpoint `/search`, yang kuotanya hanya 3 request.\n\nIsi `jaringan.mjs`:\n\n```javascript\nasync function coba(label, url, opsi) {\n  try {\n    const res = await fetch(url, opsi);\n    console.log(`${label}: respons ${res.status}`);\n  } catch (err) {\n    const sebab = err.cause?.code ? ` (${err.cause.code})` : '';\n    console.log(`${label}: ${err.name}: ${err.message}${sebab}`);\n  }\n}\n\nawait coba('domain salah ketik', 'https://api.toko-budi.contoh/health');\nawait coba('produk tidak ada', 'https://api.toko.contoh/products/P99');\nawait coba('batas waktu 3 detik', 'https://api.toko.contoh/health', { signal: AbortSignal.timeout(3000) });\n\nconst pengendali = new AbortController();\npengendali.abort();\nawait coba('dibatalkan', 'https://api.toko.contoh/health', { signal: pengendali.signal });\n```\n\nIsi `retry.mjs`:\n\n```javascript\nconst BOLEH_DIULANG = new Set(['GET', 'HEAD', 'OPTIONS', 'PUT', 'DELETE']);\nconst STATUS_SEMENTARA = new Set([429, 502, 503, 504]);\nconst jeda = (ms) => new Promise((selesai) => setTimeout(selesai, ms));\n\nfunction hitungJeda(res, percobaan) {\n  const retryAfter = res?.headers.get('Retry-After');\n  if (retryAfter) {\n    const detik = Number(retryAfter);\n    if (Number.isFinite(detik)) return detik * 1000;          // bentuk angka: \"60\"\n    return Math.max(0, Date.parse(retryAfter) - Date.now());  // bentuk tanggal HTTP\n  }\n  const dasar = 500 * 2 ** (percobaan - 1);                    // 500, 1000, 2000 ms\n  return Math.round(dasar / 2 + Math.random() * (dasar / 2));  // ditambah jitter\n}\n\nasync function fetchDenganRetry(url, opsi = {}, { maksCoba = 3, tunggu = jeda } = {}) {\n  const bolehUlang = BOLEH_DIULANG.has((opsi.method ?? 'GET').toUpperCase());\n  for (let percobaan = 1; ; percobaan++) {\n    const terakhir = !bolehUlang || percobaan === maksCoba;\n    let res = null;\n    try {\n      res = await fetch(url, { ...opsi, signal: AbortSignal.timeout(5000) });\n    } catch (err) {\n      if (terakhir) throw err;            // jaringan putus atau timeout\n    }\n    if (res && (!STATUS_SEMENTARA.has(res.status) || terakhir)) return res;\n    const ms = hitungJeda(res, percobaan);\n    console.log(`percobaan ${percobaan}: ${res ? res.status : 'gagal jaringan'}, ulangi setelah ${ms} ms`);\n    await tunggu(ms);\n  }\n}\n\n// Kuota /search hanya 3 request. Tiga request pertama menghabiskannya.\nfor (let i = 1; i <= 3; i++) {\n  const r = await fetch('https://api.toko.contoh/search?q=sepatu');\n  console.log(`cari ke-${i}: ${r.status}, sisa kuota ${r.headers.get('RateLimit-Remaining')}`);\n}\n\n// \"tunggu\" diganti fungsi kosong supaya contoh ini tidak benar-benar menunggu 60 detik.\nconst res = await fetchDenganRetry('https://api.toko.contoh/search?q=sepatu', {}, { tunggu: async () => {} });\nconsole.log(`hasil akhir: ${res.status}, Retry-After ${res.headers.get('Retry-After')}`);\n```\n\n```bash\nnode jaringan.mjs\nnode retry.mjs\n```\n\nYang akan kamu lihat:\n\n```text\n$ node jaringan.mjs\ndomain salah ketik: TypeError: fetch failed (ENOTFOUND)\nproduk tidak ada: respons 404\nbatas waktu 3 detik: respons 200\ndibatalkan: AbortError: This operation was aborted\n$ node retry.mjs\ncari ke-1: 200, sisa kuota 2\ncari ke-2: 200, sisa kuota 1\ncari ke-3: 200, sisa kuota 0\npercobaan 1: 429, ulangi setelah 60000 ms\npercobaan 2: 429, ulangi setelah 60000 ms\nhasil akhir: 429, Retry-After 60\n```\n\nDari `jaringan.mjs`:\n\n- Domain yang salah ketik membuat fetch reject dengan `TypeError: fetch failed`. Penyebab aslinya ada di `err.cause`: `ENOTFOUND` berarti nama domain tidak ditemukan.\n- `404` tidak masuk `catch`. Ini respons biasa.\n- Abort manual menghasilkan `AbortError`. Kalau batas `AbortSignal.timeout()` terlewati, namanya `TimeoutError`, sehingga kamu bisa membedakan \"dibatalkan\" dan \"terlalu lama\".\n\nDari `retry.mjs`: setelah kuota habis, `fetchDenganRetry` membaca `Retry-After: 60` dan menghitung jeda 60000 ms. Waktu di server latihan dibekukan, jadi kuota tidak pernah pulih dan percobaan ketiga tetap `429`. Fungsi lalu berhenti dan mengembalikan respons terakhir, bukan mengulang tanpa akhir."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengulang POST pembayaran secara otomatis**\n\nSalah:\n\n```javascript\nfor (let i = 0; i < 3; i++) {\n  try {\n    return await fetch('https://api.toko.contoh/orders', { method: 'POST', headers, body });\n  } catch {\n    // jaringan putus? coba lagi saja\n  }\n}\n```\n\nBenar:\n\n```javascript\n// Satu key untuk satu niat membeli, dipakai ulang di setiap percobaan\nconst kunci = crypto.randomUUID();\nconst res = await fetch('https://api.toko.contoh/orders', {\n  method: 'POST',\n  headers: { ...headers, 'Idempotency-Key': kunci },\n  body,\n});\n```\n\nSaat koneksi putus, client tidak tahu apakah pesanan sudah dibuat. Mengulang `POST` biasa bisa membuat pesanan dan tagihan ganda. Ulangi `POST` hanya kalau API mendukung `Idempotency-Key`, dan pakai key yang sama di setiap percobaan. Detailnya ada di modul Merancang API yang Rapi.\n\n**2. Mengulang tanpa jeda dan tanpa batas**\n\nSalah:\n\n```javascript\nlet res;\ndo {\n  res = await fetch('https://api.toko.contoh/search?q=sepatu');\n} while (res.status === 429);\n```\n\nBenar:\n\n```javascript\nconst res = await fetchDenganRetry('https://api.toko.contoh/search?q=sepatu', {}, { maksCoba: 3 });\nif (res.status === 429) {\n  tampilkanPesan('Terlalu banyak pencarian. Coba lagi sebentar lagi.');\n}\n```\n\nLoop tanpa jeda mengirim ratusan request per detik ke server yang sudah meminta kamu menunggu. Kuota tidak akan pulih lebih cepat, dan IP-mu bisa diblokir. Hormati `Retry-After`, beri batas percobaan, lalu tampilkan pesan.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Request `GET /products` gagal. Respons mana yang layak diulang otomatis oleh client?",
+          "options": [
+            "400 Bad Request karena parameter sort salah",
+            "404 Not Found",
+            "422 Unprocessable Content",
+            "503 Service Unavailable"
+          ],
+          "answer": 3,
+          "explanation": "503 berarti server sedang tidak sanggup melayani untuk sementara, dan GET aman diulang. 400, 404, dan 422 akan menghasilkan jawaban sama selama request-nya tidak diperbaiki.",
+          "remedial": "503 berarti server sedang tidak sanggup melayani untuk sementara, dan GET aman diulang. 400, 404, dan 422 akan menghasilkan jawaban sama selama request-nya tidak diperbaiki."
+        },
+        {
+          "question": "Server menjawab `429` dengan header `Retry-After: 120`. Apa artinya?",
+          "options": [
+            "Client boleh mengirim 120 request lagi",
+            "Client sebaiknya menunggu 120 detik sebelum mencoba lagi",
+            "Client harus menunggu 120 milidetik",
+            "Client boleh mencoba ulang maksimal 120 kali"
+          ],
+          "answer": 1,
+          "explanation": "Nilai angka di Retry-After adalah jumlah detik (RFC 9110). Sisa kuota biasanya ada di header lain, misalnya RateLimit-Remaining.",
+          "remedial": "Nilai angka di Retry-After adalah jumlah detik (RFC 9110). Sisa kuota biasanya ada di header lain, misalnya RateLimit-Remaining."
+        },
+        {
+          "question": "Request memakai `signal: AbortSignal.timeout(5000)` dan server tidak menjawab dalam 5 detik. Apa yang terjadi?",
+          "options": [
+            "fetch reject dengan error bernama TimeoutError",
+            "fetch resolve dengan res.status 408",
+            "fetch resolve dengan res.ok false dan status 0",
+            "fetch mengulang request sekali secara otomatis"
+          ],
+          "answer": 0,
+          "explanation": "Saat batas waktu habis, signal membatalkan request dan fetch reject dengan DOMException bernama TimeoutError. Tidak ada respons dari server, jadi tidak ada status code.",
+          "remedial": "Saat batas waktu habis, signal membatalkan request dan fetch reject dengan DOMException bernama TimeoutError. Tidak ada respons dari server, jadi tidak ada status code."
+        },
+        {
+          "question": "Kenapa jeda retry sebaiknya diberi *jitter* (nilai acak)?",
+          "options": [
+            "Supaya server tahu request itu adalah retry",
+            "Supaya request ulang lebih cepat dari request pertama",
+            "Supaya banyak client yang gagal bersamaan tidak mengulang di detik yang sama",
+            "Supaya Retry-After dari server bisa diabaikan"
+          ],
+          "answer": 2,
+          "explanation": "Tanpa jitter, semua client yang gagal di waktu yang sama akan mengulang di waktu yang sama juga. Lonjakan itu bisa membuat server yang baru pulih tumbang lagi.",
+          "remedial": "Tanpa jitter, semua client yang gagal di waktu yang sama akan mengulang di waktu yang sama juga. Lonjakan itu bisa membuat server yang baru pulih tumbang lagi."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Endpoint `/search` dibatasi 3 request. Apa output perintah terakhir?",
+      "code": "for i in 1 2 3; do curl -s -o /dev/null \"https://api.toko.contoh/search?q=tas\"; done\ncurl -s -o /dev/null -w \"%{http_code} %header{retry-after}\" \"https://api.toko.contoh/search?q=tas\"",
+      "options": [
+        "200 60",
+        "429 0",
+        "429 60",
+        "503 60"
+      ],
+      "answer": 2,
+      "explanation": "Tiga request pertama menghabiskan kuota. Request keempat dijawab 429 Too Many Requests dengan Retry-After: 60, artinya tunggu 60 detik. %header{nama} di -w mencetak nilai header respons (curl 7.84 ke atas)."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Batalkan request kalau server tidak menjawab dalam 3 detik\nnode --input-type=module -e 'const res = await fetch(\"https://api.toko.contoh/health\", { signal: AbortSignal.___(3000) }); console.log(res.status)'",
+      "answers": [
+        "timeout"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Bedakan tiga kegagalan: respons 4xx/5xx (cek res.ok), tidak ada respons (try/catch), dan terlalu lama (timeout).",
+        "fetch tidak punya opsi timeout; pakai AbortSignal.timeout(ms) yang menghasilkan TimeoutError, atau AbortController untuk membatalkan manual (AbortError).",
+        "Retry otomatis hanya untuk request idempotent dan error sementara: jaringan, timeout, 429, 502, 503, 504.",
+        "Pakai exponential backoff dengan jitter dan batas percobaan, dan ikuti Retry-After kalau server mengirimnya.",
+        "Jangan mengulang POST otomatis kecuali API mendukung Idempotency-Key dengan key yang sama di setiap percobaan."
+      ]
+    }
+  ]
+}

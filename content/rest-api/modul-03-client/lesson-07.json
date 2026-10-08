@@ -1,0 +1,111 @@
+{
+  "id": "api-client-07",
+  "moduleId": "api-client",
+  "order": 7,
+  "title": "Studi Kasus: Halaman Daftar Produk",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya menggabungkan semua materi modul ini. Tim Toko Budi meminta halaman **Daftar Produk** dengan kebutuhan berikut:\n\n- Menampilkan produk dari `GET /products`, dengan filter kategori, pencarian, dan urutan harga.\n- Di bagian atas tampil \"Halo, Budi\" dari `GET /me` kalau pengguna sudah login. Kalau belum, tampil tombol \"Masuk\".\n- Setiap keadaan punya tampilan sendiri: **loading**, **sukses**, **kosong**, **error**, dan **offline**.\n\nDi tim produk, keadaan seperti ini disebut **state**. Kesalahan paling umum junior developer adalah hanya menyiapkan state sukses. Hasilnya: loading berputar selamanya saat server error, halaman putih saat data kosong, atau tulisan \"undefined\" di layar.\n\nDua prinsip yang dipakai di studi kasus ini:\n\n1. Fungsi pemuat data **selalu mengembalikan state** dan tidak pernah melempar error ke tampilan.\n2. Kegagalan satu bagian tidak boleh merusak seluruh halaman. Profil gagal dimuat? Daftar produk tetap tampil.\n\nPikirkan papan informasi di stasiun. Papan itu tidak pernah kosong: ada tulisan \"kereta datang\", \"terlambat 10 menit\", \"jadwal dibatalkan\", atau \"sedang memuat jadwal\". Penumpang selalu tahu apa yang terjadi. Halaman yang baik juga selalu punya pesan untuk setiap keadaan."
+    },
+    {
+      "type": "theory",
+      "content": "Peta state halaman Daftar Produk:\n\n| State | Kapan terjadi | Yang ditampilkan |\n|---|---|---|\n| loading | request belum selesai | *skeleton* atau \"Memuat produk...\" |\n| sukses | `200` dan `data` berisi | daftar produk; tandai stok habis |\n| kosong | `200` dan `data` = `[]` | \"Produk tidak ditemukan\" + saran mengubah filter |\n| perlu login | `401` | di halaman publik: tombol \"Masuk\"; di halaman pribadi: arahkan ke login |\n| error | `4xx` lain atau `5xx` | pesan ramah + tombol \"Coba lagi\" + kode `X-Request-Id` untuk tim support |\n| offline | fetch reject (jaringan, timeout) | \"Periksa koneksi\" + tombol \"Coba lagi\" |\n\nBeberapa keputusan penting:\n\n- **Kosong bukan error.** Pencarian yang tidak menemukan apa pun dijawab `200` dengan `data: []`, bukan `404`.\n- **Pesan untuk pengguna berbeda dengan pesan untuk developer.** Pengguna melihat \"Gagal memuat produk\". Developer mencatat status, `detail`, dan `X-Request-Id` ke log.\n- **Matikan loading di `finally`** kalau kamu memakai `try/catch`, supaya loading berhenti baik saat sukses maupun gagal.\n- **Muat paralel** dengan `Promise.all` kalau request tidak saling bergantung. Profil dan daftar produk bisa diambil bersamaan.\n- **Pencarian saat mengetik**: batalkan request lama dengan `AbortController` supaya respons yang datang terlambat tidak menimpa hasil terbaru.\n\nPenyimpanan token di browser (cookie `HttpOnly` atau memori) dibahas di modul Keamanan API. Di sini token cukup disimpan di variable."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nSkrip ini mensimulasikan halaman di terminal: login, lalu memuat profil dan daftar produk secara paralel untuk empat skenario. Data diambil langsung dari server latihan. Untuk skenario server bermasalah, daftar produk diarahkan ke endpoint `/bug` yang selalu menjawab `500`.\n\nIsi `halaman.mjs`:\n\n```javascript\nconst BASE = 'https://api.toko.contoh';\nconst rupiah = (n) => 'Rp' + n.toLocaleString('id-ID');\n\n// Selalu mengembalikan objek state, tidak pernah melempar error.\nasync function muat(path, token) {\n  const headers = { Accept: 'application/json' };\n  if (token) headers.Authorization = `Bearer ${token}`;\n  try {\n    const res = await fetch(BASE + path, { headers, signal: AbortSignal.timeout(8000) });\n    if (res.status === 401) return { state: 'perlu-login' };\n    if (!res.ok) return { state: 'error', status: res.status, requestId: res.headers.get('X-Request-Id') };\n    const body = await res.json();\n    if (Array.isArray(body.data) && body.data.length === 0) return { state: 'kosong' };\n    return { state: 'sukses', body };\n  } catch (err) {\n    return { state: 'offline', alasan: err.name };\n  }\n}\n\nfunction tampilkanProfil(hasil) {\n  if (hasil.state === 'sukses') console.log(`  [header] Halo, ${hasil.body.name}`);\n  else console.log('  [header] tombol \"Masuk\"');\n}\n\nfunction tampilkanDaftar(hasil) {\n  switch (hasil.state) {\n    case 'sukses':\n      for (const p of hasil.body.data) {\n        console.log(`  ${p.name} - ${rupiah(p.price)}${p.stock === 0 ? ' (stok habis)' : ''}`);\n      }\n      break;\n    case 'kosong':\n      console.log('  Produk tidak ditemukan. Coba kata kunci lain.');\n      break;\n    case 'perlu-login':\n      console.log('  Silakan masuk untuk melihat produk ini.');\n      break;\n    case 'error':\n      console.log(`  Gagal memuat produk (${hasil.status}).` + (hasil.requestId ? ` Kode bantuan: ${hasil.requestId}` : ''));\n      break;\n    case 'offline':\n      console.log('  Tidak bisa terhubung. Periksa koneksi lalu coba lagi.');\n      break;\n  }\n}\n\nasync function halaman(judul, pathDaftar, token) {\n  console.log(`== ${judul}`);\n  console.log('  [loading] Memuat produk...');\n  const [profil, daftar] = await Promise.all([muat('/me', token), muat(pathDaftar, token)]);\n  tampilkanProfil(profil);\n  tampilkanDaftar(daftar);\n}\n\nconst login = await fetch(`${BASE}/auth/login`, {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ email: 'budi@toko.contoh', password: 'rahasia123' }),\n});\nconst { accessToken } = await login.json();\n\nawait halaman('Kategori sepatu', '/products?category=sepatu&sort=price', accessToken);\nawait halaman('Cari \"laptop\"', '/products?q=laptop', accessToken);\nawait halaman('Pengunjung tanpa login', '/products?category=tas');\nawait halaman('Server bermasalah (simulasi lewat /bug)', '/bug', accessToken);\n```\n\n```bash\nnode halaman.mjs\n```\n\nYang akan kamu lihat:\n\n```text\n$ node halaman.mjs\n== Kategori sepatu\n  [loading] Memuat produk...\n  [header] Halo, Budi\n  Sepatu Sekolah - Rp210.000 (stok habis)\n  Sepatu Lari - Rp350.000\n== Cari \"laptop\"\n  [loading] Memuat produk...\n  [header] Halo, Budi\n  Produk tidak ditemukan. Coba kata kunci lain.\n== Pengunjung tanpa login\n  [loading] Memuat produk...\n  [header] tombol \"Masuk\"\n  Tas Sekolah - Rp125.000\n== Server bermasalah (simulasi lewat /bug)\n  [loading] Memuat produk...\n  [header] Halo, Budi\n  Gagal memuat produk (500). Kode bantuan: req-7f3a9c\n```\n\nPerhatikan setiap skenario:\n\n- **Kategori sepatu**: state sukses. Sepatu Sekolah ditandai \"stok habis\" karena `stock` bernilai `0`.\n- **Cari \"laptop\"**: server menjawab `200` dengan `data` kosong, jadi tampil pesan kosong, bukan error.\n- **Pengunjung tanpa login**: `/me` menjawab `401`. Header menampilkan tombol \"Masuk\", tapi daftar produk tetap tampil.\n- **Server bermasalah**: `500` ditampilkan sebagai pesan ramah, plus kode `req-7f3a9c` yang bisa dikirim pengguna ke tim support."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Hanya menyiapkan state sukses**\n\nSalah:\n\n```javascript\nsetLoading(true);\nconst res = await fetch(`${BASE}/products?q=${kataKunci}`);\nconst body = await res.json();\nsetProduk(body.data);\nsetLoading(false);\n```\n\nBenar:\n\n```javascript\nsetLoading(true);\nsetError(null);\ntry {\n  const url = new URL('/products', BASE);\n  url.searchParams.set('q', kataKunci);\n  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });\n  if (!res.ok) throw new Error(`Status ${res.status}`);\n  setProduk((await res.json()).data);  // [] → tampilkan state kosong\n} catch (err) {\n  setError('Gagal memuat produk. Coba lagi.');\n  console.error(err);\n} finally {\n  setLoading(false);\n}\n```\n\nDi kode salah, jaringan putus membuat `setLoading(false)` tidak pernah dijalankan, sehingga loading berputar selamanya. Respons `500` membuat `body.data` bernilai `undefined`. Kata kunci juga tidak di-*encode*. Kode benar menangani semua jalur dan mematikan loading di `finally`.\n\n**2. Respons lama menimpa hasil pencarian terbaru**\n\nSalah:\n\n```javascript\ninput.addEventListener('input', async () => {\n  const res = await fetch(`${BASE}/products?q=${input.value}`);\n  tampilkanDaftar((await res.json()).data);\n});\n```\n\nBenar:\n\n```javascript\nlet pengendali;\ninput.addEventListener('input', async () => {\n  pengendali?.abort();               // batalkan pencarian sebelumnya\n  pengendali = new AbortController();\n  const url = new URL('/products', BASE);\n  url.searchParams.set('q', input.value);\n  try {\n    const res = await fetch(url, { signal: pengendali.signal });\n    if (!res.ok) throw new Error(`Status ${res.status}`);\n    tampilkanDaftar((await res.json()).data);\n  } catch (err) {\n    if (err.name !== 'AbortError') tampilkanError(err);\n  }\n});\n```\n\nPengguna mengetik \"sep\" lalu \"sepatu\". Kalau respons \"sep\" tiba belakangan, hasil lama menimpa hasil terbaru. Membatalkan request sebelumnya mencegah hal ini. Di aplikasi nyata, tambahkan juga *debounce* (menunggu pengguna berhenti mengetik sebentar) supaya tidak setiap huruf memicu request.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pencarian \"laptop\" dijawab `200` dengan `{\"data\": [], \"meta\": {\"total\": 0, ...}}`. State apa yang tepat ditampilkan?",
+          "options": [
+            "Kosong: \"Produk tidak ditemukan\" dengan saran mengubah kata kunci",
+            "Error: \"Gagal memuat produk\"",
+            "Loading terus sampai data muncul",
+            "Halaman 404"
+          ],
+          "answer": 0,
+          "explanation": "Request berhasil dan server memang tidak menemukan produk. Ini state kosong yang normal, bukan kegagalan, jadi tidak perlu tombol \"Coba lagi\".",
+          "remedial": "Request berhasil dan server memang tidak menemukan produk. Ini state kosong yang normal, bukan kegagalan, jadi tidak perlu tombol \"Coba lagi\"."
+        },
+        {
+          "question": "Daftar produk gagal dimuat dengan status `500` dan header `X-Request-Id: req-7f3a9c`. Apa yang sebaiknya ditampilkan ke pengguna?",
+          "options": [
+            "Isi lengkap body error dan stack trace supaya pengguna bisa melapor dengan detail",
+            "Tidak menampilkan apa pun dan membiarkan loading tetap berputar",
+            "Pesan ramah, tombol \"Coba lagi\", dan kode req-7f3a9c untuk dilaporkan ke support",
+            "Mengarahkan pengguna ke halaman login"
+          ],
+          "answer": 2,
+          "explanation": "Pengguna butuh pesan yang bisa dipahami dan tindakan berikutnya. Request ID membantu tim backend menemukan log yang tepat tanpa membocorkan detail teknis ke pengguna.",
+          "remedial": "Pengguna butuh pesan yang bisa dipahami dan tindakan berikutnya. Request ID membantu tim backend menemukan log yang tepat tanpa membocorkan detail teknis ke pengguna."
+        },
+        {
+          "question": "Di halaman daftar produk yang publik, `GET /me` menjawab `401`, sedangkan `GET /products` berhasil. Perilaku yang paling tepat?",
+          "options": [
+            "Mengosongkan seluruh halaman dan menampilkan error",
+            "Mengulang GET /me terus sampai berhasil",
+            "Langsung memaksa pengguna ke halaman login sebelum melihat produk",
+            "Tetap menampilkan daftar produk, dan menampilkan tombol \"Masuk\" di header"
+          ],
+          "answer": 3,
+          "explanation": "Pengunjung tanpa login boleh melihat katalog. 401 di /me hanya berarti belum login, jadi bagian profil diganti tombol \"Masuk\" tanpa merusak bagian lain. 401 juga tidak akan berubah kalau diulang.",
+          "remedial": "Pengunjung tanpa login boleh melihat katalog. 401 di /me hanya berarti belum login, jadi bagian profil diganti tombol \"Masuk\" tanpa merusak bagian lain. 401 juga tidak akan berubah kalau diulang."
+        },
+        {
+          "question": "Kenapa `setLoading(false)` sebaiknya ditaruh di blok `finally`?",
+          "options": [
+            "Supaya loading dimatikan baik saat request sukses maupun saat masuk catch",
+            "Supaya request berjalan lebih cepat",
+            "Karena finally dijalankan sebelum fetch dikirim",
+            "Karena finally otomatis mengulang request yang gagal"
+          ],
+          "answer": 0,
+          "explanation": "Blok finally selalu dijalankan setelah try atau catch selesai. Kalau setLoading(false) hanya ada di jalur sukses, error jaringan membuat loading berputar selamanya.",
+          "remedial": "Blok finally selalu dijalankan setelah try atau catch selesai. Kalau setLoading(false) hanya ada di jalur sukses, error jaringan membuat loading berputar selamanya."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa output skrip ini?",
+      "code": "const res = await fetch('https://api.toko.contoh/products?q=laptop');\nconst { data } = await res.json();\nconsole.log(res.status, res.ok, data.length);",
+      "options": [
+        "404 false 0",
+        "200 true 0",
+        "204 true 0",
+        "200 false 0"
+      ],
+      "answer": 1,
+      "explanation": "Pencarian yang tidak menemukan apa pun tetap berhasil: status 200, res.ok true, dan data berupa array kosong. Halaman menampilkan state kosong, bukan error."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Muat produk kategori sepatu, diurutkan dari harga termurah\ncurl -s \"https://api.toko.contoh/products?___=sepatu&sort=___\" | jq -r '.data[].name'",
+      "answers": [
+        "category",
+        "price"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Siapkan tampilan untuk setiap state: loading, sukses, kosong, perlu login, error, dan offline.",
+        "Hasil kosong (200 dengan data []) bukan error; tampilkan pesan dan saran, bukan tombol \"Coba lagi\".",
+        "Fungsi pemuat data sebaiknya selalu mengembalikan state, dan loading dimatikan di finally.",
+        "Pisahkan pesan untuk pengguna dari detail untuk developer; tampilkan X-Request-Id sebagai kode bantuan.",
+        "Muat bagian yang tidak saling bergantung secara paralel, dan batalkan pencarian lama dengan AbortController."
+      ]
+    }
+  ]
+}
