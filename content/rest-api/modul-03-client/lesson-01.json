@@ -1,0 +1,112 @@
+{
+  "id": "api-client-01",
+  "moduleId": "api-client",
+  "order": 1,
+  "title": "curl Lengkap",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Dasar HTTP dan API kamu sudah memakai `curl -i`, `-X`, `-H`, `-d`, `-s`, `-o`, dan `-w`. Di tim engineering, curl dipakai jauh lebih sering dari sekadar melihat respons:\n\n- mencoba endpoint baru sebelum menulis kode frontend,\n- menulis contoh request di dokumentasi API,\n- mereproduksi bug yang dilaporkan, lalu menempelkan perintahnya di tiket supaya orang lain bisa mengulang,\n- *health check* (cek apakah server hidup) di skrip deploy dan CI.\n\nMateri ini melengkapi opsi yang membuat pekerjaan itu cepat dan tidak mudah salah: `--json`, `-d @berkas`, `-G --data-urlencode`, `-L`, `-D -`, dan `--fail-with-body`. Hasilnya sering diolah dengan **jq**, alat baris perintah untuk membaca JSON.\n\nBayangkan curl seperti formulir pengiriman di loket ekspedisi. Kolom \"jenis layanan\" adalah method, kolom keterangan di sampul adalah header, dan isi kirimannya adalah body. Opsi curl hanyalah cara mengisi kolom-kolom itu dengan tepat. Setelah ini kita kembali memakai istilah teknisnya."
+    },
+    {
+      "type": "theory",
+      "content": "Opsi curl yang dipakai sehari-hari:\n\n| Opsi | Fungsi | Contoh |\n|---|---|---|\n| `-X METHOD` | memilih method | `-X PATCH` |\n| `-H \"Nama: nilai\"` | menambah header | `-H \"Authorization: Bearer $TOKEN\"` |\n| `-d 'teks'` | mengirim body (otomatis `POST`) | `-d '{\"price\":6000}'` |\n| `--json 'teks'` | body JSON + `Content-Type: application/json` + `Accept: application/json` (otomatis `POST`) | `--json '{\"price\":6000}'` |\n| `--json @berkas` | body JSON dari berkas | `--json @produk.json` |\n| `-G` + `--data-urlencode` | menyusun query string dengan *encoding* | `-G --data-urlencode \"q=sepatu lari\"` |\n| `-L` | mengikuti redirect 3xx | `curl -L .../produk` |\n| `-o /dev/null -D -` | membuang body, mencetak header saja | cek header CORS atau `Location` |\n| `-sS` | diam, tapi pesan error curl tetap tampil | dipakai di skrip |\n| `--fail-with-body` | exit code 22 kalau status ≥ 400, body tetap tampil | health check di CI |\n\nTiga hal yang sering menjebak:\n\n- `-d` tanpa header `Content-Type` dikirim sebagai `application/x-www-form-urlencoded`. API JSON akan menolaknya dengan `415`. Pakai `--json` (curl 7.82 ke atas) supaya tidak lupa.\n- Tanpa `-f` atau `--fail-with-body`, curl tetap keluar dengan exit code `0` walau server menjawab `404` atau `500`. Bagi curl, request itu berhasil terkirim dan dijawab.\n- Di bash, tulis JSON di dalam kutip tunggal `'...'`. Di PowerShell dan CMD aturan kutipnya berbeda, jadi lebih aman simpan JSON di berkas lalu kirim dengan `--json @berkas`.\n\nUntuk membaca hasil, pakai jq: `jq .` merapikan JSON, `jq .meta.total` mengambil satu field, dan `jq -r` mencetak teks tanpa tanda kutip."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nKirim produk dari berkas, cari dengan query yang mengandung spasi, ikuti redirect, lalu lihat perilaku `--fail-with-body`.\n\nIsi `produk.json`:\n\n```json\n{\n  \"name\": \"Kaos Kaki\",\n  \"price\": 15000,\n  \"category\": \"aksesoris\",\n  \"stock\": 50\n}\n```\n\n```bash\ncurl -sS --json @produk.json https://api.toko.contoh/products -o /dev/null -D -\ncurl -s -G https://api.toko.contoh/products --data-urlencode \"q=sepatu lari\" | jq -r '.data[].name'\ncurl -s -L https://api.toko.contoh/produk | jq .meta.total\ncurl -s --fail-with-body https://api.toko.contoh/products/P99; echo \"exit code: $?\"\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -sS --json @produk.json https://api.toko.contoh/products -o /dev/null -D -\nHTTP/1.1 201 Created\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nLocation: /products/P07\nETag: \"p07-v1\"\nContent-Type: application/json\nContent-Length: 140\nConnection: close\n$ curl -s -G https://api.toko.contoh/products --data-urlencode \"q=sepatu lari\" | jq -r '.data[].name'\nSepatu Lari\n$ curl -s -L https://api.toko.contoh/produk | jq .meta.total\n7\n$ curl -s --fail-with-body https://api.toko.contoh/products/P99; echo \"exit code: $?\"\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Not Found\",\n  \"status\": 404,\n  \"detail\": \"Produk P99 tidak ditemukan.\"\n}\nexit code: 22\n```\n\nPerhatikan:\n\n- `-o /dev/null -D -` hanya menampilkan header. Kamu langsung melihat `201 Created` dan `Location: /products/P07` tanpa body yang panjang.\n- `-G` mengubah `--data-urlencode` menjadi query string. Spasi di `sepatu lari` di-*encode* otomatis menjadi `sepatu+lari`.\n- `/produk` menjawab `301`. Dengan `-L`, curl mengikuti `Location` ke `/products`. Totalnya 7 karena Kaos Kaki baru saja ditambahkan.\n- `--fail-with-body` tetap mencetak body error, tapi exit code-nya `22`. Skrip CI bisa berhenti di sini."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membungkus JSON dengan kutip ganda di bash**\n\nSalah:\n\n```bash\ncurl -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d \"{\"name\":\"Topi\",\"price\":45000}\"\n```\n\nBenar:\n\n```bash\ncurl https://api.toko.contoh/products --json '{\"name\":\"Topi\",\"price\":45000,\"category\":\"aksesoris\",\"stock\":10}'\n```\n\nBash menganggap `\"` di dalam teks sebagai penutup kutip. Yang terkirim menjadi `{name:Topi,price:45000}`, yaitu JSON rusak, dan server menjawab `400`. Pakai kutip tunggal di luar JSON, atau simpan JSON di berkas lalu kirim dengan `--json @produk.json`.\n\n**2. Menganggap curl gagal kalau server menjawab error**\n\nSalah:\n\n```bash\ncurl -s https://api.toko.contoh/health && echo \"Server sehat, lanjut deploy\"\n```\n\nBenar:\n\n```bash\ncurl -sS --fail-with-body https://api.toko.contoh/health && echo \"Server sehat, lanjut deploy\"\n```\n\nTanpa `--fail-with-body` (atau `-f`), curl keluar dengan exit code `0` walau server menjawab `500`. Skrip akan lanjut deploy ke server yang rusak. `-sS` menyembunyikan progress, tapi pesan error curl seperti \"Could not resolve host\" tetap muncul.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa saja yang dilakukan opsi `--json` di curl?",
+          "options": [
+            "Hanya merapikan tampilan respons JSON di terminal",
+            "Memeriksa apakah teks JSON valid sebelum dikirim",
+            "Mengirim body, memasang `Content-Type` dan `Accept` JSON, dan memakai `POST` kalau tanpa `-X`",
+            "Mengubah respons XML dari server menjadi JSON"
+          ],
+          "answer": 2,
+          "explanation": "--json adalah singkatan untuk mengirim data JSON: body dikirim apa adanya, header Content-Type dan Accept diisi application/json, dan method default menjadi POST. Untuk merapikan respons, pakai jq.",
+          "remedial": "--json adalah singkatan untuk mengirim data JSON: body dikirim apa adanya, header Content-Type dan Accept diisi application/json, dan method default menjadi POST. Untuk merapikan respons, pakai jq."
+        },
+        {
+          "question": "curl diminta mengikuti redirect. Status apa yang dicetak?",
+          "code": "curl -s -L -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/produk",
+          "options": [
+            "301",
+            "200",
+            "302",
+            "404"
+          ],
+          "answer": 1,
+          "explanation": "/produk menjawab 301 dengan Location: /products. Karena ada -L, curl mengikuti redirect itu, dan -w mencetak status respons terakhir, yaitu 200.",
+          "remedial": "/produk menjawab 301 dengan Location: /products. Karena ada -L, curl mengikuti redirect itu, dan -w mencetak status respons terakhir, yaitu 200."
+        },
+        {
+          "question": "Produk P99 tidak ada. Apa yang dicetak `echo $?` setelah curl ini?",
+          "code": "curl -s -o /dev/null https://api.toko.contoh/products/P99; echo $?",
+          "options": [
+            "404",
+            "22",
+            "1",
+            "0"
+          ],
+          "answer": 3,
+          "explanation": "$? berisi exit code curl, bukan status HTTP. Tanpa -f atau --fail-with-body, curl keluar dengan 0 karena request berhasil dikirim dan dijawab, walau jawabannya 404.",
+          "remedial": "$? berisi exit code curl, bukan status HTTP. Tanpa -f atau --fail-with-body, curl keluar dengan 0 karena request berhasil dikirim dan dijawab, walau jawabannya 404."
+        },
+        {
+          "question": "Kamu perlu mencari produk dengan kata kunci `sepatu lari` (ada spasinya). Cara mana yang paling aman?",
+          "options": [
+            "curl -G https://api.toko.contoh/products --data-urlencode \"q=sepatu lari\"",
+            "curl https://api.toko.contoh/products?q=sepatu lari",
+            "curl -d \"q=sepatu lari\" https://api.toko.contoh/products",
+            "curl -X GET https://api.toko.contoh/products -H \"q: sepatu lari\""
+          ],
+          "answer": 0,
+          "explanation": "-G memindahkan data ke query string dan --data-urlencode meng-encode spasi. Tanpa kutip, shell memotong URL di spasi. -d tanpa -G mengirim POST, dan header bukan tempat parameter pencarian.",
+          "remedial": "-G memindahkan data ke query string dan --data-urlencode meng-encode spasi. Tanpa kutip, shell memotong URL di spasi. -d tanpa -G mengirim POST, dan header bukan tempat parameter pencarian."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa output perintah ini?",
+      "code": "curl -s -G https://api.toko.contoh/products -d category=sepatu -d sort=price | jq -r '[.data[].id] | join(\" \")'",
+      "options": [
+        "P04 P05",
+        "P01 P02 P03 P04 P05 P06",
+        "P05 P04",
+        "Error 415 karena -d mengirim POST"
+      ],
+      "answer": 2,
+      "explanation": "-G membuat curl memakai GET dan menyusun -d menjadi ?category=sepatu&sort=price. Hasilnya dua sepatu, diurutkan dari yang termurah: P05 (210000) lalu P04 (350000)."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Kirim isi berkas produk.json sebagai body JSON (Content-Type ikut terpasang)\ncurl -s ___ @produk.json https://api.toko.contoh/products | jq -r .id",
+      "answers": [
+        "--json"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "--json mengirim body JSON sekaligus memasang Content-Type dan Accept application/json, jadi tidak lupa header.",
+        "-G dengan --data-urlencode menyusun query string dan meng-encode spasi atau karakter khusus.",
+        "-L mengikuti redirect, sedangkan -o /dev/null -D - menampilkan header saja.",
+        "Tanpa -f atau --fail-with-body, curl keluar dengan exit code 0 walau status 4xx/5xx; penting untuk skrip CI.",
+        "Di bash, bungkus JSON dengan kutip tunggal atau kirim dari berkas dengan @nama-berkas."
+      ]
+    }
+  ]
+}

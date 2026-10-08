@@ -1,0 +1,111 @@
+{
+  "id": "api-dokumentasi-03",
+  "moduleId": "api-dokumentasi",
+  "order": 3,
+  "title": "OpenAPI: Schema, Parameter, dan Response",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Bagian **schema** menjelaskan bentuk data: field apa saja, tipenya apa, mana yang wajib, dan batasannya. Di OpenAPI 3.1, schema adalah **JSON Schema** (draf 2020-12). Keyword yang paling sering dipakai:\n\n| Keyword | Arti | Contoh |\n|---|---|---|\n| `type` | tipe data: `string`, `integer`, `number`, `boolean`, `array`, `object`, `null` | `type: integer` |\n| `properties` | daftar field objek beserta schema masing-masing | `name`, `price` |\n| `required` | **daftar** nama field yang wajib ada, ditulis di tingkat objek | `required: [id, name]` |\n| `minimum`, `maxLength`, `pattern`, `enum` | batasan nilai | `minimum: 0` |\n| `format` | format teks, misalnya `date-time` atau `email` | `format: date-time` |\n| `examples` | daftar contoh nilai | `examples: [P01]` |\n\nSchema produk dan metadata paging Toko Budi:\n\n```yaml\ncomponents:\n  schemas:\n    Product:\n      type: object\n      required: [id, name, price, category, stock, createdAt]\n      properties:\n        id:\n          type: string\n          examples: [P01]\n        name:\n          type: string\n          maxLength: 100\n        price:\n          type: integer\n          minimum: 0\n          description: Harga dalam rupiah utuh.\n        category:\n          type: string\n          examples: [alat-tulis]\n        stock:\n          type: integer\n          minimum: 0\n        createdAt:\n          type: string\n          format: date-time\n    PageMeta:\n      type: object\n      required: [limit]\n      properties:\n        total:\n          type: integer\n        limit:\n          type: integer\n        offset:\n          type: integer\n        nextCursor:\n          type: [string, 'null']\n          description: Cursor halaman berikutnya; null di halaman terakhir.\n```\n\nTiga hal penting:\n\n- Field yang **tidak** disebut di `required` bersifat opsional.\n- Untuk field yang boleh `null`, tulis dua tipe: `type: [string, 'null']`. Kutip pada `'null'` wajib, karena tanpa kutip YAML membacanya sebagai nilai kosong, bukan teks.\n- Di 3.1, keyword `example` (tunggal) di dalam schema sudah usang. Pakai `examples` berupa daftar. Di parameter dan media type, `example` tunggal masih berlaku.\n\nSchema mirip aturan formulir pendaftaran sekolah. Kolom bertanda bintang wajib diisi, kolom tanggal lahir harus berupa tanggal, dan kolom jurusan hanya boleh berisi pilihan yang tersedia. Panitia dan pendaftar membaca aturan yang sama, jadi tidak ada yang menebak."
+    },
+    {
+      "type": "theory",
+      "content": "**Parameter** ditulis per operation dengan `in` yang menyatakan letaknya: `path`, `query`, `header`, atau `cookie`. **Response** ditulis per status code, masing-masing dengan `description`, `content` per media type, dan bila perlu `headers`. Bagian yang dipakai berulang ditulis sekali di `components`, lalu dirujuk dengan **`$ref`**.\n\n```yaml\npaths:\n  /products:\n    get:\n      summary: Daftar produk\n      operationId: listProducts\n      parameters:\n        - name: category\n          in: query\n          schema:\n            type: string\n          example: sepatu\n        - name: limit\n          in: query\n          description: Jumlah item per halaman. Nilai di atas 100 dipotong menjadi 100.\n          schema:\n            type: integer\n            minimum: 1\n            default: 20\n      responses:\n        '200':\n          description: Satu halaman produk\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/ProductList'\n        '400':\n          $ref: '#/components/responses/BadRequest'\n```\n\nRequest body, respons sukses beserta header `Location`, dan respons error yang dipakai ulang:\n\n```yaml\npaths:\n  /products:\n    post:\n      summary: Tambah produk\n      operationId: createProduct\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/ProductInput'\n            example:\n              name: Topi\n              price: 45000\n              category: aksesoris\n              stock: 10\n      responses:\n        '201':\n          description: Produk dibuat\n          headers:\n            Location:\n              description: Alamat produk baru\n              schema:\n                type: string\n              example: /products/P07\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/Product'\n        '422':\n          $ref: '#/components/responses/ValidationError'\ncomponents:\n  responses:\n    ValidationError:\n      description: Isi body tidak lolos validasi\n      content:\n        application/problem+json:\n          schema:\n            $ref: '#/components/schemas/Problem'\n          example:\n            type: about:blank\n            title: Unprocessable Content\n            status: 422\n            detail: Data produk tidak valid.\n            errors:\n              - field: price\n                message: harus bilangan bulat >= 0 (rupiah)\n```\n\n`$ref: '#/components/responses/ValidationError'` dibaca: mulai dari akar dokumen (`#`), masuk ke `components`, lalu `responses`, lalu ambil `ValidationError`. Respons `422` cukup ditulis sekali dan dipakai oleh `POST`, `PUT`, dan `PATCH`.\n\n**Autentikasi** dijelaskan dua langkah. Daftarkan skemanya di `components/securitySchemes`, lalu pasang di operation yang membutuhkannya:\n\n```yaml\npaths:\n  /me:\n    get:\n      summary: Profil pengguna yang sedang login\n      operationId: getMe\n      security:\n        - bearerAuth: []\n      responses:\n        '200':\n          description: Profil pengguna\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/User'\n        '401':\n          $ref: '#/components/responses/Unauthorized'\ncomponents:\n  securitySchemes:\n    bearerAuth:\n      type: http\n      scheme: bearer\n      bearerFormat: JWT\n```\n\n`bearerFormat: JWT` hanya keterangan untuk pembaca. Client tetap mengirim `Authorization: Bearer <token>`. Kalau `security` dipasang di tingkat atas dokumen, ia berlaku untuk semua operation. Operation publik lalu menulis `security: []` untuk membatalkannya."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nDokumen hanya berguna kalau cocok dengan server. Bandingkan schema dan respons yang didokumentasikan dengan respons asli server latihan.\n\n```bash\ncurl -s https://api.toko.contoh/products/P01 | jq -c keys\ncurl -s https://api.toko.contoh/products/P01 | jq -c 'map_values(type)'\ncurl -s \"https://api.toko.contoh/products?limit=6&cursor=\" | jq -c .meta\ncurl -s -o /dev/null -w \"%{http_code} %header{www-authenticate}\\n\" https://api.toko.contoh/me\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\ncurl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -c .\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -s https://api.toko.contoh/products/P01 | jq -c keys\n[\"category\",\"createdAt\",\"id\",\"name\",\"price\",\"stock\"]\n$ curl -s https://api.toko.contoh/products/P01 | jq -c 'map_values(type)'\n{\"id\":\"string\",\"name\":\"string\",\"price\":\"number\",\"category\":\"string\",\"stock\":\"number\",\"createdAt\":\"string\"}\n$ curl -s \"https://api.toko.contoh/products?limit=6&cursor=\" | jq -c .meta\n{\"limit\":6,\"nextCursor\":null}\n$ curl -s -o /dev/null -w \"%{http_code} %header{www-authenticate}\\n\" https://api.toko.contoh/me\n401 Bearer realm=\"api.toko.contoh\"\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ curl -s https://api.toko.contoh/me -H \"Authorization: Bearer $TOKEN\" | jq -c .\n{\"id\":\"U01\",\"name\":\"Budi\",\"email\":\"budi@toko.contoh\",\"role\":\"customer\"}\n```\n\nPerhatikan:\n\n- Keenam key respons sama dengan daftar `required` di schema `Product`.\n- `jq` menyebut `price` dan `stock` sebagai `number`. JSON hanya punya satu tipe angka. `integer` di JSON Schema adalah aturan tambahan: angkanya tidak boleh punya pecahan.\n- Di halaman terakhir paging cursor, `nextCursor` bernilai `null`. Karena itu schema-nya `type: [string, 'null']`.\n- Tanpa token, `/me` dijawab `401` dengan header `WWW-Authenticate: Bearer ...`. Dengan token dari login, respons `200` berisi profil Budi. Perilaku ini sesuai dengan `security: bearerAuth` di dokumen."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai nullable: true dari OpenAPI 3.0**\n\nSalah:\n\n```yaml\nnextCursor:\n  type: string\n  nullable: true\n```\n\nBenar:\n\n```yaml\nnextCursor:\n  type: [string, 'null']\n```\n\n`nullable` adalah keyword OpenAPI 3.0 dan sudah dihapus di 3.1. Di 3.1, keyword yang tidak dikenal JSON Schema diabaikan saat validasi. Akibatnya `null` dianggap tidak valid, dan validator menolak respons halaman terakhir yang berisi `\"nextCursor\": null`.\n\n**2. Menulis required: true di dalam property schema**\n\nSalah:\n\n```yaml\nProduct:\n  type: object\n  properties:\n    id:\n      type: string\n      required: true\n    price:\n      type: integer\n      required: true\n```\n\nBenar:\n\n```yaml\nProduct:\n  type: object\n  required: [id, price]\n  properties:\n    id:\n      type: string\n    price:\n      type: integer\n```\n\nDi parameter, `required` memang bernilai boolean (`required: true`). Di schema, `required` adalah **daftar** nama field di tingkat objek. Bentuk pertama tidak valid menurut JSON Schema, dan banyak alat menganggap semua field opsional. Generator kode lalu membuat tipe `price?: number`, sehingga frontend harus menangani `price` yang tidak ada.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Bagaimana menulis field yang boleh berisi teks atau `null` di OpenAPI 3.1?",
+          "options": [
+            "type: [string, 'null']",
+            "type: string dengan nullable: true",
+            "type: string-or-null",
+            "type: string dengan default: null"
+          ],
+          "answer": 0,
+          "explanation": "Di 3.1, schema adalah JSON Schema 2020-12, jadi null ditulis sebagai salah satu tipe. nullable: true adalah cara OpenAPI 3.0 dan tidak berlaku lagi.",
+          "remedial": "Di 3.1, schema adalah JSON Schema 2020-12, jadi null ditulis sebagai salah satu tipe. nullable: true adalah cara OpenAPI 3.0 dan tidak berlaku lagi."
+        },
+        {
+          "question": "Schema `Product` dipakai di lima endpoint. Cara menulis yang paling rapi?",
+          "options": [
+            "Salin schema lengkap ke setiap endpoint",
+            "Tulis schema hanya di endpoint pertama, endpoint lain cukup diberi description",
+            "Tulis sekali di components/schemas, lalu rujuk dengan $ref",
+            "Tulis bentuk produk sebagai kalimat di description"
+          ],
+          "answer": 2,
+          "explanation": "$ref menghindari salinan yang lama-lama berbeda satu sama lain. Mengubah schema di components langsung berlaku di semua endpoint yang merujuknya.",
+          "remedial": "$ref menghindari salinan yang lama-lama berbeda satu sama lain. Mengubah schema di components langsung berlaku di semua endpoint yang merujuknya."
+        },
+        {
+          "question": "Endpoint `GET /me` membutuhkan JWT di header `Authorization: Bearer ...`. Security scheme mana yang tepat?",
+          "options": [
+            "type: apiKey, in: query, name: token",
+            "type: http, scheme: bearer, bearerFormat: JWT",
+            "type: http, scheme: basic",
+            "type: mutualTLS"
+          ],
+          "answer": 1,
+          "explanation": "Skema http dengan scheme bearer berarti token dikirim di header Authorization: Bearer. bearerFormat hanya keterangan bahwa token berbentuk JWT. basic memakai username dan password.",
+          "remedial": "Skema http dengan scheme bearer berarti token dikirim di header Authorization: Bearer. bearerFormat hanya keterangan bahwa token berbentuk JWT. basic memakai username dan password."
+        },
+        {
+          "question": "Schema produk menulis `required: [id, name, price]`. Apa artinya?",
+          "options": [
+            "Ketiga field harus bernilai true",
+            "Hanya ketiga field itu yang boleh ada di objek",
+            "Ketiga field tidak boleh bernilai 0 atau teks kosong",
+            "Ketiga field harus ada di objek; field lain di properties boleh tidak ada"
+          ],
+          "answer": 3,
+          "explanation": "required hanya mengatur keberadaan field. Larangan field tambahan diatur additionalProperties, dan batas nilai diatur minimum atau minLength.",
+          "remedial": "required hanya mengatur keberadaan field. Larangan field tambahan diatur additionalProperties, dan batas nilai diatur minimum atau minLength."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Schema produk menulis `price` dengan `type: integer`. Apa output perintah ini?",
+      "code": "curl -s https://api.toko.contoh/products/P01 | jq -r '.price | type'",
+      "options": [
+        "number",
+        "integer",
+        "string",
+        "int"
+      ],
+      "answer": 0,
+      "explanation": "JSON hanya mengenal satu tipe angka, dan jq melaporkannya sebagai number. integer di JSON Schema adalah aturan tambahan bahwa angka itu tidak boleh punya pecahan."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Lengkapi schema halaman produk: data merujuk Product, nextCursor boleh null\nProductPage:\n  type: object\n  properties:\n    data:\n      type: array\n      items:\n        $ref: '#/___/schemas/Product'\n    nextCursor:\n      type: [string, '___']",
+      "answers": [
+        "components",
+        "null"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Schema di OpenAPI 3.1 adalah JSON Schema 2020-12: type, properties, required, batasan, format, dan examples.",
+        "required adalah daftar field di tingkat objek; field boleh null ditulis type: [string, 'null'].",
+        "Parameter memakai in (path, query, header, cookie); response ditulis per status code dengan description, content, dan headers.",
+        "Tulis bagian yang dipakai ulang di components, lalu rujuk dengan $ref.",
+        "Daftarkan autentikasi di components/securitySchemes (bearerAuth: http, bearer, JWT), lalu pasang lewat security."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "id": "api-proyek-02",
+  "moduleId": "api-proyek",
+  "order": 2,
+  "title": "Merancang Endpoint",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setelah resource jelas, langkah berikutnya adalah **tabel endpoint**. Di banyak tim, tabel ini ditulis di dokumen desain (*design doc*) dan di-review sebelum kode ditulis. Setiap baris menjawab empat pertanyaan:\n\n1. Method dan URI apa?\n2. Status apa saat berhasil?\n3. Error apa yang mungkin terjadi?\n4. **Siapa yang boleh** memanggilnya?\n\nToko Budi punya tiga peran: **pengunjung** (tanpa token), **pembeli** (token dengan `role: customer`), dan **admin** (token dengan `role: admin`). Ada juga satu pemanggil yang bukan manusia, yaitu payment gateway yang memanggil webhook.\n\nPrinsip yang dipakai adalah **tolak secara default** (*deny by default*). Endpoint baru tertutup untuk semua orang sampai tabel menyebut siapa yang boleh. Kolom \"siapa yang boleh\" juga menjadi daftar kasus uji: setiap sel \"tidak\" harus terbukti ditolak.\n\nGedung kantor punya daftar pintu dan kartu akses. Lobi terbuka untuk tamu, lantai kantor hanya untuk karyawan, dan ruang server hanya untuk petugas tertentu. Tabel endpoint adalah daftar pintu itu, lengkap dengan siapa yang boleh lewat."
+    },
+    {
+      "type": "theory",
+      "content": "Tabel endpoint Toko Budi. Tanda *(R)* berarti **rancangan, belum ada di server latihan**. \"Miliknya\" berarti hanya data milik pemilik token.\n\n| Endpoint | Sukses | Error umum | Pengunjung | Pembeli | Admin |\n|---|---|---|---|---|---|\n| `POST /auth/login` | 200 | 401, 429 | ya | ya | ya |\n| `GET /me`, `PATCH /me` | 200 | 401, 422 | tidak | miliknya | miliknya |\n| `GET /products` | 200 | 400 | ya | ya | ya |\n| `GET /products/{id}` | 200, 304 | 404 | ya | ya | ya |\n| `POST /products` | 201 | 401, 403, 415, 422 | tidak | tidak | ya |\n| `PATCH /products/{id}` | 200 | 401, 403, 404, 412, 422 | tidak | tidak | ya |\n| `DELETE /products/{id}` | 204 | 401, 403, 404 | tidak | tidak | ya |\n| `GET /carts/me` *(R)* | 200 | 401 | tidak | miliknya | miliknya |\n| `PUT /carts/me/items/{productId}` *(R)* | 200 | 401, 404, 409, 422 | tidak | miliknya | miliknya |\n| `DELETE /carts/me/items/{productId}` *(R)* | 204 | 401, 404 | tidak | miliknya | miliknya |\n| `GET /orders` | 200 | 401 | tidak | miliknya | semua |\n| `POST /orders` | 201 | 401, 409, 422 | tidak | ya | ya |\n| `GET /orders/{id}` | 200 | 401, 404 | tidak | miliknya | semua |\n| `POST /orders/{id}/cancel` *(R)* | 200 | 401, 404, 409 | tidak | miliknya | semua |\n| `POST /orders/{id}/payments` *(R)* | 201 | 401, 404, 409, 422 | tidak | miliknya | tidak |\n| `PATCH /orders/{id}` (status) *(R)* | 200 | 401, 403, 409 | tidak | tidak | ya |\n| `GET /admin/users` | 200 | 401, 403 | tidak | tidak | ya |\n\nCatatan keputusan:\n\n- **Kolom error adalah rancangan.** Sebagian belum dipasang di server latihan, misalnya `429` untuk login yang terlalu sering dicoba.\n- **Server latihan lebih longgar untuk produk.** `POST`, `PUT`, `PATCH`, dan `DELETE` di `/products` bisa dipanggil tanpa token supaya modul sebelumnya mudah dicoba. Di produksi, tabel ini yang berlaku: hanya admin.\n- **Keranjang memakai `PUT` per item** dengan body `{\"qty\": 2}`. `PUT` idempotent, jadi request yang terulang karena retry tetap menghasilkan qty 2, bukan 4.\n- **Batal memakai sub-resource aksi** (`/cancel`), karena memicu proses bisnis: mengembalikan stok dan memulai refund. Pola ini dibahas di modul Prinsip REST.\n- **Admin mengubah status lewat `PATCH`**, tapi hanya transisi yang sah. `paid` ke `shipped` boleh, `shipped` ke `pending` ditolak `409`.\n- **Webhook `POST /webhooks/payments`** *(R)* tidak masuk kolom peran, karena pemanggilnya payment gateway. Pemanggil dibuktikan dengan tanda tangan HMAC di header, bukan token pengguna. Jawaban suksesnya `204`, dan tanda tangan salah dijawab `401`."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nSkrip ini memeriksa kolom \"siapa yang boleh\" untuk endpoint yang sudah ada di server latihan. Setiap endpoint dipanggil tiga kali: tanpa token, dengan token Budi (pembeli), dan dengan token Dewi (admin).\n\nIsi `matriks.mjs`:\n\n```javascript\nconst BASE = 'https://api.toko.contoh';\n\nasync function login(email, password) {\n  const res = await fetch(`${BASE}/auth/login`, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ email, password }),\n  });\n  return (await res.json()).accessToken;\n}\n\nconst peran = {\n  pengunjung: null,\n  pembeli: await login('budi@toko.contoh', 'rahasia123'),\n  admin: await login('dewi@toko.contoh', 'admin2026'),\n};\nconst daftar = ['/products', '/me', '/orders', '/orders/O101', '/orders/O102', '/admin/users'];\n\nconsole.log(('GET'.padEnd(14) + Object.keys(peran).map((p) => p.padEnd(12)).join('')).trimEnd());\nfor (const path of daftar) {\n  let baris = path.padEnd(14);\n  for (const token of Object.values(peran)) {\n    const headers = token ? { Authorization: `Bearer ${token}` } : {};\n    const res = await fetch(BASE + path, { headers });\n    await res.arrayBuffer(); // habiskan body\n    baris += String(res.status).padEnd(12);\n  }\n  console.log(baris.trimEnd());\n}\n```\n\n```bash\nnode matriks.mjs\n```\n\nYang akan kamu lihat:\n\n```text\n$ node matriks.mjs\nGET           pengunjung  pembeli     admin\n/products     200         200         200\n/me           401         200         200\n/orders       401         200         200\n/orders/O101  401         200         200\n/orders/O102  401         404         200\n/admin/users  401         403         200\n```\n\nBandingkan hasilnya dengan tabel endpoint:\n\n- `/products` terbuka untuk semua peran.\n- Pengunjung mendapat `401` di semua endpoint yang butuh login.\n- Pembeli mendapat `200` untuk pesanannya sendiri (O101) dan `404` untuk pesanan Sari (O102). Admin mendapat `200` untuk keduanya.\n- `/admin/users` menjawab `403` untuk pembeli: tokennya sah, tapi perannya tidak cukup.\n\nSkrip seperti ini mengubah tabel desain menjadi pemeriksaan yang bisa dijalankan ulang setiap kali server berubah."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Kata kerja di URI keranjang**\n\nSalah:\n\n```text\nPOST /cart/addItem      {\"productId\": \"P04\"}\nPOST /cart/updateQty    {\"productId\": \"P04\", \"qty\": 2}\nPOST /cart/removeItem   {\"productId\": \"P04\"}\n```\n\nBenar:\n\n```text\nGET    /carts/me\nPUT    /carts/me/items/P04   {\"qty\": 2}\nDELETE /carts/me/items/P04\n```\n\nKetiga endpoint `POST` itu tidak idempotent. `addItem` yang terkirim dua kali karena retry menambah barang dua kali. Dengan `PUT` ke item tertentu, method menyatakan niat, retry aman, dan polanya sama dengan resource lain. Keranjang ini masih rancangan, belum ada di server latihan.\n\n**2. Tabel endpoint tanpa kolom siapa yang boleh**\n\nSalah:\n\n```text\n| Endpoint           | Sukses |\n| GET /orders        | 200    |\n| PATCH /orders/{id} | 200    |\n| GET /admin/users   | 200    |\n```\n\nBenar:\n\n```text\n| Endpoint           | Sukses | Pengunjung | Pembeli  | Admin |\n| GET /orders        | 200    | 401        | miliknya | semua |\n| PATCH /orders/{id} | 200    | 401        | 403      | ya    |\n| GET /admin/users   | 200    | 401        | 403      | ya    |\n```\n\nTanpa kolom akses, developer yang mengerjakan endpoint menebak sendiri. Endpoint admin bisa terbuka untuk pembeli (BFLA), atau pembeli bisa melihat pesanan semua orang (BOLA). Kolom ini juga menjadi daftar kasus uji negatif yang wajib ada.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di rancangan Toko Budi, `PATCH /orders/{id}` untuk mengubah status hanya boleh dipanggil admin. Budi (pembeli) memanggilnya untuk pesanannya sendiri dengan token yang sah. Status apa yang tepat?",
+          "options": [
+            "200",
+            "401",
+            "403",
+            "404"
+          ],
+          "answer": 2,
+          "explanation": "Token Budi sah, jadi bukan 401. Fungsi ini khusus admin, jadi server menolak dengan 403 Forbidden. Pesanannya memang ada dan milik Budi, jadi tidak ada alasan memakai 404.",
+          "remedial": "Token Budi sah, jadi bukan 401. Fungsi ini khusus admin, jadi server menolak dengan 403 Forbidden. Pesanannya memang ada dan milik Budi, jadi tidak ada alasan memakai 404."
+        },
+        {
+          "question": "Kenapa rancangan keranjang memakai `PUT /carts/me/items/P04` dengan body `{\"qty\": 2}`, bukan `POST` yang menambah satu barang setiap kali dipanggil?",
+          "options": [
+            "PUT idempotent: request yang terulang tetap menghasilkan qty 2",
+            "POST tidak boleh membawa body",
+            "PUT selalu lebih cepat diproses server",
+            "POST hanya boleh dipakai untuk login"
+          ],
+          "answer": 0,
+          "explanation": "PUT menyatakan keadaan akhir. Mengulangnya karena retry tidak mengubah hasil. POST yang menambah satu barang akan menambah lagi setiap kali request terulang.",
+          "remedial": "PUT menyatakan keadaan akhir. Mengulangnya karena retry tidak mengubah hasil. POST yang menambah satu barang akan menambah lagi setiap kali request terulang."
+        },
+        {
+          "question": "Endpoint mana yang tepat dibuka untuk pengunjung tanpa token?",
+          "options": [
+            "GET /orders",
+            "GET /me",
+            "GET /admin/users",
+            "GET /products?category=sepatu"
+          ],
+          "answer": 3,
+          "explanation": "Katalog boleh dilihat tanpa login supaya calon pembeli bisa menjelajah. Pesanan dan profil butuh identitas, dan daftar pengguna hanya untuk admin.",
+          "remedial": "Katalog boleh dilihat tanpa login supaya calon pembeli bisa menjelajah. Pesanan dan profil butuh identitas, dan daftar pengguna hanya untuk admin."
+        },
+        {
+          "question": "Di rancangan Toko Budi, siapa yang boleh memanggil `POST /webhooks/payments`?",
+          "options": [
+            "Pengunjung tanpa token",
+            "Payment gateway yang membuktikan diri dengan tanda tangan di header",
+            "Pembeli pemilik pesanan",
+            "Admin dari dashboard"
+          ],
+          "answer": 1,
+          "explanation": "Webhook dipanggil server payment gateway, bukan manusia. Server toko memverifikasi tanda tangan HMAC untuk memastikan pemanggilnya asli. Tanpa itu, siapa pun bisa mengaku \"pembayaran berhasil\".",
+          "remedial": "Webhook dipanggil server payment gateway, bukan manusia. Server toko memverifikasi tanda tangan HMAC untuk memastikan pemanggilnya asli. Tanpa itu, siapa pun bisa mengaku \"pembayaran berhasil\"."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Variabel `TOKEN` berisi token Budi (pembeli). Apa output perintah ini?",
+      "code": "curl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/admin/users -H \"Authorization: Bearer $TOKEN\"",
+      "options": [
+        "200",
+        "401",
+        "404",
+        "403"
+      ],
+      "answer": 3,
+      "explanation": "Token Budi valid, jadi autentikasi lolos dan bukan 401. Endpoint ini khusus admin, sehingga server menjawab 403 sesuai sel \"tidak\" untuk pembeli di tabel endpoint."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Rancangan keranjang (belum ada di server latihan): hapus P04, server tidak mengirim body\n___ /carts/me/items/P04\nAuthorization: Bearer <token Budi>\n\n# respons yang diharapkan:\nHTTP/1.1 ___ No Content",
+      "answers": [
+        "DELETE",
+        "204"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tabel endpoint mencatat method, URI, status sukses, error umum, dan siapa yang boleh untuk setiap baris.",
+        "Toko Budi punya tiga peran (pengunjung, pembeli, admin) ditambah payment gateway yang memanggil webhook.",
+        "Tolak secara default: endpoint baru tertutup sampai tabel menyebut siapa yang boleh memanggilnya.",
+        "Tandai endpoint rancangan dengan jelas supaya tidak tertukar dengan perilaku server yang sudah ada.",
+        "Setiap sel \"tidak\" di tabel menjadi kasus uji negatif yang harus menghasilkan 401, 403, atau 404."
+      ]
+    }
+  ]
+}

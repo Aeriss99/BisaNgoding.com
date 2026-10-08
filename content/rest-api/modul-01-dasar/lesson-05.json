@@ -1,0 +1,111 @@
+{
+  "id": "api-dasar-05",
+  "moduleId": "api-dasar",
+  "order": 5,
+  "title": "Header dan Body",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Request dan response sama-sama terdiri dari tiga bagian: baris pertama, header, dan body.\n\n- **Header** adalah keterangan tambahan tentang pesan, ditulis `Nama: nilai`, satu per baris. Contoh: `Content-Type: application/json`.\n- **Body** adalah isi utama pesan, misalnya JSON data produk.\n- Satu **baris kosong** memisahkan header dari body.\n\nNama header **tidak peka huruf besar-kecil**. `Content-Type` dan `content-type` dianggap sama oleh server. HTTP/2 bahkan selalu mengirim nama header dalam huruf kecil.\n\nHeader membuat server dan client bisa saling memahami tanpa membuka body. Server membaca `Content-Type` untuk tahu cara membaca body. Client membaca status code dan `Content-Type` untuk tahu cara memproses response.\n\nBayangkan sebuah amplop surat. Tulisan di luar amplop (alamat pengirim, jenis isi, \"jangan dilipat\") adalah header. Surat di dalamnya adalah body. Petugas pos bisa memproses amplop hanya dengan membaca bagian luarnya, tanpa membuka isinya."
+    },
+    {
+      "type": "theory",
+      "content": "Header yang paling sering kamu temui:\n\n| Header | Dikirim di | Arti | Contoh nilai |\n|---|---|---|---|\n| `Content-Type` | request dan response | format data di body | `application/json` |\n| `Accept` | request | format yang ingin diterima client | `application/json` |\n| `Authorization` | request | bukti identitas client (dibahas di modul Keamanan API) | `Bearer eyJhbGciOi...` |\n| `User-Agent` | request | nama dan versi program client | `curl/8.5.0` |\n| `Location` | response | alamat resource baru, atau tujuan pengalihan | `/products/P07` |\n\nNilai `Content-Type` dan `Accept` disebut **media type** (dulu disebut *MIME type*), dengan format `tipe/subtipe`:\n\n- `application/json`: data JSON, format utama web API.\n- `application/problem+json`: JSON berisi pesan error standar (dibahas di modul Merancang API yang Rapi).\n- `text/html`: halaman web.\n- `application/x-www-form-urlencoded`: data form HTML, format bawaan `curl -d`.\n\n**Body hanya untuk method tertentu**\n\n| Method | Body di request |\n|---|---|\n| `POST`, `PUT`, `PATCH` | ya, berisi data yang dikirim |\n| `GET`, `HEAD`, `DELETE` | tidak dipakai; RFC 9110 menyatakan body di sini tidak punya arti standar dan bisa ditolak |\n\nResponse juga tidak selalu punya body. Status `204 No Content`, `304 Not Modified`, dan semua response untuk `HEAD` tidak membawa body.\n\nDi curl, tambahkan header dengan `-H \"Nama: nilai\"`. Kalau `-d` dipakai tanpa `-H \"Content-Type: ...\"`, curl mengirim `Content-Type: application/x-www-form-urlencoded`."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nKirim dua request ke `/health` dengan header `Accept` yang berbeda. Opsi `-H` menambahkan header ke request, dan `-i` menampilkan header response.\n\n```bash\ncurl -i -H \"Accept: application/json\" https://api.toko.contoh/health\ncurl -i -H \"Accept: text/html\" https://api.toko.contoh/health\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -i -H \"Accept: application/json\" https://api.toko.contoh/health\nHTTP/1.1 200 OK\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nContent-Type: application/json\nContent-Length: 21\nConnection: close\n\n{\n  \"status\": \"ok\"\n}\n$ curl -i -H \"Accept: text/html\" https://api.toko.contoh/health\nHTTP/1.1 406 Not Acceptable\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nContent-Type: application/problem+json\nContent-Length: 133\nConnection: close\n\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Not Acceptable\",\n  \"status\": 406,\n  \"detail\": \"Server ini hanya mengirim application/json.\"\n}\n```\n\nBaca header response-nya:\n\n- `Content-Type: application/json` menyatakan body berisi JSON.\n- `Content-Length: 21` adalah panjang body dalam byte.\n- `Date` adalah waktu response dibuat. `Connection: close` berarti koneksi ditutup setelah response ini.\n- Request kedua meminta HTML. Server ini hanya bisa mengirim JSON, jadi ia menjawab **`406 Not Acceptable`**. Body error-nya bertipe `application/problem+json`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai Accept padahal yang dimaksud Content-Type**\n\nSalah:\n\n```bash\ncurl -X POST https://api.toko.contoh/products -H \"Accept: application/json\" -d '{\"name\":\"Payung\",\"price\":75000,\"category\":\"aksesoris\",\"stock\":12}'\n```\n\nBenar:\n\n```bash\ncurl -X POST https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"name\":\"Payung\",\"price\":75000,\"category\":\"aksesoris\",\"stock\":12}'\n```\n\n`Accept` menyatakan format yang ingin kamu **terima**. `Content-Type` menyatakan format yang kamu **kirim**. Tanpa `Content-Type`, curl melabeli body sebagai data form, sehingga server menjawab `415 Unsupported Media Type`.\n\n**2. Mengirim body di request GET**\n\nSalah:\n\n```bash\ncurl -X GET https://api.toko.contoh/products -H \"Content-Type: application/json\" -d '{\"category\":\"tas\"}'\n```\n\nBenar:\n\n```bash\ncurl \"https://api.toko.contoh/products?category=tas\"\n```\n\nBody di `GET` tidak punya arti standar. Banyak server, proxy, dan library mengabaikan atau menolaknya; `fetch` di browser bahkan melempar `TypeError`. Server latihan mengabaikan body ini dan mengembalikan semua produk. Kirim filter lewat query string.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Header mana yang memberi tahu server bahwa body request berisi JSON?",
+          "options": [
+            "`Accept: application/json`",
+            "`User-Agent: application/json`",
+            "`Content-Type: application/json`",
+            "`Location: application/json`"
+          ],
+          "answer": 2,
+          "explanation": "Content-Type menjelaskan format body yang dikirim. Accept hanya menyatakan format response yang diinginkan client.",
+          "remedial": "Content-Type menjelaskan format body yang dikirim. Accept hanya menyatakan format response yang diinginkan client."
+        },
+        {
+          "question": "Request mana yang **tidak** semestinya membawa body?",
+          "options": [
+            "`GET /products/P01`",
+            "`POST /products`",
+            "`PUT /products/P01`",
+            "`PATCH /products/P01`"
+          ],
+          "answer": 0,
+          "explanation": "GET hanya meminta data, jadi tidak membawa body. POST, PUT, dan PATCH mengirim data lewat body.",
+          "remedial": "GET hanya meminta data, jadi tidak membawa body. POST, PUT, dan PATCH mengirim data lewat body."
+        },
+        {
+          "question": "Response `201 Created` untuk `POST /products` membawa header `Location: /products/P07`. Apa gunanya bagi client?",
+          "options": [
+            "Menunjukkan lokasi data center tempat server API berjalan",
+            "Menyuruh client mengirim ulang request POST yang sama ke alamat itu",
+            "Menyatakan format body yang dikirim server di response ini",
+            "Memberi alamat produk baru supaya client bisa langsung mengambilnya"
+          ],
+          "answer": 3,
+          "explanation": "Location menunjuk resource yang baru dibuat. Client cukup memanggil GET /products/P07 tanpa menebak id baru.",
+          "remedial": "Location menunjuk resource yang baru dibuat. Client cukup memanggil GET /products/P07 tanpa menebak id baru."
+        },
+        {
+          "question": "Apakah server HTTP menganggap kedua header ini sama?",
+          "code": "Content-Type: application/json\ncontent-type: application/json",
+          "options": [
+            "Ya, nama header tidak peka huruf besar-kecil",
+            "Tidak, server hanya mengenali huruf besar di awal kata",
+            "Tidak, server hanya mengenali huruf kecil",
+            "Ya, tapi hanya kalau memakai HTTP/2"
+          ],
+          "answer": 0,
+          "explanation": "Menurut RFC 9110, nama header tidak peka huruf besar-kecil di semua versi HTTP. Nilai header belum tentu begitu, tergantung jenis header-nya.",
+          "remedial": "Menurut RFC 9110, nama header tidak peka huruf besar-kecil di semua versi HTTP. Nilai header belum tentu begitu, tergantung jenis header-nya."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Request ini mengirim JSON tanpa header `Content-Type`. Status apa yang dikembalikan server latihan?",
+      "code": "curl -s -o /dev/null -w \"%{http_code}\" -X POST https://api.toko.contoh/products -d '{\"name\":\"Payung\",\"price\":75000,\"category\":\"aksesoris\",\"stock\":12}'",
+      "options": [
+        "201",
+        "415",
+        "400",
+        "422"
+      ],
+      "answer": 1,
+      "explanation": "Tanpa -H, curl -d mengirim Content-Type: application/x-www-form-urlencoded. Server hanya menerima application/json, jadi ia menolak dengan 415 Unsupported Media Type sebelum membaca isi body."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Kirim produk baru sebagai JSON, lalu tampilkan header Location dari response\ncurl -s -i -X POST https://api.toko.contoh/products -H \"___: application/json\" -d '{\"name\":\"Payung\",\"price\":75000,\"category\":\"aksesoris\",\"stock\":12}' | grep Location",
+      "answers": [
+        "Content-Type|content-type"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Header adalah keterangan tambahan berbentuk Nama: nilai; body adalah isi utama pesan; keduanya dipisah baris kosong.",
+        "Content-Type menyatakan format body yang dikirim; Accept menyatakan format response yang diinginkan.",
+        "Nama header tidak peka huruf besar-kecil.",
+        "Body dipakai di POST, PUT, dan PATCH; GET, HEAD, dan DELETE tidak semestinya membawa body.",
+        "Saat mengirim JSON dengan curl, selalu tambahkan -H \"Content-Type: application/json\"."
+      ]
+    }
+  ]
+}

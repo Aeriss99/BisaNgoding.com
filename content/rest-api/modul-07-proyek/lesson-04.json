@@ -1,0 +1,110 @@
+{
+  "id": "api-proyek-04",
+  "moduleId": "api-proyek",
+  "order": 4,
+  "title": "Error, Paging, dan Idempotency",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Modul Merancang API yang Rapi memberi aturan umumnya. Sekarang aturan itu dipasang ke endpoint Toko Budi, dan setiap keputusan ditulis di panduan tim supaya semua endpoint konsisten.\n\n1. **Error.** Semua error memakai Problem Details (`application/problem+json`). Server latihan memeriksa `POST /orders` berurutan: token (`401`), Content-Type (`415`), format JSON (`400`), lalu isi setiap item (`422` atau `409`).\n2. **Paging.** Katalog di aplikasi HP memakai cursor untuk *infinite scroll*. Tabel admin memakai offset supaya bisa lompat ke nomor halaman. Riwayat pesanan juga wajib di-paging, walaupun server latihan masih mengirim semuanya.\n3. **Idempotency.** `POST /orders` dan rancangan `POST /orders/{id}/payments` menerima `Idempotency-Key`. Di server latihan key ini opsional. Di rancangan produksi, key **wajib** untuk pembayaran, dan request tanpa key ditolak `400`.\n\nKeputusan ini dibuat sekali untuk seluruh API, bukan per endpoint. Developer yang menambah endpoint baru cukup mengikuti panduan.\n\nRestoran berantai punya SOP yang sama di semua cabang: cara menolak pesanan, cara membagi antrean, dan cara mencatat nomor pesanan supaya tidak dimasak dua kali. Pelanggan cukup belajar sekali. Aturan error, paging, dan idempotency adalah SOP yang sama untuk semua endpoint."
+    },
+    {
+      "type": "theory",
+      "content": "**Error di `POST /orders`** (server latihan):\n\n| Situasi | Status | `detail` |\n|---|---|---|\n| tanpa token atau token kedaluwarsa | `401` | Token tidak ada... / Token sudah kedaluwarsa... |\n| Content-Type bukan JSON | `415` | Content-Type harus application/json. |\n| body bukan JSON yang valid | `400` | Body bukan JSON yang valid. |\n| `items` kosong | `422` | Pesanan harus berisi minimal satu item. |\n| `productId` tidak dikenal | `422` | Produk P99 tidak ada. |\n| `qty` kurang dari 1 | `422` | qty harus bilangan bulat >= 1. |\n| stok kurang | `409` | Stok Sepatu Sekolah tidak cukup (tersisa 0). |\n| key sama, body berbeda | `422` | Idempotency-Key ini sudah dipakai dengan body berbeda. |\n\n**Kenapa stok habis `409`, bukan `422`?** Body-nya valid, tapi bentrok dengan keadaan data saat ini. Request yang sama bisa berhasil nanti setelah stok diisi ulang. Sebagian tim memakai `422` untuk kasus ini. Pilih satu dan tulis di panduan.\n\n**Rancangan `type` khusus.** Server latihan memakai `about:blank`. Di produksi, error bisnis sebaiknya punya `type` sendiri supaya client bisa bercabang tanpa membaca teks `detail`:\n\n```json\n{\n  \"type\": \"https://api.toko.contoh/problems/stok-tidak-cukup\",\n  \"title\": \"Stok tidak cukup\",\n  \"status\": 409,\n  \"detail\": \"Stok Sepatu Sekolah tidak cukup (tersisa 0).\",\n  \"productId\": \"P05\",\n  \"available\": 0\n}\n```\n\n**Rancangan pembayaran** (belum ada di server latihan):\n\n```http\nPOST /orders/O103/payments\nAuthorization: Bearer <token Budi>\nIdempotency-Key: 0d6f3b1a-7c2e-4f59-a8d4-93b1e6c0f27a\nContent-Type: application/json\n\n{\"method\": \"virtual-account\"}\n\nHTTP/1.1 201 Created\nLocation: /orders/O103/payments/PAY9001\n\n{\"id\": \"PAY9001\", \"orderId\": \"O103\", \"amount\": 215000, \"status\": \"pending\", \"expiresAt\": \"2026-09-02T02:00:00Z\"}\n```\n\n`amount` dihitung server dari total pesanan. Client tidak pernah mengirim jumlah uang. Pesanan yang sudah `paid` dijawab `409` kalau dibayar lagi dengan key baru.\n\n**Rancangan paging pesanan:** `GET /orders?status=paid&sort=-createdAt&limit=20&cursor=` dengan `meta.nextCursor`, sama seperti katalog."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLogin sebagai Budi, lalu jalankan contoh request dan response asli dari server latihan. Pertama checkout dengan `Idempotency-Key`, lalu ulangi request yang sama seolah koneksi putus. Setelah itu coba checkout produk yang stoknya habis, dan terakhir baca katalog termahal dengan paging cursor.\n\n```bash\nTOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\ncurl -i -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: 5f0c2a9e-8d41-4b7a-b3e6-1c9d7a2f4e80\" --json '{\"items\":[{\"productId\":\"P03\",\"qty\":1},{\"productId\":\"P06\",\"qty\":2}]}'\ncurl -s -o /dev/null -w \"%{http_code} replayed=%header{idempotent-replayed} %header{location}\\n\" -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: 5f0c2a9e-8d41-4b7a-b3e6-1c9d7a2f4e80\" --json '{\"items\":[{\"productId\":\"P03\",\"qty\":1},{\"productId\":\"P06\",\"qty\":2}]}'\ncurl -i -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" --json '{\"items\":[{\"productId\":\"P05\",\"qty\":1}]}'\ncurl -s \"https://api.toko.contoh/products?sort=-price&limit=3&cursor=\" | jq -c '{ids: [.data[].id], meta}'\ncurl -s \"https://api.toko.contoh/products?sort=-price&limit=3&cursor=UDAz\" | jq -c '{ids: [.data[].id], meta}'\n```\n\nYang akan kamu lihat:\n\n```text\n$ TOKEN=$(curl -s -X POST https://api.toko.contoh/auth/login --json '{\"email\":\"budi@toko.contoh\",\"password\":\"rahasia123\"}' | jq -r .accessToken)\n$ curl -i -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: 5f0c2a9e-8d41-4b7a-b3e6-1c9d7a2f4e80\" --json '{\"items\":[{\"productId\":\"P03\",\"qty\":1},{\"productId\":\"P06\",\"qty\":2}]}'\nHTTP/1.1 201 Created\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nLocation: /orders/O103\nContent-Type: application/json\nContent-Length: 244\nConnection: close\n\n{\n  \"id\": \"O103\",\n  \"userId\": \"U01\",\n  \"items\": [\n    {\n      \"productId\": \"P03\",\n      \"qty\": 1\n    },\n    {\n      \"productId\": \"P06\",\n      \"qty\": 2\n    }\n  ],\n  \"total\": 215000,\n  \"status\": \"pending\",\n  \"createdAt\": \"2026-09-01T02:00:00Z\"\n}\n$ curl -s -o /dev/null -w \"%{http_code} replayed=%header{idempotent-replayed} %header{location}\\n\" -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: 5f0c2a9e-8d41-4b7a-b3e6-1c9d7a2f4e80\" --json '{\"items\":[{\"productId\":\"P03\",\"qty\":1},{\"productId\":\"P06\",\"qty\":2}]}'\n201 replayed=true /orders/O103\n$ curl -i -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" --json '{\"items\":[{\"productId\":\"P05\",\"qty\":1}]}'\nHTTP/1.1 409 Conflict\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nContent-Type: application/problem+json\nContent-Length: 128\nConnection: close\n\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Conflict\",\n  \"status\": 409,\n  \"detail\": \"Stok Sepatu Sekolah tidak cukup (tersisa 0).\"\n}\n$ curl -s \"https://api.toko.contoh/products?sort=-price&limit=3&cursor=\" | jq -c '{ids: [.data[].id], meta}'\n{\"ids\":[\"P04\",\"P05\",\"P03\"],\"meta\":{\"limit\":3,\"nextCursor\":\"UDAz\"}}\n$ curl -s \"https://api.toko.contoh/products?sort=-price&limit=3&cursor=UDAz\" | jq -c '{ids: [.data[].id], meta}'\n{\"ids\":[\"P06\",\"P01\",\"P02\"],\"meta\":{\"limit\":3,\"nextCursor\":null}}\n```\n\nPerhatikan:\n\n- Checkout pertama dijawab `201` dengan `Location: /orders/O103`. Total `215000` dihitung server: 125.000 + 2 × 45.000.\n- Request ulang dengan key yang sama tidak membuat O104. Server mengirim ulang respons O103 dengan `Idempotent-Replayed: true`.\n- Stok P05 habis, jadi server menjawab `409` dalam format Problem Details. Tidak ada pesanan yang dibuat.\n- Cursor bekerja bersama `sort=-price`. Halaman kedua dimulai tepat setelah item terakhir halaman pertama, dan `nextCursor: null` menandai akhir daftar."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menjawab stok habis dengan 500**\n\nSalah:\n\n```http\nHTTP/1.1 500 Internal Server Error\nContent-Type: application/json\n\n{\"error\": \"Error: stock < qty at checkout (order.js:88)\"}\n```\n\nBenar:\n\n```http\nHTTP/1.1 409 Conflict\nContent-Type: application/problem+json\n\n{\"type\": \"about:blank\", \"title\": \"Conflict\", \"status\": 409, \"detail\": \"Stok Sepatu Sekolah tidak cukup (tersisa 0).\"}\n```\n\nStatus `500` berarti server rusak. Monitoring membunyikan alarm, client mengulang request yang pasti gagal lagi, dan stack trace bocor. Stok habis adalah keadaan bisnis yang normal. Status `409` membuat aplikasi menampilkan \"stok tidak cukup\" dan menyarankan pembeli mengurangi jumlah.\n\n**2. Riwayat pesanan tanpa paging**\n\nSalah:\n\n```text\n# Admin membuka daftar pesanan: semua pesanan dikirim sekaligus\nGET /orders\n-> 200, 18.000 pesanan, 9 MB\n```\n\nBenar:\n\n```text\n# Rancangan: paging cursor sejak versi pertama\nGET /orders?status=paid&sort=-createdAt&limit=20&cursor=\n-> 200, 20 pesanan + meta.nextCursor\n```\n\nSaat development hanya ada dua pesanan, jadi masalahnya tidak terlihat. Di produksi, respons membesar setiap hari sampai lambat dan timeout. Menambah paging setelah rilis juga berisiko breaking change, karena client lama mengira daftar itu sudah lengkap. Pasang paging dan batas `limit` sejak awal.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Budi checkout produk P05 yang stoknya 0. Status apa yang dipakai server latihan, dan apa alasannya?",
+          "options": [
+            "422, karena body tidak valid",
+            "409, karena request valid tapi bentrok dengan stok saat ini",
+            "404, karena produk tidak ditemukan",
+            "500, karena server gagal memproses"
+          ],
+          "answer": 1,
+          "explanation": "Format dan isi body benar, dan produknya ada. Yang menghalangi adalah keadaan data saat ini, yaitu stok 0. Itu arti 409 Conflict.",
+          "remedial": "Format dan isi body benar, dan produknya ada. Yang menghalangi adalah keadaan data saat ini, yaitu stok 0. Itu arti 409 Conflict."
+        },
+        {
+          "question": "Aplikasi HP mengirim ulang `POST /orders` dengan `Idempotency-Key` yang sama setelah timeout. Respons yang diterima adalah `201` dengan header `Idempotent-Replayed: true`. Apa yang sebaiknya dilakukan aplikasi?",
+          "options": [
+            "Membuat pesanan baru dengan key lain karena respons ini hanya salinan",
+            "Menampilkan error pesanan ganda",
+            "Mengulang lagi sampai header itu hilang",
+            "Memakai respons itu sebagai hasil checkout, karena pesanan hanya dibuat sekali"
+          ],
+          "answer": 3,
+          "explanation": "Respons ulang berarti request pertama sudah berhasil di server. Aplikasi cukup menampilkan pesanan itu. Key baru justru membuat pesanan ganda.",
+          "remedial": "Respons ulang berarti request pertama sudah berhasil di server. Aplikasi cukup menampilkan pesanan itu. Key baru justru membuat pesanan ganda."
+        },
+        {
+          "question": "Kenapa rancangan `POST /orders/{id}/payments` tidak menerima field `amount` dari client?",
+          "options": [
+            "Jumlah uang harus dihitung server dari total pesanan, karena nilai dari client bisa dimanipulasi",
+            "Karena JSON tidak bisa menyimpan angka besar",
+            "Supaya body request lebih kecil",
+            "Karena amount wajib dikirim lewat query string"
+          ],
+          "answer": 0,
+          "explanation": "Siapa pun bisa mengubah request dengan curl, termasuk mengganti jumlah tagihan. Server membaca total dari pesanan yang tersimpan, sehingga client hanya memilih metode bayar.",
+          "remedial": "Siapa pun bisa mengubah request dengan curl, termasuk mengganti jumlah tagihan. Server membaca total dari pesanan yang tersimpan, sehingga client hanya memilih metode bayar."
+        },
+        {
+          "question": "Tim admin butuh tabel pesanan dengan nomor halaman dan jumlah total data. Aplikasi pembeli butuh *infinite scroll* untuk katalog. Pilihan paging mana yang paling cocok?",
+          "options": [
+            "Cursor untuk keduanya",
+            "Offset untuk keduanya",
+            "Offset untuk tabel admin, cursor untuk katalog aplikasi",
+            "Tanpa paging untuk admin, cursor untuk aplikasi"
+          ],
+          "answer": 2,
+          "explanation": "Offset mendukung lompat ke halaman tertentu dan menghitung total, yang dibutuhkan tabel admin. Cursor stabil untuk feed yang terus bergerak maju. Tanpa paging tidak pernah aman untuk koleksi yang terus bertambah.",
+          "remedial": "Offset mendukung lompat ke halaman tertentu dan menghitung total, yang dibutuhkan tabel admin. Cursor stabil untuk feed yang terus bergerak maju. Tanpa paging tidak pernah aman untuk koleksi yang terus bertambah."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Variabel `TOKEN` berisi token Budi, yang awalnya punya satu pesanan (O101). Apa output perintah terakhir?",
+      "code": "for i in 1 2; do curl -s -o /dev/null -X POST https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: 8e1d4c7b-3a5f-4e2d-9b60-c7a2f1e8d394\" --json '{\"items\":[{\"productId\":\"P02\",\"qty\":5}]}'; done\ncurl -s https://api.toko.contoh/orders -H \"Authorization: Bearer $TOKEN\" | jq '.data | length'",
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "answer": 1,
+      "explanation": "Request pertama membuat O103. Request kedua memakai key dan body yang sama, jadi hanya mengirim ulang respons O103. Budi kini punya dua pesanan: O101 dan O103."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Ambil halaman kedua katalog termahal, 2 produk per halaman, dengan cursor dari server\nNEXT=$(curl -s \"https://api.toko.contoh/products?sort=-price&limit=2&cursor=\" | jq -r .meta.___)\ncurl -s \"https://api.toko.contoh/products?sort=-price&limit=2&cursor=$NEXT\" | jq -c '[.data[].id]'",
+      "answers": [
+        "nextCursor"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tulis keputusan error, paging, dan idempotency sekali di panduan tim, lalu terapkan di semua endpoint.",
+        "Validasi bertahap: 401, 415, 400, lalu 422 untuk isi yang salah dan 409 untuk bentrok dengan stok.",
+        "Error bisnis di produksi sebaiknya punya type sendiri supaya client tidak bergantung pada teks detail.",
+        "Checkout dan pembayaran memakai Idempotency-Key; jumlah uang selalu dihitung server.",
+        "Pasang paging sejak versi pertama, termasuk untuk riwayat pesanan."
+      ]
+    }
+  ]
+}

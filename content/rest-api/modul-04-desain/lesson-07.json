@@ -1,0 +1,111 @@
+{
+  "id": "api-desain-07",
+  "moduleId": "api-desain",
+  "order": 7,
+  "title": "Caching dengan ETag",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Banyak data jarang berubah, misalnya detail produk. Kalau aplikasi mengunduh ulang data yang sama setiap kali layar dibuka, kuota internet pengguna dan kapasitas server terbuang. HTTP punya mekanisme *cache* (salinan sementara) bawaan yang diatur lewat header, dijelaskan di RFC 9111 dan RFC 9110.\n\n- **`Cache-Control`** menentukan berapa lama respons boleh dipakai ulang tanpa bertanya ke server. `max-age=60` berarti respons dianggap segar selama 60 detik.\n- **`ETag`** adalah penanda versi sebuah representasi, misalnya `\"p01-v1\"`. Kalau data berubah, ETag ikut berubah.\n- **`If-None-Match`** dikirim client untuk bertanya, \"Apakah masih versi `\"p01-v1\"`?\" Kalau ya, server menjawab **`304 Not Modified`** tanpa body, dan client memakai salinan yang sudah ada.\n\nETag punya kegunaan kedua: mencegah **lost update**, yaitu perubahan yang saling menimpa, lewat header **`If-Match`**.\n\nKamu menyimpan fotokopi daftar harga toko. Sebelum memakainya, kamu cukup bertanya ke toko, \"Daftar harga saya edisi 1, masih berlaku?\" Kalau toko menjawab \"masih\", kamu tidak perlu fotokopi baru. Itulah `If-None-Match` dan `304`."
+    },
+    {
+      "type": "theory",
+      "content": "| `Cache-Control` | Arti |\n|---|---|\n| `max-age=60` | boleh dipakai ulang selama 60 detik tanpa bertanya |\n| `no-cache` | **boleh disimpan**, tapi wajib divalidasi ke server (mis. dengan ETag) setiap kali sebelum dipakai |\n| `no-store` | jangan disimpan sama sekali; untuk data sensitif seperti respons login berisi token |\n| `private` | hanya boleh disimpan cache milik pengguna itu (browser), bukan cache bersama seperti CDN |\n| `public` | boleh disimpan cache bersama |\n\n**Mencegah lost update dengan `If-Match`.** Dewi dan Andi membuka form edit P01 bersamaan, dan keduanya menerima ETag `\"p01-v1\"`. Dewi menyimpan harga baru 6000, sehingga ETag menjadi `\"p01-v2\"`. Andi lalu menyimpan form miliknya dengan `PUT`. Form Andi masih berisi harga lama 5000. Tanpa pengecekan, harga Dewi tertimpa kembali tanpa ada yang sadar.\n\nDengan **`If-Match: \"p01-v1\"`**, server hanya memproses perubahan kalau ETag saat ini masih `\"p01-v1\"`. Karena sudah `\"p01-v2\"`, server menjawab **`412 Precondition Failed`**. Aplikasi Andi mengambil data terbaru, menunjukkan perubahan Dewi, lalu Andi menyimpan ulang. Pola ini disebut *optimistic concurrency control*.\n\nServer yang ingin mewajibkan `If-Match` bisa menolak update tanpa header itu dengan `428 Precondition Required`.\n\nETag yang diawali `W/`, misalnya `W/\"p01-v1\"`, disebut *weak*. Artinya isinya setara, tapi belum tentu sama persis byte per byte."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nLihat header cache P01, tanyakan apakah salinan versi `\"p01-v1\"` masih berlaku, lalu simulasikan dua admin yang menyimpan perubahan dari data yang sama.\n\n```bash\ncurl -sI https://api.toko.contoh/products/P01\ncurl -i https://api.toko.contoh/products/P01 -H 'If-None-Match: \"p01-v1\"'\ncurl -s -o /dev/null -w \"%{http_code} %header{etag}\\n\" -X PATCH https://api.toko.contoh/products/P01 -H 'If-Match: \"p01-v1\"' --json '{\"price\":6000}'\ncurl -s -X PUT https://api.toko.contoh/products/P01 -H 'If-Match: \"p01-v1\"' --json '{\"name\":\"Buku Tulis\",\"price\":5000,\"category\":\"alat-tulis\",\"stock\":100}'\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -sI https://api.toko.contoh/products/P01\nHTTP/1.1 200 OK\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nETag: \"p01-v1\"\nCache-Control: max-age=60\nContent-Type: application/json\nContent-Length: 142\nConnection: close\n$ curl -i https://api.toko.contoh/products/P01 -H 'If-None-Match: \"p01-v1\"'\nHTTP/1.1 304 Not Modified\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nETag: \"p01-v1\"\nCache-Control: max-age=60\nContent-Length: 0\nConnection: close\n$ curl -s -o /dev/null -w \"%{http_code} %header{etag}\\n\" -X PATCH https://api.toko.contoh/products/P01 -H 'If-Match: \"p01-v1\"' --json '{\"price\":6000}'\n200 \"p01-v2\"\n$ curl -s -X PUT https://api.toko.contoh/products/P01 -H 'If-Match: \"p01-v1\"' --json '{\"name\":\"Buku Tulis\",\"price\":5000,\"category\":\"alat-tulis\",\"stock\":100}'\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Precondition Failed\",\n  \"status\": 412,\n  \"detail\": \"ETag tidak cocok. Versi terbaru: \\\"p01-v2\\\". Ambil ulang data lalu coba lagi.\"\n}\n```\n\nPerhatikan:\n\n- `-I` mengirim `HEAD`, jadi kamu melihat `ETag: \"p01-v1\"` dan `Cache-Control: max-age=60` tanpa body.\n- Dengan `If-None-Match` yang cocok, server menjawab `304` dengan `Content-Length: 0`. Tidak ada body yang dikirim ulang.\n- Perubahan pertama (Dewi) berhasil dan ETag naik menjadi `\"p01-v2\"`.\n- Perubahan kedua (Andi) masih membawa `\"p01-v1\"`, jadi ditolak dengan `412`. Harga 6000 dari Dewi tidak tertimpa."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira no-cache berarti \"jangan simpan\"**\n\nSalah:\n\n```http\nHTTP/1.1 200 OK\nCache-Control: no-cache\nContent-Type: application/json\n\n{\"accessToken\": \"eyJhbGciOiJIUzI1NiIs...\", \"tokenType\": \"Bearer\", \"expiresIn\": 900}\n```\n\nBenar:\n\n```http\nHTTP/1.1 200 OK\nCache-Control: no-store\nContent-Type: application/json\n\n{\"accessToken\": \"eyJhbGciOiJIUzI1NiIs...\", \"tokenType\": \"Bearer\", \"expiresIn\": 900}\n```\n\n`no-cache` tetap mengizinkan respons disimpan; cache hanya wajib bertanya ke server sebelum memakainya. Token bisa tertinggal di disk perangkat. Untuk respons berisi rahasia, pakai `no-store`. Server latihan mengirim `Cache-Control: no-store` di `POST /auth/login`.\n\n**2. Form edit admin menyimpan dengan PUT tanpa If-Match**\n\nSalah:\n\n```bash\n# saat tombol Simpan ditekan\ncurl -X PUT https://api.toko.contoh/products/P01 --json '{\"name\":\"Buku Tulis\",\"price\":5000,\"category\":\"alat-tulis\",\"stock\":100}'\n```\n\nBenar:\n\n```bash\n# saat form edit dibuka: simpan ETag-nya\nETAG=$(curl -s -o /dev/null -w \"%header{etag}\" https://api.toko.contoh/products/P01)\n# saat tombol Simpan ditekan: kirim ETag yang disimpan\ncurl -X PUT https://api.toko.contoh/products/P01 -H \"If-Match: $ETAG\" --json '{\"name\":\"Buku Tulis\",\"price\":5000,\"category\":\"alat-tulis\",\"stock\":100}'\n```\n\nTanpa `If-Match`, siapa yang menyimpan terakhir selalu menang, dan perubahan admin lain hilang diam-diam. ETag harus diambil saat form dibuka, bukan sesaat sebelum menyimpan. Kalau ada perubahan di antaranya, server menjawab `412`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Client mengirim `If-None-Match: \"p01-v1\"`, dan data P01 belum berubah. Apa jawaban server?",
+          "options": [
+            "304 Not Modified tanpa body",
+            "200 dengan body lengkap",
+            "412 Precondition Failed",
+            "204 No Content"
+          ],
+          "answer": 0,
+          "explanation": "ETag masih cocok, jadi server cukup menjawab 304. Client memakai salinan yang sudah disimpan. 412 dipakai untuk If-Match yang tidak cocok.",
+          "remedial": "ETag masih cocok, jadi server cukup menjawab 304. Client memakai salinan yang sudah disimpan. 412 dipakai untuk If-Match yang tidak cocok."
+        },
+        {
+          "question": "Respons login berisi access token. Header cache mana yang paling tepat?",
+          "options": [
+            "Cache-Control: max-age=900",
+            "Cache-Control: public",
+            "Cache-Control: no-cache",
+            "Cache-Control: no-store"
+          ],
+          "answer": 3,
+          "explanation": "no-store melarang respons disimpan di cache mana pun. no-cache masih mengizinkan penyimpanan, sedangkan public dan max-age malah mengizinkan pemakaian ulang.",
+          "remedial": "no-store melarang respons disimpan di cache mana pun. no-cache masih mengizinkan penyimpanan, sedangkan public dan max-age malah mengizinkan pemakaian ulang."
+        },
+        {
+          "question": "Produk P01 sudah diubah dua kali sehingga ETag terbarunya `\"p01-v3\"`. Admin lalu mengirim request ini. Apa status yang dikembalikan?",
+          "code": "curl -s -o /dev/null -w \"%{http_code}\" -X PUT https://api.toko.contoh/products/P01 -H 'If-Match: \"p01-v1\"' --json '{\"name\":\"Buku Tulis\",\"price\":5000,\"category\":\"alat-tulis\",\"stock\":90}'",
+          "options": [
+            "200",
+            "304",
+            "404",
+            "412"
+          ],
+          "answer": 3,
+          "explanation": "If-Match membawa ETag lama yang sudah tidak cocok. Server menolak dengan 412 Precondition Failed, dan data tidak berubah.",
+          "remedial": "If-Match membawa ETag lama yang sudah tidak cocok. Server menolak dengan 412 Precondition Failed, dan data tidak berubah."
+        },
+        {
+          "question": "Apa arti `Cache-Control: max-age=60` pada respons `GET /products/P01`?",
+          "options": [
+            "Produk akan dihapus server setelah 60 detik",
+            "Respons boleh dipakai ulang selama 60 detik tanpa bertanya ke server",
+            "Client hanya boleh mengirim 60 request per menit",
+            "Server butuh 60 detik untuk memproses request"
+          ],
+          "answer": 1,
+          "explanation": "max-age menyatakan umur segar respons dalam detik. Setelah lewat, cache perlu memvalidasi ulang, misalnya dengan If-None-Match.",
+          "remedial": "max-age menyatakan umur segar respons dalam detik. Setelah lewat, cache perlu memvalidasi ulang, misalnya dengan If-None-Match."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Produk P01 diubah satu kali. Setelah itu, client bertanya dengan ETag lamanya. Apa output perintah terakhir?",
+      "code": "curl -s -o /dev/null -X PATCH https://api.toko.contoh/products/P01 --json '{\"price\":6000}'\ncurl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/products/P01 -H 'If-None-Match: \"p01-v1\"'",
+      "options": [
+        "304",
+        "412",
+        "200",
+        "204"
+      ],
+      "answer": 2,
+      "explanation": "Setelah PATCH, ETag P01 menjadi \"p01-v2\". \"p01-v1\" tidak cocok lagi, jadi server mengirim data terbaru dengan 200. Pada GET, ETag yang tidak cocok menghasilkan 200, bukan 412."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tanyakan ke server apakah salinan P01 versi \"p01-v1\" masih berlaku\ncurl -s -o /dev/null -w \"%{http_code}\" https://api.toko.contoh/products/P01 -H '___: \"p01-v1\"'",
+      "answers": [
+        "If-None-Match|if-none-match"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Cache-Control mengatur pemakaian ulang respons: max-age untuk lama segar, no-store untuk data sensitif.",
+        "no-cache bukan \"jangan simpan\", melainkan \"simpan, tapi validasi dulu ke server sebelum dipakai\".",
+        "ETag menandai versi resource; If-None-Match yang cocok dijawab 304 Not Modified tanpa body.",
+        "If-Match mencegah lost update: ETag yang tidak cocok dijawab 412, dan client mengambil data terbaru dulu.",
+        "Ambil ETag saat data dibaca, lalu kirim ETag itu saat menyimpan perubahan."
+      ]
+    }
+  ]
+}

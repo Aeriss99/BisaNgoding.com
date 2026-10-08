@@ -1,0 +1,110 @@
+{
+  "id": "api-desain-02",
+  "moduleId": "api-desain",
+  "order": 2,
+  "title": "Format Error Standar",
+  "estimatedMinutes": 8,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Respons sukses sudah rapi. Bagaimana dengan respons gagal? Tanpa standar, setiap endpoint membuat bentuknya sendiri: `{\"error\": \"not found\"}`, `{\"msg\": \"gagal\"}`, atau `{\"success\": false}`. Client terpaksa menulis kode penanganan error yang berbeda untuk setiap endpoint.\n\n**Problem Details for HTTP APIs** (RFC 9457) adalah standar IETF untuk body respons error. Respons error memakai *media type* `application/problem+json` dan berisi field yang sudah disepakati. RFC 9457 menggantikan RFC 7807 dengan isi yang hampir sama, jadi dokumentasi yang menyebut RFC 7807 masih relevan.\n\nStatus code tetap menjadi sinyal utama. Body Problem Details menambah penjelasan yang bisa dibaca manusia dan diproses program.\n\nSurat penolakan dari kantor pemerintah memakai formulir yang sama: jenis penolakan, ringkasan, penjelasan untuk kasusmu, dan nomor berkas. Penerima langsung tahu bagian mana yang harus dibaca. Problem Details adalah formulir yang sama untuk semua respons error API."
+    },
+    {
+      "type": "theory",
+      "content": "| Field | Isi | Contoh |\n|---|---|---|\n| `type` | URI yang mengidentifikasi **jenis** masalah. `about:blank` berarti tidak ada jenis khusus, cukup lihat status code | `\"https://api.toko.contoh/problems/stok-habis\"` |\n| `title` | ringkasan jenis masalah, sama untuk setiap kejadian jenis itu | `\"Not Found\"` |\n| `status` | status code HTTP sebagai angka | `404` |\n| `detail` | penjelasan untuk **kejadian ini**, ditujukan ke manusia | `\"Produk P99 tidak ditemukan.\"` |\n| `instance` | URI yang menunjuk kejadian spesifik ini (opsional) | `\"/products/P99\"` |\n\nMenurut RFC, semua field itu opsional. Dalam praktik, banyak tim mewajibkan `type`, `title`, `status`, dan `detail`. Kalau `type` berisi `about:blank`, `title` sebaiknya sama dengan nama status HTTP, misalnya `Not Found`.\n\nKode client sebaiknya bercabang berdasarkan `type` atau `status`, bukan teks `detail`. Teks `detail` bisa berubah atau diterjemahkan kapan saja.\n\n**Extension member.** Kamu boleh menambah field sendiri, misalnya `errors` untuk kesalahan per field atau `traceId`. Bentuk `errors` tidak dibakukan RFC. Server latihan memakai objek berisi `field` dan `message`, sedangkan contoh di RFC memakai `pointer` (JSON Pointer seperti `#/price`) dan `detail`. Pilih satu bentuk dan pakai di semua endpoint.\n\n**Jangan membocorkan isi server.** Stack trace, query SQL, path file, dan versi library membantu penyerang memetakan sistemmu. Simpan detail teknis di log server. Kirim ke client pesan umum dan *request ID* (ID unik per request), misalnya lewat header `X-Request-Id`, supaya tim bisa mencari log yang tepat."
+    },
+    {
+      "type": "theory",
+      "content": "### Coba di komputermu\n\nMinta produk yang tidak ada, lalu panggil endpoint `/bug` yang sengaja dibuat gagal di server latihan.\n\n```bash\ncurl -i https://api.toko.contoh/products/P99\ncurl -i https://api.toko.contoh/bug\n```\n\nYang akan kamu lihat:\n\n```text\n$ curl -i https://api.toko.contoh/products/P99\nHTTP/1.1 404 Not Found\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nContent-Type: application/problem+json\nContent-Length: 112\nConnection: close\n\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Not Found\",\n  \"status\": 404,\n  \"detail\": \"Produk P99 tidak ditemukan.\"\n}\n$ curl -i https://api.toko.contoh/bug\nHTTP/1.1 500 Internal Server Error\nDate: Tue, 01 Sep 2026 02:00:00 GMT\nContent-Type: application/problem+json\nX-Request-Id: req-7f3a9c\nContent-Length: 175\nConnection: close\n\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Internal Server Error\",\n  \"status\": 500,\n  \"detail\": \"Terjadi kesalahan di server. Hubungi tim kami dengan menyertakan X-Request-Id.\"\n}\n```\n\nPerhatikan:\n\n- Kedua respons memakai `Content-Type: application/problem+json` dan field yang sama. Satu fungsi penanganan error di client cukup untuk semua endpoint.\n- `type` berisi `about:blank`, jadi `title` sama dengan nama status HTTP.\n- Respons `500` tidak menyebut file, baris kode, atau query yang gagal. Isinya hanya pesan umum dan header `X-Request-Id: req-7f3a9c`. Tim backend mencari log dengan ID itu."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengirim error dengan status 200**\n\nSalah:\n\n```http\nHTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"success\": false, \"message\": \"Produk tidak ditemukan\"}\n```\n\nBenar:\n\n```http\nHTTP/1.1 404 Not Found\nContent-Type: application/problem+json\n\n{\"type\": \"about:blank\", \"title\": \"Not Found\", \"status\": 404, \"detail\": \"Produk P99 tidak ditemukan.\"}\n```\n\nStatus 200 berarti berhasil. `fetch` mengisi `res.ok` dengan `true`, monitoring menghitungnya sebagai sukses, dan cache bisa menyimpannya. Error harus memakai status 4xx atau 5xx yang sesuai; body hanya menambah detail.\n\n**2. Mengirim stack trace dan query ke client**\n\nSalah:\n\n```http\nHTTP/1.1 500 Internal Server Error\nContent-Type: application/json\n\n{\"error\": \"TypeError: Cannot read properties of undefined (reading 'price') at hitungTotal (/srv/toko/src/order.js:42:17)\", \"query\": \"SELECT * FROM orders WHERE user_id = 'U01'\"}\n```\n\nBenar:\n\n```http\nHTTP/1.1 500 Internal Server Error\nContent-Type: application/problem+json\nX-Request-Id: req-7f3a9c\n\n{\"type\": \"about:blank\", \"title\": \"Internal Server Error\", \"status\": 500, \"detail\": \"Terjadi kesalahan di server. Hubungi tim kami dengan menyertakan X-Request-Id.\"}\n```\n\nStack trace membuka struktur folder, bahasa, library, dan nama tabel. Informasi itu memudahkan penyerang. OWASP API Security Top 10 memasukkan pesan error yang terlalu rinci ke *Security Misconfiguration*. Detail lengkap cukup ditulis di log server dengan request ID yang sama.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Header `Content-Type` apa yang dipakai respons error berformat Problem Details dalam JSON?",
+          "options": [
+            "text/plain",
+            "application/error+json",
+            "application/xml",
+            "application/problem+json"
+          ],
+          "answer": 3,
+          "explanation": "RFC 9457 mendaftarkan media type application/problem+json untuk Problem Details dalam JSON (dan application/problem+xml untuk XML).",
+          "remedial": "RFC 9457 mendaftarkan media type application/problem+json untuk Problem Details dalam JSON (dan application/problem+xml untuk XML)."
+        },
+        {
+          "question": "Respons error berisi `\"type\": \"about:blank\"`. Apa artinya?",
+          "options": [
+            "Error terjadi di halaman kosong browser",
+            "Server lupa mengisi type, jadi responsnya tidak valid",
+            "Tidak ada jenis masalah khusus; arti error cukup dibaca dari status code dan title",
+            "Client harus membuka about:blank untuk melihat detail"
+          ],
+          "answer": 2,
+          "explanation": "about:blank adalah nilai bawaan type di RFC 9457. Artinya masalah ini tidak punya makna tambahan selain status HTTP-nya.",
+          "remedial": "about:blank adalah nilai bawaan type di RFC 9457. Artinya masalah ini tidak punya makna tambahan selain status HTTP-nya."
+        },
+        {
+          "question": "Menurut RFC 9457, field mana yang menjadi identitas utama jenis masalah dan sebaiknya dipakai kode client untuk bercabang (`if`)?",
+          "options": [
+            "type",
+            "detail",
+            "instance",
+            "title"
+          ],
+          "answer": 0,
+          "explanation": "RFC 9457 menyebut type sebagai identitas utama jenis masalah. detail ditujukan ke manusia dan bisa berubah, instance menunjuk satu kejadian, title hanya ringkasan.",
+          "remedial": "RFC 9457 menyebut type sebagai identitas utama jenis masalah. detail ditujukan ke manusia dan bisa berubah, instance menunjuk satu kejadian, title hanya ringkasan."
+        },
+        {
+          "question": "Tim kamu menemukan bug yang menghasilkan status 500. Apa yang sebaiknya dikirim server ke client?",
+          "options": [
+            "Stack trace lengkap supaya developer frontend bisa membantu debugging",
+            "Pesan umum dan request ID; detail teknis disimpan di log server",
+            "Query SQL yang gagal beserta parameternya",
+            "Status 200 dengan body kosong supaya aplikasi tidak crash"
+          ],
+          "answer": 1,
+          "explanation": "Client cukup tahu bahwa server gagal dan ID untuk dilaporkan. Stack trace dan query membocorkan isi sistem, sedangkan status 200 menyembunyikan kegagalan.",
+          "remedial": "Client cukup tahu bahwa server gagal dan ID untuk dilaporkan. Stack trace dan query membocorkan isi sistem, sedangkan status 200 menyembunyikan kegagalan."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa output perintah ini?",
+      "code": "curl -s https://api.toko.contoh/products/P99 | jq -c keys",
+      "options": [
+        "[\"detail\",\"instance\",\"status\",\"title\",\"type\"]",
+        "[\"error\",\"message\"]",
+        "[\"detail\",\"status\",\"title\",\"type\"]",
+        "[\"code\",\"message\",\"success\"]"
+      ],
+      "answer": 2,
+      "explanation": "Server latihan mengirim empat field Problem Details: type, title, status, dan detail. jq keys mengurutkannya secara alfabet. instance bersifat opsional dan tidak dikirim server latihan."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tampilkan status code dan penjelasan kejadian dalam satu baris\ncurl -s https://api.toko.contoh/products/P99 | jq -r '\"\\(.status) \\(.___)\"'",
+      "answers": [
+        "detail"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Problem Details (RFC 9457) adalah format standar body error dengan media type application/problem+json.",
+        "Field utamanya: type (jenis masalah), title (ringkasan), status (angka), detail (penjelasan kejadian), dan instance (opsional).",
+        "Kode client bercabang berdasarkan status atau type, bukan teks detail yang bisa berubah.",
+        "Field tambahan seperti errors boleh ditambahkan, asalkan bentuknya konsisten di semua endpoint.",
+        "Jangan kirim stack trace atau query ke client; kirim pesan umum dan request ID, simpan detailnya di log."
+      ]
+    }
+  ]
+}
