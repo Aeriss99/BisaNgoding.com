@@ -8,8 +8,9 @@ import gitModules from '../../content/git/modules.json';
 import mysqlModules from '../../content/mysql/modules.json';
 import linuxModules from '../../content/linux/modules.json';
 import htmlCssModules from '../../content/html-css/modules.json';
+import restApiModules from '../../content/rest-api/modules.json';
 
-export const modulesData = [...javaModules, ...jsModules, ...englishModules, ...gitModules, ...mysqlModules, ...linuxModules, ...htmlCssModules] as Module[];
+export const modulesData = [...javaModules, ...jsModules, ...englishModules, ...gitModules, ...mysqlModules, ...linuxModules, ...htmlCssModules, ...restApiModules] as Module[];
 export const coursesData = coursesJson as Course[];
 
 /**
