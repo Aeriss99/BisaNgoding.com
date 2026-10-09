@@ -1,0 +1,135 @@
+{
+  "id": "js-oop-17",
+  "moduleId": "js-oop",
+  "order": 17,
+  "title": "this yang Hilang",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ini salah satu bug paling sering di JavaScript: method yang berjalan normal saat dipanggil langsung, tiba-tiba error saat **dikirim sebagai callback**.\n\nIngat aturan `this`: nilainya ditentukan **saat dipanggil**, yaitu object di sebelah kiri titik. Saat kamu menulis `const f = obj.method;` lalu `f()`, tidak ada object di kiri titik. Method itu dipanggil sendirian, dan `this`-nya hilang.\n\nHal yang sama terjadi saat method dikirim ke function lain, misalnya `daftar.map(obj.method)`. Nanti di materi DOM dan async kamu akan bertemu kasus yang sama pada `tombol.addEventListener(\"click\", obj.method)` dan `setTimeout(obj.method, 1000)`."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\n// sengaja error di baris terakhir\nclass Penghitung {\n  angka = 0;\n  tambah() {\n    this.angka++;\n    return this.angka;\n  }\n}\nconst p = new Penghitung();\nconsole.log(p.tambah());\nconst fungsi = p.tambah;\nconsole.log(fungsi());\n```\n\nPanggilan pertama berhasil. Panggilan kedua menghasilkan `TypeError`: method `tambah` dijalankan tanpa object, sehingga `this` bernilai `undefined`, dan `undefined.angka` tidak bisa dibaca.\n\nKenapa `undefined` dan bukan object lain? Karena isi class selalu berjalan dalam strict mode. Dalam strict mode, function yang dipanggil tanpa object mendapat `this` = `undefined`. Ini sebenarnya menguntungkan: kesalahannya langsung terlihat."
+    },
+    {
+      "type": "theory",
+      "content": "Ada dua cara memperbaikinya.\n\n**1. `bind`.** `method.bind(obj)` membuat function baru yang `this`-nya dikunci ke `obj`, dipanggil dari mana pun.\n\n**2. Arrow function.** Arrow function tidak punya `this` sendiri. Ia memakai `this` dari tempat ia ditulis. Bungkus pemanggilan method di dalam arrow function, maka method tetap dipanggil lewat object-nya.\n\n```javascript run\nclass Penghitung {\n  angka = 0;\n  tambah() {\n    this.angka++;\n    return this.angka;\n  }\n}\nconst p = new Penghitung();\nconst terikat = p.tambah.bind(p);\nconsole.log(terikat());\nconst bungkus = () => p.tambah();\nconsole.log(bungkus());\nconsole.log([1, 2, 3].map(() => p.tambah()));\n```\n\nDi kode modern, cara kedua paling sering dipakai. Sifat arrow function ini juga berguna **di dalam method**: callback arrow di dalam method tetap melihat `this` milik object."
+    },
+    {
+      "type": "runnable",
+      "code": "class Kelas {\n  constructor(nama, siswa) {\n    this.nama = nama;\n    this.siswa = siswa;\n  }\n  daftarHadir() {\n    return this.siswa.map((s) => `${s} - ${this.nama}`);\n  }\n}\nconst k = new Kelas(\"XI IPA\", [\"Rina\", \"Budi\"]);\nconst hasil = k.daftarHadir();\nconsole.log(hasil[0]);\nconsole.log(hasil.length);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "Rina - XI IPA",
+          "Rina - undefined",
+          "TypeError",
+          "Rina"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Di dalam method ini, this adalah object k."
+        },
+        {
+          "line": 7,
+          "note": "Arrow function tidak punya this sendiri, jadi memakai this milik method daftarHadir."
+        },
+        {
+          "line": 11,
+          "note": "Method dipanggil lewat k, jadi this di dalamnya benar."
+        }
+      ],
+      "explanation": "Callback `(s) => ...` adalah arrow function. Ia tidak membuat `this` baru, sehingga `this.nama` di dalamnya sama dengan `this.nama` milik method `daftarHadir`, yaitu `\"XI IPA\"`.\n\nHasilnya array berisi dua string, dan yang pertama adalah `\"Rina - XI IPA\"`.",
+      "tryThis": [
+        {
+          "task": "Ganti arrow function di baris 7 menjadi `function (s) { return s + \" - \" + this.nama; }`. Apa yang terjadi?",
+          "hint": "Function biasa yang dipanggil oleh map tidak punya object di kiri titik, jadi this-nya undefined dan muncul TypeError."
+        },
+        {
+          "task": "Kembalikan arrow function-nya, lalu tambahkan `const f = k.daftarHadir;` dan `console.log(f());`. Apa yang terjadi?",
+          "hint": "Sekarang method daftarHadir sendiri yang kehilangan this, jadi this.siswa gagal dibaca dan muncul TypeError."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "class Tombol {\n  label = \"Simpan\";\n  klik() {\n    return `Klik ${this.label}`;\n  }\n}\nconst t = new Tombol();\nconst aksi = t.klik.bind(t);\nconsole.log(aksi());",
+          "options": [
+            "Klik undefined",
+            "Klik Simpan",
+            "TypeError",
+            "Klik"
+          ],
+          "answer": 1,
+          "explanation": "bind(t) mengunci this ke t, jadi aksi() tetap membaca label milik t.",
+          "remedial": "Bayangkan kamu menitipkan pesan \"tolong ambilkan **tas saya**\" kepada seorang teman.\n\nKalau kamu sendiri yang mengucapkannya, jelas tas siapa yang dimaksud. Tapi kalau pesan itu ditulis di kertas, lalu kertasnya dioper ke orang lain dan dibacakan, kata \"saya\" kehilangan pemiliknya. Tas siapa?\n\nMengirim method sebagai callback sama seperti mengoper kertas itu: `this` kehilangan pemiliknya. `bind` seperti menulis nama lengkap di kertas: \"tas milik Rina\". Arrow function seperti kamu sendiri yang tetap ikut dan mengucapkannya."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini dijalankan?",
+          "code": "class Tombol {\n  label = \"Hapus\";\n  klik() {\n    return `Klik ${this.label}`;\n  }\n}\nconst t = new Tombol();\nconst aksi = t.klik;\nconsole.log(aksi());",
+          "options": [
+            "Tercetak Klik Hapus",
+            "Tercetak Klik undefined",
+            "Muncul TypeError karena this di dalam klik bernilai undefined",
+            "Tercetak Hapus"
+          ],
+          "answer": 2,
+          "explanation": "aksi() dipanggil tanpa object di kiri titik. Di dalam class (strict mode), this menjadi undefined.",
+          "remedial": "Bayangkan kamu menitipkan pesan \"tolong ambilkan **tas saya**\" kepada seorang teman.\n\nKalau kamu sendiri yang mengucapkannya, jelas tas siapa yang dimaksud. Tapi kalau pesan itu ditulis di kertas, lalu kertasnya dioper ke orang lain dan dibacakan, kata \"saya\" kehilangan pemiliknya. Tas siapa?\n\nMengirim method sebagai callback sama seperti mengoper kertas itu: `this` kehilangan pemiliknya. `bind` seperti menulis nama lengkap di kertas: \"tas milik Rina\". Arrow function seperti kamu sendiri yang tetap ikut dan mengucapkannya."
+        },
+        {
+          "question": "Kenapa arrow function di dalam method bisa memakai this milik object?",
+          "options": [
+            "Karena arrow function selalu membuat object baru",
+            "Karena arrow function tidak punya this sendiri, sehingga memakai this dari method tempat ia ditulis",
+            "Karena arrow function otomatis memanggil bind ke window",
+            "Karena arrow function hanya boleh dipakai di dalam class"
+          ],
+          "answer": 1,
+          "explanation": "Arrow function mengambil this dari tempat ia ditulis. Kalau ditulis di dalam method, this-nya adalah object pemilik method.",
+          "remedial": "Bayangkan kamu menitipkan pesan \"tolong ambilkan **tas saya**\" kepada seorang teman.\n\nKalau kamu sendiri yang mengucapkannya, jelas tas siapa yang dimaksud. Tapi kalau pesan itu ditulis di kertas, lalu kertasnya dioper ke orang lain dan dibacakan, kata \"saya\" kehilangan pemiliknya. Tas siapa?\n\nMengirim method sebagai callback sama seperti mengoper kertas itu: `this` kehilangan pemiliknya. `bind` seperti menulis nama lengkap di kertas: \"tas milik Rina\". Arrow function seperti kamu sendiri yang tetap ikut dan mengucapkannya."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Method prosesSemua masih error karena this hilang saat hargaPlusPajak dikirim langsung ke map. Perbaiki dengan arrow function supaya hargaPlusPajak dipanggil lewat this.",
+      "starterCode": "class Kasir {\n  constructor(pajak) {\n    this.pajak = pajak;\n  }\n  hargaPlusPajak(harga) {\n    return harga + (harga * this.pajak) / 100;\n  }\n  prosesSemua(daftar) {\n    return daftar.map(this.hargaPlusPajak);\n  }\n}\nconst kasir = new Kasir(10);\nconsole.log(kasir.prosesSemua([10000, 25000, 50000]).join(\", \"));\n",
+      "steps": [
+        "Jalankan dulu kode awal dan baca pesan error-nya.",
+        "Ganti argumen map dengan arrow function (harga) => ...",
+        "Di dalam arrow function, panggil this.hargaPlusPajak(harga)."
+      ],
+      "skeleton": "class Kasir {\n  constructor(pajak) {\n    this.pajak = pajak;\n  }\n  hargaPlusPajak(harga) {\n    return harga + (harga * this.pajak) / 100;\n  }\n  prosesSemua(daftar) {\n    return daftar.map((harga) => ___.hargaPlusPajak(harga));\n  }\n}\nconst kasir = new Kasir(10);\nconsole.log(kasir.prosesSemua([10000, 25000, 50000]).join(\", \"));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "11000, 27500, 55000\n"
+        }
+      ],
+      "hints": [
+        "map memanggil callback tanpa object di kiri titik, jadi this di dalam hargaPlusPajak hilang.",
+        "Arrow function memakai this milik prosesSemua, yaitu kasir."
+      ],
+      "solution": "class Kasir {\n  constructor(pajak) {\n    this.pajak = pajak;\n  }\n  hargaPlusPajak(harga) {\n    return harga + (harga * this.pajak) / 100;\n  }\n  prosesSemua(daftar) {\n    return daftar.map((harga) => this.hargaPlusPajak(harga));\n  }\n}\nconst kasir = new Kasir(10);\nconsole.log(kasir.prosesSemua([10000, 25000, 50000]).join(\", \"));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Method yang dikirim sebagai callback kehilangan this karena tidak ada object di kiri titik.",
+        "Di dalam class, this yang hilang bernilai undefined dan biasanya berakhir dengan TypeError.",
+        "method.bind(obj) membuat function baru dengan this yang terkunci ke obj.",
+        "Arrow function memakai this dari tempat ia ditulis, jadi aman sebagai callback di dalam method."
+      ]
+    }
+  ]
+}
