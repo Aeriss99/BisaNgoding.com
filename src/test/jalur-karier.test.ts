@@ -5,8 +5,17 @@ import { coursesData, modulesData } from '../lib/content';
 const semuaItem = [...dataJalur.jalur.flatMap((j) => j.tahap.flatMap((t) => t.grup.flat())), ...dataJalur.fondasi];
 
 describe('Data jalur karier (content/jalur-karier.json)', () => {
-  it('ada 3 jalur: Backend, Frontend, DevOps, dengan id unik', () => {
-    expect(dataJalur.jalur.map((j) => j.id)).toEqual(['backend', 'frontend', 'devops']);
+  it('ada 4 jalur: Backend, Frontend, DevOps, dan Lainnya, dengan id unik', () => {
+    expect(dataJalur.jalur.map((j) => j.id)).toEqual(['backend', 'frontend', 'devops', 'lainnya']);
+  });
+
+  it('jalur Lainnya: urutan bebas, memuat RESTful API, dan tidak dihitung di "Dipakai di jalur"', () => {
+    const lain = cariJalur('lainnya');
+    expect(lain).toMatchObject({ judul: 'Lainnya', bebas: true });
+    const kelas = lain.tahap.flatMap((t) => t.grup.flat().map((it) => it.kelas));
+    expect(kelas).toContain('rest-api');
+    expect(statusKartu(lain.tahap[0].grup[0][0])).toMatchObject({ jenis: 'tersedia', nama: 'RESTful API' });
+    for (const id of kelas) expect(pemakaianKelas(id).map((p) => p.judul)).not.toContain('Lainnya');
   });
 
   it('setiap jalur punya tahap, setiap tahap punya minimal satu kelas', () => {

@@ -52,8 +52,10 @@ export interface TahapJalur {
 export interface JalurKarier {
   id: string;
   judul: string;
-  ikon: 'server' | 'layout' | 'cloud';
-  warna: 'kuning' | 'cyan' | 'ungu';
+  ikon: 'server' | 'layout' | 'cloud' | 'layers';
+  warna: 'kuning' | 'cyan' | 'ungu' | 'pink';
+  /** Kelas tambahan tanpa urutan wajib: label "TOPIK" (bukan "TAHAP") dan tidak dihitung di "Dipakai di jalur". */
+  bebas?: boolean;
   ringkas: string;
   intro: string;
   tahap: TahapJalur[];

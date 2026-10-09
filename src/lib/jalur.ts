@@ -9,6 +9,7 @@ export const WARNA_JALUR: Record<JalurKarier['warna'], { utama: string; muda: st
   kuning: { utama: 'var(--color-primary)', muda: 'var(--color-primary-light)' },
   cyan: { utama: 'var(--color-landing-cyan)', muda: '#c9f7fa' },
   ungu: { utama: 'var(--color-landing-purple)', muda: 'var(--color-purple-light)' },
+  pink: { utama: '#ff8ad8', muda: '#ffe3f6' },
 };
 
 export function cariJalur(id: string | null | undefined): JalurKarier {
@@ -76,7 +77,7 @@ export function pemakaianKelas(courseId: string): { judul: string; keterangan: s
   if (fondasi) {
     hasil.push({ judul: 'Fondasi', keterangan: fondasi.bagian ? `semua jalur, bagian ${fondasi.bagian}` : 'semua jalur', urut: 0 });
   }
-  for (const j of dataJalur.jalur) {
+  for (const j of dataJalur.jalur.filter((x) => !x.bebas)) {
     const nomor = j.tahap
       .map((t, i) => (t.grup.some((g) => g.some((it) => it.kelas === courseId)) ? i + 1 : 0))
       .filter((x) => x > 0);
