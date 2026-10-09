@@ -116,7 +116,7 @@ function KartuPilihJalur({ j, dipilih, onPilih }: { j: TipeJalur; dipilih: boole
       onClick={onPilih}
       aria-pressed={dipilih}
       style={{ background: dipilih ? warna.utama : '#ffffff' }}
-      className={`relative flex-1 max-w-[400px] box-border p-6 rounded-[14px] text-left flex flex-col gap-3 text-[var(--color-text-main)] cursor-pointer ${
+      className={`relative min-w-0 box-border p-6 rounded-[14px] text-left flex flex-col gap-3 text-[var(--color-text-main)] cursor-pointer ${
         dipilih
           ? 'border-4 border-[var(--color-text-main)] shadow-[8px_8px_0_var(--color-text-main)]'
           : 'border-[3px] border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)] hover:-translate-y-0.5 transition-transform'
@@ -135,13 +135,13 @@ function KartuPilihJalur({ j, dipilih, onPilih }: { j: TipeJalur; dipilih: boole
       </span>
       <span className="text-[16px] leading-6">{j.ringkas}</span>
       <span className="flex items-center gap-2 font-mono text-[14px] font-bold">
-        {j.tahap.length} tahap <Ikon nama="arrow" ukuran={18} tebal={2} />
+        {j.tahap.length} {j.bebas ? 'topik' : 'tahap'} <Ikon nama="arrow" ukuran={18} tebal={2} />
       </span>
     </button>
   );
 }
 
-function TahapDesktop({ tahap, nomor, warna, terakhir }: { tahap: TahapJalur; nomor: number; warna: string; terakhir: boolean }) {
+function TahapDesktop({ tahap, nomor, warna, terakhir, label }: { tahap: TahapJalur; nomor: number; warna: string; terakhir: boolean; label: string }) {
   return (
     <div className="flex gap-7">
       <div className="w-14 shrink-0 flex flex-col items-center">
@@ -154,7 +154,7 @@ function TahapDesktop({ tahap, nomor, warna, terakhir }: { tahap: TahapJalur; no
         {!terakhir && <div className="w-1 grow bg-[var(--color-text-main)] mt-2" />}
       </div>
       <div className="grow min-w-0 pb-12 flex flex-col gap-2.5">
-        <div className="font-mono text-[13px] font-bold tracking-[1px] text-[#5a5a5a] pt-1.5">TAHAP {nomor}</div>
+        <div className="font-mono text-[13px] font-bold tracking-[1px] text-[#5a5a5a] pt-1.5">{label} {nomor}</div>
         <h3 className="m-0 font-space text-[30px] leading-9 font-bold">{tahap.judul}</h3>
         <p className="m-0 text-[16px] leading-6 text-[#3d3d3d] max-w-[720px]">{tahap.deskripsi}</p>
         <div className="flex flex-wrap gap-4 mt-2.5">
@@ -176,7 +176,7 @@ function Desktop({ jalur, pilih }: { jalur: TipeJalur; pilih: (id: string) => vo
             Pilih jalur karier. Kami susun urutan belajarnya dari nol, dan kelas mana yang dipakai di setiap tahap.
           </p>
         </section>
-        <section className="flex gap-8" aria-label="Pilih jalur karier">
+        <section className="grid grid-cols-2 xl:grid-cols-4 gap-5 xl:gap-6" aria-label="Pilih jalur karier">
           {dataJalur.jalur.map((j) => (
             <KartuPilihJalur key={j.id} j={j} dipilih={j.id === jalur.id} onPilih={() => pilih(j.id)} />
           ))}
@@ -189,7 +189,7 @@ function Desktop({ jalur, pilih }: { jalur: TipeJalur; pilih: (id: string) => vo
             </div>
             <div className="flex flex-col">
               {jalur.tahap.map((t, i) => (
-                <TahapDesktop key={t.judul} tahap={t} nomor={i + 1} warna={warna.utama} terakhir={i === jalur.tahap.length - 1} />
+                <TahapDesktop key={t.judul} tahap={t} nomor={i + 1} warna={warna.utama} terakhir={i === jalur.tahap.length - 1} label={jalur.bebas ? 'TOPIK' : 'TAHAP'} />
               ))}
             </div>
           </div>
@@ -256,7 +256,7 @@ function Hp({ jalur, pilih }: { jalur: TipeJalur; pilih: (id: string) => void })
                 {i < jalur.tahap.length - 1 && <div className="w-[3px] grow bg-[var(--color-text-main)] mt-1.5" />}
               </div>
               <div className="grow min-w-0 pb-8 flex flex-col gap-2">
-                <div className="font-mono text-[11px] font-bold tracking-[1px] text-[#5a5a5a] pt-0.5">TAHAP {i + 1}</div>
+                <div className="font-mono text-[11px] font-bold tracking-[1px] text-[#5a5a5a] pt-0.5">{jalur.bebas ? 'TOPIK' : 'TAHAP'} {i + 1}</div>
                 <h3 className="m-0 font-space text-[22px] leading-[26px] font-bold">{t.judul}</h3>
                 <p className="m-0 text-[14px] leading-5 text-[#3d3d3d]">{t.deskripsi}</p>
                 <div className="flex flex-col gap-2.5 mt-1.5">
