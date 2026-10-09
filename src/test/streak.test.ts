@@ -64,4 +64,19 @@ describe('streak harian', () => {
     expect(gabungStreak({ streak: 2, streakDate: '2026-10-08' }, { streak: 3, streakDate: '2026-10-08' })).toEqual({ streak: 3, streakDate: '2026-10-08' });
     expect(gabungStreak({ streak: 2 }, { streak: 5 })).toEqual({ streak: 5, streakDate: undefined });
   });
+
+  it('baru login: materi selesai sebelum data cloud dimuat tetap melanjutkan streak kemarin', () => {
+    // perangkat baru: progres kosong, selesai materi jam 00.05 -> streak 1 tanggal hari ini
+    const perangkat = progresSetelahMateri(dasar(), 'java-dasar-01', new Date(2026, 9, 10, 0, 5));
+    expect(perangkat.streak).toBe(1);
+    // cloud menyimpan streak 3 dari kemarin
+    expect(gabungStreak(perangkat, { streak: 3, streakDate: '2026-10-09' })).toEqual({ streak: 4, streakDate: '2026-10-10' });
+    expect(gabungStreak({ streak: 3, streakDate: '2026-10-09' }, perangkat)).toEqual({ streak: 4, streakDate: '2026-10-10' });
+    // kalau perangkat sudah benar (4), tidak dihitung dua kali
+    expect(gabungStreak({ streak: 4, streakDate: '2026-10-10' }, { streak: 3, streakDate: '2026-10-09' })).toEqual({ streak: 4, streakDate: '2026-10-10' });
+    // ganti bulan juga dianggap berurutan
+    expect(gabungStreak({ streak: 1, streakDate: '2026-11-01' }, { streak: 7, streakDate: '2026-10-31' })).toEqual({ streak: 8, streakDate: '2026-11-01' });
+    // ada hari bolos: tetap mulai dari yang terbaru
+    expect(gabungStreak({ streak: 1, streakDate: '2026-10-10' }, { streak: 3, streakDate: '2026-10-08' })).toEqual({ streak: 1, streakDate: '2026-10-10' });
+  });
 });
