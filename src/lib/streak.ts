@@ -54,10 +54,21 @@ export function lengkapiStreak<T extends UserProgress>(data: T): T {
   return data;
 }
 
-/** Gabung streak dua perangkat: yang tanggal streak-nya lebih baru yang menang; kalau sama, ambil yang terbesar. */
+/**
+ * Gabung streak dua sumber (perangkat ini dan cloud).
+ * - Tanggal sama: ambil yang terbesar.
+ * - Tanggal berurutan (kemarin dan hari ini): pengguna belajar di dua hari itu, jadi streak hari ini
+ *   minimal streak kemarin + 1. Ini terjadi kalau materi selesai sebelum data cloud sempat dimuat
+ *   (misalnya baru login di jaringan lambat): perangkat menghitung 1, padahal cloud menyimpan streak kemarin.
+ * - Selain itu: tanggal terbaru yang menang.
+ */
 export function gabungStreak(a: Pick<UserProgress, 'streak' | 'streakDate'>, b: Pick<UserProgress, 'streak' | 'streakDate'>): { streak: number; streakDate?: string } {
   const ta = a.streakDate || '';
   const tb = b.streakDate || '';
   if (ta === tb) return { streak: Math.max(a.streak || 0, b.streak || 0), streakDate: ta || undefined };
-  return ta > tb ? { streak: a.streak || 0, streakDate: ta } : { streak: b.streak || 0, streakDate: tb };
+  const [baru, lama, tBaru, tLama] = ta > tb ? [a, b, ta, tb] : [b, a, tb, ta];
+  if (tLama && (lama.streak || 0) > 0 && selisihHari(tBaru, tLama) === 1) {
+    return { streak: Math.max(baru.streak || 0, (lama.streak || 0) + 1), streakDate: tBaru };
+  }
+  return { streak: baru.streak || 0, streakDate: tBaru };
 }
