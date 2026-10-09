@@ -1,0 +1,135 @@
+{
+  "id": "js-oop-18",
+  "moduleId": "js-oop",
+  "order": 18,
+  "title": "Membuat Class Error Sendiri",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di kelas dasar kamu sudah memakai `throw new Error(\"...\")` dan `try...catch`. Di aplikasi sungguhan, jenis masalahnya beragam: input pengguna tidak valid, data tidak ditemukan, saldo tidak cukup, server tidak merespons.\n\nKalau semuanya dilempar sebagai `Error` biasa, blok `catch` sulit membedakannya. Solusinya: buat **class error sendiri** dengan `extends Error`.\n\nHampir semua library dan framework serius punya class error sendiri, misalnya `ValidationError` atau `NotFoundError`. Dengan begitu, setiap jenis masalah bisa ditangani dengan cara yang tepat."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nclass SaldoTidakCukupError extends Error {\n  constructor(saldo, diminta) {\n    super(`Saldo ${saldo}, diminta ${diminta}`);\n    this.name = \"SaldoTidakCukupError\";\n    this.kurang = diminta - saldo;\n  }\n}\nfunction tarik(saldo, jumlah) {\n  if (jumlah > saldo) throw new SaldoTidakCukupError(saldo, jumlah);\n  return saldo - jumlah;\n}\ntry {\n  tarik(50000, 80000);\n} catch (e) {\n  console.log(e.name);\n  console.log(e.message);\n  console.log(`Kurang ${e.kurang}`);\n}\n```\n\nTiga hal dalam constructor-nya:\n\n- `super(pesan)` menjalankan constructor `Error`, yang menyimpan pesan ke properti `message`.\n- `this.name` diisi nama class, supaya log error mudah dibaca. Tanpa baris ini, `name` tetap bernilai `\"Error\"`.\n- Kamu bebas menambah properti lain yang berguna, seperti `kurang`."
+    },
+    {
+      "type": "theory",
+      "content": "Keuntungan terbesarnya: `catch` bisa memilah error dengan `instanceof`.\n\n```javascript run\nclass ValidasiError extends Error {\n  constructor(pesan) {\n    super(pesan);\n    this.name = \"ValidasiError\";\n  }\n}\nfunction daftar(data) {\n  if (data.umur < 17) throw new ValidasiError(\"Minimal 17 tahun\");\n  return `Pendaftaran ${data.nama.toUpperCase()} diterima`;\n}\nconst pendaftar = [{ nama: \"Rina\", umur: 20 }, { nama: \"Budi\", umur: 15 }, { umur: 30 }];\nfor (const data of pendaftar) {\n  try {\n    console.log(daftar(data));\n  } catch (e) {\n    if (e instanceof ValidasiError) {\n      console.log(`Ditolak: ${e.message}`);\n    } else {\n      console.log(`Bug: ${e.name}`);\n    }\n  }\n}\n```\n\n`ValidasiError` adalah masalah yang **sudah diperkirakan**: pesan sopan untuk pengguna. Pendaftar ketiga lain cerita. Datanya tidak punya `nama`, dan function lupa memeriksanya, sehingga `data.nama.toUpperCase()` melempar `TypeError`. Itu **bug** dalam program, bukan kesalahan pengguna yang sudah diperkirakan. Di aplikasi sungguhan, error jenis ini biasanya dilempar ulang dengan `throw e` supaya tidak tersembunyi."
+    },
+    {
+      "type": "runnable",
+      "code": "class TidakDitemukanError extends Error {\n  constructor(id) {\n    super(`Produk ${id} tidak ditemukan`);\n    this.name = \"TidakDitemukanError\";\n    this.id = id;\n  }\n}\nconst produk = { P01: \"Kopi\", P02: \"Teh\" };\nfunction cari(id) {\n  if (produk[id] === undefined) throw new TidakDitemukanError(id);\n  return produk[id];\n}\ntry {\n  console.log(cari(\"P02\"));\n  console.log(cari(\"P09\"));\n  console.log(cari(\"P01\"));\n} catch (e) {\n  console.log(e instanceof TidakDitemukanError);\n  console.log(e.message);\n}",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KEDUA yang akan tercetak?",
+        "options": [
+          "Kopi",
+          "true",
+          "false",
+          "Produk P09 tidak ditemukan"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 3,
+          "note": "super menyimpan pesan ini ke e.message."
+        },
+        {
+          "line": 15,
+          "note": "P09 tidak ada, jadi error dilempar dan sisa blok try dilewati."
+        },
+        {
+          "line": 16,
+          "note": "Baris ini tidak pernah dijalankan."
+        }
+      ],
+      "explanation": "`cari(\"P02\")` berhasil dan mencetak `Teh`. Lalu `cari(\"P09\")` melempar error. Begitu error dilempar, **sisa blok `try` dilewati**, sehingga `cari(\"P01\")` tidak pernah dijalankan.\n\nProgram langsung lompat ke `catch`. Baris pertama di sana mencetak `true`, karena error itu dibuat dari class `TidakDitemukanError`.",
+      "tryThis": [
+        {
+          "task": "Tambahkan `console.log(e.id);` di dalam catch. Apa yang tercetak?",
+          "hint": "Properti tambahan yang diisi di constructor ikut terbawa bersama error."
+        },
+        {
+          "task": "Hapus baris `this.name = \"TidakDitemukanError\";` lalu cetak `e.name` di catch. Apa bedanya?",
+          "hint": "Tanpa baris itu, name diwarisi dari Error dan bernilai \"Error\"."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "class AksesDitolakError extends Error {\n  constructor(pesan) {\n    super(pesan);\n    this.name = \"AksesDitolakError\";\n  }\n}\nconst e = new AksesDitolakError(\"Khusus admin\");\nconsole.log(`${e.name}: ${e.message}`);",
+          "options": [
+            "Error: Khusus admin",
+            "AksesDitolakError: Khusus admin",
+            "AksesDitolakError: undefined",
+            "Khusus admin"
+          ],
+          "answer": 1,
+          "explanation": "super(pesan) mengisi message, dan this.name diganti dengan nama class.",
+          "remedial": "Bayangkan **petugas IGD rumah sakit**.\n\nKalau semua pasien hanya disebut \"pasien sakit\", petugas bingung harus mengirim mereka ke mana. Karena itu ada label yang jelas: patah tulang ke ortopedi, demam ke penyakit dalam, luka bakar ke unit luka bakar.\n\nClass error sendiri adalah label itu. `catch` berperan seperti petugas triase: ia melihat jenis error dengan `instanceof`, lalu menangani setiap jenis dengan cara yang tepat. Masalah yang sudah diperkirakan dilayani dengan tenang, sedangkan masalah tak terduga dilaporkan sebagai bug."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "class AppError extends Error {}\nclass LoginError extends AppError {}\ntry {\n  throw new LoginError(\"Password salah\");\n} catch (e) {\n  console.log(e instanceof AppError, e instanceof Error);\n}",
+          "options": [
+            "true false",
+            "false true",
+            "false false",
+            "true true"
+          ],
+          "answer": 3,
+          "explanation": "LoginError turunan AppError, dan AppError turunan Error. Keduanya ada di rantai prototype e.",
+          "remedial": "Bayangkan **petugas IGD rumah sakit**.\n\nKalau semua pasien hanya disebut \"pasien sakit\", petugas bingung harus mengirim mereka ke mana. Karena itu ada label yang jelas: patah tulang ke ortopedi, demam ke penyakit dalam, luka bakar ke unit luka bakar.\n\nClass error sendiri adalah label itu. `catch` berperan seperti petugas triase: ia melihat jenis error dengan `instanceof`, lalu menangani setiap jenis dengan cara yang tepat. Masalah yang sudah diperkirakan dilayani dengan tenang, sedangkan masalah tak terduga dilaporkan sebagai bug."
+        },
+        {
+          "question": "Kenapa constructor class error sendiri memanggil super(pesan)?",
+          "options": [
+            "Supaya pesan disimpan ke properti message oleh constructor Error",
+            "Supaya error tidak bisa ditangkap catch",
+            "Karena throw hanya menerima string",
+            "Supaya name otomatis berisi nama class"
+          ],
+          "answer": 0,
+          "explanation": "Constructor Error yang menyiapkan message. Karena class ini turunan Error, super wajib dipanggil sebelum memakai this.",
+          "remedial": "Bayangkan **petugas IGD rumah sakit**.\n\nKalau semua pasien hanya disebut \"pasien sakit\", petugas bingung harus mengirim mereka ke mana. Karena itu ada label yang jelas: patah tulang ke ortopedi, demam ke penyakit dalam, luka bakar ke unit luka bakar.\n\nClass error sendiri adalah label itu. `catch` berperan seperti petugas triase: ia melihat jenis error dengan `instanceof`, lalu menangani setiap jenis dengan cara yang tepat. Masalah yang sudah diperkirakan dilayani dengan tenang, sedangkan masalah tak terduga dilaporkan sebagai bug."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi constructor StokHabisError: panggil constructor parent dengan pesan \"Stok <produk> habis\", lalu isi name dengan \"StokHabisError\".",
+      "starterCode": "class StokHabisError extends Error {\n  constructor(produk) {\n    // panggil constructor parent dengan pesan, lalu isi name\n  }\n}\nfunction beli(produk, stok) {\n  if (stok === 0) throw new StokHabisError(produk);\n  return `Berhasil membeli ${produk}`;\n}\nconst keranjang = [[\"Kopi\", 3], [\"Teh\", 0], [\"Susu\", 1]];\nfor (const [produk, stok] of keranjang) {\n  try {\n    console.log(beli(produk, stok));\n  } catch (e) {\n    console.log(`${e.name}: ${e.message}`);\n  }\n}\n",
+      "steps": [
+        "Panggil super dengan template literal `Stok ${produk} habis`.",
+        "Isi this.name dengan \"StokHabisError\".",
+        "Jalankan dan pastikan Teh tertangkap sebagai StokHabisError."
+      ],
+      "skeleton": "class StokHabisError extends Error {\n  constructor(produk) {\n    ___(`Stok ${produk} habis`);\n    this.___ = \"StokHabisError\";\n  }\n}\nfunction beli(produk, stok) {\n  if (stok === 0) throw new StokHabisError(produk);\n  return `Berhasil membeli ${produk}`;\n}\nconst keranjang = [[\"Kopi\", 3], [\"Teh\", 0], [\"Susu\", 1]];\nfor (const [produk, stok] of keranjang) {\n  try {\n    console.log(beli(produk, stok));\n  } catch (e) {\n    console.log(`${e.name}: ${e.message}`);\n  }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Berhasil membeli Kopi\nStokHabisError: Stok Teh habis\nBerhasil membeli Susu\n"
+        }
+      ],
+      "hints": [
+        "Class turunan wajib memanggil super(...) sebelum memakai this.",
+        "Nama jenis error disimpan di properti name."
+      ],
+      "solution": "class StokHabisError extends Error {\n  constructor(produk) {\n    super(`Stok ${produk} habis`);\n    this.name = \"StokHabisError\";\n  }\n}\nfunction beli(produk, stok) {\n  if (stok === 0) throw new StokHabisError(produk);\n  return `Berhasil membeli ${produk}`;\n}\nconst keranjang = [[\"Kopi\", 3], [\"Teh\", 0], [\"Susu\", 1]];\nfor (const [produk, stok] of keranjang) {\n  try {\n    console.log(beli(produk, stok));\n  } catch (e) {\n    console.log(`${e.name}: ${e.message}`);\n  }\n}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Class error sendiri dibuat dengan extends Error.",
+        "Panggil super(pesan) untuk mengisi message, lalu isi this.name dengan nama class.",
+        "Error boleh membawa properti tambahan yang berguna untuk penanganan.",
+        "Di catch, pakai instanceof untuk membedakan masalah yang diperkirakan dari bug."
+      ]
+    }
+  ]
+}
