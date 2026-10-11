@@ -108,7 +108,7 @@ self.onmessage = async (e) => {
     if (e instanceof Error) {
       let line = -1;
       if (e.stack) {
-        const match = e.stack.match(/<anonymous>:(\d+):\d+/);
+        const match = e.stack.match(/<anonymous>:(\\d+):\\d+/);
         if (match) {
           line = parseInt(match[1], 10) - 2;
         }
@@ -154,11 +154,13 @@ export async function runJsCode(
         }
       }
       const iframe = document.createElement('iframe');
-      iframe.sandbox.add('allow-scripts');
+      // allow-forms: tanpa ini event submit form tidak pernah terpicu di dalam iframe sandbox
+      iframe.sandbox.add('allow-scripts', 'allow-forms');
 
       const combinedHtml = `<!doctype html>
 <html>
 <head>
+<base href="about:srcdoc">
 <script>
 let output = '';
 let err = '';
@@ -166,6 +168,10 @@ let err = '';
 function formatArg(arg) {
   if (typeof arg === 'string') return arg;
   if (typeof arg === 'number' || typeof arg === 'boolean' || arg === null || arg === undefined) return String(arg);
+  if (arg instanceof Element) return arg.outerHTML;
+  if (arg instanceof NodeList || arg instanceof HTMLCollection) {
+    return (arg instanceof NodeList ? 'NodeList' : 'HTMLCollection') + '(' + arg.length + ') [ ' + Array.from(arg).map(formatArg).join(', ') + ' ]';
+  }
   if (Array.isArray(arg)) {
     return '[ ' + arg.map(formatArg).join(', ') + ' ]';
   }
@@ -213,7 +219,7 @@ window.addEventListener('message', async (e) => {
       if (e instanceof Error) {
         let line = -1;
         if (e.stack) {
-          const match = e.stack.match(/<anonymous>:(\d+):\d+/);
+          const match = e.stack.match(/<anonymous>:(\\d+):\\d+/);
           if (match) {
             line = parseInt(match[1], 10) - 2;
           }
@@ -239,9 +245,13 @@ ${html}
 
       let resolved = false;
       let timer: any;
+      const container = document.getElementById('js-dom-output-container');
 
-      const cleanup = () => {
-        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      // Hasil tampilan tetap terlihat di bawah editor setelah kode selesai, supaya pelajar bisa
+      // melihat perubahan DOM dan mencoba klik/ketik sendiri. iframe hanya dibuang kalau tersembunyi
+      // (tidak ada wadah tampilan) atau kalau waktu habis.
+      const cleanup = (buang: boolean) => {
+        if (buang && iframe.parentNode) iframe.parentNode.removeChild(iframe);
         window.removeEventListener('message', onMsg);
         clearTimeout(timer);
       };
@@ -249,7 +259,7 @@ ${html}
       const onMsg = (e: MessageEvent) => {
         if (e.data && e.data.type === 'done' && e.data.id === runId) {
           resolved = true;
-          cleanup();
+          cleanup(!container);
           resolve({
             stdout: e.data.stdout || '',
             stderr: e.data.stderr || '',
@@ -263,7 +273,7 @@ ${html}
       timer = setTimeout(() => {
         if (!resolved) {
           resolved = true;
-          cleanup();
+          cleanup(true);
           resolve({
             stdout: '',
             stderr: 'Waktu habis: kemungkinan ada infinite loop.',
@@ -273,13 +283,6 @@ ${html}
         }
       }, TIMEOUT_MS);
 
-      // We append it to a specific hidden div for runners if no html, or a visible container?
-      // "Tampilkan hasil tampilan iframe di bawah editor."
-      // Let's attach it to document.body but hidden if no DOM container? Wait, the problem says:
-      // "Tampilkan hasil tampilan iframe di bawah editor."
-      // Since `runJsCode` only returns `RunResult`, where is the iframe attached?
-      // I'll add an `iframeContainerId` to `RunResult` maybe? Or just assign a known ID `js-dom-output-container`.
-      const container = document.getElementById('js-dom-output-container');
       if (container) {
         container.innerHTML = '';
         iframe.style.width = '100%';
@@ -292,6 +295,9 @@ ${html}
       }
 
       iframe.onload = () => {
+        // Kirim kode sekali saja. Kalau kode memicu navigasi (misalnya form dikirim tanpa
+        // preventDefault), onload terpanggil lagi dan kode tidak boleh dijalankan ulang terus-menerus.
+        iframe.onload = null;
         iframe.contentWindow?.postMessage(
           { type: 'run', id: runId, code },
           '*'
@@ -419,4 +425,17 @@ ${html}
 
     worker.postMessage({ code });
   });
+}
+
+/** Tampilkan HTML awal latihan DOM di wadah hasil sebelum kode dijalankan (tanpa menjalankan script apa pun). */
+export function pratinjauHtml(container: HTMLElement, html: string): void {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('sandbox', '');
+  iframe.title = 'Pratinjau halaman';
+  iframe.style.width = '100%';
+  iframe.style.height = '100%';
+  iframe.style.border = 'none';
+  // base about:srcdoc: tautan "#..." dan form tetap di halaman latihan, tidak membuka halaman website induk
+  iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><base href="about:srcdoc"></head><body>${html}</body></html>`;
+  container.replaceChildren(iframe);
 }
