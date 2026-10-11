@@ -19,7 +19,24 @@ const quiz: { id: string; question: string; code?: string; options: string[]; an
   path.join(DIR, 'quiz.json')
 );
 const URUTAN = ['theory', 'theory', 'theory', 'runnable', 'understanding_check', 'code_challenge', 'summary'];
-const PLACEHOLDER = /\b(Lesson \d+|Quiz Q\d+|Core theory|lorem ipsum|placeholder|TODO)\b/;
+// atribut HTML placeholder="..." boleh; kata placeholder sebagai isi materi tidak.
+const PLACEHOLDER = /\b(Lesson \d+|Quiz Q\d+|Core theory|lorem ipsum|TODO)\b|\bplaceholder\b(?!=)/;
+
+// happy-dom mengubah textContent = 0 menjadi string kosong, sedangkan browser menuliskan "0".
+// Samakan dengan browser supaya solusi yang menulis angka 0 (misalnya counter) diuji dengan benar.
+(() => {
+  let proto: object | null = document.createElement('div');
+  while (proto && !Object.getOwnPropertyDescriptor(proto, 'textContent')) proto = Object.getPrototypeOf(proto);
+  const asli = proto && Object.getOwnPropertyDescriptor(proto, 'textContent');
+  if (proto && asli?.set) {
+    Object.defineProperty(proto, 'textContent', {
+      ...asli,
+      set(v: unknown) {
+        asli.set!.call(this, v === null || v === undefined ? '' : String(v));
+      },
+    });
+  }
+})();
 
 function jalankanDiDom(html: string, code: string): string {
   document.body.innerHTML = html;
