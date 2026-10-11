@@ -60,20 +60,24 @@ Pakai **anon key** saja. Jangan pernah memasukkan `service_role` key ke proyek i
 ```
 content/              materi, satu folder per kelas
   courses.json        daftar kelas
-  java/               modules.json + satu folder per modul (lesson-XX.json, quiz.json)
-  javascript/
-  git/
-  english/
-public/               gambar, audio, ikon, dan tools.jar untuk CheerpJ
+  jalur-karier.json   jalur karier di beranda
+  roadmap.json        rencana belajar per peran
+  <kelas>/            java, javascript, git, mysql, linux, html-css, rest-api, english
+    modules.json      daftar modul kelas itu
+    <modul>/          lesson-XX.json + quiz.json
+public/               gambar, ilustrasi, audio English, ikon PWA, dan tools.jar untuk CheerpJ
 src/
   components/         komponen tampilan (kartu materi, layout, latihan English)
   context/            login dan progres
-  lib/                logika: konten, quiz, runner Java/JS, suara
+  data/               data statis (daftar rekaman suara English)
+  lib/                logika: konten, quiz, runner Java/JS, streak, suara
   pages/              halaman
-  test/               test unit
-scripts/              cek konten, validasi materi, test Java
+  types/              tipe data konten (schema.ts)
+  test/               test unit (beberapa test kecil ada di samping file yang diuji)
+scripts/              cek konten, validasi materi, test Java, pengumuman modul baru
+supabase/             Edge Functions dan migrasi database (notifikasi email)
 e2e/                  test Playwright
-.github/workflows/    build dan deploy ke GitHub Pages
+.github/workflows/    test, build, deploy ke GitHub Pages, dan umumkan modul baru
 ```
 
 ## Menambah materi
