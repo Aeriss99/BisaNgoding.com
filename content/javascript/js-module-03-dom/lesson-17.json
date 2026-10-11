@@ -1,0 +1,139 @@
+{
+  "id": "js-dom-17",
+  "moduleId": "js-dom",
+  "order": 17,
+  "title": "Event Delegation",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Bayangkan daftar berisi seratus item, masing-masing punya tombol Hapus. Memasang seratus listener terasa boros. Masalah yang lebih besar: item yang **ditambahkan belakangan** tidak punya listener, karena listener hanya dipasang pada elemen yang sudah ada saat itu.\n\nBubbling memberi solusi bernama **event delegation**: pasang **satu listener di parent**, lalu cari tahu item mana yang diklik dengan `e.target.closest(...)`.\n\nTeknik ini standar di dunia kerja. Library seperti React juga memakai delegation di balik layar."
+    },
+    {
+      "type": "theory",
+      "content": "Masalahnya kalau listener dipasang satu per satu:\n\n```html\n<ul id=\"daftar\"><li>Kopi</li><li>Teh</li></ul>\n```\n\n```javascript\nconst daftar = document.querySelector(\"#daftar\");\ndaftar.querySelectorAll(\"li\").forEach((li) => {\n  li.addEventListener(\"click\", () => li.classList.toggle(\"pilih\"));\n});\nconst jus = document.createElement(\"li\");\njus.textContent = \"Jus\";\ndaftar.append(jus);\njus.click();\nconsole.log(jus.classList.contains(\"pilih\"));\n```\n\nHasil di console:\n\n```text\nfalse\n```\n\nJus ditambahkan setelah listener dipasang, jadi kliknya tidak ditangani."
+    },
+    {
+      "type": "theory",
+      "content": "Dengan delegation:\n\n```html\n<ul id=\"daftar\"><li>Kopi</li><li>Teh</li></ul>\n```\n\n```javascript\nconst daftar = document.querySelector(\"#daftar\");\ndaftar.addEventListener(\"click\", (e) => {\n  const li = e.target.closest(\"li\");\n  if (!li) return;\n  li.classList.toggle(\"pilih\");\n});\nconst jus = document.createElement(\"li\");\njus.textContent = \"Jus\";\ndaftar.append(jus);\njus.click();\nconsole.log(jus.classList.contains(\"pilih\"));\n```\n\nHasil di console:\n\n```text\ntrue\n```\n\nTiga langkah yang selalu sama:\n\n1. Pasang listener di **parent yang tidak berubah**, misalnya `ul`.\n2. Cari elemen yang dimaksud dengan **`e.target.closest(selector)`**. Ini tetap benar walau yang diklik adalah elemen di dalam item, misalnya ikon.\n3. Kalau hasilnya `null`, berarti klik terjadi di luar item, jadi **hentikan** dengan `return`.\n\nKalau satu item punya beberapa tombol, beri setiap tombol atribut seperti `data-aksi=\"hapus\"`, lalu periksa `tombol.dataset.aksi` di dalam listener."
+    },
+    {
+      "type": "runnable",
+      "html": "<ul id=\"keranjang\">\n  <li data-id=\"P01\">Kopi <button data-aksi=\"tambah\">+</button> <button data-aksi=\"hapus\">Hapus</button> <span class=\"jumlah\">1</span></li>\n  <li data-id=\"P02\">Teh <button data-aksi=\"tambah\">+</button> <button data-aksi=\"hapus\">Hapus</button> <span class=\"jumlah\">1</span></li>\n</ul>",
+      "code": "const keranjang = document.querySelector(\"#keranjang\");\nkeranjang.addEventListener(\"click\", (e) => {\n  const tombol = e.target.closest(\"button[data-aksi]\");\n  if (!tombol) return;\n  const item = tombol.closest(\"li\");\n  if (tombol.dataset.aksi === \"tambah\") {\n    const jumlah = item.querySelector(\".jumlah\");\n    jumlah.textContent = Number(jumlah.textContent) + 1;\n  } else if (tombol.dataset.aksi === \"hapus\") {\n    item.remove();\n  }\n});\nconst tambahKopi = keranjang.querySelector('[data-id=\"P01\"] [data-aksi=\"tambah\"]');\ntambahKopi.click();\ntambahKopi.click();\nkeranjang.querySelector('[data-id=\"P02\"] [data-aksi=\"hapus\"]').click();\nconsole.log(keranjang.querySelector(\".jumlah\").textContent);\nconsole.log(keranjang.children.length);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "3",
+          "2",
+          "1",
+          "NaN"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Hanya satu listener untuk seluruh keranjang."
+        },
+        {
+          "line": 3,
+          "note": "Mencari tombol aksi yang diklik. Klik di luar tombol menghasilkan null."
+        },
+        {
+          "line": 5,
+          "note": "Dari tombol, naik ke item yang membungkusnya."
+        }
+      ],
+      "explanation": "Tombol + milik Kopi diklik dua kali, jadi jumlahnya naik dari 1 ke 3. Tombol Hapus milik Teh menghapus item Teh, sehingga keranjang tinggal satu item.\n\nSemua itu ditangani oleh satu listener di `ul`. Setelah kode selesai, coba klik tombol-tombolnya di halaman hasil.",
+      "tryThis": [
+        {
+          "task": "Klik tulisan \"Kopi\" (bukan tombolnya) di halaman hasil. Apa yang terjadi, dan kenapa tidak error?",
+          "hint": "closest tidak menemukan tombol aksi, jadi listener berhenti di if (!tombol) return."
+        },
+        {
+          "task": "Tambahkan item baru lewat kode dengan struktur yang sama (li ber-data-id P03 berisi tombol +), lalu klik tombolnya di halaman hasil. Apakah tombol baru itu bekerja?",
+          "hint": "Ya. Listener ada di ul, jadi item yang ditambahkan belakangan ikut tertangani."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa keuntungan utama event delegation?",
+          "options": [
+            "Satu listener di parent ikut melayani item yang ditambahkan belakangan",
+            "Event tidak lagi merambat",
+            "Setiap item mendapat listener sendiri",
+            "Halaman tidak perlu HTML lagi"
+          ],
+          "answer": 0,
+          "explanation": "Karena listener ada di parent, item baru otomatis tertangani lewat bubbling.",
+          "remedial": "Bayangkan **resepsionis hotel**.\n\nHotel tidak menempatkan satu petugas di depan setiap kamar. Cukup satu resepsionis di lobi. Saat ada telepon, resepsionis melihat dari kamar nomor berapa telepon itu berasal, lalu melayani sesuai permintaan.\n\nKamar baru yang dibuka bulan depan tidak butuh petugas baru: teleponnya tetap masuk ke resepsionis yang sama. Itulah event delegation: satu listener di parent, dan `closest` untuk mengetahui item mana yang memanggil."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "HTML:\n<ul id=\"u\"><li><b id=\"tebal\">Kopi</b></li></ul>\n\nJavaScript:\ndocument.querySelector(\"#u\").addEventListener(\"click\", (e) => {\n  console.log(e.target.tagName, e.target.closest(\"li\").tagName);\n});\ndocument.querySelector(\"#tebal\").click();",
+          "options": [
+            "LI LI",
+            "B LI",
+            "B B",
+            "UL LI"
+          ],
+          "answer": 1,
+          "explanation": "Yang diklik adalah b (target). closest naik sampai menemukan li yang membungkusnya.",
+          "remedial": "Bayangkan **resepsionis hotel**.\n\nHotel tidak menempatkan satu petugas di depan setiap kamar. Cukup satu resepsionis di lobi. Saat ada telepon, resepsionis melihat dari kamar nomor berapa telepon itu berasal, lalu melayani sesuai permintaan.\n\nKamar baru yang dibuka bulan depan tidak butuh petugas baru: teleponnya tetap masuk ke resepsionis yang sama. Itulah event delegation: satu listener di parent, dan `closest` untuk mengetahui item mana yang memanggil."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "HTML:\n<ul id=\"u\"><li>A</li></ul>\n\nJavaScript:\nconst u = document.querySelector(\"#u\");\nu.addEventListener(\"click\", (e) => {\n  const li = e.target.closest(\"li\");\n  console.log(li ? li.textContent : \"bukan item\");\n});\nu.click();",
+          "options": [
+            "A",
+            "null",
+            "bukan item",
+            "TypeError"
+          ],
+          "answer": 2,
+          "explanation": "Klik terjadi pada ul itu sendiri. closest mencari li ke atas dari ul dan tidak menemukannya, jadi hasilnya null.",
+          "remedial": "Bayangkan **resepsionis hotel**.\n\nHotel tidak menempatkan satu petugas di depan setiap kamar. Cukup satu resepsionis di lobi. Saat ada telepon, resepsionis melihat dari kamar nomor berapa telepon itu berasal, lalu melayani sesuai permintaan.\n\nKamar baru yang dibuka bulan depan tidak butuh petugas baru: teleponnya tetap masuk ke resepsionis yang sama. Itulah event delegation: satu listener di parent, dan `closest` untuk mengetahui item mana yang memanggil."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "html": "<div id=\"tab-bar\">\n  <button data-tab=\"materi\" class=\"aktif\">Materi</button>\n  <button data-tab=\"quiz\">Quiz</button>\n  <button data-tab=\"diskusi\">Diskusi</button>\n</div>\n<p id=\"isi\">Isi tab: materi</p>",
+      "prompt": "Pasang SATU listener click di #tab-bar. Saat tombol tab diklik, pindahkan class aktif ke tombol itu dan ubah #isi menjadi \"Isi tab: \" diikuti data-tab tombolnya. Klik di luar tombol diabaikan.",
+      "starterCode": "const bar = document.querySelector(\"#tab-bar\");\nconst isi = document.querySelector(\"#isi\");\n// pasang satu listener click di bar\n\nconst tombol = bar.querySelectorAll(\"button\");\ntombol[2].click();\nconsole.log(isi.textContent);\nconsole.log(bar.querySelector(\".aktif\").textContent);\nbar.click();\nconsole.log(isi.textContent);\n",
+      "steps": [
+        "Di dalam listener, cari tombol dengan e.target.closest(\"button[data-tab]\").",
+        "Kalau hasilnya null, return.",
+        "Lepas class aktif dari tombol yang lama, tambahkan ke tombol yang diklik.",
+        "Isi #isi dengan dataset.tab."
+      ],
+      "skeleton": "const bar = document.querySelector(\"#tab-bar\");\nconst isi = document.querySelector(\"#isi\");\nbar.addEventListener(\"click\", (e) => {\n  const tab = e.target.___(\"button[data-tab]\");\n  if (!tab) return;\n  bar.querySelector(\".aktif\").classList.remove(\"aktif\");\n  tab.classList.add(\"aktif\");\n  isi.textContent = `Isi tab: ${tab.___.tab}`;\n});\nconst tombol = bar.querySelectorAll(\"button\");\ntombol[2].click();\nconsole.log(isi.textContent);\nconsole.log(bar.querySelector(\".aktif\").textContent);\nbar.click();\nconsole.log(isi.textContent);",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Isi tab: diskusi\nDiskusi\nIsi tab: diskusi\n"
+        }
+      ],
+      "hints": [
+        "bar.click() mengklik area bar sendiri, bukan tombol, jadi isinya tidak boleh berubah.",
+        "data-tab dibaca lewat dataset.tab."
+      ],
+      "solution": "const bar = document.querySelector(\"#tab-bar\");\nconst isi = document.querySelector(\"#isi\");\nbar.addEventListener(\"click\", (e) => {\n  const tab = e.target.closest(\"button[data-tab]\");\n  if (!tab) return;\n  bar.querySelector(\".aktif\").classList.remove(\"aktif\");\n  tab.classList.add(\"aktif\");\n  isi.textContent = `Isi tab: ${tab.dataset.tab}`;\n});\nconst tombol = bar.querySelectorAll(\"button\");\ntombol[2].click();\nconsole.log(isi.textContent);\nconsole.log(bar.querySelector(\".aktif\").textContent);\nbar.click();\nconsole.log(isi.textContent);"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Event delegation: satu listener di parent menangani klik dari semua item di dalamnya.",
+        "e.target.closest(selector) mencari item yang diklik, walau yang diklik elemen di dalamnya.",
+        "Kalau closest menghasilkan null, klik terjadi di luar item; hentikan dengan return.",
+        "Item yang ditambahkan belakangan otomatis ikut tertangani.",
+        "Atribut data-aksi membedakan beberapa tombol di dalam satu item."
+      ]
+    }
+  ]
+}

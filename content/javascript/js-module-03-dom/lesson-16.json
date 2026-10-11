@@ -1,0 +1,137 @@
+{
+  "id": "js-dom-16",
+  "moduleId": "js-dom",
+  "order": 16,
+  "title": "Event Bubbling",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saat sebuah tombol diklik, event `click` tidak berhenti di tombol itu. Event **merambat naik**: listener di tombol dijalankan, lalu listener di parent-nya, lalu di parent dari parent, terus sampai `document` dan `window`. Perambatan ini disebut **bubbling**, seperti gelembung yang naik ke permukaan air.\n\nItulah kenapa di materi objek event, klik pada ikon di dalam tombol tetap sampai ke listener milik tombol.\n\nSebelum bubbling, sebenarnya ada fase **capturing** yang bergerak dari atas ke bawah. Listener biasa tidak dijalankan di fase ini; hanya listener yang dipasang dengan opsi `{ capture: true }`. Di praktik sehari-hari fase ini jarang dipakai."
+    },
+    {
+      "type": "theory",
+      "content": "```html\n<div id=\"luar\">\n  <p id=\"tengah\">\n    <button id=\"dalam\">Klik</button>\n  </p>\n</div>\n```\n\n```javascript\nfor (const id of [\"luar\", \"tengah\", \"dalam\"]) {\n  document.querySelector(`#${id}`).addEventListener(\"click\", (e) => {\n    console.log(`${id} (target: ${e.target.id})`);\n  });\n}\ndocument.querySelector(\"#dalam\").click();\n```\n\nHasil di console:\n\n```text\ndalam (target: dalam)\ntengah (target: dalam)\nluar (target: dalam)\n```\n\nUrutannya dari dalam ke luar. Di semua listener, `e.target` tetap tombol yang diklik, karena di sanalah event berawal."
+    },
+    {
+      "type": "theory",
+      "content": "Kadang rambatan perlu dihentikan. Contoh klasik: dialog dengan latar gelap. Klik di latar menutup dialog, tapi klik **di dalam** kotak dialog tidak boleh ikut menutup.\n\n```html\n<div id=\"latar\" style=\"padding: 20px; background: #0006\">\n  <div id=\"kotak\" style=\"background: white; padding: 12px\">\n    <p>Isi dialog</p>\n    <button id=\"ok\">OK</button>\n  </div>\n</div>\n```\n\n```javascript\nconst latar = document.querySelector(\"#latar\");\nlatar.addEventListener(\"click\", () => {\n  console.log(\"Dialog ditutup\");\n});\ndocument.querySelector(\"#kotak\").addEventListener(\"click\", (e) => {\n  e.stopPropagation();\n});\ndocument.querySelector(\"#ok\").click();\nconsole.log(\"---\");\nlatar.click();\n```\n\nHasil di console:\n\n```text\n---\nDialog ditutup\n```\n\n`stopPropagation()` menghentikan rambatan di kotak, jadi klik OK tidak sampai ke latar. Tapi hati-hati: cara ini juga memutus listener lain yang dipasang lebih atas, misalnya kode analitik. Sering kali lebih aman memeriksa langsung di listener latar dengan `if (e.target !== latar) return;`.\n\n| Method | Fungsi |\n|---|---|\n| `preventDefault()` | membatalkan perilaku bawaan browser (kirim form, buka tautan) |\n| `stopPropagation()` | menghentikan event merambat ke parent |"
+    },
+    {
+      "type": "runnable",
+      "html": "<ul id=\"menu\">\n  <li><a href=\"#kopi\" id=\"kopi\">Kopi</a></li>\n  <li><a href=\"#teh\" id=\"teh\">Teh</a></li>\n</ul>",
+      "code": "const urutan = [];\ndocument.querySelector(\"#menu\").addEventListener(\"click\", () => urutan.push(\"ul\"));\ndocument.querySelector(\"#teh\").parentElement.addEventListener(\"click\", () => urutan.push(\"li\"));\ndocument.querySelector(\"#teh\").addEventListener(\"click\", (e) => {\n  e.preventDefault();\n  urutan.push(\"a\");\n});\ndocument.querySelector(\"#teh\").click();\nconsole.log(urutan.join(\" > \"));\ndocument.querySelector(\"#kopi\").parentElement.click();\nconsole.log(urutan.join(\" > \"));",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "a > li > ul",
+          "ul > li > a",
+          "a",
+          "a > ul"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Listener di ul menerima klik dari semua tautan di dalamnya."
+        },
+        {
+          "line": 3,
+          "note": "Listener di li milik Teh saja."
+        },
+        {
+          "line": 5,
+          "note": "Membatalkan perpindahan tautan, tapi tidak menghentikan rambatan."
+        }
+      ],
+      "explanation": "Klik pada tautan Teh dijalankan dari dalam ke luar: `a`, lalu `li`, lalu `ul`. Walaupun handler tautan memanggil `preventDefault()`, event tetap merambat, karena `preventDefault` hanya membatalkan perilaku bawaan.\n\nKlik pada `li` milik Kopi hanya menambah `ul`. Listener `li` dan `a` yang dipasang tadi milik Teh, bukan Kopi.",
+      "tryThis": [
+        {
+          "task": "Ganti `e.preventDefault();` menjadi `e.stopPropagation();`. Apa yang tercetak di baris pertama sekarang?",
+          "hint": "Rambatan berhenti di tautan, jadi li dan ul tidak menerima klik dari Teh."
+        },
+        {
+          "task": "Hapus baris 3 (listener milik li), lalu jalankan lagi. Apa yang tercetak di baris pertama?",
+          "hint": "Tinggal listener milik a dan ul, jadi urutannya a > ul."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "HTML:\n<div id=\"a\"><button id=\"b\">X</button></div>\n\nJavaScript:\nlet teks = \"\";\ndocument.querySelector(\"#a\").addEventListener(\"click\", () => (teks += \"A\"));\ndocument.querySelector(\"#b\").addEventListener(\"click\", () => (teks += \"B\"));\ndocument.querySelector(\"#b\").click();\nconsole.log(teks);",
+          "options": [
+            "AB",
+            "BA",
+            "B",
+            "A"
+          ],
+          "answer": 1,
+          "explanation": "Listener tombol berjalan lebih dulu, lalu event merambat ke div. Hasilnya BA.",
+          "remedial": "Bayangkan **kabar yang beredar di sekolah**.\n\nSeorang siswa di kelas XI IPA menjuarai lomba. Kabar itu pertama diketahui teman sekelasnya, lalu wali kelas, lalu kepala sekolah. Setiap tingkat bisa bereaksi: teman bertepuk tangan, wali kelas mengucapkan selamat, kepala sekolah mengumumkan di upacara.\n\nItulah bubbling. `stopPropagation()` seperti wali kelas yang berkata, \"Cukup sampai di sini, jangan diteruskan ke kepala sekolah.\""
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "HTML:\n<div id=\"a\"><button id=\"b\">X</button></div>\n\nJavaScript:\nlet teks = \"\";\ndocument.querySelector(\"#a\").addEventListener(\"click\", () => (teks += \"A\"));\ndocument.querySelector(\"#b\").addEventListener(\"click\", (e) => {\n  e.stopPropagation();\n  teks += \"B\";\n});\ndocument.querySelector(\"#b\").click();\nconsole.log(teks);",
+          "options": [
+            "AB",
+            "BA",
+            "A",
+            "B"
+          ],
+          "answer": 3,
+          "explanation": "stopPropagation menghentikan rambatan di tombol, jadi listener div tidak dijalankan.",
+          "remedial": "Bayangkan **kabar yang beredar di sekolah**.\n\nSeorang siswa di kelas XI IPA menjuarai lomba. Kabar itu pertama diketahui teman sekelasnya, lalu wali kelas, lalu kepala sekolah. Setiap tingkat bisa bereaksi: teman bertepuk tangan, wali kelas mengucapkan selamat, kepala sekolah mengumumkan di upacara.\n\nItulah bubbling. `stopPropagation()` seperti wali kelas yang berkata, \"Cukup sampai di sini, jangan diteruskan ke kepala sekolah.\""
+        },
+        {
+          "question": "Apa beda preventDefault dan stopPropagation?",
+          "options": [
+            "preventDefault membatalkan perilaku bawaan browser; stopPropagation menghentikan event merambat ke parent",
+            "Keduanya sama persis",
+            "preventDefault menghentikan rambatan; stopPropagation membatalkan perilaku bawaan",
+            "Keduanya menghapus listener"
+          ],
+          "answer": 0,
+          "explanation": "Keduanya tidak saling menggantikan. Event yang dicegah perilaku bawaannya tetap merambat, dan sebaliknya.",
+          "remedial": "Bayangkan **kabar yang beredar di sekolah**.\n\nSeorang siswa di kelas XI IPA menjuarai lomba. Kabar itu pertama diketahui teman sekelasnya, lalu wali kelas, lalu kepala sekolah. Setiap tingkat bisa bereaksi: teman bertepuk tangan, wali kelas mengucapkan selamat, kepala sekolah mengumumkan di upacara.\n\nItulah bubbling. `stopPropagation()` seperti wali kelas yang berkata, \"Cukup sampai di sini, jangan diteruskan ke kepala sekolah.\""
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "html": "<div id=\"latar\" style=\"padding: 24px; background: #0006\">\n  <div id=\"dialog\" style=\"background: white; padding: 12px\">\n    <p>Yakin ingin keluar?</p>\n    <button id=\"batal\">Batal</button>\n  </div>\n</div>\n<p id=\"status\">Dialog terbuka</p>",
+      "prompt": "Pasang listener click di #latar yang menutup dialog (latar.hidden = true dan #status menjadi \"Dialog ditutup\"), tapi hanya kalau yang diklik adalah latar itu sendiri. Klik di dalam dialog tidak boleh menutup.",
+      "starterCode": "const latar = document.querySelector(\"#latar\");\nconst status = document.querySelector(\"#status\");\n// pasang listener click di latar\n\ndocument.querySelector(\"#batal\").click();\nconsole.log(status.textContent);\nlatar.click();\nconsole.log(status.textContent, latar.hidden);\n",
+      "steps": [
+        "Pasang listener click di latar yang menerima objek event.",
+        "Kalau e.target bukan latar, hentikan dengan return.",
+        "Sembunyikan latar dan ubah teks status."
+      ],
+      "skeleton": "const latar = document.querySelector(\"#latar\");\nconst status = document.querySelector(\"#status\");\nlatar.addEventListener(\"click\", (e) => {\n  if (e.___ !== latar) return;\n  latar.___ = true;\n  status.textContent = \"Dialog ditutup\";\n});\ndocument.querySelector(\"#batal\").click();\nconsole.log(status.textContent);\nlatar.click();\nconsole.log(status.textContent, latar.hidden);",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Dialog terbuka\nDialog ditutup true\n"
+        }
+      ],
+      "hints": [
+        "Klik tombol Batal merambat sampai latar, tapi e.target-nya tombol Batal.",
+        "Properti hidden menyembunyikan elemen."
+      ],
+      "solution": "const latar = document.querySelector(\"#latar\");\nconst status = document.querySelector(\"#status\");\nlatar.addEventListener(\"click\", (e) => {\n  if (e.target !== latar) return;\n  latar.hidden = true;\n  status.textContent = \"Dialog ditutup\";\n});\ndocument.querySelector(\"#batal\").click();\nconsole.log(status.textContent);\nlatar.click();\nconsole.log(status.textContent, latar.hidden);"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Event merambat dari elemen yang diklik ke parent-nya, terus sampai document (bubbling).",
+        "Selama merambat, e.target tetap elemen tempat event berawal.",
+        "stopPropagation() menghentikan rambatan; preventDefault() hanya membatalkan perilaku bawaan.",
+        "Memeriksa e.target sering lebih aman daripada menghentikan rambatan."
+      ]
+    }
+  ]
+}

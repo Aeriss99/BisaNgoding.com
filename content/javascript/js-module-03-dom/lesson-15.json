@@ -1,0 +1,138 @@
+{
+  "id": "js-dom-15",
+  "moduleId": "js-dom",
+  "order": 15,
+  "title": "Validasi Form",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sebelum data diproses, isinya perlu diperiksa: apakah email benar, apakah sandi cukup panjang, apakah umur masuk akal. Ada dua lapis validasi di browser:\n\n**1. Validasi bawaan HTML.** Atribut seperti `required`, `type=\"email\"`, `minlength`, `min`, dan `max` membuat browser menolak pengiriman dan menampilkan pesan otomatis.\n\n**2. Validasi dengan JavaScript.** Untuk aturan yang tidak bisa ditulis dengan atribut HTML, atau kalau kamu ingin pesan dan tampilan sendiri.\n\nAturan penting dari dunia kerja: **validasi di browser hanya untuk kenyamanan pengguna.** JavaScript di browser bisa dimatikan, dan request bisa dikirim langsung tanpa melewati form. Server **wajib** memeriksa ulang semua data, seperti yang akan kamu pelajari di kelas RESTful API."
+    },
+    {
+      "type": "theory",
+      "content": "JavaScript bisa menanyakan hasil validasi bawaan HTML:\n\n```html\n<form id=\"f\">\n  <input name=\"email\" type=\"email\" required>\n  <input name=\"sandi\" minlength=\"8\" required>\n</form>\n```\n\n```javascript\nconst f = document.querySelector(\"#f\");\nconst email = f.elements.email;\nconst sandi = f.elements.sandi;\nconsole.log(f.checkValidity());\nconsole.log(email.validity.valueMissing);\nemail.value = \"rina\";\nconsole.log(email.validity.typeMismatch);\nemail.value = \"rina@mail.com\";\nsandi.value = \"12345678\";\nconsole.log(f.checkValidity());\n```\n\nHasil di console:\n\n```text\nfalse\ntrue\ntrue\ntrue\n```\n\n- `form.checkValidity()` bernilai `true` kalau semua isian lolos aturan HTML.\n- `input.validity` berisi alasannya: `valueMissing` (kosong padahal `required`), `typeMismatch` (format email salah), dan lain-lain.\n\nSatu catatan: aturan `minlength` hanya diperiksa untuk teks yang **diketik pengguna**. Nilai yang diisi lewat kode tidak dianggap terlalu pendek, jadi jangan heran kalau `checkValidity()` tetap `true` saat kamu mencobanya dari kode.\n\nKalau form diberi atribut **`novalidate`**, browser tidak lagi menampilkan pesan otomatis, dan kamu menangani semuanya dengan JavaScript."
+    },
+    {
+      "type": "theory",
+      "content": "Pola yang umum dipakai: pisahkan **aturan validasi** ke function sendiri yang hanya menerima data dan mengembalikan error. Function seperti ini mudah diuji tanpa halaman web.\n\n```html\n<form id=\"daftar\" novalidate>\n  <input name=\"username\">\n  <small id=\"err-username\"></small>\n  <input name=\"umur\" type=\"number\">\n  <small id=\"err-umur\"></small>\n  <button>Daftar</button>\n</form>\n```\n\n```javascript\nconst form = document.querySelector(\"#daftar\");\nfunction validasi(data) {\n  const error = {};\n  if (data.username.length < 4) error.username = \"Minimal 4 karakter\";\n  if (Number(data.umur) < 13) error.umur = \"Umur minimal 13 tahun\";\n  return error;\n}\nform.addEventListener(\"submit\", (e) => {\n  e.preventDefault();\n  const error = validasi(Object.fromEntries(new FormData(form)));\n  for (const nama of [\"username\", \"umur\"]) {\n    document.querySelector(`#err-${nama}`).textContent = error[nama] ?? \"\";\n  }\n  console.log(error.username || error.umur ? \"Ada kesalahan\" : \"Terkirim\");\n});\nform.elements.username.value = \"bo\";\nform.elements.umur.value = \"20\";\nform.requestSubmit();\nconsole.log(document.querySelector(\"#err-username\").textContent);\n```\n\nHasil di console:\n\n```text\nAda kesalahan\nMinimal 4 karakter\n```\n\nPesan error ditampilkan **dekat isian yang salah**, bukan di satu tempat di atas form. Pengguna langsung tahu bagian mana yang perlu diperbaiki."
+    },
+    {
+      "type": "runnable",
+      "html": "<form id=\"langganan\" novalidate>\n  <input name=\"email\" placeholder=\"Email kamu\">\n  <button>Langganan</button>\n  <p id=\"pesan\"></p>\n</form>",
+      "code": "const form = document.querySelector(\"#langganan\");\nconst pesan = document.querySelector(\"#pesan\");\nfunction emailValid(email) {\n  return email.includes(\"@\") && email.includes(\".\");\n}\nform.addEventListener(\"submit\", (e) => {\n  e.preventDefault();\n  const email = form.elements.email.value.trim();\n  if (!emailValid(email)) {\n    pesan.textContent = \"Email belum benar\";\n    return;\n  }\n  pesan.textContent = `Terima kasih, ${email} terdaftar`;\n});\nform.elements.email.value = \"budi.mail.com\";\nform.requestSubmit();\nconsole.log(pesan.textContent);\nform.elements.email.value = \"  budi@mail.com \";\nform.requestSubmit();\nconsole.log(pesan.textContent);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KEDUA yang akan tercetak?",
+        "options": [
+          "Terima kasih, budi@mail.com terdaftar",
+          "Terima kasih,   budi@mail.com  terdaftar",
+          "Email belum benar",
+          "Terima kasih, undefined terdaftar"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 3,
+          "note": "Aturan validasi dipisah ke function sendiri."
+        },
+        {
+          "line": 8,
+          "note": "trim() membuang spasi di awal dan akhir isian."
+        },
+        {
+          "line": 11,
+          "note": "return menghentikan handler, jadi data yang salah tidak diproses."
+        }
+      ],
+      "explanation": "Isian pertama tidak punya `@`, jadi pesan error yang tampil. Isian kedua berisi spasi di awal dan akhir, tapi `trim()` membuangnya sebelum diperiksa dan ditampilkan.\n\nMembersihkan spasi seperti ini penting: pengguna sering tidak sengaja menambahkan spasi saat menempel email.",
+      "tryThis": [
+        {
+          "task": "Hapus `.trim()` di baris 8. Apa yang tercetak di baris kedua sekarang?",
+          "hint": "Spasi ikut tampil di dalam pesan, walau email-nya tetap dianggap valid."
+        },
+        {
+          "task": "Tambahkan aturan di emailValid: email tidak boleh mengandung spasi di tengah, dengan `!email.includes(\" \")`.",
+          "hint": "Gabungkan dengan && bersama dua pemeriksaan yang sudah ada."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "HTML:\n<form id=\"f\"><input name=\"nama\" required></form>\n\nJavaScript:\nconsole.log(document.querySelector(\"#f\").checkValidity());",
+          "options": [
+            "true",
+            "false",
+            "null",
+            "nama"
+          ],
+          "answer": 1,
+          "explanation": "Input nama wajib diisi (required) tapi masih kosong, jadi form tidak valid.",
+          "remedial": "Bayangkan **petugas resepsionis** dan **satpam gedung**.\n\nResepsionis di depan (validasi di browser) membantu tamu: \"Maaf, nomor teleponnya kurang satu angka.\" Tamu senang karena kesalahan ketahuan lebih awal.\n\nTapi satpam di pintu ruang penting (validasi di server) tetap memeriksa kartu tanda pengenal setiap orang. Tidak peduli resepsionis sudah memeriksa, karena orang bisa saja masuk lewat pintu samping tanpa melewati resepsionis."
+        },
+        {
+          "question": "Kenapa server tetap harus memvalidasi data walaupun form sudah divalidasi dengan JavaScript?",
+          "options": [
+            "Karena JavaScript di browser bisa dimatikan atau dilewati, dan request bisa dikirim langsung tanpa form",
+            "Karena validasi JavaScript selalu salah",
+            "Karena browser tidak mendukung atribut required",
+            "Supaya halaman terasa lebih cepat"
+          ],
+          "answer": 0,
+          "explanation": "Validasi di browser hanya untuk kenyamanan pengguna. Keamanan data selalu dijaga di server.",
+          "remedial": "Bayangkan **petugas resepsionis** dan **satpam gedung**.\n\nResepsionis di depan (validasi di browser) membantu tamu: \"Maaf, nomor teleponnya kurang satu angka.\" Tamu senang karena kesalahan ketahuan lebih awal.\n\nTapi satpam di pintu ruang penting (validasi di server) tetap memeriksa kartu tanda pengenal setiap orang. Tidak peduli resepsionis sudah memeriksa, karena orang bisa saja masuk lewat pintu samping tanpa melewati resepsionis."
+        },
+        {
+          "question": "Apa baris KEDUA yang dicetak kode ini?",
+          "code": "function validasi(umur) {\n  if (umur === \"\") return \"Umur wajib diisi\";\n  if (Number(umur) < 17) return \"Minimal 17 tahun\";\n  return \"\";\n}\nconsole.log(validasi(\"15\"));\nconsole.log(`[${validasi(\"21\")}]`);",
+          "options": [
+            "[Minimal 17 tahun]",
+            "[Umur wajib diisi]",
+            "[21]",
+            "[]"
+          ],
+          "answer": 3,
+          "explanation": "\"21\" lolos kedua pemeriksaan, jadi function mengembalikan string kosong.",
+          "remedial": "Bayangkan **petugas resepsionis** dan **satpam gedung**.\n\nResepsionis di depan (validasi di browser) membantu tamu: \"Maaf, nomor teleponnya kurang satu angka.\" Tamu senang karena kesalahan ketahuan lebih awal.\n\nTapi satpam di pintu ruang penting (validasi di server) tetap memeriksa kartu tanda pengenal setiap orang. Tidak peduli resepsionis sudah memeriksa, karena orang bisa saja masuk lewat pintu samping tanpa melewati resepsionis."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "html": "<form id=\"daftar\" novalidate>\n  <input name=\"username\">\n  <input name=\"sandi\" type=\"password\">\n  <button>Daftar</button>\n</form>\n<p id=\"pesan\"></p>",
+      "prompt": "Lengkapi function validasi(data) yang mengembalikan pesan error pertama: username kurang dari 4 karakter menjadi \"Username minimal 4 karakter\", sandi kurang dari 8 karakter menjadi \"Sandi minimal 8 karakter\". Kalau semua benar, kembalikan string kosong.",
+      "starterCode": "const form = document.querySelector(\"#daftar\");\nconst pesan = document.querySelector(\"#pesan\");\nfunction validasi(data) {\n  // kembalikan pesan error pertama, atau \"\" kalau semua benar\n}\nform.addEventListener(\"submit\", (e) => {\n  e.preventDefault();\n  const error = validasi(Object.fromEntries(new FormData(form)));\n  pesan.textContent = error || \"Pendaftaran berhasil\";\n});\nfunction kirim(username, sandi) {\n  form.elements.username.value = username;\n  form.elements.sandi.value = sandi;\n  form.requestSubmit();\n  console.log(pesan.textContent);\n}\nkirim(\"bo\", \"rahasia123\");\nkirim(\"budi\", \"123\");\nkirim(\"budi\", \"rahasia123\");\n",
+      "steps": [
+        "Periksa data.username.length lebih dulu, lalu data.sandi.length.",
+        "Kembalikan pesan begitu menemukan kesalahan pertama.",
+        "Di akhir function, kembalikan \"\"."
+      ],
+      "skeleton": "const form = document.querySelector(\"#daftar\");\nconst pesan = document.querySelector(\"#pesan\");\nfunction validasi(data) {\n  if (data.username.length < 4) return \"Username minimal 4 karakter\";\n  if (data.sandi.___ < 8) return \"Sandi minimal 8 karakter\";\n  return ___;\n}\nform.addEventListener(\"submit\", (e) => {\n  e.preventDefault();\n  const error = validasi(Object.fromEntries(new FormData(form)));\n  pesan.textContent = error || \"Pendaftaran berhasil\";\n});\nfunction kirim(username, sandi) {\n  form.elements.username.value = username;\n  form.elements.sandi.value = sandi;\n  form.requestSubmit();\n  console.log(pesan.textContent);\n}\nkirim(\"bo\", \"rahasia123\");\nkirim(\"budi\", \"123\");\nkirim(\"budi\", \"rahasia123\");",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Username minimal 4 karakter\nSandi minimal 8 karakter\nPendaftaran berhasil\n"
+        }
+      ],
+      "hints": [
+        "String kosong termasuk falsy, jadi error || \"Pendaftaran berhasil\" memilih teks kedua.",
+        "Function tanpa return menghasilkan undefined, yang juga falsy, tapi aturan meminta string kosong."
+      ],
+      "solution": "const form = document.querySelector(\"#daftar\");\nconst pesan = document.querySelector(\"#pesan\");\nfunction validasi(data) {\n  if (data.username.length < 4) return \"Username minimal 4 karakter\";\n  if (data.sandi.length < 8) return \"Sandi minimal 8 karakter\";\n  return \"\";\n}\nform.addEventListener(\"submit\", (e) => {\n  e.preventDefault();\n  const error = validasi(Object.fromEntries(new FormData(form)));\n  pesan.textContent = error || \"Pendaftaran berhasil\";\n});\nfunction kirim(username, sandi) {\n  form.elements.username.value = username;\n  form.elements.sandi.value = sandi;\n  form.requestSubmit();\n  console.log(pesan.textContent);\n}\nkirim(\"bo\", \"rahasia123\");\nkirim(\"budi\", \"123\");\nkirim(\"budi\", \"rahasia123\");"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Atribut HTML seperti required, type=\"email\", dan minlength memberi validasi bawaan.",
+        "checkValidity() dan validity membaca hasil validasi bawaan dari JavaScript.",
+        "Pisahkan aturan validasi ke function yang menerima data dan mengembalikan error.",
+        "Tampilkan pesan error di dekat isian yang salah.",
+        "Validasi di browser untuk kenyamanan; server tetap wajib memeriksa ulang."
+      ]
+    }
+  ]
+}

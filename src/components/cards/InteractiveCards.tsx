@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RunnableCard, CodeChallengeCard } from '../../types/schema';
 import { CodeEditor } from './CodeEditor';
 import { HtmlResult } from './HtmlPreviewCard';
@@ -8,7 +8,24 @@ import ReactMarkdown from 'react-markdown';
 import { Play, Loader2, CheckCircle, RefreshCw } from 'lucide-react';
 import { getErrorHint } from '../../lib/errorHints';
 import { runJavaCode } from '../../lib/javaRunner';
-import { runJsCode } from '../../lib/jsRunner';
+import { runJsCode, pratinjauHtml } from '../../lib/jsRunner';
+
+/** Wadah hasil latihan DOM: menampilkan HTML awal, lalu diganti hasil kode setiap kali dijalankan. */
+function WadahHasilDom({ html }: { html: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current) pratinjauHtml(ref.current, html);
+  }, [html]);
+  return (
+    <div
+      ref={ref}
+      id="js-dom-output-container"
+      aria-label="Hasil tampilan halaman"
+      className="mt-4 brutal-border bg-white rounded-xl overflow-hidden min-h-[200px]"
+      style={{ width: '100%', height: '300px' }}
+    />
+  );
+}
 
 export function RunnableCardComponent({ card, mini = false, language = 'java', lessonRunnable = true }: { card: RunnableCard, mini?: boolean, language?: string, lessonRunnable?: boolean }) {
   const [code, setCode] = useState(card.code);
@@ -117,8 +134,7 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
       </div>
 
       {card.html && language === 'javascript' && (
-        <div id="js-dom-output-container" className="mt-4 brutal-border bg-white rounded-xl overflow-hidden min-h-[200px]" style={{ width: '100%', height: '300px' }}>
-        </div>
+        <WadahHasilDom html={card.html} />
       )}
 
       {/* Tampilkan anotasinya di bawah (khususnya untuk HP) jika belum sempat bikin gutter */}
@@ -184,7 +200,7 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
                 <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {language === 'javascript' ? 'Script' : 'Main'}
               </div>
               <div className="p-4 font-mono text-[14px] leading-[1.6] whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] text-[#DFE1E5]">
-                <div className="text-[#6F737A] mb-2">{language === 'javascript' ? 'node script.js' : 'java Main'}</div>
+                <div className="text-[#6F737A] mb-2">{language === 'javascript' ? (card.html ? 'Console browser' : 'node script.js') : 'java Main'}</div>
                 {formatOutput(output)}
                 <div className="text-[#6F737A] mt-2 flex items-center gap-1.5">
                   <div className={`w-2 h-2 rounded-full ${output.includes('Error:') || output.includes('Gagal:') || output.includes('Exception') ? 'bg-[#F75464]' : 'bg-[#6F737A]'}`} />
@@ -472,8 +488,7 @@ export function CodeChallengeCardComponent({
       )}
 
       {card.html && language === 'javascript' && (
-        <div id="js-dom-output-container" className="mt-4 brutal-border bg-white rounded-xl overflow-hidden min-h-[200px]" style={{ width: '100%', height: '300px' }}>
-        </div>
+        <WadahHasilDom html={card.html} />
       )}
       
       <div className="flex gap-2">
@@ -517,7 +532,7 @@ export function CodeChallengeCardComponent({
                 <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {(language === 'html' || language === 'css') ? language.toUpperCase() : language === 'javascript' ? 'Script' : 'Main'}
               </div>
               <div className="p-4 font-mono text-[14px] leading-[1.6] whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] text-[#DFE1E5]">
-                <div className="text-[#6F737A] mb-2">{(language === 'html' || language === 'css') ? (language === 'css' ? 'Pemeriksaan aturan CSS' : 'Pemeriksaan struktur HTML') : language === 'javascript' ? 'node script.js' : 'java Main'}</div>
+                <div className="text-[#6F737A] mb-2">{(language === 'html' || language === 'css') ? (language === 'css' ? 'Pemeriksaan aturan CSS' : 'Pemeriksaan struktur HTML') : language === 'javascript' ? (card.html ? 'Console browser' : 'node script.js') : 'java Main'}</div>
                 {(language === 'html' || language === 'css') ? output : formatOutput(output)}
                 {(language === 'html' || language === 'css') ? (
                   <p className={`mt-2 font-bold ${isSuccess ? 'text-[var(--color-success)]' : 'text-[#F75464]'}`}>
