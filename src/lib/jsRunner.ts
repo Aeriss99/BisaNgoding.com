@@ -30,8 +30,13 @@ function jadwalkanCek() {
   }, 20);
 }
 
+// Nama file module untuk setiap blob URL, supaya pesan error menyebut file dan barisnya.
+const namaBlob = {};
+
 function nomorBaris(e) {
   if (e && e.stack) {
+    const mod = e.stack.match(/(blob:[^\\s)]+):(\\d+):\\d+/);
+    if (mod && namaBlob[mod[1]]) return ' (' + namaBlob[mod[1]] + ' baris ' + mod[2] + ')';
     const match = e.stack.match(/<anonymous>:(\\d+):\\d+/);
     if (match) {
       const line = parseInt(match[1], 10) - 2;
@@ -43,7 +48,8 @@ function nomorBaris(e) {
 
 function catatError(e, awalan) {
   if (e instanceof Error || (e && typeof e === 'object' && 'name' in e && 'message' in e)) {
-    err += awalan + e.name + ': ' + e.message + nomorBaris(e) + '\\n';
+    const pesan = String(e.message).replace(/blob:[^\\s'")]+/g, (u) => namaBlob[u] ? './' + namaBlob[u] : u);
+    err += awalan + e.name + ': ' + pesan + nomorBaris(e) + '\\n';
   } else {
     err += awalan + formatArg(e) + '\\n';
   }
@@ -264,12 +270,91 @@ self.console = {
   debug: captureLog
 };
 
+// ── ES Modules ───────────────────────────────────────────────────────────
+// Satu kotak kode boleh berisi beberapa file; setiap file diawali baris "// === nama.js ===".
+// Kode yang memakai import/export dijalankan sebagai module. File yang dijalankan: main.js,
+// atau file terakhir kalau tidak ada main.js. Import relatif "./nama.js" diarahkan ke file itu.
+const POLA_FILE = /^\\/\\/ === ([\\w.\\/-]+\\.m?js) ===[ \\t]*$/m;
+const POLA_MODULE = /^[ \\t]*(import[\\s{*"'\\w]|export[\\s{*])/m;
+
+function pakaiModule(code) {
+  return POLA_FILE.test(code) || POLA_MODULE.test(code.replace(/\\/\\*[\\s\\S]*?\\*\\//g, ''));
+}
+
+function pecahFile(code) {
+  const baris = code.split('\\n');
+  const files = {};
+  const urutan = [];
+  let nama = null;
+  let isi = [];
+  const simpan = () => {
+    if (nama === null) {
+      if (isi.join('').trim() === '') return;
+      nama = 'main.js';
+    }
+    if (files[nama] === undefined) urutan.push(nama);
+    files[nama] = isi.join('\\n');
+  };
+  for (const b of baris) {
+    const m = b.match(/^\\/\\/ === ([\\w.\\/-]+\\.m?js) ===[ \\t]*$/);
+    if (m) {
+      simpan();
+      nama = m[1].replace(/^\\.\\//, '');
+      isi = [];
+    } else {
+      isi.push(b);
+    }
+  }
+  simpan();
+  return { files, urutan };
+}
+
+async function jalankanModule(code) {
+  const { files, urutan } = pecahFile(code);
+  const utama = files['main.js'] !== undefined ? 'main.js' : urutan[urutan.length - 1];
+  const url = {};
+  const sedang = new Set();
+  function buat(nama) {
+    if (url[nama]) return url[nama];
+    if (sedang.has(nama)) throw new Error('Circular import (' + [...sedang, nama].join(' -> ') + ') tidak didukung di editor ini');
+    sedang.add(nama);
+    const ganti = (spesifier) => {
+      if (!/^\\.\\.?\\//.test(spesifier)) return null;
+      const target = spesifier.replace(/^\\.\\//, '');
+      if (files[target] === undefined) throw new TypeError('Module "' + spesifier + '" tidak ditemukan. File yang ada: ' + urutan.join(', '));
+      return buat(target);
+    };
+    const isi = files[nama]
+      .replace(/(\\bfrom\\s*)(["'])([^"']+)\\2/g, (m, a, q, sp) => { const u = ganti(sp); return u ? a + q + u + q : m; })
+      .replace(/(^|[;\\s])import(\\s*)(["'])([^"']+)\\3/g, (m, a, sp0, q, sp) => { const u = ganti(sp); return u ? a + 'import' + sp0 + q + u + q : m; })
+      .replace(/\\bimport\\s*\\(/g, '__imporModul(');
+    const u = URL.createObjectURL(new Blob([isi], { type: 'text/javascript' }));
+    namaBlob[u] = nama;
+    url[nama] = u;
+    sedang.delete(nama);
+    return u;
+  }
+  // import() dinamis (termasuk alamat dari template string) diarahkan lewat fungsi ini saat dijalankan.
+  self.__imporModul = async (spesifier) => {
+    const target = String(spesifier).replace(/^\\.\\//, '');
+    if (!/^\\.\\.?\\//.test(spesifier) || files[target] === undefined) {
+      throw new TypeError('Gagal memuat module "' + spesifier + '": file tidak ada');
+    }
+    return import(buat(target));
+  };
+  await import(buat(utama));
+}
+
 self.onmessage = async (e) => {
   const code = e.data.code;
   try {
-    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-    const fn = new AsyncFunction(code);
-    await fn();
+    if (pakaiModule(code)) {
+      await jalankanModule(code);
+    } else {
+      const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+      const fn = new AsyncFunction(code);
+      await fn();
+    }
   } catch (e) {
     catatError(e, '');
   }

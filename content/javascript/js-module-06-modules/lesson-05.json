@@ -1,0 +1,134 @@
+{
+  "id": "js-modules-05",
+  "moduleId": "js-modules",
+  "order": 5,
+  "title": "Re-export dan File Index",
+  "estimatedMinutes": 8,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di proyek besar, satu fitur bisa terdiri dari banyak file:\n\n```text\nutils/\n  format.js\n  tanggal.js\n  validasi.js\n```\n\nKalau setiap pemakai harus meng-import dari tiga file berbeda, baris import menjadi panjang. Solusinya adalah **re-export**: sebuah file meng-export ulang isi file lain, tanpa memakainya sendiri.\n\n```javascript\n// utils/index.js\nexport { rupiah, persen } from \"./format.js\";\nexport { formatTanggal } from \"./tanggal.js\";\nexport * from \"./validasi.js\";\n```\n\nSekarang pemakai cukup meng-import dari satu tempat:\n\n```javascript\nimport { rupiah, formatTanggal, emailValid } from \"./utils/index.js\";\n```\n\nFile seperti ini disebut **file index** atau *barrel*."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\n// === format.js ===\nexport function rupiah(n) {\n  return \"Rp\" + n.toLocaleString(\"id-ID\");\n}\n// === validasi.js ===\nexport function emailValid(s) {\n  return /^[^@\\s]+@[^@\\s]+\\.[a-z]{2,}$/i.test(s);\n}\nexport function wajibIsi(s) {\n  return s.trim() !== \"\";\n}\n// === utils.js ===\nexport { rupiah } from \"./format.js\";\nexport * from \"./validasi.js\";\n// === main.js ===\nimport { rupiah, emailValid, wajibIsi } from \"./utils.js\";\nconsole.log(rupiah(18000));\nconsole.log(emailValid(\"rina@contoh.com\"), wajibIsi(\"   \"));\n```\n\nHasil di console:\n\n```text\nRp18.000\ntrue false\n```\n\n- `export { rupiah } from \"./format.js\"` meneruskan satu nama.\n- `export * from \"./validasi.js\"` meneruskan **semua** named export.\n- `utils.js` sendiri tidak bisa memakai `rupiah`, karena re-export tidak membuat variabel di file itu. Kalau perlu dipakai juga, import seperti biasa."
+    },
+    {
+      "type": "theory",
+      "content": "Hal yang perlu diperhatikan:\n\n- **`export *` tidak meneruskan default export.** Default harus diteruskan dengan nama: `export { default as Keranjang } from \"./keranjang.js\";`\n- Kalau dua file yang di-`export *` punya nama yang sama, nama itu **tidak diteruskan** sama sekali, karena ambigu.\n- `export * as nama from \"./file.js\"` meneruskan semua isi file sebagai satu namespace.\n\n```javascript run\n// === keranjang.js ===\nexport default class Keranjang {}\nexport const MAKS = 10;\n// === index.js ===\nexport * from \"./keranjang.js\";\nexport { default as Keranjang } from \"./keranjang.js\";\n// === main.js ===\nimport * as Toko from \"./index.js\";\nconsole.log(Object.keys(Toko));\n```\n\nHasil di console:\n\n```text\n[ Keranjang, MAKS ]\n```\n\nFile index membuat struktur folder bisa diubah tanpa mengubah semua pemakai. Asal semua tetap diteruskan oleh `index.js`, kode lain tidak perlu tahu di file mana sebuah function berada.\n\nHati-hati jangan berlebihan: file index yang meneruskan ratusan nama bisa membuat bundler kesulitan membuang kode yang tidak dipakai (materi 15)."
+    },
+    {
+      "type": "runnable",
+      "code": "// === a.js ===\nexport const nama = \"dari a\";\nexport const hanyaA = 1;\n// === b.js ===\nexport const nama = \"dari b\";\nexport const hanyaB = 2;\n// === index.js ===\nexport * from \"./a.js\";\nexport * from \"./b.js\";\n// === main.js ===\nimport * as Semua from \"./index.js\";\nconsole.log(Object.keys(Semua).join(\", \"));\nconsole.log(Semua.nama);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KEDUA yang akan tercetak?",
+        "options": [
+          "undefined",
+          "dari a",
+          "dari b",
+          "SyntaxError"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 8,
+          "note": "Meneruskan nama dan hanyaA."
+        },
+        {
+          "line": 9,
+          "note": "Meneruskan nama dan hanyaB; nama bentrok dengan milik a.js."
+        },
+        {
+          "line": 13,
+          "note": "Nama yang ambigu tidak diteruskan sama sekali."
+        }
+      ],
+      "explanation": "Kedua file punya export bernama `nama`. Karena tidak jelas mana yang dimaksud, `export *` **tidak meneruskan** `nama` sama sekali. Yang tersisa hanya `hanyaA` dan `hanyaB`.\n\nLewat namespace, `Semua.nama` bernilai `undefined` tanpa error. Kalau `nama` di-import langsung dengan `import { nama } from \"./index.js\"`, hasilnya SyntaxError karena ambigu.",
+      "tryThis": [
+        {
+          "task": "Tambahkan export { nama } from \"./a.js\"; di index.js. Apa yang tercetak sekarang?",
+          "hint": "Re-export yang ditulis dengan nama jelas mengalahkan nama ambigu dari export *."
+        },
+        {
+          "task": "Ganti main.js menjadi import { nama } from \"./index.js\". Pesan apa yang muncul?",
+          "hint": "Import langsung nama yang ambigu menghasilkan SyntaxError."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi file index (barrel)?",
+          "options": [
+            "Menjalankan semua file sekaligus",
+            "Meneruskan export dari banyak file supaya bisa di-import dari satu tempat",
+            "Menggabungkan file menjadi satu saat disimpan",
+            "Menghapus file yang tidak dipakai"
+          ],
+          "answer": 1,
+          "explanation": "File index meng-export ulang isi file lain, sehingga pemakai cukup meng-import dari satu alamat.",
+          "remedial": "Bayangkan **resepsionis di gedung perkantoran**.\n\nTamu tidak perlu tahu di lantai berapa setiap divisi berada. Mereka cukup datang ke resepsionis (file index), dan resepsionis meneruskan permintaan ke divisi yang tepat.\n\nKalau suatu divisi pindah lantai, tamu tidak perlu tahu: resepsionis yang memperbarui catatannya. Tapi kalau dua divisi sama-sama bernama \"Keuangan\", resepsionis bingung dan tidak meneruskan permintaan ke mana pun."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "// === m.js ===\nexport default \"utama\";\nexport const x = 1;\n// === index.js ===\nexport * from \"./m.js\";\n// === main.js ===\nimport * as I from \"./index.js\";\nconsole.log(Object.keys(I).length);",
+          "options": [
+            "2",
+            "0",
+            "1",
+            "SyntaxError"
+          ],
+          "answer": 2,
+          "explanation": "export * tidak meneruskan default export, jadi hanya x yang ada.",
+          "remedial": "Bayangkan **resepsionis di gedung perkantoran**.\n\nTamu tidak perlu tahu di lantai berapa setiap divisi berada. Mereka cukup datang ke resepsionis (file index), dan resepsionis meneruskan permintaan ke divisi yang tepat.\n\nKalau suatu divisi pindah lantai, tamu tidak perlu tahu: resepsionis yang memperbarui catatannya. Tapi kalau dua divisi sama-sama bernama \"Keuangan\", resepsionis bingung dan tidak meneruskan permintaan ke mana pun."
+        },
+        {
+          "question": "Bagaimana meneruskan default export dari keranjang.js dengan nama Keranjang?",
+          "options": [
+            "export * from \"./keranjang.js\"",
+            "export Keranjang from \"./keranjang.js\"",
+            "import Keranjang; export Keranjang",
+            "export { default as Keranjang } from \"./keranjang.js\""
+          ],
+          "answer": 3,
+          "explanation": "Default diteruskan dengan menyebut default dan memberinya nama lewat as.",
+          "remedial": "Bayangkan **resepsionis di gedung perkantoran**.\n\nTamu tidak perlu tahu di lantai berapa setiap divisi berada. Mereka cukup datang ke resepsionis (file index), dan resepsionis meneruskan permintaan ke divisi yang tepat.\n\nKalau suatu divisi pindah lantai, tamu tidak perlu tahu: resepsionis yang memperbarui catatannya. Tapi kalau dua divisi sama-sama bernama \"Keuangan\", resepsionis bingung dan tidak meneruskan permintaan ke mana pun."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi utils.js supaya meneruskan rupiah dari format.js dan semua export dari teks.js. main.js hanya boleh meng-import dari utils.js.",
+      "starterCode": "// === format.js ===\nexport function rupiah(n) {\n  return \"Rp\" + n.toLocaleString(\"id-ID\");\n}\n// === teks.js ===\nexport function kapital(s) {\n  return s[0].toUpperCase() + s.slice(1);\n}\n// === utils.js ===\n// teruskan rupiah dan semua isi teks.js\n// === main.js ===\nimport { rupiah, kapital } from \"./utils.js\";\nconsole.log(kapital(\"kopi susu\"), rupiah(18000));\n",
+      "steps": [
+        "Tulis export { rupiah } from \"./format.js\";",
+        "Tulis export * from \"./teks.js\";",
+        "Jalankan."
+      ],
+      "skeleton": "// === format.js ===\nexport function rupiah(n) {\n  return \"Rp\" + n.toLocaleString(\"id-ID\");\n}\n// === teks.js ===\nexport function kapital(s) {\n  return s[0].toUpperCase() + s.slice(1);\n}\n// === utils.js ===\nexport { rupiah } ___ \"./format.js\";\nexport ___ from \"./teks.js\";\n// === main.js ===\nimport { rupiah, kapital } from \"./utils.js\";\nconsole.log(kapital(\"kopi susu\"), rupiah(18000));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Kopi susu Rp18.000\n"
+        }
+      ],
+      "hints": [
+        "Re-export memakai export ... from, tanpa import terlebih dulu.",
+        "export * meneruskan semua named export."
+      ],
+      "solution": "// === format.js ===\nexport function rupiah(n) {\n  return \"Rp\" + n.toLocaleString(\"id-ID\");\n}\n// === teks.js ===\nexport function kapital(s) {\n  return s[0].toUpperCase() + s.slice(1);\n}\n// === utils.js ===\nexport { rupiah } from \"./format.js\";\nexport * from \"./teks.js\";\n// === main.js ===\nimport { rupiah, kapital } from \"./utils.js\";\nconsole.log(kapital(\"kopi susu\"), rupiah(18000));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Re-export meneruskan export file lain: export { a } from \"./x.js\".",
+        "export * from meneruskan semua named export, tapi tidak meneruskan default.",
+        "Default diteruskan dengan export { default as Nama } from \"./x.js\".",
+        "File index membuat pemakai cukup meng-import dari satu tempat."
+      ]
+    }
+  ]
+}

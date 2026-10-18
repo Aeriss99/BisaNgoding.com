@@ -1,0 +1,134 @@
+{
+  "id": "js-modules-13",
+  "moduleId": "js-modules",
+  "order": 13,
+  "title": "CommonJS dan ES Modules di Node.js",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sebelum ES Modules menjadi standar, Node.js sudah punya sistem module sendiri bernama **CommonJS**. Kamu akan sering menemukannya di tutorial lama, di file konfigurasi, dan di banyak paket npm.\n\n```javascript\n// CommonJS: matematika.js\nfunction tambah(a, b) {\n  return a + b;\n}\nmodule.exports = { tambah };\n\n// CommonJS: main.js\nconst { tambah } = require(\"./matematika\");\nconsole.log(tambah(2, 3));\n```\n\n| | CommonJS | ES Modules |\n|---|---|---|\n| Membagikan | `module.exports = ...` | `export` |\n| Mengambil | `require(\"./file\")` | `import ... from \"./file.js\"` |\n| Kapan dimuat | saat baris `require` dijalankan (sinkron) | sebelum kode dijalankan (statis) |\n| Di browser | tidak didukung langsung | didukung |\n| `await` di tingkat atas | tidak bisa | bisa |"
+    },
+    {
+      "type": "theory",
+      "content": "Node.js menentukan sebuah file memakai sistem yang mana dengan aturan ini:\n\n- file berakhiran **`.mjs`** selalu ES Modules,\n- file berakhiran **`.cjs`** selalu CommonJS,\n- file **`.js`** mengikuti `package.json` terdekat: kalau berisi `\"type\": \"module\"`, maka ES Modules; kalau tidak, CommonJS.\n\n```json\n{\n  \"name\": \"toko-kopi\",\n  \"type\": \"module\"\n}\n```\n\nProyek baru sebaiknya memakai ES Modules (`\"type\": \"module\"`), karena sintaksnya sama dengan di browser. Proyek yang dibuat dengan Vite sudah otomatis begitu.\n\nKalau kode CommonJS dijalankan di dalam ES Module, hasilnya error, karena `module` dan `require` tidak tersedia:\n\n```javascript run\nexport {};\ntry {\n  module.exports = { a: 1 };\n} catch (e) {\n  console.log(e.name + \": \" + e.message);\n}\nconsole.log(typeof require);\n```\n\nHasil di console:\n\n```text\nReferenceError: module is not defined\nundefined\n```"
+    },
+    {
+      "type": "theory",
+      "content": "Hal-hal yang sering membingungkan saat pindah ke ES Modules di Node.js:\n\n1. **Ekstensi wajib ditulis.** `require(\"./matematika\")` boleh tanpa `.js`, tapi `import` di Node.js wajib lengkap: `\"./matematika.js\"`.\n2. **`__dirname` dan `__filename` tidak ada.** Gantinya: `import.meta.dirname` dan `import.meta.filename` (Node.js 20.11 ke atas).\n3. **Meng-import paket CommonJS dari ES Modules biasanya bisa:** `import express from \"express\";` tetap berjalan, walau paket itu ditulis dengan CommonJS.\n4. **Memakai `require` dari ES Modules** butuh cara khusus (`createRequire`), dan jarang diperlukan.\n\n```javascript\n// ES Modules di Node.js\nimport { readFile } from \"node:fs/promises\";\nconst isi = await readFile(new URL(\"./data.json\", import.meta.url), \"utf8\");\nconsole.log(JSON.parse(isi));\n```\n\nAwalan `node:` menandai module bawaan Node.js (`node:fs`, `node:path`, `node:http`). Cara ini disarankan supaya jelas bahwa module itu bukan paket npm."
+    },
+    {
+      "type": "runnable",
+      "code": "// === hitung.js ===\nexport function tambah(a, b) {\n  return a + b;\n}\nexport default { versi: \"1.0\" };\n// === main.js ===\nimport info, { tambah } from \"./hitung.js\";\nconsole.log(tambah(2, 3), info.versi);\ntry {\n  const lama = require(\"./hitung.js\");\n} catch (e) {\n  console.log(e.name);\n}",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KEDUA yang akan tercetak?",
+        "options": [
+          "ReferenceError",
+          "5 1.0",
+          "TypeError",
+          "undefined"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 5,
+          "note": "Padanan ES Modules untuk module.exports = { ... }."
+        },
+        {
+          "line": 7,
+          "note": "Default dan named diambil sekaligus."
+        },
+        {
+          "line": 10,
+          "note": "require tidak tersedia di ES Modules."
+        }
+      ],
+      "explanation": "Di ES Modules, `require` tidak ada, jadi memanggilnya menghasilkan **ReferenceError**. Hal yang sama terjadi di browser dan di file `.mjs` Node.js.\n\nKalau menemukan contoh kode CommonJS di internet, ubah `require` menjadi `import` dan `module.exports` menjadi `export`, lalu tambahkan ekstensi `.js` di alamatnya.",
+      "tryThis": [
+        {
+          "task": "Ubah blok try menjadi const lama = await import(\"./hitung.js\"); lalu cetak lama.tambah(1, 1).",
+          "hint": "import() dinamis adalah pengganti require untuk memuat module saat dibutuhkan."
+        },
+        {
+          "task": "Cetak typeof module. Apa hasilnya?",
+          "hint": "Variabel module milik CommonJS tidak ada di ES Modules."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa padanan ES Modules untuk const { tambah } = require(\"./hitung\")?",
+          "options": [
+            "import tambah from \"./hitung\"",
+            "import { tambah } from \"./hitung.js\"",
+            "export { tambah } from \"./hitung\"",
+            "require.import(\"./hitung.js\")"
+          ],
+          "answer": 1,
+          "explanation": "Named import dengan alamat lengkap berekstensi .js.",
+          "remedial": "Bayangkan dua **sistem colokan listrik**: model lama dan model internasional.\n\nPeralatan di rumah lama (CommonJS: `require`, `module.exports`) masih banyak dan tetap berfungsi. Tapi semua peralatan baru, dan semua negara (browser), memakai model internasional (ES Modules: `import`, `export`).\n\nNode.js seperti rumah yang menyediakan kedua jenis stopkontak. Label di `package.json` (`\"type\": \"module\"`) memberi tahu stopkontak mana yang dipakai untuk file `.js`."
+        },
+        {
+          "question": "File .js di Node.js dianggap ES Modules kalau...",
+          "options": [
+            "Namanya diawali es-",
+            "Ditulis dengan huruf kecil",
+            "Berada di folder src",
+            "package.json terdekat berisi \"type\": \"module\""
+          ],
+          "answer": 3,
+          "explanation": "Untuk file .js, Node.js melihat field type di package.json terdekat.",
+          "remedial": "Bayangkan dua **sistem colokan listrik**: model lama dan model internasional.\n\nPeralatan di rumah lama (CommonJS: `require`, `module.exports`) masih banyak dan tetap berfungsi. Tapi semua peralatan baru, dan semua negara (browser), memakai model internasional (ES Modules: `import`, `export`).\n\nNode.js seperti rumah yang menyediakan kedua jenis stopkontak. Label di `package.json` (`\"type\": \"module\"`) memberi tahu stopkontak mana yang dipakai untuk file `.js`."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "export {};\nconsole.log(typeof module, typeof require);",
+          "options": [
+            "undefined undefined",
+            "object function",
+            "object undefined",
+            "ReferenceError"
+          ],
+          "answer": 0,
+          "explanation": "module dan require milik CommonJS tidak ada di ES Modules; typeof untuk nama yang tidak dikenal menghasilkan \"undefined\".",
+          "remedial": "Bayangkan dua **sistem colokan listrik**: model lama dan model internasional.\n\nPeralatan di rumah lama (CommonJS: `require`, `module.exports`) masih banyak dan tetap berfungsi. Tapi semua peralatan baru, dan semua negara (browser), memakai model internasional (ES Modules: `import`, `export`).\n\nNode.js seperti rumah yang menyediakan kedua jenis stopkontak. Label di `package.json` (`\"type\": \"module\"`) memberi tahu stopkontak mana yang dipakai untuk file `.js`."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Kode ini ditulis dengan gaya CommonJS. Ubah menjadi ES Modules: module.exports menjadi export, dan require menjadi import.",
+      "starterCode": "// === ongkir.js ===\nfunction hitungOngkir(km) {\n  return km <= 3 ? 8000 : 8000 + (km - 3) * 2500;\n}\nmodule.exports = { hitungOngkir };\n// === main.js ===\nconst { hitungOngkir } = require(\"./ongkir.js\");\nconsole.log(hitungOngkir(2));\nconsole.log(hitungOngkir(7));\n",
+      "steps": [
+        "Di ongkir.js, ganti module.exports = { hitungOngkir }; dengan export { hitungOngkir };",
+        "Di main.js, ganti baris require dengan import { hitungOngkir } from \"./ongkir.js\";",
+        "Jalankan."
+      ],
+      "skeleton": "// === ongkir.js ===\nfunction hitungOngkir(km) {\n  return km <= 3 ? 8000 : 8000 + (km - 3) * 2500;\n}\n___ { hitungOngkir };\n// === main.js ===\n___ { hitungOngkir } from \"./ongkir.js\";\nconsole.log(hitungOngkir(2));\nconsole.log(hitungOngkir(7));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "8000\n18000\n"
+        }
+      ],
+      "hints": [
+        "module.exports dan require tidak ada di ES Modules.",
+        "7 km: 8000 + 4 x 2500 = 18000."
+      ],
+      "solution": "// === ongkir.js ===\nfunction hitungOngkir(km) {\n  return km <= 3 ? 8000 : 8000 + (km - 3) * 2500;\n}\nexport { hitungOngkir };\n// === main.js ===\nimport { hitungOngkir } from \"./ongkir.js\";\nconsole.log(hitungOngkir(2));\nconsole.log(hitungOngkir(7));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "CommonJS memakai require dan module.exports; ES Modules memakai import dan export.",
+        "Node.js: .mjs selalu ESM, .cjs selalu CommonJS, .js mengikuti \"type\" di package.json.",
+        "Di ES Modules, require, module, dan __dirname tidak tersedia.",
+        "Proyek baru sebaiknya memakai ES Modules karena sama dengan di browser."
+      ]
+    }
+  ]
+}

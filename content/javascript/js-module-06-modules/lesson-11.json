@@ -1,0 +1,134 @@
+{
+  "id": "js-modules-11",
+  "moduleId": "js-modules",
+  "order": 11,
+  "title": "Top-level await",
+  "estimatedMinutes": 8,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di script biasa, `await` hanya boleh dipakai di dalam function `async`. Di **module**, `await` boleh ditulis langsung di tingkat paling atas file. Fitur ini disebut **top-level await**.\n\nContoh penggunaan:\n\n- memuat pengaturan dari server sebelum module lain memakainya,\n- memilih module lewat `import()` sebelum diekspor,\n- menyiapkan data awal.\n\nHal yang paling penting dipahami: **module yang meng-import module ber-top-level-await akan ikut menunggu**. Kode di module pemakai baru berjalan setelah module itu selesai, termasuk semua `await`-nya.\n\n(Di materi Async, editor BisaNgoding mengizinkan `await` di luar function untuk semua kode. Di browser sungguhan, itu hanya berlaku di module.)"
+    },
+    {
+      "type": "theory",
+      "content": "Module yang mengambil data dari server latihan saat dimuat:\n\n```javascript run\n// === menu.js ===\nconst res = await fetch(\"https://api.toko.contoh/products?category=minuman\");\nexport const menu = await res.json();\nconsole.log(\"menu.js siap\");\n// === main.js ===\nimport { menu } from \"./menu.js\";\nconsole.log(\"main.js mulai\");\nconsole.log(menu.map((p) => p.name).join(\", \"));\n```\n\nHasil di console:\n\n```text\nmenu.js siap\nmain.js mulai\nKopi Susu, Teh Tarik\n```\n\n`main.js` tidak perlu tahu bahwa `menu` diambil dari server. Saat kode `main.js` mulai berjalan, `menu` sudah berisi data, karena `main.js` menunggu `menu.js` selesai."
+    },
+    {
+      "type": "theory",
+      "content": "Kekuatan ini juga membawa risiko:\n\n```javascript run\n// === lambat.js ===\nawait new Promise((r) => setTimeout(r, 500));\nexport const siap = true;\n// === main.js ===\nconst t0 = Date.now();\nimport { siap } from \"./lambat.js\";\nconsole.log(\"siap:\", siap);\nconsole.log(\"menunggu sekitar 500 ms:\", Date.now() - t0 >= 0);\n```\n\nHasil di console:\n\n```text\nsiap: true\nmenunggu sekitar 500 ms: true\n```\n\nSelama `lambat.js` menunggu, **semua** module yang bergantung padanya ikut tertahan. Kalau module dasar (misalnya `pengaturan.js`) menunggu server 3 detik, seluruh aplikasi tertahan 3 detik dan halaman tampak kosong.\n\nPedoman:\n\n- Pakai top-level await untuk hal yang **benar-benar wajib** ada sebelum aplikasi berjalan.\n- Data yang boleh menyusul (daftar produk, rekomendasi) lebih baik diambil di dalam function, setelah halaman tampil.\n- Tangani kegagalan dengan `try...catch` dan nilai cadangan, supaya module tidak gagal dimuat sama sekali."
+    },
+    {
+      "type": "runnable",
+      "code": "// === pengaturan.js ===\nlet data;\ntry {\n  const res = await fetch(\"https://api.toko.contoh/pengaturan\");\n  if (!res.ok) throw new Error(\"status \" + res.status);\n  data = await res.json();\n} catch (e) {\n  console.log(\"Pakai pengaturan bawaan:\", e.message);\n  data = { tema: \"terang\", bahasa: \"id\" };\n}\nexport const pengaturan = data;\n// === main.js ===\nimport { pengaturan } from \"./pengaturan.js\";\nconsole.log(pengaturan.tema, pengaturan.bahasa);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "undefined undefined",
+          "TypeError",
+          "Pakai pengaturan bawaan: status 404",
+          "terang id"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Endpoint ini tidak ada di server latihan, jadi jawabannya 404."
+        },
+        {
+          "line": 7,
+          "note": "Kegagalan ditangani di dalam module, dengan nilai cadangan."
+        },
+        {
+          "line": 13,
+          "note": "main.js menunggu sampai pengaturan.js selesai, termasuk penanganan errornya."
+        }
+      ],
+      "explanation": "Server latihan menjawab 404 untuk `/pengaturan`, sehingga module memakai pengaturan bawaan. `main.js` menunggu `pengaturan.js` selesai, lalu menerima pengaturan bawaan itu.\n\nTanpa `try...catch`, error dari top-level await membuat `pengaturan.js` **gagal dimuat**, dan `main.js` serta semua module yang bergantung padanya ikut gagal.",
+      "tryThis": [
+        {
+          "task": "Hapus try...catch, sisakan baris fetch, pemeriksaan res.ok, dan res.json(). Apa yang terjadi pada main.js?",
+          "hint": "Error di module ber-top-level-await membuat semua pemakainya gagal dimuat."
+        },
+        {
+          "task": "Ganti alamat dengan /products/P01. Apa yang tercetak?",
+          "hint": "Produk tidak punya properti tema dan bahasa, jadi keduanya undefined."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di mana top-level await boleh dipakai di browser?",
+          "options": [
+            "Di semua script",
+            "Di dalam module",
+            "Hanya di dalam function async",
+            "Hanya di Node.js"
+          ],
+          "answer": 1,
+          "explanation": "await di tingkat atas hanya diizinkan di module.",
+          "remedial": "Bayangkan **rapat kantor yang menunggu satu laporan**.\n\nRapat (main.js) tidak bisa dimulai sebelum bagian keuangan (module dengan top-level await) menyerahkan laporannya. Kalau laporannya cepat, rapat lancar. Kalau bagian keuangan menunggu data dari bank selama satu jam, semua peserta rapat ikut menunggu satu jam.\n\nJadi, minta laporan sebelum rapat hanya kalau isinya memang wajib dibahas di awal. Kalau tidak, rapat bisa dimulai dulu, dan laporan menyusul."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "// === a.js ===\nawait null;\nconsole.log(\"a\");\n// === main.js ===\nimport \"./a.js\";\nconsole.log(\"main\");",
+          "options": [
+            "main lalu a",
+            "main",
+            "a",
+            "a lalu main"
+          ],
+          "answer": 3,
+          "explanation": "main.js menunggu a.js selesai, termasuk semua await di dalamnya.",
+          "remedial": "Bayangkan **rapat kantor yang menunggu satu laporan**.\n\nRapat (main.js) tidak bisa dimulai sebelum bagian keuangan (module dengan top-level await) menyerahkan laporannya. Kalau laporannya cepat, rapat lancar. Kalau bagian keuangan menunggu data dari bank selama satu jam, semua peserta rapat ikut menunggu satu jam.\n\nJadi, minta laporan sebelum rapat hanya kalau isinya memang wajib dibahas di awal. Kalau tidak, rapat bisa dimulai dulu, dan laporan menyusul."
+        },
+        {
+          "question": "Apa risiko top-level await yang lama di module dasar?",
+          "options": [
+            "Module dijalankan dua kali",
+            "Semua module yang bergantung padanya ikut tertahan, sehingga aplikasi lambat tampil",
+            "Variabel menjadi global",
+            "Import menjadi tidak bisa dibatalkan"
+          ],
+          "answer": 1,
+          "explanation": "Module pemakai tidak bisa berjalan sebelum module ber-top-level-await selesai.",
+          "remedial": "Bayangkan **rapat kantor yang menunggu satu laporan**.\n\nRapat (main.js) tidak bisa dimulai sebelum bagian keuangan (module dengan top-level await) menyerahkan laporannya. Kalau laporannya cepat, rapat lancar. Kalau bagian keuangan menunggu data dari bank selama satu jam, semua peserta rapat ikut menunggu satu jam.\n\nJadi, minta laporan sebelum rapat hanya kalau isinya memang wajib dibahas di awal. Kalau tidak, rapat bisa dimulai dulu, dan laporan menyusul."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi produk.js supaya mengambil produk P03 dari server latihan dengan top-level await dan meng-export namanya sebagai nama. main.js tinggal mencetaknya.",
+      "starterCode": "// === produk.js ===\nconst res = fetch(\"https://api.toko.contoh/products/P03\");\nconst data = res.json();\nexport const nama = data.name;\n// === main.js ===\nimport { nama } from \"./produk.js\";\nconsole.log(\"Produk:\", nama);\n",
+      "steps": [
+        "Tambahkan await sebelum fetch.",
+        "Tambahkan await sebelum res.json().",
+        "Jalankan; main.js menunggu sampai nama siap."
+      ],
+      "skeleton": "// === produk.js ===\nconst res = ___ fetch(\"https://api.toko.contoh/products/P03\");\nconst data = ___ res.json();\nexport const nama = data.name;\n// === main.js ===\nimport { nama } from \"./produk.js\";\nconsole.log(\"Produk:\", nama);",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Produk: Roti Bakar\n"
+        }
+      ],
+      "hints": [
+        "fetch dan json() sama-sama mengembalikan Promise.",
+        "Di module, await boleh ditulis di tingkat paling atas."
+      ],
+      "solution": "// === produk.js ===\nconst res = await fetch(\"https://api.toko.contoh/products/P03\");\nconst data = await res.json();\nexport const nama = data.name;\n// === main.js ===\nimport { nama } from \"./produk.js\";\nconsole.log(\"Produk:\", nama);"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Di module, await boleh ditulis di tingkat paling atas (top-level await).",
+        "Module pemakai menunggu sampai module ber-top-level-await selesai.",
+        "Pakai hanya untuk hal yang wajib ada sebelum aplikasi berjalan.",
+        "Tangani kegagalan dengan try...catch supaya module tidak gagal dimuat."
+      ]
+    }
+  ]
+}

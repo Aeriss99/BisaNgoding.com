@@ -1,0 +1,133 @@
+{
+  "id": "js-modules-14",
+  "moduleId": "js-modules",
+  "order": 14,
+  "title": "Paket npm dan API Publik Module",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**npm** adalah tempat berbagi module JavaScript. Ada jutaan **paket** di sana, dari pemformat tanggal sampai framework seperti React.\n\nAlur memakai paket di proyek:\n\n```bash\nnpm init -y          # membuat package.json\nnpm install dayjs    # mengunduh paket ke folder node_modules\n```\n\n```javascript\nimport dayjs from \"dayjs\";   // bare specifier: nama paket, tanpa ./\nconsole.log(dayjs(\"2026-10-18\").format(\"DD/MM/YYYY\"));\n```\n\n- **`package.json`** mencatat nama proyek, script (`npm run dev`), dan daftar paket yang dipakai (`dependencies`).\n- **`node_modules/`** berisi kode paket yang diunduh. Folder ini besar dan **tidak di-commit** ke Git (masuk `.gitignore`); siapa pun bisa membuatnya ulang dengan `npm install`.\n- **`package-lock.json`** mencatat versi persis setiap paket, supaya semua orang di tim memakai versi yang sama. File ini **di-commit**.\n\nDi Node.js dan di proyek dengan bundler, nama paket otomatis dicari di `node_modules`. Di editor BisaNgoding tidak ada `node_modules`, jadi materi ini memakai module buatan sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "Setiap paket, sama seperti setiap module buatanmu, punya **API publik**: daftar export yang boleh dipakai orang lain. Sisanya adalah detail internal yang bisa berubah kapan saja.\n\nPrinsip membuat module yang baik:\n\n- export **sesedikit mungkin**, cukup yang dibutuhkan pemakai,\n- sembunyikan function pembantu dan data internal,\n- beri nama yang jelas dan konsisten.\n\n```javascript run\n// === tanggal.js ===\nconst NAMA_BULAN = [\"Jan\", \"Feb\", \"Mar\", \"Apr\", \"Mei\", \"Jun\", \"Jul\", \"Agu\", \"Sep\", \"Okt\", \"Nov\", \"Des\"];\nfunction duaDigit(n) {\n  return String(n).padStart(2, \"0\");\n}\nexport function formatPendek(d) {\n  return `${duaDigit(d.getUTCDate())} ${NAMA_BULAN[d.getUTCMonth()]} ${d.getUTCFullYear()}`;\n}\nexport function formatIso(d) {\n  return d.toISOString().slice(0, 10);\n}\n// === main.js ===\nimport * as Tanggal from \"./tanggal.js\";\nconst d = new Date(\"2026-10-08T00:00:00Z\");\nconsole.log(Tanggal.formatPendek(d));\nconsole.log(Tanggal.formatIso(d));\nconsole.log(Object.keys(Tanggal).join(\", \"));\n```\n\nHasil di console:\n\n```text\n08 Okt 2026\n2026-10-08\nformatIso, formatPendek\n```\n\nAPI publik `tanggal.js` hanya dua function. `NAMA_BULAN` dan `duaDigit` bisa diubah atau dihapus kapan saja tanpa merusak kode pemakai."
+    },
+    {
+      "type": "theory",
+      "content": "Versi paket di `package.json` memakai **semantic versioning** (*semver*): `MAYOR.MINOR.PATCH`, misalnya `1.11.13`.\n\n| Bagian naik | Arti | Aman di-update? |\n|---|---|---|\n| PATCH (1.11.**14**) | perbaikan bug | ya |\n| MINOR (1.**12**.0) | fitur baru, tetap cocok dengan versi lama | ya |\n| MAYOR (**2**.0.0) | ada perubahan yang bisa merusak kode lama | baca catatan rilisnya dulu |\n\n```json\n\"dependencies\": {\n  \"dayjs\": \"^1.11.13\"\n}\n```\n\nTanda `^` berarti \"boleh update MINOR dan PATCH, tapi jangan MAYOR\". Inilah alasan API publik penting: perubahan pada export yang dipakai orang lain berarti versi MAYOR baru.\n\nTips memilih paket:\n\n- periksa kapan terakhir diperbarui dan berapa banyak yang memakainya,\n- jangan menambah paket untuk hal kecil yang bisa ditulis sendiri dalam beberapa baris,\n- setiap paket menambah ukuran aplikasi dan risiko keamanan."
+    },
+    {
+      "type": "runnable",
+      "code": "// === kalkulator.js ===\nlet riwayat = [];\nfunction catat(op, hasil) {\n  riwayat.push(`${op} = ${hasil}`);\n  return hasil;\n}\nexport function tambah(a, b) {\n  return catat(`${a} + ${b}`, a + b);\n}\nexport function lihatRiwayat() {\n  return riwayat.join(\"; \");\n}\n// === main.js ===\nimport * as K from \"./kalkulator.js\";\nK.tambah(2, 3);\nK.tambah(10, 5);\nconsole.log(K.lihatRiwayat());\nconsole.log(typeof K.catat, typeof K.riwayat);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KEDUA yang akan tercetak?",
+        "options": [
+          "TypeError",
+          "undefined undefined",
+          "function object",
+          "function undefined"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Data internal, tidak di-export."
+        },
+        {
+          "line": 3,
+          "note": "Function pembantu internal."
+        },
+        {
+          "line": 18,
+          "note": "Namespace hanya berisi API publik: tambah dan lihatRiwayat."
+        }
+      ],
+      "explanation": "Namespace `K` hanya berisi apa yang di-export: `tambah` dan `lihatRiwayat`. `catat` dan `riwayat` tidak terlihat dari luar, sehingga bernilai `undefined`.\n\nDengan cara ini, penulis `kalkulator.js` bebas mengganti cara menyimpan riwayat, misalnya menjadi Map, tanpa merusak satu pun kode pemakai.",
+      "tryThis": [
+        {
+          "task": "Tambahkan export kurang(a, b) yang juga memakai catat. Apakah lihatRiwayat ikut mencatatnya?",
+          "hint": "Function internal bisa dipakai oleh semua export di file yang sama."
+        },
+        {
+          "task": "Ubah riwayat menjadi const riwayat = new Set(); dan sesuaikan catat serta lihatRiwayat. Apakah main.js perlu diubah?",
+          "hint": "Selama API publik sama, pemakai tidak perlu tahu perubahan di dalam."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa folder node_modules tidak di-commit ke Git?",
+          "options": [
+            "Karena isinya rahasia",
+            "Karena ukurannya besar dan bisa dibuat ulang dengan npm install dari package.json",
+            "Karena Git tidak bisa menyimpan file JavaScript",
+            "Karena npm melarangnya"
+          ],
+          "answer": 1,
+          "explanation": "package.json dan package-lock.json sudah cukup untuk mengunduh ulang semua paket.",
+          "remedial": "Bayangkan **mesin minuman otomatis**.\n\nPembeli hanya melihat tombol pilihan minuman dan lubang koin: itulah API publik. Di dalamnya ada pipa, pemanas, dan tangki, tapi pembeli tidak perlu dan tidak boleh menyentuhnya.\n\nKarena pembeli hanya memakai tombol, pemilik mesin bebas mengganti pipa atau pemanas yang lebih baik. Asal tombolnya tetap sama, pembeli tidak merasakan perbedaan apa pun."
+        },
+        {
+          "question": "Versi paket naik dari 2.4.1 ke 3.0.0. Apa artinya?",
+          "options": [
+            "Hanya perbaikan bug",
+            "Fitur baru yang tetap cocok",
+            "Ada perubahan yang bisa merusak kode lama",
+            "Paket dihapus"
+          ],
+          "answer": 2,
+          "explanation": "Naiknya angka MAYOR menandakan perubahan yang tidak lagi cocok dengan versi lama.",
+          "remedial": "Bayangkan **mesin minuman otomatis**.\n\nPembeli hanya melihat tombol pilihan minuman dan lubang koin: itulah API publik. Di dalamnya ada pipa, pemanas, dan tangki, tapi pembeli tidak perlu dan tidak boleh menyentuhnya.\n\nKarena pembeli hanya memakai tombol, pemilik mesin bebas mengganti pipa atau pemanas yang lebih baik. Asal tombolnya tetap sama, pembeli tidak merasakan perbedaan apa pun."
+        },
+        {
+          "question": "Apa yang sebaiknya menjadi API publik sebuah module?",
+          "options": [
+            "Semua function dan variabel",
+            "Hanya variabel",
+            "Tidak ada sama sekali",
+            "Hanya yang dibutuhkan pemakai; detail internal disembunyikan"
+          ],
+          "answer": 3,
+          "explanation": "Semakin sedikit export, semakin bebas penulis module mengubah bagian dalamnya.",
+          "remedial": "Bayangkan **mesin minuman otomatis**.\n\nPembeli hanya melihat tombol pilihan minuman dan lubang koin: itulah API publik. Di dalamnya ada pipa, pemanas, dan tangki, tapi pembeli tidak perlu dan tidak boleh menyentuhnya.\n\nKarena pembeli hanya memakai tombol, pemilik mesin bebas mengganti pipa atau pemanas yang lebih baik. Asal tombolnya tetap sama, pembeli tidak merasakan perbedaan apa pun."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi diskon.js supaya hanya hargaAkhir yang di-export. Function persenDiskon tetap ada sebagai pembantu internal. main.js mencetak harga akhir dan memastikan persenDiskon tidak terlihat.",
+      "starterCode": "// === diskon.js ===\nexport function persenDiskon(qty) {\n  return qty >= 10 ? 20 : qty >= 5 ? 10 : 0;\n}\nexport function hargaAkhir(harga, qty) {\n  const total = harga * qty;\n  return total - (total * persenDiskon(qty)) / 100;\n}\n// === main.js ===\nimport * as Diskon from \"./diskon.js\";\nconsole.log(Diskon.hargaAkhir(10000, 5));\nconsole.log(Diskon.hargaAkhir(10000, 10));\nconsole.log(Object.keys(Diskon).join(\", \"));\n",
+      "steps": [
+        "Hapus kata export di depan function persenDiskon.",
+        "Biarkan export di depan hargaAkhir.",
+        "Jalankan; namespace hanya berisi hargaAkhir."
+      ],
+      "skeleton": "// === diskon.js ===\n___ persenDiskon(qty) {\n  return qty >= 10 ? 20 : qty >= 5 ? 10 : 0;\n}\n___ function hargaAkhir(harga, qty) {\n  const total = harga * qty;\n  return total - (total * persenDiskon(qty)) / 100;\n}\n// === main.js ===\nimport * as Diskon from \"./diskon.js\";\nconsole.log(Diskon.hargaAkhir(10000, 5));\nconsole.log(Diskon.hargaAkhir(10000, 10));\nconsole.log(Object.keys(Diskon).join(\", \"));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "45000\n80000\nhargaAkhir\n"
+        }
+      ],
+      "hints": [
+        "Function tanpa export tetap bisa dipakai di file yang sama.",
+        "5 item: diskon 10% dari 50000 = 45000. 10 item: diskon 20% dari 100000 = 80000."
+      ],
+      "solution": "// === diskon.js ===\nfunction persenDiskon(qty) {\n  return qty >= 10 ? 20 : qty >= 5 ? 10 : 0;\n}\nexport function hargaAkhir(harga, qty) {\n  const total = harga * qty;\n  return total - (total * persenDiskon(qty)) / 100;\n}\n// === main.js ===\nimport * as Diskon from \"./diskon.js\";\nconsole.log(Diskon.hargaAkhir(10000, 5));\nconsole.log(Diskon.hargaAkhir(10000, 10));\nconsole.log(Object.keys(Diskon).join(\", \"));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "npm install mengunduh paket ke node_modules dan mencatatnya di package.json.",
+        "node_modules tidak di-commit; package.json dan package-lock.json di-commit.",
+        "Semver MAYOR.MINOR.PATCH: naik MAYOR berarti ada perubahan yang bisa merusak.",
+        "API publik module sebaiknya sekecil mungkin; detail internal disembunyikan."
+      ]
+    }
+  ]
+}

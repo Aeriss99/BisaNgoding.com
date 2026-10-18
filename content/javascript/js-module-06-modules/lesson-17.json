@@ -1,0 +1,133 @@
+{
+  "id": "js-modules-17",
+  "moduleId": "js-modules",
+  "order": 17,
+  "title": "Mengorganisir Proyek",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tidak ada satu struktur folder yang wajib, tapi ada kebiasaan yang membuat proyek mudah dipahami. Contoh struktur untuk aplikasi toko kecil:\n\n```text\ntoko-kopi/\n  index.html\n  package.json\n  src/\n    main.js              ← titik awal: menyambungkan semuanya\n    config.js            ← konstanta dan pengaturan\n    data/\n      produk.js          ← mengambil dan menyimpan data\n    fitur/\n      keranjang.js\n      pembayaran.js\n    utils/\n      format.js          ← function kecil yang dipakai di banyak tempat\n```\n\nPrinsip yang dipakai:\n\n- **Satu module, satu tanggung jawab.** `format.js` hanya memformat; ia tidak mengambil data atau mengubah tampilan.\n- **Nama file menjelaskan isinya.** Hindari nama umum seperti `helper.js` atau `lain-lain.js` yang lama-lama menjadi tempat sampah.\n- **`main.js` tipis.** Isinya menyambungkan module lain, bukan logika yang panjang."
+    },
+    {
+      "type": "theory",
+      "content": "Tanda sebuah module perlu dipecah:\n\n- panjangnya ratusan baris dan mengurus beberapa hal berbeda,\n- sulit diberi nama yang pas,\n- perubahan kecil di satu fitur memaksa mengubah file yang juga dipakai fitur lain.\n\nContoh pemecahan yang baik: logika perhitungan dipisah dari cara menampilkan hasil.\n\n```javascript run\n// === config.js ===\nexport const PAJAK = 0.11;\nexport const ONGKIR_GRATIS_MIN = 100000;\n// === hitung.js ===\nimport { PAJAK, ONGKIR_GRATIS_MIN } from \"./config.js\";\nexport function rincian(subtotal) {\n  const pajak = Math.round(subtotal * PAJAK);\n  const ongkir = subtotal >= ONGKIR_GRATIS_MIN ? 0 : 10000;\n  return { subtotal, pajak, ongkir, total: subtotal + pajak + ongkir };\n}\n// === tampil.js ===\nconst rp = (n) => \"Rp\" + n.toLocaleString(\"id-ID\");\nexport function cetakRincian(r) {\n  for (const [k, v] of Object.entries(r)) console.log(`${k.padEnd(9)}${rp(v)}`);\n}\n// === main.js ===\nimport { rincian } from \"./hitung.js\";\nimport { cetakRincian } from \"./tampil.js\";\ncetakRincian(rincian(85000));\n```\n\nHasil di console:\n\n```text\nsubtotal Rp85.000\npajak    Rp9.350\nongkir   Rp10.000\ntotal    Rp104.350\n```\n\n`hitung.js` tidak tahu apa pun soal tampilan, jadi mudah diuji dan bisa dipakai ulang, misalnya untuk tampilan HP atau untuk dikirim ke server."
+    },
+    {
+      "type": "theory",
+      "content": "Kebiasaan lain yang membantu tim:\n\n| Kebiasaan | Alasan |\n|---|---|\n| Konstanta di satu file (`config.js`) | angka seperti pajak atau batas ongkir hanya diubah di satu tempat |\n| Function murni untuk logika | mudah diuji: masukan sama, hasil sama |\n| Efek samping (DOM, fetch, timer) di pinggir | logika inti tetap bersih |\n| Urutan import konsisten | paket npm dulu, lalu module sendiri, lalu CSS |\n| Named export | nama konsisten di seluruh proyek |\n\nContoh urutan import yang rapi:\n\n```javascript\n// 1. paket npm\nimport dayjs from \"dayjs\";\n// 2. module sendiri\nimport { rincian } from \"./fitur/keranjang.js\";\nimport { rupiah } from \"./utils/format.js\";\n// 3. file non-JavaScript (lewat bundler)\nimport \"./style.css\";\n```\n\nStruktur bisa tumbuh bertahap. Mulailah sederhana, lalu pecah module saat mulai terasa terlalu besar."
+    },
+    {
+      "type": "runnable",
+      "code": "// === config.js ===\nexport const BATAS_STOK_MENIPIS = 5;\n// === stok.js ===\nimport { BATAS_STOK_MENIPIS } from \"./config.js\";\nexport function statusStok(jumlah) {\n  if (jumlah === 0) return \"habis\";\n  if (jumlah <= BATAS_STOK_MENIPIS) return \"menipis\";\n  return \"aman\";\n}\n// === main.js ===\nimport { statusStok } from \"./stok.js\";\nconst produk = { \"Kopi Susu\": 12, \"Teh Tarik\": 0, \"Nasi Goreng\": 5 };\nfor (const [nama, jumlah] of Object.entries(produk)) {\n  console.log(`${nama}: ${statusStok(jumlah)}`);\n}",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KETIGA yang akan tercetak?",
+        "options": [
+          "Nasi Goreng: menipis",
+          "Nasi Goreng: aman",
+          "Nasi Goreng: habis",
+          "Teh Tarik: habis"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Angka batas disimpan di satu tempat."
+        },
+        {
+          "line": 5,
+          "note": "Function murni: hanya menghitung dari masukan."
+        },
+        {
+          "line": 13,
+          "note": "main.js hanya menyambungkan data dengan logika dan menampilkan hasilnya."
+        }
+      ],
+      "explanation": "Nasi Goreng punya stok 5, sama dengan batas, jadi statusnya \"menipis\".\n\nKalau pemilik toko ingin batas menipis menjadi 10, cukup ubah satu angka di `config.js`. Logika di `stok.js` dan tampilan di `main.js` tidak perlu disentuh.",
+      "tryThis": [
+        {
+          "task": "Ubah BATAS_STOK_MENIPIS menjadi 15. Status apa yang berubah?",
+          "hint": "Kopi Susu dengan stok 12 menjadi menipis."
+        },
+        {
+          "task": "Tambahkan statusStok(-1). Apa hasilnya, dan bagaimana sebaiknya ditangani?",
+          "hint": "Function murni mudah diperbaiki dan diuji untuk kasus seperti ini."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti prinsip \"satu module, satu tanggung jawab\"?",
+          "options": [
+            "Setiap module hanya boleh berisi satu baris",
+            "Setiap module mengurus satu hal yang jelas, misalnya hanya format atau hanya data",
+            "Setiap module hanya boleh di-import sekali",
+            "Setiap proyek hanya boleh punya satu module"
+          ],
+          "answer": 1,
+          "explanation": "Module dengan tanggung jawab jelas mudah diberi nama, dipahami, dan diubah.",
+          "remedial": "Bayangkan **dapur restoran yang rapi**.\n\nAda bagian bumbu, bagian sayur, bagian penggorengan, dan bagian penyajian. Setiap bagian punya tugas jelas (satu tanggung jawab), dan resep standar ditempel di satu papan (config.js).\n\nKepala dapur (main.js) tidak memasak semuanya sendiri; ia hanya mengatur bagian mana mengerjakan apa. Kalau resep sambal berubah, cukup bagian bumbu yang menyesuaikan, tanpa mengganggu bagian lain."
+        },
+        {
+          "question": "Kenapa konstanta seperti tarif pajak sebaiknya disimpan di satu file seperti config.js?",
+          "options": [
+            "Supaya kode berjalan lebih cepat",
+            "Karena konstanta tidak boleh berada di file lain",
+            "Supaya kalau tarif berubah, cukup diubah di satu tempat",
+            "Supaya konstanta menjadi global"
+          ],
+          "answer": 2,
+          "explanation": "Angka yang tersebar di banyak file mudah terlewat saat diubah.",
+          "remedial": "Bayangkan **dapur restoran yang rapi**.\n\nAda bagian bumbu, bagian sayur, bagian penggorengan, dan bagian penyajian. Setiap bagian punya tugas jelas (satu tanggung jawab), dan resep standar ditempel di satu papan (config.js).\n\nKepala dapur (main.js) tidak memasak semuanya sendiri; ia hanya mengatur bagian mana mengerjakan apa. Kalau resep sambal berubah, cukup bagian bumbu yang menyesuaikan, tanpa mengganggu bagian lain."
+        },
+        {
+          "question": "Apa isi main.js yang baik?",
+          "options": [
+            "Semua logika aplikasi",
+            "Hanya konstanta",
+            "Kosong",
+            "Kode tipis yang menyambungkan module-module lain"
+          ],
+          "answer": 3,
+          "explanation": "main.js adalah titik awal yang menyambungkan, sedangkan logika ada di module masing-masing.",
+          "remedial": "Bayangkan **dapur restoran yang rapi**.\n\nAda bagian bumbu, bagian sayur, bagian penggorengan, dan bagian penyajian. Setiap bagian punya tugas jelas (satu tanggung jawab), dan resep standar ditempel di satu papan (config.js).\n\nKepala dapur (main.js) tidak memasak semuanya sendiri; ia hanya mengatur bagian mana mengerjakan apa. Kalau resep sambal berubah, cukup bagian bumbu yang menyesuaikan, tanpa mengganggu bagian lain."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "poin.js sudah meng-import dua konstanta, tapi config.js masih kosong sehingga error. Isi config.js dengan MIN_POIN_BELANJA (10000) dan POIN_PER_KELIPATAN (1), lalu ganti angka di poin.js dengan nama konstantanya.",
+      "starterCode": "// === config.js ===\n// tambahkan konstanta di sini\n// === poin.js ===\nimport { MIN_POIN_BELANJA, POIN_PER_KELIPATAN } from \"./config.js\";\nexport function hitungPoin(belanja) {\n  return Math.floor(belanja / 10000) * 1;\n}\n// === main.js ===\nimport { hitungPoin } from \"./poin.js\";\nconsole.log(hitungPoin(35000));\nconsole.log(hitungPoin(9000));\n",
+      "steps": [
+        "Di config.js: export const MIN_POIN_BELANJA = 10000; dan export const POIN_PER_KELIPATAN = 1;",
+        "Pastikan poin.js meng-import keduanya dari ./config.js.",
+        "Ganti angka 10000 dan 1 dengan nama konstantanya."
+      ],
+      "skeleton": "// === config.js ===\nexport const MIN_POIN_BELANJA = 10000;\nexport const POIN_PER_KELIPATAN = 1;\n// === poin.js ===\nimport { MIN_POIN_BELANJA, POIN_PER_KELIPATAN } from \"./___\";\nexport function hitungPoin(belanja) {\n  return Math.floor(belanja / ___) * POIN_PER_KELIPATAN;\n}\n// === main.js ===\nimport { hitungPoin } from \"./poin.js\";\nconsole.log(hitungPoin(35000));\nconsole.log(hitungPoin(9000));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "3\n0\n"
+        }
+      ],
+      "hints": [
+        "35000 / 10000 = 3,5, dibulatkan ke bawah menjadi 3.",
+        "Belanja di bawah 10000 tidak mendapat poin."
+      ],
+      "solution": "// === config.js ===\nexport const MIN_POIN_BELANJA = 10000;\nexport const POIN_PER_KELIPATAN = 1;\n// === poin.js ===\nimport { MIN_POIN_BELANJA, POIN_PER_KELIPATAN } from \"./config.js\";\nexport function hitungPoin(belanja) {\n  return Math.floor(belanja / MIN_POIN_BELANJA) * POIN_PER_KELIPATAN;\n}\n// === main.js ===\nimport { hitungPoin } from \"./poin.js\";\nconsole.log(hitungPoin(35000));\nconsole.log(hitungPoin(9000));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Satu module, satu tanggung jawab, dengan nama file yang menjelaskan isinya.",
+        "Simpan konstanta di satu file seperti config.js.",
+        "Pisahkan logika murni dari efek samping seperti tampilan dan fetch.",
+        "main.js tipis: hanya menyambungkan module-module lain."
+      ]
+    }
+  ]
+}

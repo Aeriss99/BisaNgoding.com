@@ -1,0 +1,134 @@
+{
+  "id": "js-modules-10",
+  "moduleId": "js-modules",
+  "order": 10,
+  "title": "Import Dinamis dengan import()",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`import` biasa (statis) selalu memuat module di awal, sebelum kode apa pun berjalan. Tapi kadang module hanya dibutuhkan **dalam keadaan tertentu**:\n\n- fitur ekspor PDF yang jarang dipakai,\n- halaman admin yang hanya dibuka oleh admin,\n- library grafik yang besar.\n\nMemuat semuanya di awal membuat halaman lambat terbuka. **`import()`** (dengan kurung, seperti function) memuat module **saat dibutuhkan saja**. Teknik ini disebut **lazy loading**.\n\n`import(\"./file.js\")` mengembalikan **Promise** yang berisi object namespace module itu:\n\n```javascript\nconst modul = await import(\"./grafik.js\");\nmodul.gambar(data);\n```\n\nBerbeda dengan import statis, `import()` boleh ditulis **di mana saja**: di dalam `if`, di dalam function, bahkan di script biasa yang bukan module."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\n// === pdf.js ===\nconsole.log(\"pdf.js dimuat\");\nexport function ekspor(judul) {\n  return `${judul}.pdf berhasil dibuat`;\n}\n// === main.js ===\nconsole.log(\"Halaman siap\");\nasync function klikEkspor() {\n  const { ekspor } = await import(\"./pdf.js\");\n  console.log(ekspor(\"laporan\"));\n}\nconst butuhPdf = true;\nif (butuhPdf) await klikEkspor();\nawait klikEkspor();\n```\n\nHasil di console:\n\n```text\nHalaman siap\npdf.js dimuat\nlaporan.pdf berhasil dibuat\nlaporan.pdf berhasil dibuat\n```\n\n- \"Halaman siap\" tercetak **sebelum** `pdf.js` dimuat, karena module itu baru diambil saat `klikEkspor` dipanggil.\n- Destructuring `const { ekspor } = await import(...)` langsung mengambil export yang dibutuhkan.\n- Panggilan kedua tidak memuat ulang. Module tetap hanya dievaluasi sekali."
+    },
+    {
+      "type": "theory",
+      "content": "Hal lain tentang `import()`:\n\n```javascript run\n// === bahasa-id.js ===\nexport default { salam: \"Selamat pagi\" };\n// === bahasa-en.js ===\nexport default { salam: \"Good morning\" };\n// === main.js ===\nasync function muatBahasa(kode) {\n  const modul = await import(`./bahasa-${kode}.js`);\n  return modul.default;\n}\nconsole.log((await muatBahasa(\"en\")).salam);\nconsole.log((await muatBahasa(\"id\")).salam);\ntry {\n  await import(\"./bahasa-jp.js\");\n} catch (e) {\n  console.log(\"Gagal memuat:\", e.name);\n}\n```\n\nHasil di console:\n\n```text\nGood morning\nSelamat pagi\nGagal memuat: TypeError\n```\n\n- Default export diambil lewat properti **`.default`**.\n- Alamat module boleh disusun dari variabel, misalnya untuk memilih file bahasa sesuai pilihan pengguna.\n- Karena hasilnya Promise, kegagalan memuat (file tidak ada, jaringan putus) ditangani dengan `try...catch`.\n\nCatatan: alamat yang disusun dari variabel di contoh ini hanya bisa dikenali sebagian oleh bundler seperti Vite. Di editor BisaNgoding, alamat dinamis hanya bisa menunjuk file yang ditulis di kotak kode yang sama."
+    },
+    {
+      "type": "runnable",
+      "code": "// === berat.js ===\nconsole.log(\"berat.js dimuat\");\nexport const nilai = 42;\n// === main.js ===\nconsole.log(\"A\");\nconst janji = import(\"./berat.js\");\nconsole.log(\"B\");\nconst m = await janji;\nconsole.log(\"C\", m.nilai);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KETIGA yang akan tercetak?",
+        "options": [
+          "A",
+          "berat.js dimuat",
+          "C 42",
+          "B"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Memulai pemuatan module dan langsung mengembalikan Promise."
+        },
+        {
+          "line": 7,
+          "note": "Kode berikutnya tetap berjalan tanpa menunggu."
+        },
+        {
+          "line": 8,
+          "note": "Baru di sini menunggu sampai module selesai dimuat dan dijalankan."
+        }
+      ],
+      "explanation": "`import()` bersifat **asinkron**, seperti `fetch`. Ia memulai pemuatan lalu langsung mengembalikan Promise, sehingga \"B\" tercetak sebelum `berat.js` dijalankan.\n\nSetelah `await`, module selesai dimuat (\"berat.js dimuat\"), lalu \"C 42\" tercetak. Ini berbeda dengan import statis, yang selalu menjalankan module sebelum kode apa pun di file pemakai.",
+      "tryThis": [
+        {
+          "task": "Ganti dengan import statis: import { nilai } from \"./berat.js\"; di baris pertama main.js. Bagaimana urutannya sekarang?",
+          "hint": "Module yang di-import statis dijalankan sebelum isi main.js."
+        },
+        {
+          "task": "Panggil import(\"./berat.js\") dua kali. Apakah \"berat.js dimuat\" tercetak dua kali?",
+          "hint": "Module tetap hanya dievaluasi sekali, walau di-import dinamis berkali-kali."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dikembalikan import(\"./x.js\")?",
+          "options": [
+            "Promise berisi object namespace module",
+            "Object namespace secara langsung",
+            "Default export secara langsung",
+            "undefined"
+          ],
+          "answer": 0,
+          "explanation": "import() asinkron, jadi hasilnya Promise yang perlu di-await.",
+          "remedial": "Bayangkan **perpustakaan sekolah**.\n\nImport statis seperti membawa semua buku pelajaran ke kelas setiap hari, dipakai atau tidak. Tasnya berat dan lama disiapkan.\n\nImport dinamis seperti meminjam buku ke perpustakaan **saat pelajaran itu dimulai**. Ada waktu tunggu sebentar saat meminjam (Promise), tapi tasmu ringan, dan buku yang sudah dipinjam tidak perlu dipinjam lagi."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "// === m.js ===\nexport default \"utama\";\nexport const kecil = \"named\";\n// === main.js ===\nconst m = await import(\"./m.js\");\nconsole.log(m.default, m.kecil);",
+          "options": [
+            "undefined named",
+            "utama named",
+            "utama undefined",
+            "SyntaxError"
+          ],
+          "answer": 1,
+          "explanation": "Default export tersedia sebagai properti default.",
+          "remedial": "Bayangkan **perpustakaan sekolah**.\n\nImport statis seperti membawa semua buku pelajaran ke kelas setiap hari, dipakai atau tidak. Tasnya berat dan lama disiapkan.\n\nImport dinamis seperti meminjam buku ke perpustakaan **saat pelajaran itu dimulai**. Ada waktu tunggu sebentar saat meminjam (Promise), tapi tasmu ringan, dan buku yang sudah dipinjam tidak perlu dipinjam lagi."
+        },
+        {
+          "question": "Kapan import() lebih cocok daripada import statis?",
+          "options": [
+            "Untuk semua module",
+            "Untuk module kecil yang selalu dipakai",
+            "Untuk module yang jarang dipakai atau besar, supaya dimuat hanya saat dibutuhkan",
+            "Hanya di Node.js"
+          ],
+          "answer": 2,
+          "explanation": "Lazy loading mempercepat pembukaan halaman karena kode yang jarang dipakai tidak dimuat di awal.",
+          "remedial": "Bayangkan **perpustakaan sekolah**.\n\nImport statis seperti membawa semua buku pelajaran ke kelas setiap hari, dipakai atau tidak. Tasnya berat dan lama disiapkan.\n\nImport dinamis seperti meminjam buku ke perpustakaan **saat pelajaran itu dimulai**. Ada waktu tunggu sebentar saat meminjam (Promise), tapi tasmu ringan, dan buku yang sudah dipinjam tidak perlu dipinjam lagi."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi bukaHalaman(nama) yang memuat module halaman secara dinamis dengan import() dan memanggil default export-nya. Tampilkan halaman admin lalu beranda.",
+      "starterCode": "// === halaman-admin.js ===\nexport default function tampil() {\n  return \"Dashboard admin\";\n}\n// === halaman-beranda.js ===\nexport default function tampil() {\n  return \"Selamat datang\";\n}\n// === main.js ===\nasync function bukaHalaman(nama) {\n  // muat ./halaman-<nama>.js lalu panggil default export-nya\n}\nconsole.log(await bukaHalaman(\"admin\"));\nconsole.log(await bukaHalaman(\"beranda\"));\n",
+      "steps": [
+        "const modul = await import(`./halaman-${nama}.js`);",
+        "Kembalikan modul.default().",
+        "Jalankan."
+      ],
+      "skeleton": "// === halaman-admin.js ===\nexport default function tampil() {\n  return \"Dashboard admin\";\n}\n// === halaman-beranda.js ===\nexport default function tampil() {\n  return \"Selamat datang\";\n}\n// === main.js ===\nasync function bukaHalaman(nama) {\n  const modul = await ___(`./halaman-${nama}.js`);\n  return modul.___();\n}\nconsole.log(await bukaHalaman(\"admin\"));\nconsole.log(await bukaHalaman(\"beranda\"));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Dashboard admin\nSelamat datang\n"
+        }
+      ],
+      "hints": [
+        "import() mengembalikan Promise, jadi perlu await.",
+        "Default export ada di properti default dari object namespace."
+      ],
+      "solution": "// === halaman-admin.js ===\nexport default function tampil() {\n  return \"Dashboard admin\";\n}\n// === halaman-beranda.js ===\nexport default function tampil() {\n  return \"Selamat datang\";\n}\n// === main.js ===\nasync function bukaHalaman(nama) {\n  const modul = await import(`./halaman-${nama}.js`);\n  return modul.default();\n}\nconsole.log(await bukaHalaman(\"admin\"));\nconsole.log(await bukaHalaman(\"beranda\"));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "import() memuat module saat dibutuhkan (lazy loading).",
+        "import() mengembalikan Promise berisi namespace; default export ada di .default.",
+        "import() boleh ditulis di mana saja, termasuk di dalam if dan function.",
+        "Kegagalan memuat ditangani dengan try...catch."
+      ]
+    }
+  ]
+}
