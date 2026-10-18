@@ -1,0 +1,135 @@
+{
+  "id": "js-async-13",
+  "moduleId": "js-async",
+  "order": 13,
+  "title": "Status Respons dan res.ok",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setiap respons HTTP membawa **kode status** yang menjelaskan hasilnya:\n\n| Kode | Arti | Contoh |\n|---|---|---|\n| 2xx | berhasil | 200 OK, 201 Created |\n| 4xx | kesalahan dari sisi **peminta** | 400 Bad Request, 401 belum login, 404 Not Found, 422 data tidak valid |\n| 5xx | kesalahan dari sisi **server** | 500 Internal Server Error, 503 server sibuk |\n\nIni jebakan terbesar `fetch`: **Promise dari `fetch` tidak rejected untuk 404 atau 500.** Bagi `fetch`, server sudah menjawab, jadi permintaannya dianggap \"berhasil\", walau jawabannya \"data tidak ada\" atau \"server bermasalah\".\n\n`fetch` hanya rejected kalau permintaan **tidak sampai** sama sekali: internet putus, alamat server tidak ada, atau permintaan dibatalkan."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nconst API = \"https://api.toko.contoh\";\nconst res = await fetch(API + \"/products/P99\");\nconsole.log(res.ok, res.status, res.statusText);\nconst data = await res.json();\nconsole.log(data);\nconst res2 = await fetch(API + \"/error\");\nconsole.log(res2.ok, res2.status);\n```\n\nHasil di console:\n\n```text\nfalse 404 Not Found\n{ error: 'Produk tidak ditemukan' }\nfalse 500\n```\n\n- **`res.ok`** bernilai `true` kalau status 200 sampai 299, selain itu `false`.\n- `res.status` berisi kodenya, dan `res.statusText` teks pendeknya.\n- Banyak API mengirim penjelasan kesalahan di isi respons, seperti `{ error: \"...\" }` di server latihan ini.\n\nTanpa memeriksa `res.ok`, kode akan memproses `{ error: \"...\" }` seolah-olah itu data produk, lalu gagal di tempat lain dengan pesan yang membingungkan."
+    },
+    {
+      "type": "theory",
+      "content": "Pola yang benar: periksa `res.ok`, dan ubah respons gagal menjadi **error yang dilempar**, supaya ditangani di `catch` bersama kegagalan jaringan.\n\n```javascript run\nconst API = \"https://api.toko.contoh\";\nasync function ambilJson(path) {\n  const res = await fetch(API + path);\n  const data = await res.json();\n  if (!res.ok) {\n    throw new Error(`${res.status}: ${data.error}`);\n  }\n  return data;\n}\nfor (const path of [\"/users/U1\", \"/users/U9\", \"/error\"]) {\n  try {\n    const d = await ambilJson(path);\n    console.log(\"OK:\", d.name);\n  } catch (err) {\n    console.log(\"Gagal:\", err.message);\n  }\n}\n```\n\nHasil di console:\n\n```text\nOK: Rina\nGagal: 404: Pengguna tidak ditemukan\nGagal: 500: Server sedang bermasalah\n```\n\nSekarang satu `try...catch` menangani **semua** jenis kegagalan: respons 4xx, respons 5xx, dan jaringan putus.\n\nCatatan: tidak semua server mengirim JSON saat gagal. Ada yang mengirim halaman HTML atau isi kosong, dan `res.json()` akan melempar SyntaxError. Untuk API yang belum kamu kenal, periksa dokumentasinya."
+    },
+    {
+      "type": "runnable",
+      "code": "const API = \"https://api.toko.contoh\";\nasync function ambilProduk(id) {\n  const res = await fetch(`${API}/products/${id}`);\n  return res.json();\n}\nconst p = await ambilProduk(\"P77\");\nconsole.log(\"Nama:\", p.name);\nconsole.log(\"Harga:\", p.price * 2);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KEDUA yang akan tercetak?",
+        "options": [
+          "Harga: NaN",
+          "Harga: 0",
+          "Harga: undefined",
+          "TypeError"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Tidak ada pemeriksaan res.ok: respons 404 tetap diproses sebagai data."
+        },
+        {
+          "line": 7,
+          "note": "p berisi { error: \"Produk tidak ditemukan\" }, jadi name tidak ada."
+        },
+        {
+          "line": 8,
+          "note": "undefined dikali 2 menghasilkan NaN."
+        }
+      ],
+      "explanation": "Produk P77 tidak ada, sehingga server menjawab 404 dengan `{ error: \"Produk tidak ditemukan\" }`. Karena `fetch` tidak rejected dan `res.ok` tidak diperiksa, object error itu diperlakukan sebagai produk.\n\nHasilnya `Nama: undefined` dan `Harga: NaN`, tanpa pesan error sama sekali. Di aplikasi sungguhan, pengguna akan melihat halaman produk yang kosong atau aneh, dan penyebabnya sulit dilacak.",
+      "tryThis": [
+        {
+          "task": "Tambahkan `if (!res.ok) throw new Error(\"Produk tidak ada\");` sebelum return. Apa yang tercetak sekarang?",
+          "hint": "Error dilempar dan tidak ditangkap, jadi muncul pesan error dengan jelas."
+        },
+        {
+          "task": "Ganti P77 dengan P04. Berapa harga yang tercetak?",
+          "hint": "P04 adalah Nasi Goreng seharga 25000."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "const res = await fetch(\"https://api.toko.contoh/products/P99\");\nconsole.log(res.ok);",
+          "options": [
+            "true",
+            "false",
+            "404",
+            "Error"
+          ],
+          "answer": 1,
+          "explanation": "Status 404 bukan 2xx, jadi res.ok bernilai false. Promise fetch tetap fulfilled.",
+          "remedial": "Bayangkan kamu **menelepon toko** untuk menanyakan stok barang.\n\nKalau teleponnya tidak tersambung sama sekali, itulah satu-satunya kasus `fetch` rejected.\n\nKalau telepon tersambung dan penjual berkata \"maaf, barangnya tidak ada\" (404) atau \"maaf, sistem kami sedang rusak\" (500), teleponnya tetap **berhasil tersambung**. Kamu sendiri yang harus mendengarkan jawabannya (`res.ok` dan `res.status`) dan memutuskan bahwa itu kabar buruk."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "try {\n  const res = await fetch(\"https://api.toko.contoh/error\");\n  console.log(\"selesai\", res.status);\n} catch (e) {\n  console.log(\"catch\");\n}",
+          "options": [
+            "catch",
+            "selesai 200",
+            "selesai 500",
+            "tidak ada output"
+          ],
+          "answer": 2,
+          "explanation": "fetch tidak rejected untuk status 500, jadi catch tidak berjalan.",
+          "remedial": "Bayangkan kamu **menelepon toko** untuk menanyakan stok barang.\n\nKalau teleponnya tidak tersambung sama sekali, itulah satu-satunya kasus `fetch` rejected.\n\nKalau telepon tersambung dan penjual berkata \"maaf, barangnya tidak ada\" (404) atau \"maaf, sistem kami sedang rusak\" (500), teleponnya tetap **berhasil tersambung**. Kamu sendiri yang harus mendengarkan jawabannya (`res.ok` dan `res.status`) dan memutuskan bahwa itu kabar buruk."
+        },
+        {
+          "question": "Kapan Promise dari fetch rejected?",
+          "options": [
+            "Saat permintaan tidak sampai ke server, misalnya internet putus atau dibatalkan",
+            "Saat server menjawab 404",
+            "Saat server menjawab 500",
+            "Saat data JSON kosong"
+          ],
+          "answer": 0,
+          "explanation": "Untuk semua respons dari server, termasuk 4xx dan 5xx, fetch tetap fulfilled. Periksa res.ok sendiri.",
+          "remedial": "Bayangkan kamu **menelepon toko** untuk menanyakan stok barang.\n\nKalau teleponnya tidak tersambung sama sekali, itulah satu-satunya kasus `fetch` rejected.\n\nKalau telepon tersambung dan penjual berkata \"maaf, barangnya tidak ada\" (404) atau \"maaf, sistem kami sedang rusak\" (500), teleponnya tetap **berhasil tersambung**. Kamu sendiri yang harus mendengarkan jawabannya (`res.ok` dan `res.status`) dan memutuskan bahwa itu kabar buruk."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi ambilProduk(id): kalau res.ok false, lempar Error dengan pesan \"<status> <data.error>\". Kalau berhasil, kembalikan data produk.",
+      "starterCode": "const API = \"https://api.toko.contoh\";\nasync function ambilProduk(id) {\n  const res = await fetch(`${API}/products/${id}`);\n  const data = await res.json();\n  // lempar error kalau respons tidak ok\n  return data;\n}\nfor (const id of [\"P01\", \"P99\"]) {\n  try {\n    const p = await ambilProduk(id);\n    console.log(p.name);\n  } catch (err) {\n    console.log(\"Gagal:\", err.message);\n  }\n}\n",
+      "steps": [
+        "Periksa if (!res.ok).",
+        "Lempar new Error(`${res.status} ${data.error}`).",
+        "Biarkan return data untuk respons yang berhasil."
+      ],
+      "skeleton": "const API = \"https://api.toko.contoh\";\nasync function ambilProduk(id) {\n  const res = await fetch(`${API}/products/${id}`);\n  const data = await res.json();\n  if (!res.___) throw new Error(`${res.___} ${data.error}`);\n  return data;\n}\nfor (const id of [\"P01\", \"P99\"]) {\n  try {\n    const p = await ambilProduk(id);\n    console.log(p.name);\n  } catch (err) {\n    console.log(\"Gagal:\", err.message);\n  }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Kopi Susu\nGagal: 404 Produk tidak ditemukan\n"
+        }
+      ],
+      "hints": [
+        "Tanpa pemeriksaan, P99 akan mencetak undefined, bukan masuk ke catch.",
+        "Server latihan mengirim penjelasan kesalahan di properti error."
+      ],
+      "solution": "const API = \"https://api.toko.contoh\";\nasync function ambilProduk(id) {\n  const res = await fetch(`${API}/products/${id}`);\n  const data = await res.json();\n  if (!res.ok) throw new Error(`${res.status} ${data.error}`);\n  return data;\n}\nfor (const id of [\"P01\", \"P99\"]) {\n  try {\n    const p = await ambilProduk(id);\n    console.log(p.name);\n  } catch (err) {\n    console.log(\"Gagal:\", err.message);\n  }\n}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Kode status: 2xx berhasil, 4xx kesalahan peminta, 5xx kesalahan server.",
+        "fetch tidak rejected untuk 404 atau 500; hanya untuk kegagalan jaringan atau pembatalan.",
+        "res.ok bernilai true untuk status 200 sampai 299.",
+        "Lempar error saat !res.ok supaya semua kegagalan ditangani di satu catch."
+      ]
+    }
+  ]
+}

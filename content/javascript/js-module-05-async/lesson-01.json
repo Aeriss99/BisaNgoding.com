@@ -1,0 +1,131 @@
+{
+  "id": "js-async-01",
+  "moduleId": "js-async",
+  "order": 1,
+  "title": "Sinkron dan Asinkron",
+  "estimatedMinutes": 8,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sampai sekarang, semua kode yang kamu tulis berjalan **sinkron** (*synchronous*): baris demi baris, dan baris berikutnya menunggu baris sebelumnya selesai.\n\nMasalahnya, banyak pekerjaan di aplikasi sungguhan butuh waktu lama:\n\n- mengambil data dari server (bisa ratusan milidetik sampai beberapa detik),\n- menunggu pengguna menekan tombol,\n- membaca file atau database,\n- menunggu timer.\n\nJavaScript di browser hanya punya **satu jalur kerja** (*single-threaded*). Kalau jalur itu dipakai untuk diam menunggu server, seluruh halaman membeku: tombol tidak bisa diklik dan animasi berhenti.\n\nSolusinya adalah kode **asinkron** (*asynchronous*): mulai pekerjaan yang lama, lanjutkan kode lain, lalu jalankan kelanjutannya nanti saat pekerjaan itu selesai."
+    },
+    {
+      "type": "theory",
+      "content": "Cara paling sederhana melihat kode asinkron adalah `setTimeout(fungsi, milidetik)`: \"jalankan fungsi ini nanti, setelah sekian milidetik\".\n\n```javascript run\nconsole.log(\"1. Pesan kopi\");\nsetTimeout(() => {\n  console.log(\"3. Kopi siap\");\n}, 300);\nconsole.log(\"2. Duduk dan buka laptop\");\n```\n\nHasil di console:\n\n```text\n1. Pesan kopi\n2. Duduk dan buka laptop\n3. Kopi siap\n```\n\n`setTimeout` tidak membuat program berhenti 300 milidetik. Ia hanya **menjadwalkan** fungsi, lalu langsung lanjut ke baris berikutnya. Baris \"2\" tercetak lebih dulu, dan 300 milidetik kemudian fungsi yang dijadwalkan dijalankan.\n\nSeperti memesan kopi di kafe: kamu tidak berdiri diam di depan kasir sampai kopinya jadi, tapi duduk dan mengerjakan hal lain, lalu dipanggil saat kopinya siap."
+    },
+    {
+      "type": "theory",
+      "content": "Bahkan dengan jeda **0 milidetik**, fungsi yang dijadwalkan tetap menunggu sampai kode yang sedang berjalan selesai seluruhnya:\n\n```javascript run\nsetTimeout(() => console.log(\"C\"), 0);\nconsole.log(\"A\");\nfor (let i = 0; i < 3; i++) console.log(\"loop\", i);\nconsole.log(\"B\");\n```\n\nHasil di console:\n\n```text\nA\nloop 0\nloop 1\nloop 2\nB\nC\n```\n\nJavaScript menyelesaikan dulu semua kode sinkron yang sedang berjalan, baru kemudian mengambil pekerjaan yang menunggu di **antrean**. Mekanisme ini disebut **event loop**, dan akan dibahas lebih dalam di materi 11.\n\nAkibatnya: kode sinkron yang sangat lama (misalnya perulangan miliaran kali) tetap membuat halaman membeku, karena antrean tidak sempat diproses. Asinkron bukan berarti berjalan bersamaan, tapi **bergantian dengan cerdas**."
+    },
+    {
+      "type": "runnable",
+      "code": "let pesan = \"belum diisi\";\nsetTimeout(() => {\n  pesan = \"sudah diisi\";\n  console.log(\"Di dalam timer:\", pesan);\n}, 100);\nconsole.log(\"Setelah setTimeout:\", pesan);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "Setelah setTimeout: belum diisi",
+          "Setelah setTimeout: sudah diisi",
+          "Di dalam timer: sudah diisi",
+          "Di dalam timer: belum diisi"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Fungsi ini hanya dijadwalkan, belum dijalankan."
+        },
+        {
+          "line": 6,
+          "note": "Baris ini berjalan lebih dulu, saat pesan belum diubah."
+        }
+      ],
+      "explanation": "Fungsi di dalam `setTimeout` baru berjalan 100 milidetik kemudian. Saat baris terakhir dijalankan, `pesan` masih \"belum diisi\".\n\nIni kesalahan klasik pemula: menulis kode yang **memakai hasil** pekerjaan asinkron di luar fungsi kelanjutannya. Hasilnya belum ada. Kode yang membutuhkan hasil itu harus diletakkan di dalam kelanjutannya, atau, seperti yang akan kamu pelajari, ditunggu dengan `await`.",
+      "tryThis": [
+        {
+          "task": "Ubah jeda menjadi 0. Apakah urutan output berubah?",
+          "hint": "Tidak. Jeda 0 tetap menunggu kode sinkron selesai dulu."
+        },
+        {
+          "task": "Tambahkan setTimeout kedua dengan jeda 50 yang mencetak \"timer cepat\". Di mana ia muncul?",
+          "hint": "Timer dengan jeda lebih pendek berjalan lebih dulu."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "setTimeout(() => console.log(\"x\"), 0);\nconsole.log(\"y\");",
+          "options": [
+            "x lalu y",
+            "y lalu x",
+            "y",
+            "x"
+          ],
+          "answer": 1,
+          "explanation": "Fungsi di setTimeout menunggu kode sinkron selesai, walau jedanya 0.",
+          "remedial": "Bayangkan kamu **memasak mi instan** sambil membalas pesan.\n\nCara sinkron: kamu berdiri di depan kompor, menatap air sampai mendidih, baru kemudian membuka HP. Selama 5 menit, kamu tidak melakukan apa-apa.\n\nCara asinkron: kamu menyalakan kompor, memasang timer, lalu membalas pesan. Saat timer berbunyi, kamu kembali ke kompor. `setTimeout` adalah timer itu: ia tidak membuatmu diam menunggu, hanya mengingatkanmu nanti."
+        },
+        {
+          "question": "Apa baris terakhir yang tercetak?",
+          "code": "setTimeout(() => console.log(\"lambat\"), 200);\nsetTimeout(() => console.log(\"cepat\"), 100);\nconsole.log(\"langsung\");",
+          "options": [
+            "langsung",
+            "cepat",
+            "lambat",
+            "tidak ada"
+          ],
+          "answer": 2,
+          "explanation": "Urutannya: langsung (sinkron), cepat (100 ms), lalu lambat (200 ms).",
+          "remedial": "Bayangkan kamu **memasak mi instan** sambil membalas pesan.\n\nCara sinkron: kamu berdiri di depan kompor, menatap air sampai mendidih, baru kemudian membuka HP. Selama 5 menit, kamu tidak melakukan apa-apa.\n\nCara asinkron: kamu menyalakan kompor, memasang timer, lalu membalas pesan. Saat timer berbunyi, kamu kembali ke kompor. `setTimeout` adalah timer itu: ia tidak membuatmu diam menunggu, hanya mengingatkanmu nanti."
+        },
+        {
+          "question": "Kenapa JavaScript di browser butuh kode asinkron?",
+          "options": [
+            "Supaya kode lebih pendek",
+            "Karena JavaScript tidak bisa menjalankan perulangan",
+            "Supaya halaman tidak membeku saat menunggu pekerjaan lama seperti mengambil data dari server",
+            "Supaya kode berjalan di banyak komputer"
+          ],
+          "answer": 2,
+          "explanation": "JavaScript hanya punya satu jalur kerja. Menunggu secara sinkron membuat seluruh halaman berhenti merespons.",
+          "remedial": "Bayangkan kamu **memasak mi instan** sambil membalas pesan.\n\nCara sinkron: kamu berdiri di depan kompor, menatap air sampai mendidih, baru kemudian membuka HP. Selama 5 menit, kamu tidak melakukan apa-apa.\n\nCara asinkron: kamu menyalakan kompor, memasang timer, lalu membalas pesan. Saat timer berbunyi, kamu kembali ke kompor. `setTimeout` adalah timer itu: ia tidak membuatmu diam menunggu, hanya mengingatkanmu nanti."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Kopi butuh waktu untuk dibuat. Perbaiki kode supaya \"Kopi siap!\" tercetak paling akhir, 300 milidetik setelah pesanan diterima, dengan setTimeout.",
+      "starterCode": "console.log(\"Pesanan diterima\");\nconsole.log(\"Kopi siap!\");\nconsole.log(\"Menunggu kopi...\");\n",
+      "steps": [
+        "Bungkus console.log(\"Kopi siap!\") dengan setTimeout.",
+        "Beri jeda 300 milidetik.",
+        "Biarkan \"Menunggu kopi...\" tetap sebagai kode biasa."
+      ],
+      "skeleton": "console.log(\"Pesanan diterima\");\n___(() => console.log(\"Kopi siap!\"), ___);\nconsole.log(\"Menunggu kopi...\");",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Pesanan diterima\nMenunggu kopi...\nKopi siap!\n"
+        }
+      ],
+      "hints": [
+        "setTimeout menerima fungsi dan jeda dalam milidetik.",
+        "Baris setelah setTimeout tetap berjalan langsung, tanpa menunggu."
+      ],
+      "solution": "console.log(\"Pesanan diterima\");\nsetTimeout(() => console.log(\"Kopi siap!\"), 300);\nconsole.log(\"Menunggu kopi...\");"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Kode sinkron berjalan baris demi baris; baris berikutnya menunggu yang sebelumnya selesai.",
+        "JavaScript punya satu jalur kerja, jadi menunggu secara sinkron membuat halaman membeku.",
+        "Kode asinkron memulai pekerjaan lama, melanjutkan kode lain, dan menjalankan kelanjutannya nanti.",
+        "setTimeout menjadwalkan fungsi; bahkan jeda 0 tetap menunggu kode sinkron selesai."
+      ]
+    }
+  ]
+}

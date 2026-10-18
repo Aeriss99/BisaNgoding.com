@@ -1,0 +1,135 @@
+{
+  "id": "js-async-05",
+  "moduleId": "js-async",
+  "order": 5,
+  "title": "Merangkai then, catch, dan finally",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kekuatan utama Promise: `.then()` **selalu mengembalikan Promise baru**. Karena itu, `then` bisa dirangkai (*chaining*), dan setiap langkah menerima hasil dari langkah sebelumnya.\n\nAturan nilai yang diteruskan:\n\n| Fungsi di `then` mengembalikan... | Langkah berikutnya menerima... |\n|---|---|\n| nilai biasa (`return 5`) | nilai itu |\n| Promise | hasil Promise itu, **setelah ditunggu** |\n| tidak mengembalikan apa-apa | `undefined` |\n| melempar error (`throw`) | langkah berikutnya dilewati, sampai ke `catch` |\n\nBentuknya datar dari atas ke bawah, bukan bersarang seperti callback hell."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nconst tunggu = (ms, nilai) => new Promise((res) => setTimeout(() => res(nilai), ms));\ntunggu(100, 2)\n  .then((n) => {\n    console.log(\"dapat\", n);\n    return n * 10;\n  })\n  .then((n) => {\n    console.log(\"dapat\", n);\n    return tunggu(100, n + 1);\n  })\n  .then((n) => {\n    console.log(\"dapat\", n);\n  })\n  .then((n) => console.log(\"dapat\", n));\n```\n\nHasil di console:\n\n```text\ndapat 2\ndapat 20\ndapat 21\ndapat undefined\n```\n\n- Langkah pertama mengembalikan angka biasa, yang langsung diteruskan.\n- Langkah kedua mengembalikan Promise. Langkah ketiga **menunggu** Promise itu selesai, lalu menerima hasilnya (21).\n- Langkah ketiga tidak punya `return`, jadi langkah keempat menerima `undefined`.\n\nLupa menulis `return` adalah kesalahan paling sering saat merangkai `then`."
+    },
+    {
+      "type": "theory",
+      "content": "`catch` dan `finally` di akhir rangkaian:\n\n```javascript run\nfunction ambilSaldo(gagal) {\n  return new Promise((res, rej) =>\n    setTimeout(() => (gagal ? rej(new Error(\"Koneksi putus\")) : res(50000)), 100)\n  );\n}\nconsole.log(\"Memuat...\");\nambilSaldo(true)\n  .then((saldo) => saldo - 18000)\n  .then((sisa) => console.log(\"Sisa:\", sisa))\n  .catch((err) => console.log(\"Gagal:\", err.message))\n  .finally(() => console.log(\"Sembunyikan tanda memuat\"));\n```\n\nHasil di console:\n\n```text\nMemuat...\nGagal: Koneksi putus\nSembunyikan tanda memuat\n```\n\n- Saat Promise rejected, semua `then` di antaranya **dilewati**, langsung ke `catch` terdekat. Satu `catch` di akhir menangkap kegagalan dari langkah mana pun.\n- **`finally`** selalu dijalankan, berhasil maupun gagal. Cocok untuk membereskan sesuatu, misalnya menyembunyikan ikon memuat. `finally` tidak menerima argumen."
+    },
+    {
+      "type": "runnable",
+      "code": "Promise.resolve(1)\n  .then((n) => n + 1)\n  .then((n) => {\n    n * 100;\n  })\n  .then((n) => console.log(\"hasil:\", n))\n  .finally(() => console.log(\"selesai\"));",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "hasil: undefined",
+          "hasil: 200",
+          "hasil: 2",
+          "selesai"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Arrow function tanpa kurung kurawal otomatis mengembalikan nilainya: 2."
+        },
+        {
+          "line": 4,
+          "note": "Dihitung, tapi tidak dikembalikan, karena tidak ada return di dalam kurung kurawal."
+        },
+        {
+          "line": 7,
+          "note": "Selalu berjalan di akhir."
+        }
+      ],
+      "explanation": "Arrow function **dengan kurung kurawal** wajib memakai `return` untuk mengembalikan nilai. Langkah ketiga menghitung `n * 100` lalu membuang hasilnya, sehingga langkah berikutnya menerima `undefined`.\n\nKesalahan ini tidak memunculkan error apa pun, jadi sulit dilacak. Biasakan memeriksa: apakah setiap `then` yang hasilnya dibutuhkan sudah punya `return`?",
+      "tryThis": [
+        {
+          "task": "Tambahkan return sebelum n * 100. Apa hasilnya sekarang?",
+          "hint": "Langkah berikutnya menerima 200."
+        },
+        {
+          "task": "Ganti langkah itu menjadi `.then((n) => n * 100)` tanpa kurung kurawal. Apakah hasilnya sama dengan memakai return?",
+          "hint": "Arrow function satu ekspresi tanpa kurung kurawal otomatis mengembalikan nilainya."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "Promise.resolve(3)\n  .then((n) => n * 2)\n  .then((n) => n + 1)\n  .then((n) => console.log(n));",
+          "options": [
+            "3",
+            "6",
+            "8",
+            "7"
+          ],
+          "answer": 3,
+          "explanation": "3 dikali 2 menjadi 6, ditambah 1 menjadi 7.",
+          "remedial": "Bayangkan **jalur perakitan di pabrik**.\n\nSetiap pekerja (`then`) menerima barang dari pekerja sebelumnya, mengolahnya, lalu **meneruskannya** (`return`). Kalau seorang pekerja lupa meneruskan barangnya, pekerja berikutnya menerima tangan kosong (`undefined`).\n\nKalau ada barang rusak, barang itu langsung dikirim ke bagian pemeriksaan (`catch`), melewati semua pekerja lain. Dan di ujung jalur, petugas kebersihan (`finally`) selalu membereskan meja, apa pun yang terjadi."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "Promise.reject(new Error(\"x\"))\n  .then(() => console.log(\"A\"))\n  .catch(() => console.log(\"B\"))\n  .finally(() => console.log(\"C\"));",
+          "options": [
+            "A B C",
+            "B C",
+            "A C",
+            "C"
+          ],
+          "answer": 1,
+          "explanation": "Promise rejected melewati then, ditangkap catch (B), lalu finally (C) selalu berjalan.",
+          "remedial": "Bayangkan **jalur perakitan di pabrik**.\n\nSetiap pekerja (`then`) menerima barang dari pekerja sebelumnya, mengolahnya, lalu **meneruskannya** (`return`). Kalau seorang pekerja lupa meneruskan barangnya, pekerja berikutnya menerima tangan kosong (`undefined`).\n\nKalau ada barang rusak, barang itu langsung dikirim ke bagian pemeriksaan (`catch`), melewati semua pekerja lain. Dan di ujung jalur, petugas kebersihan (`finally`) selalu membereskan meja, apa pun yang terjadi."
+        },
+        {
+          "question": "Kalau fungsi di then mengembalikan Promise, apa yang diterima then berikutnya?",
+          "options": [
+            "Hasil Promise itu, setelah ditunggu selesai",
+            "Object Promise-nya",
+            "Selalu undefined",
+            "Error"
+          ],
+          "answer": 0,
+          "explanation": "Rangkaian then otomatis menunggu Promise yang dikembalikan, lalu meneruskan hasilnya.",
+          "remedial": "Bayangkan **jalur perakitan di pabrik**.\n\nSetiap pekerja (`then`) menerima barang dari pekerja sebelumnya, mengolahnya, lalu **meneruskannya** (`return`). Kalau seorang pekerja lupa meneruskan barangnya, pekerja berikutnya menerima tangan kosong (`undefined`).\n\nKalau ada barang rusak, barang itu langsung dikirim ke bagian pemeriksaan (`catch`), melewati semua pekerja lain. Dan di ujung jalur, petugas kebersihan (`finally`) selalu membereskan meja, apa pun yang terjadi."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Rangkai Promise dari ambilHarga(): hitung total untuk 3 porsi, cetak \"Total: <total>\", tangkap kegagalan dengan mencetak \"Gagal: <pesan>\", dan selalu cetak \"Selesai\" di akhir. Jalankan untuk menu \"kopi\" lalu \"es\".",
+      "starterCode": "const harga = { kopi: 18000, teh: 12000 };\nfunction ambilHarga(menu) {\n  return new Promise((res, rej) =>\n    setTimeout(() => (harga[menu] ? res(harga[menu]) : rej(new Error(`Menu ${menu} tidak ada`))), 100)\n  );\n}\nfunction pesan(menu) {\n  return ambilHarga(menu);\n  // rangkai then, catch, dan finally di sini\n}\npesan(\"kopi\").then(() => pesan(\"es\"));\n",
+      "steps": [
+        "then pertama: kembalikan h * 3.",
+        "then kedua: cetak \"Total: \" + total.",
+        "catch: cetak pesan error; finally: cetak \"Selesai\". Kembalikan seluruh rangkaian."
+      ],
+      "skeleton": "const harga = { kopi: 18000, teh: 12000 };\nfunction ambilHarga(menu) {\n  return new Promise((res, rej) =>\n    setTimeout(() => (harga[menu] ? res(harga[menu]) : rej(new Error(`Menu ${menu} tidak ada`))), 100)\n  );\n}\nfunction pesan(menu) {\n  return ambilHarga(menu)\n    .then((h) => h * 3)\n    .then((total) => console.log(\"Total:\", total))\n    .___((err) => console.log(\"Gagal:\", err.message))\n    .___(() => console.log(\"Selesai\"));\n}\npesan(\"kopi\").then(() => pesan(\"es\"));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Total: 54000\nSelesai\nGagal: Menu es tidak ada\nSelesai\n"
+        }
+      ],
+      "hints": [
+        "catch menangkap kegagalan dari langkah mana pun sebelumnya.",
+        "finally berjalan baik saat berhasil maupun gagal."
+      ],
+      "solution": "const harga = { kopi: 18000, teh: 12000 };\nfunction ambilHarga(menu) {\n  return new Promise((res, rej) =>\n    setTimeout(() => (harga[menu] ? res(harga[menu]) : rej(new Error(`Menu ${menu} tidak ada`))), 100)\n  );\n}\nfunction pesan(menu) {\n  return ambilHarga(menu)\n    .then((h) => h * 3)\n    .then((total) => console.log(\"Total:\", total))\n    .catch((err) => console.log(\"Gagal:\", err.message))\n    .finally(() => console.log(\"Selesai\"));\n}\npesan(\"kopi\").then(() => pesan(\"es\"));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "then selalu mengembalikan Promise baru, sehingga bisa dirangkai.",
+        "Nilai yang di-return diteruskan ke then berikutnya; Promise yang di-return ditunggu dulu.",
+        "Lupa return membuat langkah berikutnya menerima undefined.",
+        "Satu catch di akhir menangkap kegagalan dari langkah mana pun; finally selalu berjalan."
+      ]
+    }
+  ]
+}
