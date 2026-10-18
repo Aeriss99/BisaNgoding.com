@@ -1,0 +1,134 @@
+{
+  "id": "js-modules-07",
+  "moduleId": "js-modules",
+  "order": 7,
+  "title": "Module Dijalankan Sekali",
+  "estimatedMinutes": 8,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sebuah module bisa di-import oleh banyak file. Pertanyaannya: apakah kodenya dijalankan berkali-kali?\n\n**Tidak.** Setiap module hanya **dievaluasi sekali**, saat pertama kali dibutuhkan. Import berikutnya, dari file mana pun, mendapat **hasil yang sama** dari ingatan (*cache*).\n\nAkibatnya:\n\n- kode di tingkat atas module (misalnya `console.log`, membuat object) hanya berjalan sekali,\n- variabel di dalam module **dipakai bersama** oleh semua file yang meng-import-nya.\n\nIni membuat module cocok untuk menyimpan **satu data bersama**, misalnya pengaturan aplikasi, koneksi database, atau isi keranjang belanja. Pola \"satu object yang dipakai bersama seluruh aplikasi\" disebut **singleton**."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\n// === pengaturan.js ===\nconsole.log(\"pengaturan.js dimuat\");\nexport const pengaturan = { tema: \"terang\" };\n// === header.js ===\nimport { pengaturan } from \"./pengaturan.js\";\nexport function ubahTema(t) {\n  pengaturan.tema = t;\n}\n// === main.js ===\nimport { pengaturan } from \"./pengaturan.js\";\nimport { ubahTema } from \"./header.js\";\nubahTema(\"gelap\");\nconsole.log(pengaturan.tema);\n```\n\nHasil di console:\n\n```text\npengaturan.js dimuat\ngelap\n```\n\n- `pengaturan.js` di-import oleh `header.js` dan `main.js`, tapi \"dimuat\" hanya tercetak **sekali**.\n- `header.js` mengubah `pengaturan.tema`, dan `main.js` langsung melihat perubahannya, karena keduanya memegang **object yang sama**."
+    },
+    {
+      "type": "theory",
+      "content": "Data bersama itu berguna, tapi bisa juga menjadi sumber bug kalau banyak file mengubahnya sembarangan. Pola yang lebih aman: **sembunyikan data**, lalu bagikan function untuk membaca dan mengubahnya.\n\n```javascript run\n// === keranjang.js ===\nconst isi = [];\nexport function tambah(item) {\n  isi.push(item);\n}\nexport function jumlah() {\n  return isi.length;\n}\nexport function daftar() {\n  return [...isi];\n}\n// === produk.js ===\nimport { tambah } from \"./keranjang.js\";\nexport function beli(nama) {\n  tambah(nama);\n}\n// === main.js ===\nimport { beli } from \"./produk.js\";\nimport { jumlah, daftar } from \"./keranjang.js\";\nbeli(\"Kopi\");\nbeli(\"Roti\");\nconst salinan = daftar();\nsalinan.push(\"Hack\");\nconsole.log(jumlah(), daftar().join(\", \"));\n```\n\nHasil di console:\n\n```text\n2 Kopi, Roti\n```\n\n- Array `isi` tidak di-export, jadi file lain tidak bisa mengubahnya langsung.\n- `daftar()` mengembalikan **salinan**. Menambah elemen ke salinan tidak mengubah isi keranjang.\n- Semua perubahan harus lewat `tambah`, sehingga mudah dilacak."
+    },
+    {
+      "type": "runnable",
+      "code": "// === penghitung.js ===\nconsole.log(\"membuat penghitung\");\nlet n = 0;\nexport function naik() {\n  return ++n;\n}\n// === a.js ===\nimport { naik } from \"./penghitung.js\";\nexport const dariA = naik();\n// === b.js ===\nimport { naik } from \"./penghitung.js\";\nexport const dariB = naik();\n// === main.js ===\nimport { dariA } from \"./a.js\";\nimport { dariB } from \"./b.js\";\nconsole.log(dariA, dariB);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KEDUA yang akan tercetak?",
+        "options": [
+          "2 2",
+          "0 1",
+          "1 2",
+          "1 1"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Hanya tercetak sekali, walau di-import dua file."
+        },
+        {
+          "line": 9,
+          "note": "a.js memanggil naik lebih dulu: n menjadi 1."
+        },
+        {
+          "line": 12,
+          "note": "b.js memakai penghitung yang sama: n menjadi 2."
+        }
+      ],
+      "explanation": "`penghitung.js` hanya dievaluasi sekali, jadi `a.js` dan `b.js` memakai variabel `n` yang **sama**. `a.js` dimuat lebih dulu dan mendapat 1, lalu `b.js` mendapat 2.\n\nKalau setiap import menjalankan ulang module, keduanya akan mendapat 1. Inilah yang membuat module cocok untuk data bersama.",
+      "tryThis": [
+        {
+          "task": "Tukar urutan import di main.js (b.js lebih dulu). Apa yang tercetak?",
+          "hint": "Module yang di-import lebih dulu dievaluasi lebih dulu."
+        },
+        {
+          "task": "Import penghitung.js juga di main.js dan panggil naik(). Berapa hasilnya?",
+          "hint": "Masih penghitung yang sama, jadi hasilnya melanjutkan angka sebelumnya."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "// === log.js ===\nconsole.log(\"log dimuat\");\nexport const x = 1;\n// === a.js ===\nimport { x } from \"./log.js\";\nexport const a = x;\n// === main.js ===\nimport { x } from \"./log.js\";\nimport { a } from \"./a.js\";\nconsole.log(x + a);",
+          "options": [
+            "log dimuat lalu log dimuat lalu 2",
+            "log dimuat lalu 2",
+            "2",
+            "log dimuat lalu 1"
+          ],
+          "answer": 1,
+          "explanation": "log.js dievaluasi sekali saja, walau di-import oleh main.js dan a.js.",
+          "remedial": "Bayangkan **papan pengumuman di kantor**.\n\nPapan itu dipasang sekali saja. Semua divisi melihat papan yang sama, dan kalau satu divisi menempel pengumuman baru, divisi lain langsung melihatnya.\n\nSupaya papan tidak berantakan, kantor biasanya menunjuk satu petugas: semua pengumuman diserahkan kepadanya, dan hanya dia yang menempel atau mencopot. Itulah pola menyembunyikan data dan hanya membagikan function untuk mengubahnya."
+        },
+        {
+          "question": "Kalau dua file meng-import object yang sama dari satu module lalu salah satunya mengubah properti object itu, apa yang dilihat file lainnya?",
+          "options": [
+            "Perubahan itu, karena keduanya memegang object yang sama",
+            "Nilai lama, karena setiap import mendapat salinan",
+            "Error",
+            "undefined"
+          ],
+          "answer": 0,
+          "explanation": "Module dievaluasi sekali, dan semua pemakai mendapat object yang sama.",
+          "remedial": "Bayangkan **papan pengumuman di kantor**.\n\nPapan itu dipasang sekali saja. Semua divisi melihat papan yang sama, dan kalau satu divisi menempel pengumuman baru, divisi lain langsung melihatnya.\n\nSupaya papan tidak berantakan, kantor biasanya menunjuk satu petugas: semua pengumuman diserahkan kepadanya, dan hanya dia yang menempel atau mencopot. Itulah pola menyembunyikan data dan hanya membagikan function untuk mengubahnya."
+        },
+        {
+          "question": "Kenapa data bersama sebaiknya disembunyikan dan diubah lewat function yang di-export?",
+          "options": [
+            "Supaya kode lebih pendek",
+            "Supaya module dijalankan dua kali",
+            "Karena variabel module tidak bisa di-export",
+            "Supaya semua perubahan lewat satu jalur yang mudah dilacak dan diperiksa"
+          ],
+          "answer": 3,
+          "explanation": "Kalau setiap file bisa mengubah data langsung, sulit mencari siapa yang menyebabkan bug.",
+          "remedial": "Bayangkan **papan pengumuman di kantor**.\n\nPapan itu dipasang sekali saja. Semua divisi melihat papan yang sama, dan kalau satu divisi menempel pengumuman baru, divisi lain langsung melihatnya.\n\nSupaya papan tidak berantakan, kantor biasanya menunjuk satu petugas: semua pengumuman diserahkan kepadanya, dan hanya dia yang menempel atau mencopot. Itulah pola menyembunyikan data dan hanya membagikan function untuk mengubahnya."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi notifikasi.js: simpan pesan di array privat, export function kirim(pesan) untuk menambah pesan dan function semua() yang mengembalikan salinan array. Dua file lain mengirim pesan, dan main.js mencetak semuanya.",
+      "starterCode": "// === notifikasi.js ===\nconst pesan = [];\n// export function kirim(p) dan function semua()\n// === login.js ===\nimport { kirim } from \"./notifikasi.js\";\nkirim(\"Login berhasil\");\n// === bayar.js ===\nimport { kirim } from \"./notifikasi.js\";\nkirim(\"Pembayaran diterima\");\n// === main.js ===\nimport \"./login.js\";\nimport \"./bayar.js\";\nimport { semua } from \"./notifikasi.js\";\nconsole.log(semua().join(\" | \"));\nconsole.log(semua().length);\n",
+      "steps": [
+        "export function kirim(p) { pesan.push(p); }",
+        "export function semua() { return [...pesan]; }",
+        "Jalankan; kedua pesan dari file berbeda terkumpul di satu array."
+      ],
+      "skeleton": "// === notifikasi.js ===\nconst pesan = [];\nexport function kirim(p) {\n  pesan.___(p);\n}\nexport function semua() {\n  return [___pesan];\n}\n// === login.js ===\nimport { kirim } from \"./notifikasi.js\";\nkirim(\"Login berhasil\");\n// === bayar.js ===\nimport { kirim } from \"./notifikasi.js\";\nkirim(\"Pembayaran diterima\");\n// === main.js ===\nimport \"./login.js\";\nimport \"./bayar.js\";\nimport { semua } from \"./notifikasi.js\";\nconsole.log(semua().join(\" | \"));\nconsole.log(semua().length);",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Login berhasil | Pembayaran diterima\n2\n"
+        }
+      ],
+      "hints": [
+        "import \"./login.js\" menjalankan file itu tanpa mengambil nama apa pun.",
+        "Spread [...pesan] membuat salinan array."
+      ],
+      "solution": "// === notifikasi.js ===\nconst pesan = [];\nexport function kirim(p) {\n  pesan.push(p);\n}\nexport function semua() {\n  return [...pesan];\n}\n// === login.js ===\nimport { kirim } from \"./notifikasi.js\";\nkirim(\"Login berhasil\");\n// === bayar.js ===\nimport { kirim } from \"./notifikasi.js\";\nkirim(\"Pembayaran diterima\");\n// === main.js ===\nimport \"./login.js\";\nimport \"./bayar.js\";\nimport { semua } from \"./notifikasi.js\";\nconsole.log(semua().join(\" | \"));\nconsole.log(semua().length);"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Setiap module hanya dievaluasi sekali, walau di-import oleh banyak file.",
+        "Semua pemakai mendapat hasil yang sama, termasuk object yang sama.",
+        "Module cocok untuk data bersama (singleton) seperti pengaturan atau keranjang.",
+        "Sembunyikan data dan bagikan function untuk mengubahnya supaya perubahan mudah dilacak."
+      ]
+    }
+  ]
+}

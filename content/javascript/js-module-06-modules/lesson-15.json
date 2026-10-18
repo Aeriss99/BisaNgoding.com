@@ -1,0 +1,133 @@
+{
+  "id": "js-modules-15",
+  "moduleId": "js-modules",
+  "order": 15,
+  "title": "Bundler dan Tree Shaking",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Module di browser bisa dipakai langsung, tapi aplikasi besar bisa terdiri dari ratusan file. Memuat ratusan file satu per satu membuat halaman lambat, dan browser tidak tahu cara memuat paket npm.\n\n**Bundler** menyelesaikan ini. Saat **build**, bundler:\n\n1. mulai dari file utama, lalu mengikuti semua `import` untuk menemukan file yang dibutuhkan,\n2. mengarahkan nama paket (`\"dayjs\"`) ke file di `node_modules`,\n3. menggabungkan semuanya menjadi sedikit file yang dioptimalkan,\n4. mengecilkan kode (*minify*): menghapus spasi dan memendekkan nama variabel.\n\nBundler yang paling populer sekarang adalah **Vite** (website BisaNgoding sendiri dibangun dengan Vite). Yang lain: esbuild, Rollup, webpack.\n\n```bash\nnpm create vite@latest toko-kopi   # membuat proyek baru\nnpm run dev                        # server pengembangan\nnpm run build                      # hasil siap upload di folder dist/\n```"
+    },
+    {
+      "type": "theory",
+      "content": "Karena ES Modules bersifat **statis** (import dan export bisa dibaca tanpa menjalankan kode), bundler bisa tahu export mana yang **tidak pernah di-import**, lalu membuangnya dari hasil build. Proses ini disebut **tree shaking**, seperti mengguncang pohon supaya daun kering berjatuhan.\n\n```javascript\n// utils.js\nexport function rupiah(n) { /* ... */ }\nexport function grafikRumit() { /* 2000 baris */ }\n\n// main.js\nimport { rupiah } from \"./utils.js\";\n```\n\nHasil build hanya berisi `rupiah`. `grafikRumit` tidak pernah dipakai, jadi dibuang.\n\nTree shaking bekerja paling baik kalau:\n\n- kamu meng-import **nama yang dibutuhkan saja** (`import { rupiah }`), bukan seluruh object,\n- module **tidak punya efek samping** di tingkat atas (kode yang langsung berjalan saat dimuat, misalnya mengubah variabel global)."
+    },
+    {
+      "type": "theory",
+      "content": "Efek samping penting dipahami, karena bundler tidak berani membuang module yang punya efek samping:\n\n```javascript run\n// === murni.js ===\nexport function kali(a, b) {\n  return a * b;\n}\n// === efek.js ===\nglobalThis.pengunjung = (globalThis.pengunjung ?? 0) + 1;\nconsole.log(\"efek.js mengubah variabel global\");\nexport const tidakDipakai = 1;\n// === main.js ===\nimport { kali } from \"./murni.js\";\nimport \"./efek.js\";\nconsole.log(kali(3, 4), globalThis.pengunjung);\n```\n\nHasil di console:\n\n```text\nefek.js mengubah variabel global\n12 1\n```\n\n- `murni.js` hanya berisi deklarasi. Kalau `kali` tidak dipakai, seluruh isinya aman dibuang.\n- `efek.js` mengubah variabel global saat dimuat. Walau `tidakDipakai` tidak pernah dipakai, kode tingkat atasnya tetap harus dijalankan, jadi bundler tidak bisa membuangnya.\n\nPedoman: buat sebagian besar module **murni** (hanya mendeklarasikan dan meng-export), dan kumpulkan kode yang langsung berjalan di satu tempat, misalnya `main.js`. Di `package.json`, paket bisa menandai dirinya bebas efek samping dengan `\"sideEffects\": false`, supaya bundler lebih berani membuang bagian yang tidak dipakai."
+    },
+    {
+      "type": "runnable",
+      "code": "// === besar.js ===\nconsole.log(\"besar.js dijalankan\");\nexport function dipakai() {\n  return \"fitur utama\";\n}\nexport function jarang() {\n  return \"fitur jarang\";\n}\n// === main.js ===\nimport { dipakai } from \"./besar.js\";\nconsole.log(dipakai());",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "fitur jarang",
+          "undefined",
+          "besar.js dijalankan",
+          "fitur utama"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Efek samping di tingkat atas: berjalan saat module dimuat."
+        },
+        {
+          "line": 6,
+          "note": "Tidak di-import di mana pun; kandidat dibuang oleh tree shaking."
+        },
+        {
+          "line": 10,
+          "note": "Hanya dipakai yang dibutuhkan."
+        }
+      ],
+      "explanation": "Di editor ini (dan di browser tanpa bundler), seluruh `besar.js` tetap dimuat dan dijalankan, termasuk `console.log` di tingkat atas.\n\nSaat build dengan Vite, function `jarang` akan dibuang karena tidak pernah di-import. Tapi `console.log(\"besar.js dijalankan\")` tetap dipertahankan, karena itu efek samping yang mungkin disengaja.",
+      "tryThis": [
+        {
+          "task": "Hapus baris console.log di besar.js. Sekarang module itu murni. Apa yang masih tercetak?",
+          "hint": "Module tanpa efek samping hanya berisi deklarasi."
+        },
+        {
+          "task": "Ganti import dengan import * as B lalu panggil B.dipakai(). Kenapa cara ini kadang menyulitkan tree shaking?",
+          "hint": "Bundler modern biasanya tetap bisa menganalisisnya, tapi import nama secara langsung lebih jelas dan lebih mudah dioptimalkan."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dimaksud tree shaking?",
+          "options": [
+            "Mengacak urutan file",
+            "Membuang export yang tidak pernah di-import dari hasil build",
+            "Menjalankan semua module dua kali",
+            "Mengunduh paket dari npm"
+          ],
+          "answer": 1,
+          "explanation": "Bundler menganalisis import dan export statis untuk membuang kode yang tidak dipakai.",
+          "remedial": "Bayangkan kamu **berkemas untuk pindah kos**.\n\nBundler seperti petugas pindahan yang memeriksa daftar barang yang benar-benar kamu pakai, lalu mengemas semuanya ke beberapa kardus besar, bukan ratusan kantong kecil. Barang yang tidak pernah dipakai (export yang tidak di-import) ditinggal.\n\nTapi petugas tidak berani meninggalkan barang yang terpasang di dinding, misalnya rak yang dibor (module dengan efek samping), karena mungkin masih dibutuhkan."
+        },
+        {
+          "question": "Kenapa tree shaking bisa dilakukan pada ES Modules?",
+          "options": [
+            "Karena import dan export statis bisa dianalisis tanpa menjalankan kode",
+            "Karena ES Modules selalu kecil",
+            "Karena ES Modules tidak punya function",
+            "Karena browser yang melakukannya"
+          ],
+          "answer": 0,
+          "explanation": "Struktur import/export diketahui sebelum kode dijalankan, berbeda dengan require yang bisa dipanggil di mana saja.",
+          "remedial": "Bayangkan kamu **berkemas untuk pindah kos**.\n\nBundler seperti petugas pindahan yang memeriksa daftar barang yang benar-benar kamu pakai, lalu mengemas semuanya ke beberapa kardus besar, bukan ratusan kantong kecil. Barang yang tidak pernah dipakai (export yang tidak di-import) ditinggal.\n\nTapi petugas tidak berani meninggalkan barang yang terpasang di dinding, misalnya rak yang dibor (module dengan efek samping), karena mungkin masih dibutuhkan."
+        },
+        {
+          "question": "Module mana yang paling aman dibuang bundler kalau export-nya tidak dipakai?",
+          "options": [
+            "Module yang mengubah variabel global saat dimuat",
+            "Module yang mencetak ke console saat dimuat",
+            "Module yang mendaftarkan event saat dimuat",
+            "Module yang hanya mendeklarasikan dan meng-export function"
+          ],
+          "answer": 3,
+          "explanation": "Module murni tanpa efek samping tidak mengubah apa pun saat dimuat, jadi aman dibuang.",
+          "remedial": "Bayangkan kamu **berkemas untuk pindah kos**.\n\nBundler seperti petugas pindahan yang memeriksa daftar barang yang benar-benar kamu pakai, lalu mengemas semuanya ke beberapa kardus besar, bukan ratusan kantong kecil. Barang yang tidak pernah dipakai (export yang tidak di-import) ditinggal.\n\nTapi petugas tidak berani meninggalkan barang yang terpasang di dinding, misalnya rak yang dibor (module dengan efek samping), karena mungkin masih dibutuhkan."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Ubah format.js menjadi module murni: hapus kode tingkat atas yang mengubah globalThis dan mencetak ke console, sehingga format.js hanya berisi export function. Fungsi harga langsung memakai \"Rp\".",
+      "starterCode": "// === format.js ===\nglobalThis.mataUang = \"Rp\";\nconsole.log(\"format.js mengubah variabel global\");\nexport function harga(n) {\n  return globalThis.mataUang + n.toLocaleString(\"id-ID\");\n}\nexport function persen(n) {\n  return n * 100 + \"%\";\n}\n// === main.js ===\nimport { harga } from \"./format.js\";\nconsole.log(harga(25000));\n",
+      "steps": [
+        "Hapus baris globalThis.mataUang dan console.log di tingkat atas format.js.",
+        "Ubah harga supaya langsung memakai \"Rp\".",
+        "Jalankan."
+      ],
+      "skeleton": "// === format.js ===\nexport function harga(n) {\n  return \"Rp\" + n.___(\"id-ID\");\n}\nexport ___ persen(n) {\n  return n * 100 + \"%\";\n}\n// === main.js ===\nimport { harga } from \"./format.js\";\nconsole.log(harga(25000));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Rp25.000\n"
+        }
+      ],
+      "hints": [
+        "Module murni hanya berisi deklarasi dan export, tanpa kode yang langsung mengubah sesuatu.",
+        "Output tetap Rp25.000."
+      ],
+      "solution": "// === format.js ===\nexport function harga(n) {\n  return \"Rp\" + n.toLocaleString(\"id-ID\");\n}\nexport function persen(n) {\n  return n * 100 + \"%\";\n}\n// === main.js ===\nimport { harga } from \"./format.js\";\nconsole.log(harga(25000));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Bundler seperti Vite mengikuti import, menggabungkan, dan mengecilkan kode saat build.",
+        "Bundler juga mengarahkan nama paket npm ke file di node_modules.",
+        "Tree shaking membuang export yang tidak pernah di-import.",
+        "Module murni tanpa efek samping lebih mudah dioptimalkan."
+      ]
+    }
+  ]
+}

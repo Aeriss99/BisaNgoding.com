@@ -1,0 +1,135 @@
+{
+  "id": "js-modules-09",
+  "moduleId": "js-modules",
+  "order": 9,
+  "title": "Urutan Eksekusi dan Import untuk Efek Samping",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saat sebuah module dijalankan, JavaScript bekerja dalam dua tahap:\n\n1. **Memuat dan menghubungkan.** Semua baris `import` dibaca lebih dulu, di mana pun letaknya di file. Semua module yang dibutuhkan dimuat, dan nama-nama di-import disambungkan.\n2. **Mengevaluasi.** Kode dijalankan dimulai dari module yang **paling dalam**: sebuah module baru dijalankan setelah semua module yang di-import-nya selesai dijalankan.\n\nUntuk kode ini:\n\n```javascript\n// main.js\nimport \"./a.js\";\nimport \"./b.js\";\nconsole.log(\"main\");\n```\n\nkalau `a.js` meng-import `c.js`, urutannya adalah: **c, a, b, main**. Yang paling dalam dulu, lalu ke atas, dan urutan antar-saudara mengikuti urutan baris import."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\n// === c.js ===\nconsole.log(\"c\");\n// === a.js ===\nimport \"./c.js\";\nconsole.log(\"a\");\n// === b.js ===\nimport \"./c.js\";\nconsole.log(\"b\");\n// === main.js ===\nconsole.log(\"main mulai\");\nimport \"./a.js\";\nimport \"./b.js\";\n```\n\nHasil di console:\n\n```text\nc\na\nb\nmain mulai\n```\n\n- Walau `console.log(\"main mulai\")` ditulis **sebelum** baris import, ia tetap tercetak terakhir. Semua import diproses sebelum isi file dijalankan.\n- `c.js` di-import oleh `a.js` dan `b.js`, tapi hanya dijalankan sekali, saat pertama dibutuhkan oleh `a.js`."
+    },
+    {
+      "type": "theory",
+      "content": "Bentuk `import \"./file.js\";` (tanpa mengambil nama apa pun) disebut **import untuk efek samping** (*side effect import*). Gunanya menjalankan kode di file itu, misalnya:\n\n- menyiapkan pengaturan awal,\n- mendaftarkan sesuatu ke sistem lain,\n- memuat CSS lewat bundler (`import \"./style.css\";` di proyek Vite atau React).\n\n```javascript run\n// === daftar.js ===\nconst plugin = [];\nexport function daftarkan(nama) {\n  plugin.push(nama);\n}\nexport function semuaPlugin() {\n  return plugin;\n}\n// === plugin-ekspor.js ===\nimport { daftarkan } from \"./daftar.js\";\ndaftarkan(\"Ekspor PDF\");\n// === plugin-cetak.js ===\nimport { daftarkan } from \"./daftar.js\";\ndaftarkan(\"Cetak\");\n// === main.js ===\nimport \"./plugin-ekspor.js\";\nimport \"./plugin-cetak.js\";\nimport { semuaPlugin } from \"./daftar.js\";\nconsole.log(semuaPlugin().join(\", \"));\n```\n\nHasil di console:\n\n```text\nEkspor PDF, Cetak\n```\n\n`main.js` tidak memakai apa pun dari kedua file plugin, tapi file-file itu tetap perlu dijalankan supaya mendaftarkan dirinya. Urutan import menentukan urutan pendaftarannya."
+    },
+    {
+      "type": "runnable",
+      "code": "// === data.js ===\nconsole.log(\"1. data.js\");\nexport const menu = [\"kopi\", \"teh\"];\n// === tampil.js ===\nimport { menu } from \"./data.js\";\nconsole.log(\"2. tampil.js, menu:\", menu.length);\nexport function tampilkan() {\n  console.log(\"4. tampilkan dipanggil\");\n}\n// === main.js ===\nimport { tampilkan } from \"./tampil.js\";\nconsole.log(\"3. main.js\");\ntampilkan();",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "1. data.js",
+          "3. main.js",
+          "2. tampil.js, menu: 2",
+          "4. tampilkan dipanggil"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 5,
+          "note": "tampil.js butuh data.js, jadi data.js dijalankan lebih dulu."
+        },
+        {
+          "line": 7,
+          "note": "Isi function baru berjalan saat dipanggil, bukan saat module dimuat."
+        },
+        {
+          "line": 13,
+          "note": "Dipanggil dari main.js setelah semua module selesai dimuat."
+        }
+      ],
+      "explanation": "`main.js` butuh `tampil.js`, yang butuh `data.js`. Module paling dalam dijalankan lebih dulu: data.js (1), lalu tampil.js (2), lalu main.js (3).\n\nIsi function `tampilkan` hanya **didefinisikan** saat `tampil.js` dijalankan. Isinya baru berjalan saat dipanggil dari `main.js` (4).",
+      "tryThis": [
+        {
+          "task": "Pindahkan console.log(\"3. main.js\") ke atas baris import. Apakah urutannya berubah?",
+          "hint": "Import selalu diproses sebelum isi file, di mana pun ditulis."
+        },
+        {
+          "task": "Tambahkan import \"./data.js\"; sebagai baris pertama main.js. Apakah \"1. data.js\" tercetak dua kali?",
+          "hint": "Module hanya dijalankan sekali."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "// === x.js ===\nconsole.log(\"x\");\n// === main.js ===\nconsole.log(\"main\");\nimport \"./x.js\";",
+          "options": [
+            "main lalu x",
+            "x lalu main",
+            "main",
+            "x"
+          ],
+          "answer": 1,
+          "explanation": "Semua import diproses dan dijalankan sebelum isi main.js, walau baris import ditulis di bawah.",
+          "remedial": "Bayangkan **memasak nasi goreng**.\n\nSebelum mulai menggoreng (main.js), semua bahan harus siap: nasi harus sudah dimasak, dan bumbu harus sudah diulek. Kalau bumbu butuh bawang yang dikupas dulu, bawang dikupas paling awal.\n\nJadi urutannya selalu dari persiapan paling dasar ke atas: kupas bawang, ulek bumbu, masak nasi, baru menggoreng. Dan bawang yang sudah dikupas tidak dikupas lagi walau dipakai di dua resep."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "// === b.js ===\nconsole.log(\"b\");\n// === a.js ===\nimport \"./b.js\";\nconsole.log(\"a\");\n// === main.js ===\nimport \"./a.js\";\nconsole.log(\"main\");",
+          "options": [
+            "main a b",
+            "a b main",
+            "b a main",
+            "a main b"
+          ],
+          "answer": 2,
+          "explanation": "Module paling dalam (b) dijalankan dulu, lalu a, lalu main.",
+          "remedial": "Bayangkan **memasak nasi goreng**.\n\nSebelum mulai menggoreng (main.js), semua bahan harus siap: nasi harus sudah dimasak, dan bumbu harus sudah diulek. Kalau bumbu butuh bawang yang dikupas dulu, bawang dikupas paling awal.\n\nJadi urutannya selalu dari persiapan paling dasar ke atas: kupas bawang, ulek bumbu, masak nasi, baru menggoreng. Dan bawang yang sudah dikupas tidak dikupas lagi walau dipakai di dua resep."
+        },
+        {
+          "question": "Apa yang dilakukan import \"./setup.js\"; tanpa kurung kurawal?",
+          "options": [
+            "Menjalankan setup.js tanpa mengambil nama apa pun darinya",
+            "Meng-import semua export sebagai namespace",
+            "Meng-import default export",
+            "Tidak melakukan apa-apa"
+          ],
+          "answer": 0,
+          "explanation": "Import untuk efek samping hanya menjalankan kode di file itu.",
+          "remedial": "Bayangkan **memasak nasi goreng**.\n\nSebelum mulai menggoreng (main.js), semua bahan harus siap: nasi harus sudah dimasak, dan bumbu harus sudah diulek. Kalau bumbu butuh bawang yang dikupas dulu, bawang dikupas paling awal.\n\nJadi urutannya selalu dari persiapan paling dasar ke atas: kupas bawang, ulek bumbu, masak nasi, baru menggoreng. Dan bawang yang sudah dikupas tidak dikupas lagi walau dipakai di dua resep."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Isi baris import di main.js supaya output sesuai: siapkan.js harus dijalankan lebih dulu (efek samping), lalu ambil function sapa dari salam.js.",
+      "starterCode": "// === siapkan.js ===\nglobalThis.bahasa = \"id\";\nconsole.log(\"Bahasa disiapkan\");\n// === salam.js ===\nexport function sapa(nama) {\n  return globalThis.bahasa === \"id\" ? `Halo, ${nama}` : `Hello, ${nama}`;\n}\n// === main.js ===\nimport { sapa } from \"./salam.js\";\nconsole.log(sapa(\"Rina\"));\n",
+      "steps": [
+        "Tambahkan import \"./siapkan.js\"; sebagai baris pertama main.js.",
+        "Biarkan import sapa di baris kedua.",
+        "Jalankan."
+      ],
+      "skeleton": "// === siapkan.js ===\nglobalThis.bahasa = \"id\";\nconsole.log(\"Bahasa disiapkan\");\n// === salam.js ===\nexport function sapa(nama) {\n  return globalThis.bahasa === \"id\" ? `Halo, ${nama}` : `Hello, ${nama}`;\n}\n// === main.js ===\n___ \"./siapkan.js\";\nimport { sapa } ___ \"./salam.js\";\nconsole.log(sapa(\"Rina\"));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Bahasa disiapkan\nHalo, Rina\n"
+        }
+      ],
+      "hints": [
+        "Import untuk efek samping ditulis tanpa kurung kurawal dan tanpa from.",
+        "Tanpa siapkan.js, bahasa belum diatur sehingga sapaan memakai bahasa Inggris."
+      ],
+      "solution": "// === siapkan.js ===\nglobalThis.bahasa = \"id\";\nconsole.log(\"Bahasa disiapkan\");\n// === salam.js ===\nexport function sapa(nama) {\n  return globalThis.bahasa === \"id\" ? `Halo, ${nama}` : `Hello, ${nama}`;\n}\n// === main.js ===\nimport \"./siapkan.js\";\nimport { sapa } from \"./salam.js\";\nconsole.log(sapa(\"Rina\"));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Semua import diproses sebelum isi file dijalankan, di mana pun ditulis.",
+        "Module paling dalam dijalankan lebih dulu; antar-saudara mengikuti urutan import.",
+        "Setiap module tetap hanya dijalankan sekali.",
+        "import \"./file.js\" menjalankan file itu untuk efek sampingnya tanpa mengambil nama."
+      ]
+    }
+  ]
+}

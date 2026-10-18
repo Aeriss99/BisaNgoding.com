@@ -1,0 +1,133 @@
+{
+  "id": "js-modules-16",
+  "moduleId": "js-modules",
+  "order": 16,
+  "title": "Circular Dependency",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Circular dependency** terjadi kalau dua module (atau lebih) saling meng-import:\n\n```text\npengguna.js  ──import──▶  pesanan.js\n     ▲                         │\n     └─────────import──────────┘\n```\n\nES Modules di browser dan Node.js **mengizinkan** hal ini, tapi sering menimbulkan bug yang membingungkan. Saat `pengguna.js` dimuat, ia butuh `pesanan.js` dijalankan dulu. Tapi `pesanan.js` juga butuh `pengguna.js`, yang belum selesai. Akibatnya, salah satu module berjalan saat nilai dari module lain **belum siap**, dan muncul error seperti:\n\n```text\nReferenceError: Cannot access 'daftarPengguna' before initialization\n```\n\nError ini muncul atau tidak bergantung pada urutan import, sehingga kadang hanya terjadi di satu halaman tertentu.\n\nDi editor BisaNgoding, circular import sengaja **ditolak** dengan pesan error, supaya kamu langsung tahu dan memperbaikinya."
+    },
+    {
+      "type": "theory",
+      "content": "Cara paling umum memperbaikinya: **pindahkan bagian yang dipakai bersama ke module ketiga**.\n\n```text\nSebelum:                     Sesudah:\npengguna.js ⇄ pesanan.js     pengguna.js ──▶ data.js ◀── pesanan.js\n```\n\n```javascript run\n// === data.js ===\nexport const pengguna = [{ id: \"U1\", nama: \"Rina\" }, { id: \"U2\", nama: \"Budi\" }];\nexport const pesanan = [{ id: \"O1\", userId: \"U1\", total: 36000 }, { id: \"O2\", userId: \"U1\", total: 15000 }];\n// === laporan-pengguna.js ===\nimport { pengguna, pesanan } from \"./data.js\";\nexport function totalPerPengguna(id) {\n  return pesanan.filter((o) => o.userId === id).reduce((t, o) => t + o.total, 0);\n}\nexport function namaPengguna(id) {\n  return pengguna.find((p) => p.id === id)?.nama ?? \"-\";\n}\n// === main.js ===\nimport { totalPerPengguna, namaPengguna } from \"./laporan-pengguna.js\";\nconsole.log(namaPengguna(\"U1\"), totalPerPengguna(\"U1\"));\nconsole.log(namaPengguna(\"U2\"), totalPerPengguna(\"U2\"));\n```\n\nHasil di console:\n\n```text\nRina 51000\nBudi 0\n```\n\nArah ketergantungan sekarang **satu arah**: module-module fitur bergantung pada `data.js`, dan `data.js` tidak bergantung pada siapa pun."
+    },
+    {
+      "type": "theory",
+      "content": "Cara lain mencegah circular dependency:\n\n1. **Susun module berlapis.** Module dasar (data, utilitas, konstanta) tidak boleh meng-import module fitur. Module fitur boleh meng-import module dasar. `main.js` di lapisan paling atas.\n\n```text\nmain.js          ← paling atas: menggabungkan semuanya\nfitur/*.js       ← keranjang, pembayaran, laporan\ndasar/*.js       ← format, konstanta, data (tidak meng-import fitur)\n```\n\n2. **Kirim lewat parameter.** Kalau function di module A butuh sesuatu dari module B, kadang lebih sederhana mengirimnya sebagai argumen daripada meng-import-nya.\n\n3. **Hati-hati dengan file index.** File index yang meneruskan semua isi folder, lalu di-import kembali oleh file di folder yang sama, adalah penyebab circular dependency yang sangat umum.\n\nAlat seperti `madge` (`npx madge --circular src/`) bisa mendeteksi circular dependency di proyek secara otomatis."
+    },
+    {
+      "type": "runnable",
+      "code": "// === a.js ===\nimport { b } from \"./b.js\";\nexport const a = \"A\";\n// === b.js ===\nimport { a } from \"./a.js\";\nexport const b = \"B\";\n// === main.js ===\nimport { a } from \"./a.js\";\nconsole.log(a);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa yang terjadi di editor BisaNgoding?",
+        "options": [
+          "A",
+          "B",
+          "undefined",
+          "Error: Circular import (main.js -> a.js -> b.js -> a.js) tidak didukung di editor ini"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "a.js butuh b.js."
+        },
+        {
+          "line": 5,
+          "note": "b.js juga butuh a.js: lingkaran."
+        },
+        {
+          "line": 5,
+          "note": "main.js memulai rantai dari a.js."
+        }
+      ],
+      "explanation": "`a.js` dan `b.js` saling meng-import. Editor ini menolak lingkaran seperti itu dan menunjukkan rantainya: main.js, a.js, b.js, lalu kembali ke a.js.\n\nDi browser dan Node.js, kode ini tetap berjalan dan mencetak \"A\". Tapi kalau `b.js` mencoba memakai `a` di tingkat atasnya (misalnya `console.log(a)`), hasilnya ReferenceError karena `a` belum siap. Perbaiki dengan memindahkan bagian bersama ke module ketiga.",
+      "tryThis": [
+        {
+          "task": "Hapus baris import di b.js. Apakah kode berjalan sekarang?",
+          "hint": "Tanpa lingkaran, module dimuat dengan urutan yang jelas."
+        },
+        {
+          "task": "Pindahkan a dan b ke file konstanta.js, lalu import dari sana di main.js.",
+          "hint": "Module dasar yang tidak meng-import siapa pun memutus lingkaran."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dimaksud circular dependency?",
+          "options": [
+            "Module yang di-import dua kali",
+            "Module yang meng-import dirinya lewat file index saja",
+            "Dua module atau lebih yang saling meng-import, membentuk lingkaran",
+            "Module tanpa export"
+          ],
+          "answer": 2,
+          "explanation": "Contohnya a.js meng-import b.js dan b.js meng-import a.js.",
+          "remedial": "Bayangkan dua orang yang **saling menunggu di pintu**: \"Silakan duluan.\" \"Tidak, kamu duluan.\" Tidak ada yang bergerak.\n\nCircular dependency seperti itu: module A menunggu B selesai, dan B menunggu A selesai. JavaScript akhirnya memaksa salah satu jalan lebih dulu, tapi saat itu barang bawaan yang lain belum siap.\n\nSolusinya: buat pintu ketiga. Keduanya mengambil barang dari gudang bersama (module ketiga) dan tidak perlu saling menunggu lagi."
+        },
+        {
+          "question": "Cara paling umum memutus circular dependency antara pengguna.js dan pesanan.js adalah...",
+          "options": [
+            "Pindahkan bagian yang dipakai bersama ke module ketiga yang tidak meng-import keduanya",
+            "Gabungkan semua kode ke main.js",
+            "Ganti import dengan variabel global",
+            "Tambahkan await di tingkat atas"
+          ],
+          "answer": 0,
+          "explanation": "Dengan module ketiga, arah ketergantungan menjadi satu arah.",
+          "remedial": "Bayangkan dua orang yang **saling menunggu di pintu**: \"Silakan duluan.\" \"Tidak, kamu duluan.\" Tidak ada yang bergerak.\n\nCircular dependency seperti itu: module A menunggu B selesai, dan B menunggu A selesai. JavaScript akhirnya memaksa salah satu jalan lebih dulu, tapi saat itu barang bawaan yang lain belum siap.\n\nSolusinya: buat pintu ketiga. Keduanya mengambil barang dari gudang bersama (module ketiga) dan tidak perlu saling menunggu lagi."
+        },
+        {
+          "question": "Dalam susunan berlapis, module mana yang TIDAK boleh meng-import module fitur?",
+          "options": [
+            "main.js",
+            "Module fitur lain",
+            "File test",
+            "Module dasar seperti format.js dan konstanta.js"
+          ],
+          "answer": 3,
+          "explanation": "Module dasar berada di lapisan paling bawah dan tidak bergantung pada lapisan di atasnya.",
+          "remedial": "Bayangkan dua orang yang **saling menunggu di pintu**: \"Silakan duluan.\" \"Tidak, kamu duluan.\" Tidak ada yang bergerak.\n\nCircular dependency seperti itu: module A menunggu B selesai, dan B menunggu A selesai. JavaScript akhirnya memaksa salah satu jalan lebih dulu, tapi saat itu barang bawaan yang lain belum siap.\n\nSolusinya: buat pintu ketiga. Keduanya mengambil barang dari gudang bersama (module ketiga) dan tidak perlu saling menunggu lagi."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "harga.js dan diskon.js saling meng-import sehingga terjadi circular import. Pindahkan konstanta PAJAK ke file konstanta.js, lalu ubah import di harga.js dan diskon.js supaya mengambil PAJAK dari sana.",
+      "starterCode": "// === harga.js ===\nimport { diskon } from \"./diskon.js\";\nexport const PAJAK = 0.11;\nexport function hargaAkhir(h) {\n  return Math.round((h - diskon(h)) * (1 + PAJAK));\n}\n// === diskon.js ===\nimport { PAJAK } from \"./harga.js\";\nexport function diskon(h) {\n  return h > 100000 ? h * 0.1 : 0;\n}\nexport function infoPajak() {\n  return `Pajak ${PAJAK * 100}%`;\n}\n// === main.js ===\nimport { hargaAkhir } from \"./harga.js\";\nimport { infoPajak } from \"./diskon.js\";\nconsole.log(hargaAkhir(50000));\nconsole.log(hargaAkhir(200000));\nconsole.log(infoPajak());\n",
+      "steps": [
+        "Buat file konstanta.js berisi export const PAJAK = 0.11;",
+        "Di harga.js, hapus deklarasi PAJAK dan import PAJAK dari ./konstanta.js.",
+        "Di diskon.js, import PAJAK dari ./konstanta.js, bukan dari harga.js."
+      ],
+      "skeleton": "// === konstanta.js ===\nexport const PAJAK = 0.11;\n// === harga.js ===\nimport { diskon } from \"./diskon.js\";\nimport { PAJAK } from \"./___\";\nexport function hargaAkhir(h) {\n  return Math.round((h - diskon(h)) * (1 + PAJAK));\n}\n// === diskon.js ===\nimport { PAJAK } from \"./___\";\nexport function diskon(h) {\n  return h > 100000 ? h * 0.1 : 0;\n}\nexport function infoPajak() {\n  return `Pajak ${PAJAK * 100}%`;\n}\n// === main.js ===\nimport { hargaAkhir } from \"./harga.js\";\nimport { infoPajak } from \"./diskon.js\";\nconsole.log(hargaAkhir(50000));\nconsole.log(hargaAkhir(200000));\nconsole.log(infoPajak());",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "55500\n199800\nPajak 11%\n"
+        }
+      ],
+      "hints": [
+        "Setelah PAJAK dipindah, diskon.js tidak perlu lagi meng-import harga.js.",
+        "harga.js boleh tetap meng-import diskon.js, karena arahnya sekarang satu arah."
+      ],
+      "solution": "// === konstanta.js ===\nexport const PAJAK = 0.11;\n// === harga.js ===\nimport { diskon } from \"./diskon.js\";\nimport { PAJAK } from \"./konstanta.js\";\nexport function hargaAkhir(h) {\n  return Math.round((h - diskon(h)) * (1 + PAJAK));\n}\n// === diskon.js ===\nimport { PAJAK } from \"./konstanta.js\";\nexport function diskon(h) {\n  return h > 100000 ? h * 0.1 : 0;\n}\nexport function infoPajak() {\n  return `Pajak ${PAJAK * 100}%`;\n}\n// === main.js ===\nimport { hargaAkhir } from \"./harga.js\";\nimport { infoPajak } from \"./diskon.js\";\nconsole.log(hargaAkhir(50000));\nconsole.log(hargaAkhir(200000));\nconsole.log(infoPajak());"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Circular dependency: module-module yang saling meng-import membentuk lingkaran.",
+        "Bisa menyebabkan ReferenceError karena nilai belum siap, tergantung urutan import.",
+        "Perbaiki dengan memindahkan bagian bersama ke module ketiga.",
+        "Susun module berlapis: module dasar tidak boleh meng-import module fitur."
+      ]
+    }
+  ]
+}

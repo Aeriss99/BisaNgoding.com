@@ -1,0 +1,134 @@
+{
+  "id": "js-modules-18",
+  "moduleId": "js-modules",
+  "order": 18,
+  "title": "Proyek Mini: Kasir Modular",
+  "estimatedMinutes": 12,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di proyek ini kamu membuat **aplikasi kasir kedai kopi** yang terdiri dari beberapa module, menerapkan semua yang sudah dipelajari:\n\n| File | Tanggung jawab |\n|---|---|\n| `config.js` | konstanta: pajak, minimal belanja untuk diskon |\n| `menu.js` | daftar menu dan pencarian harga |\n| `format.js` | format rupiah |\n| `keranjang.js` | data keranjang (privat) dan function untuk mengubahnya |\n| `struk.js` | menyusun dan mencetak struk |\n| `main.js` | menyambungkan semuanya |\n\nArah ketergantungan satu arah, tanpa lingkaran:\n\n```text\nmain.js\n  ├── keranjang.js ── menu.js\n  └── struk.js ─┬── keranjang.js\n                ├── format.js\n                └── config.js\n```"
+    },
+    {
+      "type": "theory",
+      "content": "Module-module dasar dan keranjang:\n\n```javascript run\n// === config.js ===\nexport const PAJAK = 0.1;\n// === menu.js ===\nconst daftar = { kopi: 18000, teh: 12000, roti: 15000 };\nexport function hargaMenu(nama) {\n  if (!(nama in daftar)) throw new Error(`Menu ${nama} tidak ada`);\n  return daftar[nama];\n}\n// === keranjang.js ===\nimport { hargaMenu } from \"./menu.js\";\nconst isi = new Map();\nexport function tambah(nama, qty = 1) {\n  hargaMenu(nama);\n  isi.set(nama, (isi.get(nama) ?? 0) + qty);\n}\nexport function item() {\n  return [...isi].map(([nama, qty]) => ({ nama, qty, subtotal: hargaMenu(nama) * qty }));\n}\n// === main.js ===\nimport { tambah, item } from \"./keranjang.js\";\ntambah(\"kopi\", 2);\ntambah(\"roti\");\ntambah(\"kopi\");\ntry {\n  tambah(\"es\");\n} catch (e) {\n  console.log(e.message);\n}\nconsole.log(item());\n```\n\nHasil di console:\n\n```text\nMenu es tidak ada\n[ { nama: 'kopi', qty: 3, subtotal: 54000 }, { nama: 'roti', qty: 1, subtotal: 15000 } ]\n```\n\n- Isi keranjang disimpan di `Map` yang **tidak di-export**. Satu-satunya cara mengubahnya adalah lewat `tambah`.\n- `tambah` memanggil `hargaMenu` dulu, supaya menu yang tidak ada langsung ditolak sebelum masuk keranjang.\n- Menambah menu yang sama menjumlahkan qty-nya."
+    },
+    {
+      "type": "theory",
+      "content": "Module struk menggabungkan data keranjang, format, dan konstanta:\n\n```javascript run\n// === config.js ===\nexport const PAJAK = 0.1;\n// === format.js ===\nexport const rp = (n) => \"Rp\" + n.toLocaleString(\"id-ID\");\n// === struk.js ===\nimport { PAJAK } from \"./config.js\";\nimport { rp } from \"./format.js\";\nexport function hitungTotal(item) {\n  const subtotal = item.reduce((t, i) => t + i.subtotal, 0);\n  const pajak = Math.round(subtotal * PAJAK);\n  return { subtotal, pajak, total: subtotal + pajak };\n}\nexport function cetakStruk(item) {\n  for (const i of item) console.log(`${i.nama} x${i.qty}`.padEnd(12) + rp(i.subtotal));\n  const t = hitungTotal(item);\n  console.log(\"Pajak\".padEnd(12) + rp(t.pajak));\n  console.log(\"TOTAL\".padEnd(12) + rp(t.total));\n}\n// === main.js ===\nimport { cetakStruk } from \"./struk.js\";\ncetakStruk([{ nama: \"kopi\", qty: 3, subtotal: 54000 }, { nama: \"roti\", qty: 1, subtotal: 15000 }]);\n```\n\nHasil di console:\n\n```text\nkopi x3     Rp54.000\nroti x1     Rp15.000\nPajak       Rp6.900\nTOTAL       Rp75.900\n```\n\n- `hitungTotal` adalah function **murni**: masukannya array item, hasilnya object angka. Mudah diuji tanpa perlu mencetak apa pun.\n- `cetakStruk` mengurus tampilan, dan memakai `hitungTotal` untuk angkanya.\n- Kalau pajak berubah, cukup ubah `config.js`.\n\nDi tantangan, kamu menyambungkan semua module ini di `main.js` dan menambahkan diskon."
+    },
+    {
+      "type": "runnable",
+      "code": "// === keranjang.js ===\nconst isi = [];\nexport function tambah(nama) {\n  isi.push(nama);\n}\nexport function jumlah() {\n  return isi.length;\n}\n// === layar.js ===\nimport { tambah, jumlah } from \"./keranjang.js\";\nexport function klikTambah(nama) {\n  tambah(nama);\n  return `Keranjang: ${jumlah()} item`;\n}\n// === main.js ===\nimport { klikTambah } from \"./layar.js\";\nimport { jumlah } from \"./keranjang.js\";\nconsole.log(klikTambah(\"kopi\"));\nconsole.log(klikTambah(\"teh\"));\nconsole.log(\"Dicek dari main.js:\", jumlah());",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris TERAKHIR yang akan tercetak?",
+        "options": [
+          "Dicek dari main.js: undefined",
+          "Dicek dari main.js: 2",
+          "Dicek dari main.js: 0",
+          "Dicek dari main.js: 1"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Data keranjang yang dipakai bersama."
+        },
+        {
+          "line": 10,
+          "note": "layar.js dan main.js meng-import module keranjang yang sama."
+        },
+        {
+          "line": 6,
+          "note": "main.js melihat isi yang sudah ditambahkan lewat layar.js."
+        }
+      ],
+      "explanation": "`keranjang.js` hanya dievaluasi sekali, jadi `layar.js` dan `main.js` memakai array `isi` yang sama. Dua item yang ditambahkan lewat `layar.js` juga terlihat dari `main.js`.\n\nInilah alasan module cocok untuk data aplikasi seperti keranjang: semua bagian tampilan bisa membaca dan mengubahnya lewat satu sumber yang sama.",
+      "tryThis": [
+        {
+          "task": "Tambahkan export function kosongkan() { isi.length = 0; } dan panggil dari main.js sebelum baris terakhir.",
+          "hint": "Semua pemakai melihat keranjang yang sudah kosong."
+        },
+        {
+          "task": "Coba ubah isi langsung dari main.js. Apakah bisa?",
+          "hint": "isi tidak di-export, jadi tidak terlihat dari luar keranjang.js."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "// === config.js ===\nexport const PAJAK = 0.1;\n// === struk.js ===\nimport { PAJAK } from \"./config.js\";\nexport const totalDenganPajak = (n) => n + n * PAJAK;\n// === main.js ===\nimport { totalDenganPajak } from \"./struk.js\";\nconsole.log(totalDenganPajak(50000));",
+          "options": [
+            "55000",
+            "50000",
+            "5000",
+            "500010"
+          ],
+          "answer": 0,
+          "explanation": "50000 ditambah pajak 10% (5000) menjadi 55000.",
+          "remedial": "Bayangkan **kedai kopi dengan beberapa petugas**.\n\nBarista (menu.js) tahu harga setiap minuman. Petugas pesanan (keranjang.js) mencatat pesanan di buku yang hanya boleh ia tulis sendiri. Kasir (struk.js) menghitung total dan mencetak struk memakai tarif pajak yang tertempel di dinding (config.js).\n\nManajer (main.js) tidak mengerjakan semuanya sendiri. Ia hanya mengatur alurnya: terima pesanan, lalu minta kasir mencetak struk."
+        },
+        {
+          "question": "Kenapa isi keranjang disimpan di variabel yang tidak di-export?",
+          "options": [
+            "Supaya keranjang dijalankan dua kali",
+            "Supaya semua perubahan lewat function seperti tambah yang bisa memeriksa data",
+            "Karena Map tidak bisa di-export",
+            "Supaya keranjang menjadi global"
+          ],
+          "answer": 1,
+          "explanation": "Lewat tambah, menu yang tidak ada bisa ditolak sebelum masuk keranjang.",
+          "remedial": "Bayangkan **kedai kopi dengan beberapa petugas**.\n\nBarista (menu.js) tahu harga setiap minuman. Petugas pesanan (keranjang.js) mencatat pesanan di buku yang hanya boleh ia tulis sendiri. Kasir (struk.js) menghitung total dan mencetak struk memakai tarif pajak yang tertempel di dinding (config.js).\n\nManajer (main.js) tidak mengerjakan semuanya sendiri. Ia hanya mengatur alurnya: terima pesanan, lalu minta kasir mencetak struk."
+        },
+        {
+          "question": "Kenapa hitungTotal dibuat sebagai function murni yang terpisah dari cetakStruk?",
+          "options": [
+            "Karena function murni lebih pendek",
+            "Karena console.log tidak boleh dipakai di module",
+            "Supaya perhitungan mudah diuji dan dipakai ulang tanpa ikut mencetak",
+            "Karena hitungTotal harus berada di main.js"
+          ],
+          "answer": 2,
+          "explanation": "Logika yang terpisah dari tampilan bisa dipakai untuk struk, layar HP, atau dikirim ke server.",
+          "remedial": "Bayangkan **kedai kopi dengan beberapa petugas**.\n\nBarista (menu.js) tahu harga setiap minuman. Petugas pesanan (keranjang.js) mencatat pesanan di buku yang hanya boleh ia tulis sendiri. Kasir (struk.js) menghitung total dan mencetak struk memakai tarif pajak yang tertempel di dinding (config.js).\n\nManajer (main.js) tidak mengerjakan semuanya sendiri. Ia hanya mengatur alurnya: terima pesanan, lalu minta kasir mencetak struk."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi main.js untuk menyambungkan module kasir: tambahkan 2 kopi dan 1 roti ke keranjang, lalu cetak struk. struk.js memberi diskon 10% kalau subtotal minimal MIN_DISKON.",
+      "starterCode": "// === config.js ===\nexport const PAJAK = 0.1;\nexport const MIN_DISKON = 50000;\n// === menu.js ===\nconst daftar = { kopi: 18000, teh: 12000, roti: 15000 };\nexport const hargaMenu = (nama) => daftar[nama];\n// === keranjang.js ===\nimport { hargaMenu } from \"./menu.js\";\nconst isi = new Map();\nexport function tambah(nama, qty = 1) {\n  isi.set(nama, (isi.get(nama) ?? 0) + qty);\n}\nexport function item() {\n  return [...isi].map(([nama, qty]) => ({ nama, qty, subtotal: hargaMenu(nama) * qty }));\n}\n// === struk.js ===\nimport { PAJAK, MIN_DISKON } from \"./config.js\";\nconst rp = (n) => \"Rp\" + n.toLocaleString(\"id-ID\");\nexport function cetakStruk(daftarItem) {\n  const subtotal = daftarItem.reduce((t, i) => t + i.subtotal, 0);\n  const diskon = subtotal >= MIN_DISKON ? Math.round(subtotal * 0.1) : 0;\n  const pajak = Math.round((subtotal - diskon) * PAJAK);\n  for (const i of daftarItem) console.log(`${i.nama} x${i.qty}: ${rp(i.subtotal)}`);\n  console.log(`Diskon: ${rp(diskon)}`);\n  console.log(`Pajak: ${rp(pajak)}`);\n  console.log(`Total: ${rp(subtotal - diskon + pajak)}`);\n}\n// === main.js ===\n// import tambah dan item dari keranjang.js, serta cetakStruk dari struk.js\n",
+      "steps": [
+        "import { tambah, item } from \"./keranjang.js\"; dan import { cetakStruk } from \"./struk.js\";",
+        "Panggil tambah(\"kopi\", 2) dan tambah(\"roti\").",
+        "Panggil cetakStruk(item())."
+      ],
+      "skeleton": "// === config.js ===\nexport const PAJAK = 0.1;\nexport const MIN_DISKON = 50000;\n// === menu.js ===\nconst daftar = { kopi: 18000, teh: 12000, roti: 15000 };\nexport const hargaMenu = (nama) => daftar[nama];\n// === keranjang.js ===\nimport { hargaMenu } from \"./menu.js\";\nconst isi = new Map();\nexport function tambah(nama, qty = 1) {\n  isi.set(nama, (isi.get(nama) ?? 0) + qty);\n}\nexport function item() {\n  return [...isi].map(([nama, qty]) => ({ nama, qty, subtotal: hargaMenu(nama) * qty }));\n}\n// === struk.js ===\nimport { PAJAK, MIN_DISKON } from \"./config.js\";\nconst rp = (n) => \"Rp\" + n.toLocaleString(\"id-ID\");\nexport function cetakStruk(daftarItem) {\n  const subtotal = daftarItem.reduce((t, i) => t + i.subtotal, 0);\n  const diskon = subtotal >= MIN_DISKON ? Math.round(subtotal * 0.1) : 0;\n  const pajak = Math.round((subtotal - diskon) * PAJAK);\n  for (const i of daftarItem) console.log(`${i.nama} x${i.qty}: ${rp(i.subtotal)}`);\n  console.log(`Diskon: ${rp(diskon)}`);\n  console.log(`Pajak: ${rp(pajak)}`);\n  console.log(`Total: ${rp(subtotal - diskon + pajak)}`);\n}\n// === main.js ===\nimport { tambah, ___ } from \"./keranjang.js\";\nimport { cetakStruk } from \"./___\";\ntambah(\"kopi\", 2);\ntambah(\"roti\");\ncetakStruk(item());",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "kopi x2: Rp36.000\nroti x1: Rp15.000\nDiskon: Rp5.100\nPajak: Rp4.590\nTotal: Rp50.490\n"
+        }
+      ],
+      "hints": [
+        "Subtotal 51000 sudah mencapai MIN_DISKON, jadi mendapat diskon 10% (5100).",
+        "Pajak dihitung dari 51000 - 5100 = 45900, yaitu 4590."
+      ],
+      "solution": "// === config.js ===\nexport const PAJAK = 0.1;\nexport const MIN_DISKON = 50000;\n// === menu.js ===\nconst daftar = { kopi: 18000, teh: 12000, roti: 15000 };\nexport const hargaMenu = (nama) => daftar[nama];\n// === keranjang.js ===\nimport { hargaMenu } from \"./menu.js\";\nconst isi = new Map();\nexport function tambah(nama, qty = 1) {\n  isi.set(nama, (isi.get(nama) ?? 0) + qty);\n}\nexport function item() {\n  return [...isi].map(([nama, qty]) => ({ nama, qty, subtotal: hargaMenu(nama) * qty }));\n}\n// === struk.js ===\nimport { PAJAK, MIN_DISKON } from \"./config.js\";\nconst rp = (n) => \"Rp\" + n.toLocaleString(\"id-ID\");\nexport function cetakStruk(daftarItem) {\n  const subtotal = daftarItem.reduce((t, i) => t + i.subtotal, 0);\n  const diskon = subtotal >= MIN_DISKON ? Math.round(subtotal * 0.1) : 0;\n  const pajak = Math.round((subtotal - diskon) * PAJAK);\n  for (const i of daftarItem) console.log(`${i.nama} x${i.qty}: ${rp(i.subtotal)}`);\n  console.log(`Diskon: ${rp(diskon)}`);\n  console.log(`Pajak: ${rp(pajak)}`);\n  console.log(`Total: ${rp(subtotal - diskon + pajak)}`);\n}\n// === main.js ===\nimport { tambah, item } from \"./keranjang.js\";\nimport { cetakStruk } from \"./struk.js\";\ntambah(\"kopi\", 2);\ntambah(\"roti\");\ncetakStruk(item());"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Pecah aplikasi menjadi module dengan tanggung jawab jelas: config, data, logika, tampilan.",
+        "Simpan data aplikasi di module dengan variabel privat dan function untuk mengubahnya.",
+        "Jaga arah ketergantungan satu arah, tanpa circular import.",
+        "main.js menyambungkan semuanya; logika murni mudah diuji dan dipakai ulang."
+      ]
+    }
+  ]
+}
