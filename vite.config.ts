@@ -55,4 +55,16 @@ export default defineConfig({
     }),
   ],
   base: process.env.GITHUB_PAGES === 'true' ? '/BisaNgoding.com/' : '/',
+  build: {
+    rollupOptions: {
+      output: {
+        // Materi (content/<kelas>/...) dipecah menjadi satu file per kelas. Tanpa ini semua materi
+        // masuk ke satu file utama yang terus membesar dan melewati batas precache PWA (8 MB).
+        manualChunks(id) {
+          const kelas = id.match(/[\\/]content[\\/]([^\\/]+)[\\/]/);
+          if (kelas) return `materi-${kelas[1]}`;
+        },
+      },
+    },
+  },
 });
