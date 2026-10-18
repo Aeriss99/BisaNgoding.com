@@ -1,0 +1,135 @@
+{
+  "id": "js-async-08",
+  "moduleId": "js-async",
+  "order": 8,
+  "title": "Menangani Error dengan try...catch",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Dengan `async`/`await`, kegagalan Promise ditangani dengan **`try...catch`** biasa, sama seperti error di kode sinkron.\n\nSaat Promise yang di-`await` rejected, `await` **melempar** alasan penolakannya sebagai error. Kode sesudahnya di blok `try` dilewati, lalu blok `catch` dijalankan.\n\n```javascript\nasync function muat() {\n  try {\n    const data = await ambilData();\n    tampilkan(data);\n  } catch (err) {\n    tampilkanPesan(\"Gagal memuat: \" + err.message);\n  } finally {\n    sembunyikanLoading();\n  }\n}\n```\n\n`finally` bekerja sama seperti di Promise: selalu dijalankan, berhasil maupun gagal."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nfunction ambilData(gagal) {\n  return new Promise((res, rej) =>\n    setTimeout(() => (gagal ? rej(new Error(\"Server tidak merespons\")) : res(\"data siap\")), 100)\n  );\n}\nasync function muat(gagal) {\n  try {\n    const data = await ambilData(gagal);\n    console.log(\"Tampilkan:\", data);\n  } catch (err) {\n    console.log(\"Gagal:\", err.message);\n  } finally {\n    console.log(\"Loading disembunyikan\");\n  }\n}\nawait muat(false);\nawait muat(true);\n```\n\nHasil di console:\n\n```text\nTampilkan: data siap\nLoading disembunyikan\nGagal: Server tidak merespons\nLoading disembunyikan\n```\n\nFunction async yang melempar error (atau tidak menangkap error dari `await`) mengembalikan Promise yang **rejected**. Artinya error \"naik\" ke pemanggilnya, persis seperti error di function biasa."
+    },
+    {
+      "type": "theory",
+      "content": "Error bisa ditangkap di tempat yang paling tepat, tidak harus di function terdalam:\n\n```javascript run\nasync function ambilProduk(id) {\n  await new Promise((r) => setTimeout(r, 100));\n  if (id !== \"P01\") throw new Error(`Produk ${id} tidak ditemukan`);\n  return { id, nama: \"Kopi Susu\" };\n}\nasync function tampilkanProduk(id) {\n  const p = await ambilProduk(id);\n  console.log(\"Produk:\", p.nama);\n}\ntry {\n  await tampilkanProduk(\"P01\");\n  await tampilkanProduk(\"P77\");\n  console.log(\"baris ini dilewati\");\n} catch (err) {\n  console.log(\"Ditangkap di luar:\", err.message);\n}\n```\n\nHasil di console:\n\n```text\nProduk: Kopi Susu\nDitangkap di luar: Produk P77 tidak ditemukan\n```\n\n`ambilProduk` dan `tampilkanProduk` tidak punya `try...catch`. Error dari `ambilProduk` naik melewati `tampilkanProduk`, lalu ditangkap di kode paling luar.\n\nPedoman umum: tangkap error di tempat kamu **bisa melakukan sesuatu** dengannya, misalnya menampilkan pesan ke pengguna atau memakai data cadangan. Jangan menangkap error hanya untuk diam-diam membuangnya."
+    },
+    {
+      "type": "runnable",
+      "code": "async function gagal() {\n  throw new Error(\"Ups\");\n}\ntry {\n  gagal();\n  console.log(\"A\");\n} catch (err) {\n  console.log(\"B:\", err.message);\n}\nconsole.log(\"C\");",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "B: Ups",
+          "C",
+          "Uncaught (in promise) Error: Ups",
+          "A"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "Error di function async tidak dilempar langsung, tapi menjadi Promise rejected."
+        },
+        {
+          "line": 5,
+          "note": "Tanpa await, Promise rejected itu tidak ditunggu, jadi catch tidak pernah menangkapnya."
+        },
+        {
+          "line": 10,
+          "note": "Program lanjut seolah tidak terjadi apa-apa."
+        }
+      ],
+      "explanation": "Function async **tidak melempar error secara langsung**. Ia mengembalikan Promise yang rejected. Tanpa `await`, `try...catch` tidak menunggu Promise itu, jadi blok `catch` tidak pernah berjalan.\n\nHasilnya: A dan C tercetak, lalu muncul \"Uncaught (in promise)\" karena Promise yang gagal itu tidak ditangani siapa pun. Solusinya: tulis `await gagal();` di dalam `try`.",
+      "tryThis": [
+        {
+          "task": "Tambahkan await sebelum gagal(). Baris apa saja yang tercetak sekarang?",
+          "hint": "Dengan await, error dilempar di dalam try, sehingga A dilewati dan catch berjalan."
+        },
+        {
+          "task": "Tanpa await, tambahkan .catch((e) => console.log(\"ditangkap\", e.message)) setelah gagal(). Apakah pesan Uncaught masih muncul?",
+          "hint": "catch pada Promise-nya sendiri juga menangani kegagalan itu."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "try {\n  await Promise.reject(new Error(\"rusak\"));\n  console.log(\"A\");\n} catch (e) {\n  console.log(e.message);\n}",
+          "options": [
+            "A",
+            "rusak",
+            "A rusak",
+            "tidak ada"
+          ],
+          "answer": 1,
+          "explanation": "await melempar alasan penolakan sebagai error, jadi A dilewati dan catch mencetak \"rusak\".",
+          "remedial": "Bayangkan kamu menitipkan paket ke kurir dan berkata, \"Kalau ada masalah, kabari saya.\"\n\nKalau kamu **menunggu** di rumah sampai paket sampai (`await`), kamu akan menerima kabar masalahnya di tempat (`catch`).\n\nKalau kamu langsung pergi berlibur tanpa menunggu, kabar masalah itu datang saat kamu tidak ada. Tidak ada yang menerimanya, dan masalahnya hanya tercatat di buku kurir: itulah \"Uncaught (in promise)\"."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "async function f() {\n  try {\n    throw new Error(\"x\");\n  } finally {\n    console.log(\"bersih\");\n  }\n}\nawait f().catch((e) => console.log(\"tangkap\", e.message));",
+          "options": [
+            "tangkap x lalu bersih",
+            "bersih",
+            "tangkap x",
+            "bersih lalu tangkap x"
+          ],
+          "answer": 3,
+          "explanation": "finally berjalan dulu sebelum error keluar dari function. Error tetap naik dan ditangkap catch di luar.",
+          "remedial": "Bayangkan kamu menitipkan paket ke kurir dan berkata, \"Kalau ada masalah, kabari saya.\"\n\nKalau kamu **menunggu** di rumah sampai paket sampai (`await`), kamu akan menerima kabar masalahnya di tempat (`catch`).\n\nKalau kamu langsung pergi berlibur tanpa menunggu, kabar masalah itu datang saat kamu tidak ada. Tidak ada yang menerimanya, dan masalahnya hanya tercatat di buku kurir: itulah \"Uncaught (in promise)\"."
+        },
+        {
+          "question": "Kenapa try...catch tidak menangkap error dari gagal() kalau ditulis tanpa await?",
+          "options": [
+            "Karena gagal() mengembalikan Promise rejected yang tidak ditunggu",
+            "Karena try...catch tidak bisa dipakai bersama async",
+            "Karena error di function async selalu diabaikan",
+            "Karena catch hanya menangkap TypeError"
+          ],
+          "answer": 0,
+          "explanation": "Tanpa await, try selesai sebelum Promise itu gagal, jadi catch tidak pernah melihat errornya.",
+          "remedial": "Bayangkan kamu menitipkan paket ke kurir dan berkata, \"Kalau ada masalah, kabari saya.\"\n\nKalau kamu **menunggu** di rumah sampai paket sampai (`await`), kamu akan menerima kabar masalahnya di tempat (`catch`).\n\nKalau kamu langsung pergi berlibur tanpa menunggu, kabar masalah itu datang saat kamu tidak ada. Tidak ada yang menerimanya, dan masalahnya hanya tercatat di buku kurir: itulah \"Uncaught (in promise)\"."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi beli(id) dengan try...catch...finally. Kalau berhasil, cetak \"Dibeli: <nama>\"; kalau gagal, cetak \"Gagal: <pesan>\"; selalu cetak \"Transaksi ditutup\".",
+      "starterCode": "function cariProduk(id) {\n  const data = { P01: \"Kopi Susu\", P03: \"Roti Bakar\" };\n  return new Promise((res, rej) =>\n    setTimeout(() => (data[id] ? res(data[id]) : rej(new Error(`${id} tidak ada`))), 100)\n  );\n}\nasync function beli(id) {\n  const nama = await cariProduk(id);\n  console.log(\"Dibeli:\", nama);\n}\nawait beli(\"P03\");\nawait beli(\"P09\");\n",
+      "steps": [
+        "Bungkus await cariProduk dan console.log-nya dengan try.",
+        "Di catch, cetak \"Gagal:\" dengan err.message.",
+        "Di finally, cetak \"Transaksi ditutup\"."
+      ],
+      "skeleton": "function cariProduk(id) {\n  const data = { P01: \"Kopi Susu\", P03: \"Roti Bakar\" };\n  return new Promise((res, rej) =>\n    setTimeout(() => (data[id] ? res(data[id]) : rej(new Error(`${id} tidak ada`))), 100)\n  );\n}\nasync function beli(id) {\n  ___ {\n    const nama = await cariProduk(id);\n    console.log(\"Dibeli:\", nama);\n  } catch (err) {\n    console.log(\"Gagal:\", err.message);\n  } ___ {\n    console.log(\"Transaksi ditutup\");\n  }\n}\nawait beli(\"P03\");\nawait beli(\"P09\");",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Dibeli: Roti Bakar\nTransaksi ditutup\nGagal: P09 tidak ada\nTransaksi ditutup\n"
+        }
+      ],
+      "hints": [
+        "await yang gagal di dalam try langsung melompat ke catch.",
+        "finally berjalan setelah try atau catch selesai."
+      ],
+      "solution": "function cariProduk(id) {\n  const data = { P01: \"Kopi Susu\", P03: \"Roti Bakar\" };\n  return new Promise((res, rej) =>\n    setTimeout(() => (data[id] ? res(data[id]) : rej(new Error(`${id} tidak ada`))), 100)\n  );\n}\nasync function beli(id) {\n  try {\n    const nama = await cariProduk(id);\n    console.log(\"Dibeli:\", nama);\n  } catch (err) {\n    console.log(\"Gagal:\", err.message);\n  } finally {\n    console.log(\"Transaksi ditutup\");\n  }\n}\nawait beli(\"P03\");\nawait beli(\"P09\");"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Dengan async/await, kegagalan Promise ditangani dengan try...catch biasa.",
+        "await melempar alasan penolakan sebagai error.",
+        "Error di function async menjadi Promise rejected dan naik ke pemanggil yang meng-await-nya.",
+        "Tanpa await, try...catch tidak menangkap error dari function async."
+      ]
+    }
+  ]
+}

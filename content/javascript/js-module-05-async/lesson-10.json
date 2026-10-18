@@ -1,0 +1,135 @@
+{
+  "id": "js-async-10",
+  "moduleId": "js-async",
+  "order": 10,
+  "title": "Promise.all, allSettled, race, dan any",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ada empat cara menunggu banyak Promise sekaligus. Perbedaannya ada pada **kapan selesai** dan **bagaimana menangani kegagalan**:\n\n| Method | Selesai saat... | Kalau ada yang gagal |\n|---|---|---|\n| `Promise.all` | **semua** berhasil | langsung gagal dengan error pertama |\n| `Promise.allSettled` | **semua** selesai, berhasil atau gagal | tidak pernah gagal; melaporkan status masing-masing |\n| `Promise.race` | **satu** selesai lebih dulu, berhasil atau gagal | ikut gagal kalau yang tercepat gagal |\n| `Promise.any` | **satu** berhasil lebih dulu | mengabaikan yang gagal; gagal hanya kalau semuanya gagal |\n\nMemilih yang tepat bergantung pada pertanyaan: \"Apakah aku butuh semuanya? Apakah kegagalan sebagian boleh dimaklumi? Atau cukup satu yang tercepat?\""
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nconst berhasil = (ms, v) => new Promise((res) => setTimeout(() => res(v), ms));\nconst gagal = (ms, pesan) => new Promise((_, rej) => setTimeout(() => rej(new Error(pesan)), ms));\ntry {\n  await Promise.all([berhasil(100, \"produk\"), gagal(50, \"kategori error\"), berhasil(200, \"promo\")]);\n} catch (err) {\n  console.log(\"all gagal:\", err.message);\n}\nconst laporan = await Promise.allSettled([berhasil(100, \"produk\"), gagal(50, \"kategori error\")]);\nconsole.log(laporan[0]);\nconsole.log(laporan[1].status, laporan[1].reason.message);\n```\n\nHasil di console:\n\n```text\nall gagal: kategori error\n{ status: 'fulfilled', value: 'produk' }\nrejected kategori error\n```\n\n- `Promise.all` gagal begitu satu Promise gagal, dan hasil yang berhasil ikut hilang. Cocok kalau semua data **wajib ada**.\n- `Promise.allSettled` menghasilkan array object: `{ status: \"fulfilled\", value }` atau `{ status: \"rejected\", reason }`. Cocok kalau kegagalan sebagian **boleh dimaklumi**, misalnya halaman beranda tetap tampil walau bagian promo gagal dimuat."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nconst berhasil = (ms, v) => new Promise((res) => setTimeout(() => res(v), ms));\nconst gagal = (ms, pesan) => new Promise((_, rej) => setTimeout(() => rej(new Error(pesan)), ms));\nconst tercepat = await Promise.race([berhasil(200, \"server Jakarta\"), berhasil(100, \"server Singapura\")]);\nconsole.log(\"race:\", tercepat);\nconst batasWaktu = gagal(150, \"Waktu habis\");\ntry {\n  await Promise.race([berhasil(300, \"data\"), batasWaktu]);\n} catch (err) {\n  console.log(\"race:\", err.message);\n}\nconst cadangan = await Promise.any([gagal(50, \"mirror 1 mati\"), berhasil(100, \"mirror 2\"), berhasil(200, \"mirror 3\")]);\nconsole.log(\"any:\", cadangan);\n```\n\nHasil di console:\n\n```text\nrace: server Singapura\nrace: Waktu habis\nany: mirror 2\n```\n\n- `Promise.race` dipakai untuk **batas waktu**: pacu pekerjaan dengan timer yang gagal. Kalau timer menang, pekerjaan dianggap terlalu lama. (Untuk `fetch`, ada cara yang lebih baik di materi 16.)\n- `Promise.any` dipakai untuk **sumber cadangan**: ambil dari beberapa server, dan pakai yang pertama berhasil. Kalau semuanya gagal, `any` melempar `AggregateError`."
+    },
+    {
+      "type": "runnable",
+      "code": "const berhasil = (ms, v) => new Promise((res) => setTimeout(() => res(v), ms));\nconst gagal = (ms, pesan) => new Promise((_, rej) => setTimeout(() => rej(new Error(pesan)), ms));\nconst hasil = await Promise.allSettled([\n  berhasil(100, \"Rina\"),\n  gagal(50, \"Budi tidak ditemukan\"),\n  berhasil(80, \"Sari\"),\n]);\nconst nama = hasil.filter((h) => h.status === \"fulfilled\").map((h) => h.value);\nconsole.log(nama.join(\", \"));\nconsole.log(hasil.filter((h) => h.status === \"rejected\").length);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "Budi tidak ditemukan",
+          "Rina, Sari",
+          "Sari, Rina",
+          "Rina, Budi, Sari"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 3,
+          "note": "Menunggu ketiganya selesai, termasuk yang gagal."
+        },
+        {
+          "line": 8,
+          "note": "Ambil hanya yang berhasil, lalu ambil value-nya."
+        },
+        {
+          "line": 10,
+          "note": "Hitung yang gagal."
+        }
+      ],
+      "explanation": "`allSettled` tidak pernah gagal. Hasilnya selalu tersusun sesuai urutan masukan (Rina, Budi, Sari), walau Sari selesai lebih dulu daripada Rina.\n\nSetelah disaring, yang berhasil adalah Rina dan Sari, dengan satu kegagalan. Pola ini cocok untuk menampilkan data yang berhasil dan memberi tahu pengguna berapa yang gagal.",
+      "tryThis": [
+        {
+          "task": "Ganti allSettled dengan all, lalu bungkus dengan try...catch. Apa yang tercetak?",
+          "hint": "Promise.all gagal karena Budi, dan nama-nama yang berhasil ikut hilang."
+        },
+        {
+          "task": "Ganti allSettled dengan any. Apa hasilnya?",
+          "hint": "any mengembalikan satu nilai: yang pertama berhasil, yaitu yang tercepat di antara yang berhasil."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "const t = (ms, v) => new Promise((r) => setTimeout(() => r(v), ms));\nconsole.log(await Promise.race([t(100, \"A\"), t(30, \"B\"), t(60, \"C\")]));",
+          "options": [
+            "A",
+            "C",
+            "[ A, B, C ]",
+            "B"
+          ],
+          "answer": 3,
+          "explanation": "race menghasilkan Promise yang selesai paling cepat, yaitu B (30 ms).",
+          "remedial": "Bayangkan kamu **menunggu teman-teman** untuk berangkat bersama.\n\n`Promise.all`: \"Berangkat kalau semua sudah datang. Kalau satu orang batal, rencana dibatalkan.\"\n\n`Promise.allSettled`: \"Tunggu sampai semua memberi kabar, datang atau batal, lalu berangkat dengan yang ada.\"\n\n`Promise.race`: \"Siapa pun yang memberi kabar pertama, entah datang atau batal, itu yang menentukan.\"\n\n`Promise.any`: \"Berangkat begitu ada satu teman yang datang. Yang batal tidak masalah, kecuali semuanya batal.\""
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const r = await Promise.allSettled([Promise.resolve(1), Promise.reject(new Error(\"x\"))]);\nconsole.log(r.map((h) => h.status).join(\" \"));",
+          "options": [
+            "fulfilled rejected",
+            "fulfilled fulfilled",
+            "rejected",
+            "Error: x"
+          ],
+          "answer": 0,
+          "explanation": "allSettled melaporkan status masing-masing tanpa gagal.",
+          "remedial": "Bayangkan kamu **menunggu teman-teman** untuk berangkat bersama.\n\n`Promise.all`: \"Berangkat kalau semua sudah datang. Kalau satu orang batal, rencana dibatalkan.\"\n\n`Promise.allSettled`: \"Tunggu sampai semua memberi kabar, datang atau batal, lalu berangkat dengan yang ada.\"\n\n`Promise.race`: \"Siapa pun yang memberi kabar pertama, entah datang atau batal, itu yang menentukan.\"\n\n`Promise.any`: \"Berangkat begitu ada satu teman yang datang. Yang batal tidak masalah, kecuali semuanya batal.\""
+        },
+        {
+          "question": "Halaman beranda memuat produk, promo, dan artikel. Halaman tetap harus tampil walau promo gagal dimuat. Method mana yang paling cocok?",
+          "options": [
+            "Promise.all",
+            "Promise.race",
+            "Promise.allSettled",
+            "Promise.any"
+          ],
+          "answer": 2,
+          "explanation": "allSettled menunggu semuanya dan melaporkan mana yang berhasil, tanpa ikut gagal.",
+          "remedial": "Bayangkan kamu **menunggu teman-teman** untuk berangkat bersama.\n\n`Promise.all`: \"Berangkat kalau semua sudah datang. Kalau satu orang batal, rencana dibatalkan.\"\n\n`Promise.allSettled`: \"Tunggu sampai semua memberi kabar, datang atau batal, lalu berangkat dengan yang ada.\"\n\n`Promise.race`: \"Siapa pun yang memberi kabar pertama, entah datang atau batal, itu yang menentukan.\"\n\n`Promise.any`: \"Berangkat begitu ada satu teman yang datang. Yang batal tidak masalah, kecuali semuanya batal.\""
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi muatSemua(daftar) yang memuat semua halaman dengan Promise.allSettled, lalu mencetak jumlah yang berhasil dan yang gagal.",
+      "starterCode": "const halaman = { beranda: true, promo: false, artikel: true };\nconst muat = (nama) => new Promise((res, rej) =>\n  setTimeout(() => (halaman[nama] ? res(nama) : rej(new Error(`${nama} gagal`))), 100)\n);\nasync function muatSemua(daftar) {\n  // tunggu semua dengan allSettled, lalu hitung yang fulfilled dan rejected\n}\nawait muatSemua([\"beranda\", \"promo\", \"artikel\"]);\n",
+      "steps": [
+        "const hasil = await Promise.allSettled(daftar.map(muat));",
+        "Hitung yang status-nya \"fulfilled\" dengan filter.",
+        "Cetak \"Berhasil: n\" dan \"Gagal: n\"."
+      ],
+      "skeleton": "const halaman = { beranda: true, promo: false, artikel: true };\nconst muat = (nama) => new Promise((res, rej) =>\n  setTimeout(() => (halaman[nama] ? res(nama) : rej(new Error(`${nama} gagal`))), 100)\n);\nasync function muatSemua(daftar) {\n  const hasil = await Promise.___(daftar.map(muat));\n  const berhasil = hasil.filter((h) => h.status === \"___\").length;\n  console.log(\"Berhasil:\", berhasil);\n  console.log(\"Gagal:\", hasil.length - berhasil);\n}\nawait muatSemua([\"beranda\", \"promo\", \"artikel\"]);",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Berhasil: 2\nGagal: 1\n"
+        }
+      ],
+      "hints": [
+        "Promise.all akan langsung gagal karena promo, jadi tidak bisa menghitung yang berhasil.",
+        "Status yang berhasil adalah \"fulfilled\", yang gagal \"rejected\"."
+      ],
+      "solution": "const halaman = { beranda: true, promo: false, artikel: true };\nconst muat = (nama) => new Promise((res, rej) =>\n  setTimeout(() => (halaman[nama] ? res(nama) : rej(new Error(`${nama} gagal`))), 100)\n);\nasync function muatSemua(daftar) {\n  const hasil = await Promise.allSettled(daftar.map(muat));\n  const berhasil = hasil.filter((h) => h.status === \"fulfilled\").length;\n  console.log(\"Berhasil:\", berhasil);\n  console.log(\"Gagal:\", hasil.length - berhasil);\n}\nawait muatSemua([\"beranda\", \"promo\", \"artikel\"]);"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Promise.all: semua harus berhasil; gagal begitu satu gagal.",
+        "Promise.allSettled: menunggu semua dan melaporkan status masing-masing.",
+        "Promise.race: yang pertama selesai menentukan hasilnya; berguna untuk batas waktu.",
+        "Promise.any: yang pertama berhasil; gagal hanya kalau semuanya gagal."
+      ]
+    }
+  ]
+}

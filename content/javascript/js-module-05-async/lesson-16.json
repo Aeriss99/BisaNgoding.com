@@ -1,0 +1,135 @@
+{
+  "id": "js-async-16",
+  "moduleId": "js-async",
+  "order": 16,
+  "title": "Membatalkan Permintaan dan Batas Waktu",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ada dua situasi umum saat permintaan perlu **dihentikan**:\n\n1. **Tidak dibutuhkan lagi.** Pengguna mengetik \"k\", lalu \"ko\", lalu \"kopi\" di kotak pencarian. Permintaan untuk \"k\" dan \"ko\" sudah tidak relevan, dan kalau jawabannya datang terlambat, hasil lama bisa menimpa hasil baru.\n2. **Terlalu lama.** Server tidak menjawab, dan pengguna tidak boleh dibiarkan menunggu selamanya.\n\nAlatnya adalah **`AbortController`**:\n\n```javascript\nconst controller = new AbortController();\nfetch(url, { signal: controller.signal });   // hubungkan permintaan dengan sinyal\ncontroller.abort();                           // batalkan\n```\n\nPermintaan yang dibatalkan membuat Promise `fetch` **rejected** dengan error bernama `AbortError`."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nconst API = \"https://api.toko.contoh\";\nconst controller = new AbortController();\nsetTimeout(() => controller.abort(), 100);\ntry {\n  const res = await fetch(API + \"/products\", { signal: controller.signal });\n  console.log(\"Data tiba\", res.status);\n} catch (err) {\n  console.log(err.name);\n}\nconsole.log(\"Dibatalkan:\", controller.signal.aborted);\n```\n\nHasil di console:\n\n```text\nAbortError\nDibatalkan: true\n```\n\nServer latihan butuh sekitar 300 ms untuk menjawab, tapi permintaan dibatalkan pada 100 ms, jadi `fetch` rejected dengan `AbortError`.\n\nPeriksa jenis error dengan **`err.name`**, bukan `err.message`. Isi pesannya berbeda di setiap browser, sedangkan namanya selalu sama. Pembatalan yang disengaja biasanya **tidak perlu ditampilkan** sebagai kesalahan kepada pengguna."
+    },
+    {
+      "type": "theory",
+      "content": "Untuk batas waktu, ada jalan pintas: **`AbortSignal.timeout(ms)`** membuat sinyal yang otomatis membatalkan setelah sekian milidetik.\n\n```javascript run\nconst API = \"https://api.toko.contoh\";\nasync function ambil(path, batas) {\n  try {\n    const res = await fetch(API + path, { signal: AbortSignal.timeout(batas) });\n    const data = await res.json();\n    return data.pesan ?? data.name;\n  } catch (err) {\n    if (err.name === \"TimeoutError\") return \"Server terlalu lama menjawab\";\n    throw err;\n  }\n}\nconsole.log(await ambil(\"/products/P01\", 1000));\nconsole.log(await ambil(\"/slow\", 500));\n```\n\nHasil di console:\n\n```text\nKopi Susu\nServer terlalu lama menjawab\n```\n\n- Endpoint `/slow` di server latihan butuh 3 detik. Dengan batas 500 ms, permintaannya dibatalkan.\n- Pembatalan karena `AbortSignal.timeout` menghasilkan error bernama **`TimeoutError`**, berbeda dari `AbortError` karena `abort()` manual. Jadi kamu bisa membedakan \"terlalu lama\" dari \"sengaja dibatalkan\".\n- Error lain dilempar ulang (`throw err`), supaya tidak tertelan diam-diam."
+    },
+    {
+      "type": "runnable",
+      "code": "const API = \"https://api.toko.contoh\";\nlet controller = null;\nasync function cari(kata) {\n  controller?.abort();\n  controller = new AbortController();\n  try {\n    const res = await fetch(`${API}/products?category=${kata}`, { signal: controller.signal });\n    const data = await res.json();\n    console.log(`Hasil \"${kata}\": ${data.length}`);\n  } catch (err) {\n    if (err.name === \"AbortError\") console.log(`\"${kata}\" dibatalkan`);\n  }\n}\ncari(\"mi\");\ncari(\"min\");\nawait cari(\"minuman\");",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris TERAKHIR yang akan tercetak?",
+        "options": [
+          "Hasil \"mi\": 0",
+          "\"minuman\" dibatalkan",
+          "Hasil \"min\": 0",
+          "Hasil \"minuman\": 2"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Batalkan permintaan sebelumnya (kalau ada) sebelum memulai yang baru."
+        },
+        {
+          "line": 5,
+          "note": "Setiap pencarian punya controller sendiri."
+        },
+        {
+          "line": 11,
+          "note": "Pembatalan disengaja, bukan kesalahan yang perlu ditampilkan."
+        }
+      ],
+      "explanation": "Setiap panggilan `cari` membatalkan permintaan sebelumnya. Pencarian \"mi\" dibatalkan oleh \"min\", dan \"min\" dibatalkan oleh \"minuman\". Hanya permintaan terakhir yang selesai, dan ada 2 produk minuman.\n\nPola ini dipakai di kotak pencarian, sehingga hanya hasil dari ketikan terakhir yang ditampilkan dan tidak ada jawaban lama yang datang terlambat lalu menimpa hasil terbaru.",
+      "tryThis": [
+        {
+          "task": "Hapus baris controller?.abort(). Apa yang berubah?",
+          "hint": "Ketiga permintaan selesai, masing-masing mencetak hasilnya."
+        },
+        {
+          "task": "Tambahkan await sebelum cari(\"mi\") dan cari(\"min\"). Apakah masih ada yang dibatalkan?",
+          "hint": "Kalau setiap pencarian ditunggu selesai, tidak ada permintaan yang masih berjalan saat abort dipanggil."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "const c = new AbortController();\nc.abort();\ntry {\n  await fetch(\"https://api.toko.contoh/products\", { signal: c.signal });\n  console.log(\"tiba\");\n} catch (e) {\n  console.log(e.name);\n}",
+          "options": [
+            "tiba",
+            "TimeoutError",
+            "AbortError",
+            "TypeError"
+          ],
+          "answer": 2,
+          "explanation": "Sinyal sudah dibatalkan sebelum fetch dimulai, jadi fetch langsung rejected dengan AbortError.",
+          "remedial": "Bayangkan kamu **memesan ojek online**, lalu berubah pikiran karena ternyata temanmu bisa menjemput.\n\nKamu menekan tombol batal (`abort()`). Pengemudi berhenti menuju lokasimu, dan aplikasi mencatat \"dibatalkan oleh pengguna\" (`AbortError`), bukan kesalahan.\n\nLain cerita kalau aplikasi otomatis membatalkan karena tidak ada pengemudi dalam 5 menit (`AbortSignal.timeout`). Catatannya berbeda: \"waktu habis\" (`TimeoutError`)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "try {\n  await fetch(\"https://api.toko.contoh/slow\", { signal: AbortSignal.timeout(200) });\n} catch (e) {\n  console.log(e.name);\n}",
+          "options": [
+            "TimeoutError",
+            "AbortError",
+            "TypeError",
+            "tidak ada output"
+          ],
+          "answer": 0,
+          "explanation": "AbortSignal.timeout membatalkan setelah 200 ms dengan error bernama TimeoutError.",
+          "remedial": "Bayangkan kamu **memesan ojek online**, lalu berubah pikiran karena ternyata temanmu bisa menjemput.\n\nKamu menekan tombol batal (`abort()`). Pengemudi berhenti menuju lokasimu, dan aplikasi mencatat \"dibatalkan oleh pengguna\" (`AbortError`), bukan kesalahan.\n\nLain cerita kalau aplikasi otomatis membatalkan karena tidak ada pengemudi dalam 5 menit (`AbortSignal.timeout`). Catatannya berbeda: \"waktu habis\" (`TimeoutError`)."
+        },
+        {
+          "question": "Kenapa jenis error sebaiknya diperiksa dengan err.name, bukan err.message?",
+          "options": [
+            "Karena message selalu kosong",
+            "Karena isi message berbeda di setiap browser, sedangkan name selalu sama",
+            "Karena name lebih pendek",
+            "Karena message hanya ada di Node.js"
+          ],
+          "answer": 1,
+          "explanation": "Pesan error ditulis oleh pembuat browser dan bisa berbeda; nama error sudah ditetapkan standar.",
+          "remedial": "Bayangkan kamu **memesan ojek online**, lalu berubah pikiran karena ternyata temanmu bisa menjemput.\n\nKamu menekan tombol batal (`abort()`). Pengemudi berhenti menuju lokasimu, dan aplikasi mencatat \"dibatalkan oleh pengguna\" (`AbortError`), bukan kesalahan.\n\nLain cerita kalau aplikasi otomatis membatalkan karena tidak ada pengemudi dalam 5 menit (`AbortSignal.timeout`). Catatannya berbeda: \"waktu habis\" (`TimeoutError`)."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi ambilDenganBatas(path, ms) yang mengambil data dengan AbortSignal.timeout(ms). Kembalikan nama produk; kalau waktunya habis, kembalikan \"Terlalu lama, dibatalkan\".",
+      "starterCode": "const API = \"https://api.toko.contoh\";\nasync function ambilDenganBatas(path, ms) {\n  const res = await fetch(API + path);\n  const data = await res.json();\n  return data.name;\n}\nconsole.log(await ambilDenganBatas(\"/products/P01\", 1000));\nconsole.log(await ambilDenganBatas(\"/slow\", 400));\n",
+      "steps": [
+        "Tambahkan { signal: AbortSignal.timeout(ms) } ke fetch.",
+        "Bungkus dengan try...catch.",
+        "Di catch, kalau err.name === \"TimeoutError\", kembalikan \"Terlalu lama, dibatalkan\"; selain itu lempar ulang."
+      ],
+      "skeleton": "const API = \"https://api.toko.contoh\";\nasync function ambilDenganBatas(path, ms) {\n  try {\n    const res = await fetch(API + path, { signal: AbortSignal.___(ms) });\n    const data = await res.json();\n    return data.name;\n  } catch (err) {\n    if (err.name === \"___\") return \"Terlalu lama, dibatalkan\";\n    throw err;\n  }\n}\nconsole.log(await ambilDenganBatas(\"/products/P01\", 1000));\nconsole.log(await ambilDenganBatas(\"/slow\", 400));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Kopi Susu\nTerlalu lama, dibatalkan\n"
+        }
+      ],
+      "hints": [
+        "Endpoint /slow butuh 3 detik, lebih lama dari batas 400 ms.",
+        "Pembatalan karena AbortSignal.timeout bernama TimeoutError."
+      ],
+      "solution": "const API = \"https://api.toko.contoh\";\nasync function ambilDenganBatas(path, ms) {\n  try {\n    const res = await fetch(API + path, { signal: AbortSignal.timeout(ms) });\n    const data = await res.json();\n    return data.name;\n  } catch (err) {\n    if (err.name === \"TimeoutError\") return \"Terlalu lama, dibatalkan\";\n    throw err;\n  }\n}\nconsole.log(await ambilDenganBatas(\"/products/P01\", 1000));\nconsole.log(await ambilDenganBatas(\"/slow\", 400));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "AbortController membatalkan permintaan: fetch(url, { signal }) lalu controller.abort().",
+        "Permintaan yang dibatalkan membuat fetch rejected dengan AbortError.",
+        "AbortSignal.timeout(ms) membatalkan otomatis dengan TimeoutError.",
+        "Periksa jenis error dengan err.name; pembatalan disengaja tidak perlu ditampilkan sebagai kesalahan."
+      ]
+    }
+  ]
+}

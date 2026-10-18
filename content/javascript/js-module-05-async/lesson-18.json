@@ -1,0 +1,134 @@
+{
+  "id": "js-async-18",
+  "moduleId": "js-async",
+  "order": 18,
+  "title": "Proyek Mini: Dashboard Pesanan",
+  "estimatedMinutes": 12,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di proyek ini kamu menggabungkan semua yang sudah dipelajari untuk membuat **dashboard pesanan** seorang pelanggan:\n\n1. Ambil **data pengguna** (`/users/U1`) dan **daftar pesanannya** (`/orders?userId=U1`) secara **bersamaan**, karena keduanya hanya butuh id pengguna.\n2. Setiap pesanan hanya berisi `productId` dan `qty`. Ambil **detail produk** untuk semua pesanan secara bersamaan.\n3. Hitung subtotal dan total, lalu tampilkan.\n\nYang dipakai: `fetch` dan `res.ok` (materi 12 dan 13), `async`/`await` dan `try...catch` (materi 7 dan 8), `Promise.all` (materi 9), serta format angka dari modul Standard Library.\n\nContoh data dari server latihan:\n\n```javascript\n// GET /orders?userId=U1\n[\n  { id: \"O1\", userId: \"U1\", productId: \"P01\", qty: 2 },\n  { id: \"O2\", userId: \"U1\", productId: \"P03\", qty: 1 },\n]\n```"
+    },
+    {
+      "type": "theory",
+      "content": "Langkah pertama: function pembantu dan pengambilan data tahap 1.\n\n```javascript run\nconst API = \"https://api.toko.contoh\";\nasync function ambilJson(path) {\n  const res = await fetch(API + path);\n  const data = await res.json();\n  if (!res.ok) throw new Error(`${res.status}: ${data.error}`);\n  return data;\n}\nconst t0 = Date.now();\nconst [pengguna, pesanan] = await Promise.all([\n  ambilJson(\"/users/U1\"),\n  ambilJson(\"/orders?userId=U1\"),\n]);\nconsole.log(pengguna);\nconsole.log(pesanan.map((o) => `${o.productId} x${o.qty}`).join(\", \"));\nconsole.log(\"bersamaan:\", Date.now() - t0 < 500);\n```\n\nHasil di console:\n\n```text\n{ id: 'U1', name: 'Rina', city: 'Bandung' }\nP01 x2, P03 x1\nbersamaan: true\n```\n\n`ambilJson` dipakai untuk semua permintaan, sehingga pemeriksaan `res.ok` cukup ditulis sekali. Dua permintaan pertama berjalan bersamaan, jadi selesai dalam sekitar 300 ms."
+    },
+    {
+      "type": "theory",
+      "content": "Langkah kedua: ambil detail produk untuk setiap pesanan, lalu gabungkan.\n\n```javascript run\nconst API = \"https://api.toko.contoh\";\nconst ambilJson = async (path) => (await fetch(API + path)).json();\nconst pesanan = await ambilJson(\"/orders?userId=U1\");\nconst produk = await Promise.all(pesanan.map((o) => ambilJson(`/products/${o.productId}`)));\nconst baris = pesanan.map((o, i) => ({\n  nama: produk[i].name,\n  qty: o.qty,\n  subtotal: produk[i].price * o.qty,\n}));\nfor (const b of baris) console.log(`${b.nama} x${b.qty} = ${b.subtotal}`);\nconst total = baris.reduce((t, b) => t + b.subtotal, 0);\nconsole.log(\"Total:\", total.toLocaleString(\"id-ID\"));\n```\n\nHasil di console:\n\n```text\nKopi Susu x2 = 36000\nRoti Bakar x1 = 15000\nTotal: 51.000\n```\n\n- `Promise.all(pesanan.map(...))` mengambil semua produk bersamaan. Hasilnya tersusun sesuai urutan pesanan, sehingga `produk[i]` adalah produk untuk `pesanan[i]`.\n- Kalau ada 10 pesanan, cara ini tetap sekitar 300 ms, bukan 3 detik.\n- Di aplikasi sungguhan, server biasanya menyediakan endpoint yang langsung menggabungkan data ini, supaya tidak perlu banyak permintaan. Tapi pola mengambil lalu menggabungkan seperti ini tetap sering diperlukan."
+    },
+    {
+      "type": "runnable",
+      "code": "const API = \"https://api.toko.contoh\";\nasync function ambilJson(path) {\n  const res = await fetch(API + path);\n  const data = await res.json();\n  if (!res.ok) throw new Error(`${res.status}: ${data.error}`);\n  return data;\n}\ntry {\n  const [pengguna, pesanan] = await Promise.all([ambilJson(\"/users/U9\"), ambilJson(\"/orders?userId=U9\")]);\n  console.log(pengguna.name, pesanan.length);\n} catch (err) {\n  console.log(\"Dashboard gagal dimuat\");\n  console.log(err.message);\n}",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KEDUA yang akan tercetak?",
+        "options": [
+          "Dashboard gagal dimuat",
+          "404: Pengguna tidak ditemukan",
+          "undefined 0",
+          "200: OK"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "Pengguna U9 tidak ada, jadi ambilJson melempar error."
+        },
+        {
+          "line": 9,
+          "note": "Permintaan ini berhasil (array kosong), tapi hasilnya ikut dibuang oleh Promise.all."
+        },
+        {
+          "line": 11,
+          "note": "Promise.all gagal dengan error pertama."
+        }
+      ],
+      "explanation": "Permintaan pesanan berhasil dengan array kosong, tapi permintaan pengguna gagal dengan 404. `Promise.all` langsung gagal, dan error-nya ditangkap di `catch`.\n\nUntuk dashboard ini, `Promise.all` adalah pilihan yang tepat: tanpa data pengguna, dashboard memang tidak bisa ditampilkan. Kalau sebagian data boleh kosong, `Promise.allSettled` lebih cocok.",
+      "tryThis": [
+        {
+          "task": "Ganti U9 dengan U2 di kedua permintaan. Apa yang tercetak?",
+          "hint": "Budi punya satu pesanan."
+        },
+        {
+          "task": "Ganti hanya permintaan pengguna menjadi U3. Apa yang tercetak?",
+          "hint": "Sari ada, tapi pesanan untuk U9 kosong, jadi hasilnya Sari 0."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "const API = \"https://api.toko.contoh\";\nconst j = async (p) => (await fetch(API + p)).json();\nconst o = await j(\"/orders?userId=U2\");\nconsole.log(o.length, o[0].productId);",
+          "options": [
+            "1 P04",
+            "2 P01",
+            "0 undefined",
+            "3 P04"
+          ],
+          "answer": 0,
+          "explanation": "Pengguna U2 punya satu pesanan, yaitu produk P04.",
+          "remedial": "Bayangkan kamu adalah **asisten toko** yang menyiapkan ringkasan untuk pelanggan setia.\n\nKamu meminta dua rekan sekaligus: satu mengambil kartu data pelanggan, satu lagi mengambil daftar pesanannya. Tidak perlu menunggu bergantian (`Promise.all`).\n\nDaftar pesanan hanya berisi kode barang. Jadi kamu membagi kode-kode itu ke beberapa rekan untuk mencari detail barangnya secara bersamaan, lalu menyusun hasilnya sesuai urutan daftar. Kalau kartu pelanggan ternyata tidak ada, kamu tidak bisa membuat ringkasan sama sekali."
+        },
+        {
+          "question": "Kenapa data pengguna dan daftar pesanan diambil dengan Promise.all?",
+          "options": [
+            "Karena Promise.all mengulang permintaan yang gagal",
+            "Karena keduanya hanya butuh id pengguna dan tidak saling bergantung, sehingga bisa bersamaan",
+            "Karena fetch tidak bisa dipakai dua kali",
+            "Karena Promise.all mengurutkan hasil berdasarkan waktu"
+          ],
+          "answer": 1,
+          "explanation": "Permintaan yang saling bebas sebaiknya dijalankan bersamaan supaya lebih cepat.",
+          "remedial": "Bayangkan kamu adalah **asisten toko** yang menyiapkan ringkasan untuk pelanggan setia.\n\nKamu meminta dua rekan sekaligus: satu mengambil kartu data pelanggan, satu lagi mengambil daftar pesanannya. Tidak perlu menunggu bergantian (`Promise.all`).\n\nDaftar pesanan hanya berisi kode barang. Jadi kamu membagi kode-kode itu ke beberapa rekan untuk mencari detail barangnya secara bersamaan, lalu menyusun hasilnya sesuai urutan daftar. Kalau kartu pelanggan ternyata tidak ada, kamu tidak bisa membuat ringkasan sama sekali."
+        },
+        {
+          "question": "Detail produk diambil dengan Promise.all(pesanan.map(...)). Bagaimana mencocokkan produk dengan pesanannya?",
+          "options": [
+            "Mencari produk berdasarkan harga",
+            "Mengurutkan produk berdasarkan nama",
+            "produk[i] adalah produk untuk pesanan[i], karena hasil Promise.all sesuai urutan masukan",
+            "Tidak bisa dicocokkan"
+          ],
+          "answer": 2,
+          "explanation": "Promise.all menjaga urutan masukan, jadi index yang sama saling berpasangan.",
+          "remedial": "Bayangkan kamu adalah **asisten toko** yang menyiapkan ringkasan untuk pelanggan setia.\n\nKamu meminta dua rekan sekaligus: satu mengambil kartu data pelanggan, satu lagi mengambil daftar pesanannya. Tidak perlu menunggu bergantian (`Promise.all`).\n\nDaftar pesanan hanya berisi kode barang. Jadi kamu membagi kode-kode itu ke beberapa rekan untuk mencari detail barangnya secara bersamaan, lalu menyusun hasilnya sesuai urutan daftar. Kalau kartu pelanggan ternyata tidak ada, kamu tidak bisa membuat ringkasan sama sekali."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi buatDashboard(userId): ambil pengguna dan pesanan bersamaan, lalu ambil semua produk bersamaan. Cetak \"<nama> (<kota>)\", setiap pesanan sebagai \"- <produk> x<qty> = Rp<subtotal>\", lalu \"Total: Rp<total>\". Angka diformat id-ID. Kalau tidak ada pesanan, cetak \"Belum ada pesanan\" sebagai ganti baris pesanan dan total.",
+      "starterCode": "const API = \"https://api.toko.contoh\";\nconst ambilJson = async (path) => (await fetch(API + path)).json();\nasync function buatDashboard(userId) {\n  // 1. ambil pengguna dan pesanan bersamaan\n  // 2. ambil produk untuk setiap pesanan bersamaan\n  // 3. cetak dashboard\n}\nawait buatDashboard(\"U1\");\nawait buatDashboard(\"U3\");\n",
+      "steps": [
+        "const [pengguna, pesanan] = await Promise.all([ambilJson(`/users/${userId}`), ambilJson(`/orders?userId=${userId}`)]);",
+        "Cetak nama dan kota. Kalau pesanan kosong, cetak \"Belum ada pesanan\" lalu return.",
+        "const produk = await Promise.all(pesanan.map((o) => ambilJson(`/products/${o.productId}`))); lalu cetak setiap baris dan totalnya."
+      ],
+      "skeleton": "const API = \"https://api.toko.contoh\";\nconst ambilJson = async (path) => (await fetch(API + path)).json();\nconst rp = (n) => \"Rp\" + n.toLocaleString(\"id-ID\");\nasync function buatDashboard(userId) {\n  const [pengguna, pesanan] = await Promise.___([\n    ambilJson(`/users/${userId}`),\n    ambilJson(`/orders?userId=${userId}`),\n  ]);\n  console.log(`${pengguna.name} (${pengguna.city})`);\n  if (pesanan.length === 0) return console.log(\"Belum ada pesanan\");\n  const produk = await Promise.all(pesanan.___((o) => ambilJson(`/products/${o.productId}`)));\n  let total = 0;\n  pesanan.forEach((o, i) => {\n    const subtotal = produk[i].price * o.qty;\n    total += subtotal;\n    console.log(`- ${produk[i].name} x${o.qty} = ${rp(subtotal)}`);\n  });\n  console.log(`Total: ${rp(total)}`);\n}\nawait buatDashboard(\"U1\");\nawait buatDashboard(\"U3\");",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Rina (Bandung)\n- Kopi Susu x2 = Rp36.000\n- Roti Bakar x1 = Rp15.000\nTotal: Rp51.000\nSari (Medan)\nBelum ada pesanan\n"
+        }
+      ],
+      "hints": [
+        "Pengguna dan pesanan tidak saling bergantung, jadi bisa diambil bersamaan.",
+        "produk[i] berpasangan dengan pesanan[i], karena Promise.all menjaga urutan."
+      ],
+      "solution": "const API = \"https://api.toko.contoh\";\nconst ambilJson = async (path) => (await fetch(API + path)).json();\nconst rp = (n) => \"Rp\" + n.toLocaleString(\"id-ID\");\nasync function buatDashboard(userId) {\n  const [pengguna, pesanan] = await Promise.all([\n    ambilJson(`/users/${userId}`),\n    ambilJson(`/orders?userId=${userId}`),\n  ]);\n  console.log(`${pengguna.name} (${pengguna.city})`);\n  if (pesanan.length === 0) return console.log(\"Belum ada pesanan\");\n  const produk = await Promise.all(pesanan.map((o) => ambilJson(`/products/${o.productId}`)));\n  let total = 0;\n  pesanan.forEach((o, i) => {\n    const subtotal = produk[i].price * o.qty;\n    total += subtotal;\n    console.log(`- ${produk[i].name} x${o.qty} = ${rp(subtotal)}`);\n  });\n  console.log(`Total: ${rp(total)}`);\n}\nawait buatDashboard(\"U1\");\nawait buatDashboard(\"U3\");"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Buat satu function pembantu (ambilJson) yang memeriksa res.ok untuk semua permintaan.",
+        "Ambil data yang saling bebas bersamaan dengan Promise.all.",
+        "Promise.all(array.map(...)) mengambil banyak detail sekaligus, dengan hasil sesuai urutan.",
+        "Pilih Promise.all kalau semua data wajib ada, allSettled kalau sebagian boleh gagal."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+{
+  "id": "js-async-17",
+  "moduleId": "js-async",
+  "order": 17,
+  "title": "Mencoba Ulang Permintaan yang Gagal",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tidak semua kegagalan bersifat permanen. Server bisa **sibuk sesaat** (503), koneksi bisa putus sebentar, atau permintaan kehabisan waktu. Untuk kegagalan seperti ini, mencoba ulang beberapa kali sering kali berhasil.\n\nTapi ada kegagalan yang **tidak akan berubah** walau dicoba ulang:\n\n| Coba ulang | Jangan coba ulang |\n|---|---|\n| 503 server sibuk, 500 kadang-kadang | 400 permintaan rusak |\n| 429 terlalu banyak permintaan (setelah menunggu) | 401/403 belum login atau tidak berhak |\n| koneksi putus, waktu habis | 404 tidak ditemukan, 422 data tidak valid |\n\nDua aturan penting:\n\n1. **Batasi jumlah percobaan**, misalnya 3 kali, supaya tidak mencoba selamanya.\n2. **Beri jeda yang semakin lama** di antara percobaan (*exponential backoff*): 100 ms, 200 ms, 400 ms, dan seterusnya. Kalau ribuan pengguna mencoba ulang serentak tanpa jeda, server yang sedang sibuk justru semakin kewalahan."
+    },
+    {
+      "type": "theory",
+      "content": "Server latihan punya endpoint `/flaky` yang menjawab **503 dua kali**, lalu berhasil pada percobaan ketiga. Parameter `?delay=` mengatur jeda jawaban server dalam milidetik.\n\n```javascript run\nconst API = \"https://api.toko.contoh\";\nfor (let i = 1; i <= 4; i++) {\n  const res = await fetch(API + \"/flaky?delay=50\");\n  const data = await res.json();\n  console.log(i, res.status, data.error ?? data.pesan);\n}\n```\n\nHasil di console:\n\n```text\n1 503 Server sibuk, coba lagi\n2 503 Server sibuk, coba lagi\n3 200 Berhasil pada percobaan ke-3\n4 200 Berhasil pada percobaan ke-4\n```\n\nPerulangan di atas belum memakai aturan apa pun: ia terus mengirim permintaan walau sudah berhasil, dan tidak memberi jeda. Di kartu berikutnya, kamu melihat versi yang benar."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nconst API = \"https://api.toko.contoh\";\nconst tunggu = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function ambilDenganUlang(path, maks = 3) {\n  for (let percobaan = 1; percobaan <= maks; percobaan++) {\n    const res = await fetch(API + path);\n    if (res.ok) return res.json();\n    const bolehUlang = res.status >= 500;\n    console.log(`Percobaan ${percobaan} gagal: ${res.status}`);\n    if (!bolehUlang || percobaan === maks) throw new Error(`Menyerah setelah status ${res.status}`);\n    await tunggu(100 * 2 ** (percobaan - 1));\n  }\n}\nconst data = await ambilDenganUlang(\"/flaky?delay=50\");\nconsole.log(data.pesan);\ntry {\n  await ambilDenganUlang(\"/products/P99\");\n} catch (err) {\n  console.log(err.message);\n}\n```\n\nHasil di console:\n\n```text\nPercobaan 1 gagal: 503\nPercobaan 2 gagal: 503\nBerhasil pada percobaan ke-3\nPercobaan 1 gagal: 404\nMenyerah setelah status 404\n```\n\n- Berhasil (`res.ok`): langsung kembalikan datanya, perulangan berhenti.\n- Gagal 5xx: tunggu 100 ms, lalu 200 ms, lalu coba lagi.\n- Gagal 4xx (di sini 404): **langsung menyerah**, karena mencoba ulang tidak akan membuat produk P99 tiba-tiba ada.\n- `2 ** n` adalah operator pangkat: `2 ** 0 = 1`, `2 ** 1 = 2`, `2 ** 2 = 4`."
+    },
+    {
+      "type": "runnable",
+      "code": "const API = \"https://api.toko.contoh\";\nconst tunggu = (ms) => new Promise((r) => setTimeout(r, ms));\nlet jumlah = 0;\nasync function coba(maks) {\n  for (let i = 1; i <= maks; i++) {\n    jumlah++;\n    const res = await fetch(API + \"/flaky?delay=30\");\n    if (res.ok) return \"berhasil\";\n    await tunggu(50);\n  }\n  return \"menyerah\";\n}\nconsole.log(await coba(2), jumlah);\nconsole.log(await coba(2), jumlah);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris PERTAMA yang akan tercetak?",
+        "options": [
+          "menyerah 2",
+          "berhasil 3",
+          "berhasil 2",
+          "menyerah 3"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Maksimal maks percobaan."
+        },
+        {
+          "line": 11,
+          "note": "Dicapai kalau semua percobaan gagal."
+        },
+        {
+          "line": 13,
+          "note": "Panggilan kedua melanjutkan hitungan server, karena server mengingat jumlah permintaan."
+        }
+      ],
+      "explanation": "Panggilan pertama hanya boleh mencoba 2 kali, dan keduanya mendapat 503, jadi hasilnya \"menyerah\" dengan total 2 permintaan.\n\nPanggilan kedua mengirim permintaan ke-3, yang berhasil. Hasilnya \"berhasil\" dengan total 3 permintaan. Batas percobaan yang terlalu kecil bisa membuat program menyerah terlalu cepat, sedangkan batas yang terlalu besar membuat pengguna menunggu lama.",
+      "tryThis": [
+        {
+          "task": "Ubah coba(2) yang pertama menjadi coba(3). Apa yang tercetak di baris pertama?",
+          "hint": "Percobaan ketiga sudah berhasil."
+        },
+        {
+          "task": "Ubah tunggu(50) menjadi tunggu(50 * 2 ** (i - 1)). Apakah hasilnya berubah?",
+          "hint": "Jeda hanya memengaruhi waktu, bukan hasil."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Respons mana yang sebaiknya TIDAK dicoba ulang?",
+          "options": [
+            "503 Service Unavailable",
+            "404 Not Found",
+            "Koneksi putus",
+            "Waktu habis"
+          ],
+          "answer": 1,
+          "explanation": "Data yang tidak ditemukan tidak akan tiba-tiba ada walau dicoba ulang.",
+          "remedial": "Bayangkan kamu **menelepon layanan pelanggan** dan nadanya sibuk.\n\nKamu mencoba lagi satu menit kemudian, lalu dua menit, lalu empat menit. Kalau masih sibuk setelah beberapa kali, kamu menyerah dan mencoba besok.\n\nTapi kalau operator menjawab \"nomor yang Anda tuju tidak terdaftar\", kamu tidak akan menelepon ulang, karena hasilnya pasti sama. Itulah bedanya 503 dan 404."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "console.log([0, 1, 2, 3].map((n) => 100 * 2 ** n).join(\" \"));",
+          "options": [
+            "100 200 300 400",
+            "0 100 200 300",
+            "100 200 400 800",
+            "200 400 600 800"
+          ],
+          "answer": 2,
+          "explanation": "Exponential backoff menggandakan jeda setiap percobaan: 100, 200, 400, 800.",
+          "remedial": "Bayangkan kamu **menelepon layanan pelanggan** dan nadanya sibuk.\n\nKamu mencoba lagi satu menit kemudian, lalu dua menit, lalu empat menit. Kalau masih sibuk setelah beberapa kali, kamu menyerah dan mencoba besok.\n\nTapi kalau operator menjawab \"nomor yang Anda tuju tidak terdaftar\", kamu tidak akan menelepon ulang, karena hasilnya pasti sama. Itulah bedanya 503 dan 404."
+        },
+        {
+          "question": "Kenapa jeda di antara percobaan sebaiknya semakin lama?",
+          "options": [
+            "Supaya kode lebih pendek",
+            "Karena browser mewajibkannya",
+            "Supaya hasilnya berbeda",
+            "Supaya server yang sedang sibuk tidak semakin kewalahan oleh percobaan ulang serentak"
+          ],
+          "answer": 3,
+          "explanation": "Percobaan ulang tanpa jeda dari banyak pengguna bisa memperparah beban server.",
+          "remedial": "Bayangkan kamu **menelepon layanan pelanggan** dan nadanya sibuk.\n\nKamu mencoba lagi satu menit kemudian, lalu dua menit, lalu empat menit. Kalau masih sibuk setelah beberapa kali, kamu menyerah dan mencoba besok.\n\nTapi kalau operator menjawab \"nomor yang Anda tuju tidak terdaftar\", kamu tidak akan menelepon ulang, karena hasilnya pasti sama. Itulah bedanya 503 dan 404."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi ambilDenganUlang(path, maks) yang mencoba ulang selama status 5xx, maksimal maks kali, dan mencetak \"Percobaan <n>: <status>\" setiap gagal. Kembalikan pesan dari data kalau berhasil.",
+      "starterCode": "const API = \"https://api.toko.contoh\";\nconst tunggu = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function ambilDenganUlang(path, maks) {\n  const res = await fetch(API + path);\n  const data = await res.json();\n  return data.pesan;\n}\nconsole.log(await ambilDenganUlang(\"/flaky?delay=50\", 3));\n",
+      "steps": [
+        "Bungkus fetch dengan for (let i = 1; i <= maks; i++).",
+        "Kalau res.ok, kembalikan (await res.json()).pesan.",
+        "Kalau gagal, cetak \"Percobaan i: status\"; lempar error kalau bukan 5xx atau sudah percobaan terakhir; selain itu tunggu 100 * 2 ** (i - 1)."
+      ],
+      "skeleton": "const API = \"https://api.toko.contoh\";\nconst tunggu = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function ambilDenganUlang(path, maks) {\n  for (let i = 1; i <= maks; i++) {\n    const res = await fetch(API + path);\n    if (res.___) return (await res.json()).pesan;\n    console.log(`Percobaan ${i}: ${res.status}`);\n    if (res.status < 500 || i === maks) throw new Error(`Gagal dengan status ${res.status}`);\n    await ___(100 * 2 ** (i - 1));\n  }\n}\nconsole.log(await ambilDenganUlang(\"/flaky?delay=50\", 3));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Percobaan 1: 503\nPercobaan 2: 503\nBerhasil pada percobaan ke-3\n"
+        }
+      ],
+      "hints": [
+        "/flaky menjawab 503 dua kali, lalu berhasil.",
+        "return di dalam perulangan langsung menghentikan perulangan dan function."
+      ],
+      "solution": "const API = \"https://api.toko.contoh\";\nconst tunggu = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function ambilDenganUlang(path, maks) {\n  for (let i = 1; i <= maks; i++) {\n    const res = await fetch(API + path);\n    if (res.ok) return (await res.json()).pesan;\n    console.log(`Percobaan ${i}: ${res.status}`);\n    if (res.status < 500 || i === maks) throw new Error(`Gagal dengan status ${res.status}`);\n    await tunggu(100 * 2 ** (i - 1));\n  }\n}\nconsole.log(await ambilDenganUlang(\"/flaky?delay=50\", 3));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Coba ulang hanya untuk kegagalan sementara: 5xx, koneksi putus, waktu habis.",
+        "Jangan coba ulang 4xx seperti 400, 401, 404, atau 422.",
+        "Batasi jumlah percobaan supaya tidak mencoba selamanya.",
+        "Beri jeda yang semakin lama (exponential backoff), misalnya 100 * 2 ** n."
+      ]
+    }
+  ]
+}

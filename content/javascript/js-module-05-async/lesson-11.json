@@ -1,0 +1,135 @@
+{
+  "id": "js-async-11",
+  "moduleId": "js-async",
+  "order": 11,
+  "title": "Event Loop: Microtask dan Macrotask",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sekarang saatnya melihat bagaimana JavaScript mengatur semua pekerjaan asinkron. Mekanismenya disebut **event loop**, dan bekerja dengan dua antrean:\n\n| Antrean | Isinya | Prioritas |\n|---|---|---|\n| **Microtask** | kelanjutan Promise (`then`, `catch`, `finally`, kode setelah `await`), `queueMicrotask` | tinggi |\n| **Macrotask** (task) | `setTimeout`, `setInterval`, event (klik, ketikan), pesan dari jaringan | biasa |\n\nUrutan kerja event loop:\n\n1. Jalankan seluruh kode sinkron yang sedang berjalan sampai selesai.\n2. Jalankan **semua** microtask yang menunggu, termasuk microtask baru yang muncul selama proses ini.\n3. Browser boleh menggambar ulang halaman.\n4. Ambil **satu** macrotask, jalankan, lalu kembali ke langkah 2."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nconsole.log(\"1 sinkron\");\nsetTimeout(() => console.log(\"5 timeout\"), 0);\nPromise.resolve().then(() => console.log(\"3 then\"));\nqueueMicrotask(() => console.log(\"4 microtask\"));\nconsole.log(\"2 sinkron\");\n```\n\nHasil di console:\n\n```text\n1 sinkron\n2 sinkron\n3 then\n4 microtask\n5 timeout\n```\n\n- Kode sinkron berjalan lebih dulu: 1, lalu 2.\n- Setelah itu, **semua microtask** dijalankan sesuai urutan masuknya: then (3), lalu queueMicrotask (4).\n- Baru kemudian satu macrotask: setTimeout (5).\n\nWalaupun `setTimeout(..., 0)` ditulis paling awal, ia tetap kalah dari `then`, karena macrotask harus menunggu antrean microtask kosong."
+    },
+    {
+      "type": "theory",
+      "content": "Kode setelah `await` juga merupakan microtask:\n\n```javascript run\nasync function proses() {\n  console.log(\"B mulai proses\");\n  await null;\n  console.log(\"E setelah await\");\n}\nconsole.log(\"A\");\nsetTimeout(() => console.log(\"F timeout\"), 0);\nproses();\nPromise.resolve().then(() => console.log(\"D then\"));\nconsole.log(\"C\");\n```\n\nHasil di console:\n\n```text\nA\nB mulai proses\nC\nE setelah await\nD then\nF timeout\n```\n\n- Function async berjalan **sinkron** sampai `await` pertama, jadi B tercetak langsung.\n- `await` menjadwalkan kelanjutannya (E) sebagai microtask, lebih dulu daripada `then` (D) yang didaftarkan sesudahnya.\n- setTimeout (F) tetap paling akhir.\n\nKenapa ini penting? Karena microtask yang terus menambah microtask baru bisa **menahan** macrotask dan penggambaran ulang halaman, sehingga halaman membeku. Dan memahami urutan ini membantu menjelaskan bug yang \"kadang muncul, kadang tidak\"."
+    },
+    {
+      "type": "runnable",
+      "code": "setTimeout(() => console.log(\"timeout 1\"), 0);\nPromise.resolve().then(() => {\n  console.log(\"then 1\");\n  setTimeout(() => console.log(\"timeout 2\"), 0);\n  Promise.resolve().then(() => console.log(\"then 2\"));\n});\nsetTimeout(() => {\n  console.log(\"timeout 3\");\n  Promise.resolve().then(() => console.log(\"then 3\"));\n}, 0);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KETIGA yang akan tercetak?",
+        "options": [
+          "timeout 2",
+          "timeout 3",
+          "timeout 1",
+          "then 3"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Microtask pertama: berjalan setelah kode sinkron selesai."
+        },
+        {
+          "line": 5,
+          "note": "Microtask baru yang muncul saat memproses microtask; tetap dijalankan sebelum macrotask mana pun."
+        },
+        {
+          "line": 8,
+          "note": "Setelah macrotask ini, microtask then 3 langsung dijalankan sebelum macrotask berikutnya."
+        }
+      ],
+      "explanation": "Urutan lengkapnya: then 1, then 2, timeout 1, timeout 3, then 3, timeout 2.\n\n- then 1 dan then 2 adalah microtask, jadi habis lebih dulu.\n- Antrean macrotask berisi timeout 1, timeout 3, lalu timeout 2 (yang baru didaftarkan di dalam then 1).\n- Setelah timeout 3 berjalan, microtask then 3 langsung diproses, sebelum timeout 2.",
+      "tryThis": [
+        {
+          "task": "Pindahkan setTimeout \"timeout 1\" ke baris paling akhir. Apakah urutannya berubah?",
+          "hint": "Urutan macrotask mengikuti urutan pendaftarannya."
+        },
+        {
+          "task": "Ganti 0 di timeout 1 dengan 10. Di mana ia muncul sekarang?",
+          "hint": "Timer dengan jeda lebih lama baru masuk antrean setelah jedanya lewat."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "setTimeout(() => console.log(\"A\"), 0);\nPromise.resolve().then(() => console.log(\"B\"));\nconsole.log(\"C\");",
+          "options": [
+            "A B C",
+            "C A B",
+            "B C A",
+            "C B A"
+          ],
+          "answer": 3,
+          "explanation": "Sinkron (C) dulu, lalu microtask (B), lalu macrotask (A).",
+          "remedial": "Bayangkan **kasir di bank** dengan dua jenis antrean.\n\nAntrean prioritas (microtask) berisi urusan singkat yang berkaitan dengan nasabah yang baru dilayani, misalnya \"tolong cap buku tabungan ini juga\". Antrean biasa (macrotask) berisi nasabah lain yang memegang nomor.\n\nSetiap kali selesai melayani seseorang, kasir **menghabiskan dulu antrean prioritas**, termasuk urusan tambahan yang muncul saat itu, baru memanggil satu nomor dari antrean biasa. Kalau antrean prioritas tidak pernah habis, nasabah di antrean biasa tidak pernah dipanggil."
+        },
+        {
+          "question": "Termasuk antrean apakah kelanjutan kode setelah await?",
+          "options": [
+            "Microtask",
+            "Macrotask",
+            "Tidak masuk antrean, langsung berjalan",
+            "Sama dengan setTimeout"
+          ],
+          "answer": 0,
+          "explanation": "Kode setelah await dijadwalkan sebagai microtask, sama seperti then.",
+          "remedial": "Bayangkan **kasir di bank** dengan dua jenis antrean.\n\nAntrean prioritas (microtask) berisi urusan singkat yang berkaitan dengan nasabah yang baru dilayani, misalnya \"tolong cap buku tabungan ini juga\". Antrean biasa (macrotask) berisi nasabah lain yang memegang nomor.\n\nSetiap kali selesai melayani seseorang, kasir **menghabiskan dulu antrean prioritas**, termasuk urusan tambahan yang muncul saat itu, baru memanggil satu nomor dari antrean biasa. Kalau antrean prioritas tidak pernah habis, nasabah di antrean biasa tidak pernah dipanggil."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "async function f() {\n  console.log(1);\n  await null;\n  console.log(3);\n}\nf();\nconsole.log(2);",
+          "options": [
+            "1 3 2",
+            "1 2 3",
+            "2 1 3",
+            "3 2 1"
+          ],
+          "answer": 1,
+          "explanation": "Function async berjalan sinkron sampai await (1), kode luar lanjut (2), lalu kelanjutannya sebagai microtask (3).",
+          "remedial": "Bayangkan **kasir di bank** dengan dua jenis antrean.\n\nAntrean prioritas (microtask) berisi urusan singkat yang berkaitan dengan nasabah yang baru dilayani, misalnya \"tolong cap buku tabungan ini juga\". Antrean biasa (macrotask) berisi nasabah lain yang memegang nomor.\n\nSetiap kali selesai melayani seseorang, kasir **menghabiskan dulu antrean prioritas**, termasuk urusan tambahan yang muncul saat itu, baru memanggil satu nomor dari antrean biasa. Kalau antrean prioritas tidak pernah habis, nasabah di antrean biasa tidak pernah dipanggil."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Isi bagian kosong dengan setTimeout atau Promise.resolve().then supaya output tercetak berurutan dari 1 sampai 4.",
+      "starterCode": "setTimeout(() => console.log(4), 0);\nsetTimeout(() => console.log(3), 0);\nconsole.log(1);\nconsole.log(2);\n",
+      "steps": [
+        "Angka 1 dan 2 dicetak sinkron.",
+        "Angka 3 harus berjalan sebelum macrotask, jadi jadikan microtask dengan Promise.resolve().then.",
+        "Angka 4 tetap macrotask dengan setTimeout."
+      ],
+      "skeleton": "___(() => console.log(4), 0);\nPromise.resolve().___(() => console.log(3));\nconsole.log(1);\nconsole.log(2);",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "1\n2\n3\n4\n"
+        }
+      ],
+      "hints": [
+        "Microtask selalu dijalankan sebelum macrotask berikutnya.",
+        "Walau setTimeout ditulis lebih dulu, ia tetap berjalan paling akhir."
+      ],
+      "solution": "setTimeout(() => console.log(4), 0);\nPromise.resolve().then(() => console.log(3));\nconsole.log(1);\nconsole.log(2);"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Event loop menjalankan kode sinkron dulu, lalu semua microtask, lalu satu macrotask, dan berulang.",
+        "Microtask: then, catch, finally, kode setelah await, queueMicrotask.",
+        "Macrotask: setTimeout, setInterval, event, dan pesan jaringan.",
+        "Microtask selalu habis sebelum macrotask berikutnya, walau setTimeout jedanya 0."
+      ]
+    }
+  ]
+}

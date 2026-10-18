@@ -1,0 +1,135 @@
+{
+  "id": "js-async-09",
+  "moduleId": "js-async",
+  "order": 9,
+  "title": "Berurutan atau Bersamaan",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`await` yang ditulis berturut-turut membuat pekerjaan berjalan **berurutan**: pekerjaan kedua baru dimulai setelah yang pertama selesai.\n\n```javascript\nconst pengguna = await ambilPengguna();   // 300 ms\nconst produk = await ambilProduk();       // 300 ms, baru dimulai setelah pengguna selesai\n// total sekitar 600 ms\n```\n\nKalau pekerjaan kedua **tidak membutuhkan** hasil pekerjaan pertama, menunggu seperti ini membuang waktu. Keduanya bisa dimulai **bersamaan** (*paralel*), lalu ditunggu bersama dengan **`Promise.all`**:\n\n```javascript\nconst [pengguna, produk] = await Promise.all([ambilPengguna(), ambilProduk()]);\n// total sekitar 300 ms\n```\n\n`Promise.all` menerima array Promise dan menghasilkan array hasil, **sesuai urutan array masukan**, bukan urutan selesainya."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nconst tunggu = (ms, nilai) => new Promise((res) => setTimeout(() => res(nilai), ms));\nlet t0 = Date.now();\nconst a = await tunggu(300, \"pengguna\");\nconst b = await tunggu(300, \"produk\");\nconst lamaBerurutan = Date.now() - t0;\nt0 = Date.now();\nconst [c, d] = await Promise.all([tunggu(300, \"pengguna\"), tunggu(300, \"produk\")]);\nconst lamaBersamaan = Date.now() - t0;\nconsole.log(a, b, c, d);\nconsole.log(\"berurutan sekitar 600 ms:\", lamaBerurutan >= 590);\nconsole.log(\"bersamaan sekitar 300 ms:\", lamaBersamaan < 450);\n```\n\nHasil di console:\n\n```text\npengguna produk pengguna produk\nberurutan sekitar 600 ms: true\nbersamaan sekitar 300 ms: true\n```\n\nWaktu persisnya bisa berbeda beberapa milidetik setiap kali dijalankan, karena itu contoh ini mencetak perbandingan, bukan angka pastinya. Hasilnya sama, tapi cara bersamaan dua kali lebih cepat. Untuk halaman yang memuat banyak data sekaligus, selisih ini sangat terasa bagi pengguna."
+    },
+    {
+      "type": "theory",
+      "content": "Kapan harus berurutan, kapan boleh bersamaan?\n\n| Situasi | Cara |\n|---|---|\n| langkah kedua **butuh hasil** langkah pertama (ambil pengguna, lalu pesanan milik pengguna itu) | berurutan |\n| langkah-langkah **saling bebas** (ambil daftar produk dan daftar kategori) | bersamaan |\n\nKunci cara bersamaan: **mulai dulu semua Promise-nya, baru di-`await`**. Memanggil function async langsung memulai pekerjaannya.\n\n```javascript run\nconst tunggu = (ms, nilai) => new Promise((res) => setTimeout(() => res(nilai), ms));\nconst ids = [\"P01\", \"P02\", \"P03\"];\nconst t0 = Date.now();\nconst hasil = await Promise.all(ids.map((id) => tunggu(200, `produk ${id}`)));\nconsole.log(hasil);\nconsole.log(\"sekitar 200 ms:\", Date.now() - t0 < 350);\n```\n\nHasil di console:\n\n```text\n[ produk P01, produk P02, produk P03 ]\nsekitar 200 ms: true\n```\n\n`ids.map(...)` memulai tiga pekerjaan sekaligus dan menghasilkan array tiga Promise, lalu `Promise.all` menunggu semuanya. Pola `Promise.all(array.map(...))` sangat sering dipakai."
+    },
+    {
+      "type": "runnable",
+      "code": "const tunggu = (ms, nilai) => new Promise((res) => setTimeout(() => res(nilai), ms));\nconst t0 = Date.now();\nconst janjiA = tunggu(300, \"A\");\nconst janjiB = tunggu(300, \"B\");\nconst a = await janjiA;\nconst b = await janjiB;\nconsole.log(a + b);\nconsole.log(\"lebih dari 500 ms:\", Date.now() - t0 > 500);",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KEDUA yang akan tercetak?",
+        "options": [
+          "lebih dari 500 ms: false",
+          "lebih dari 500 ms: true",
+          "AB",
+          "undefined"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 3,
+          "note": "Pekerjaan A dimulai di sini."
+        },
+        {
+          "line": 4,
+          "note": "Pekerjaan B langsung dimulai juga, tanpa menunggu A."
+        },
+        {
+          "line": 5,
+          "note": "Baru di sini menunggu. Saat A selesai, B juga hampir selesai."
+        }
+      ],
+      "explanation": "Yang menentukan berurutan atau bersamaan adalah **kapan pekerjaan dimulai**, bukan kapan di-`await`. Kedua `tunggu` dipanggil berturut-turut tanpa `await`, jadi keduanya berjalan bersamaan. Total waktunya sekitar 300 ms, bukan 600 ms.\n\nCara ini benar, tapi kalau salah satu gagal saat yang lain masih ditunggu, error-nya bisa menjadi unhandled rejection. `Promise.all` lebih aman dan lebih jelas maksudnya.",
+      "tryThis": [
+        {
+          "task": "Pindahkan await ke baris pemanggilan: const a = await tunggu(300, \"A\"); dan hal yang sama untuk B. Apa hasil baris kedua?",
+          "hint": "Sekarang B baru dimulai setelah A selesai, jadi totalnya sekitar 600 ms."
+        },
+        {
+          "task": "Tulis ulang dengan const [a, b] = await Promise.all([...]). Apakah hasilnya sama?",
+          "hint": "Promise.all memulai dan menunggu keduanya bersamaan."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "const tunggu = (ms, nilai) => new Promise((res) => setTimeout(() => res(nilai), ms));\nconst hasil = await Promise.all([tunggu(200, \"lambat\"), tunggu(50, \"cepat\")]);\nconsole.log(hasil[0]);",
+          "options": [
+            "cepat",
+            "lambat",
+            "[ cepat, lambat ]",
+            "undefined"
+          ],
+          "answer": 1,
+          "explanation": "Promise.all menyusun hasil sesuai urutan array masukan, bukan urutan selesainya.",
+          "remedial": "Bayangkan kamu **memasak nasi dan merebus air** untuk teh.\n\nCara berurutan: masak nasi, tunggu sampai matang, baru merebus air. Totalnya 30 menit ditambah 5 menit.\n\nCara bersamaan: nyalakan rice cooker, lalu langsung rebus air di kompor. Keduanya bekerja bersamaan, dan totalnya hanya 30 menit. `Promise.all` adalah kamu menunggu sampai rice cooker **dan** ketel sama-sama selesai.\n\nTapi kalau langkah kedua butuh hasil langkah pertama, misalnya menggoreng nasi yang sudah matang, kamu memang harus menunggu."
+        },
+        {
+          "question": "Pekerjaan mana yang sebaiknya dijalankan berurutan?",
+          "options": [
+            "Mengambil daftar produk dan daftar kategori",
+            "Mengambil cuaca tiga kota",
+            "Mengambil data pengguna, lalu pesanan milik pengguna itu",
+            "Mengambil foto profil dan foto sampul"
+          ],
+          "answer": 2,
+          "explanation": "Pesanan baru bisa diambil setelah id pengguna diketahui, jadi langkah kedua bergantung pada langkah pertama.",
+          "remedial": "Bayangkan kamu **memasak nasi dan merebus air** untuk teh.\n\nCara berurutan: masak nasi, tunggu sampai matang, baru merebus air. Totalnya 30 menit ditambah 5 menit.\n\nCara bersamaan: nyalakan rice cooker, lalu langsung rebus air di kompor. Keduanya bekerja bersamaan, dan totalnya hanya 30 menit. `Promise.all` adalah kamu menunggu sampai rice cooker **dan** ketel sama-sama selesai.\n\nTapi kalau langkah kedua butuh hasil langkah pertama, misalnya menggoreng nasi yang sudah matang, kamu memang harus menunggu."
+        },
+        {
+          "question": "Kira-kira berapa lama kode ini berjalan?",
+          "code": "const tunggu = (ms, nilai) => new Promise((res) => setTimeout(() => res(nilai), ms));\nfor (const ms of [100, 100, 100]) {\n  await tunggu(ms);\n}",
+          "options": [
+            "100 ms",
+            "200 ms",
+            "langsung selesai",
+            "300 ms"
+          ],
+          "answer": 3,
+          "explanation": "await di dalam perulangan menunggu setiap putaran selesai sebelum memulai putaran berikutnya, jadi berurutan.",
+          "remedial": "Bayangkan kamu **memasak nasi dan merebus air** untuk teh.\n\nCara berurutan: masak nasi, tunggu sampai matang, baru merebus air. Totalnya 30 menit ditambah 5 menit.\n\nCara bersamaan: nyalakan rice cooker, lalu langsung rebus air di kompor. Keduanya bekerja bersamaan, dan totalnya hanya 30 menit. `Promise.all` adalah kamu menunggu sampai rice cooker **dan** ketel sama-sama selesai.\n\nTapi kalau langkah kedua butuh hasil langkah pertama, misalnya menggoreng nasi yang sudah matang, kamu memang harus menunggu."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Kode berikut mengambil tiga produk satu per satu, sehingga lambat (sekitar 900 ms). Ubah supaya ketiganya diambil bersamaan dengan Promise.all, sehingga selesai di bawah 500 ms.",
+      "starterCode": "const data = { P01: \"Kopi Susu\", P03: \"Roti Bakar\", P04: \"Nasi Goreng\" };\nconst ambil = (id) => new Promise((res) => setTimeout(() => res(data[id]), 300));\nconst t0 = Date.now();\nconst nama = [];\nfor (const id of [\"P01\", \"P03\", \"P04\"]) {\n  nama.push(await ambil(id));\n}\nconsole.log(nama.join(\", \"));\nconsole.log(\"cepat:\", Date.now() - t0 < 500);\n",
+      "steps": [
+        "Buat array Promise dengan [\"P01\", \"P03\", \"P04\"].map(ambil).",
+        "Tunggu semuanya dengan await Promise.all(...).",
+        "Hasilnya sudah berupa array nama, sesuai urutan id."
+      ],
+      "skeleton": "const data = { P01: \"Kopi Susu\", P03: \"Roti Bakar\", P04: \"Nasi Goreng\" };\nconst ambil = (id) => new Promise((res) => setTimeout(() => res(data[id]), 300));\nconst t0 = Date.now();\nconst nama = await Promise.___([\"P01\", \"P03\", \"P04\"].___(ambil));\nconsole.log(nama.join(\", \"));\nconsole.log(\"cepat:\", Date.now() - t0 < 500);",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Kopi Susu, Roti Bakar, Nasi Goreng\ncepat: true\n"
+        }
+      ],
+      "hints": [
+        "map memanggil ambil untuk setiap id, sehingga ketiga pekerjaan langsung dimulai.",
+        "Promise.all menunggu semua Promise di dalam array."
+      ],
+      "solution": "const data = { P01: \"Kopi Susu\", P03: \"Roti Bakar\", P04: \"Nasi Goreng\" };\nconst ambil = (id) => new Promise((res) => setTimeout(() => res(data[id]), 300));\nconst t0 = Date.now();\nconst nama = await Promise.all([\"P01\", \"P03\", \"P04\"].map(ambil));\nconsole.log(nama.join(\", \"));\nconsole.log(\"cepat:\", Date.now() - t0 < 500);"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "await berturut-turut membuat pekerjaan berjalan berurutan; total waktunya dijumlahkan.",
+        "Pekerjaan yang saling bebas sebaiknya dijalankan bersamaan dengan Promise.all.",
+        "Promise.all menghasilkan array hasil sesuai urutan masukan.",
+        "Yang menentukan bersamaan adalah kapan pekerjaan dimulai; Promise.all(array.map(fn)) adalah pola umum."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "id": "js-async-06",
+  "moduleId": "js-async",
+  "order": 6,
+  "title": "Error di Promise",
+  "estimatedMinutes": 9,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di dalam `then`, ada dua cara membuat rangkaian gagal:\n\n- `throw new Error(\"...\")`,\n- mengembalikan Promise yang rejected.\n\nKeduanya membuat langkah-langkah berikutnya dilewati sampai ke `catch` terdekat.\n\nYang sering terlupakan: **`catch` juga mengembalikan Promise**. Kalau `catch` berhasil menangani error (tidak melempar error lagi), rangkaian **pulih** dan `then` sesudahnya tetap berjalan, menerima nilai yang dikembalikan `catch`.\n\nIni berguna untuk **nilai cadangan**: kalau data gagal diambil, pakai data lama atau data bawaan, lalu lanjutkan seperti biasa."
+    },
+    {
+      "type": "theory",
+      "content": "```javascript run\nPromise.resolve(\"data-mentah\")\n  .then((d) => {\n    throw new Error(\"Format data salah\");\n  })\n  .then(() => console.log(\"tidak pernah dijalankan\"))\n  .catch((err) => {\n    console.log(\"Ditangkap:\", err.message);\n    return \"data-cadangan\";\n  })\n  .then((d) => console.log(\"Lanjut dengan\", d));\n```\n\nHasil di console:\n\n```text\nDitangkap: Format data salah\nLanjut dengan data-cadangan\n```\n\nSetelah `catch` mengembalikan \"data-cadangan\", rangkaian kembali ke jalur berhasil.\n\nKalau error **tidak bisa** ditangani di situ, lempar lagi dari dalam `catch` dengan `throw err`, supaya `catch` berikutnya (misalnya di level yang lebih atas) yang menanganinya."
+    },
+    {
+      "type": "theory",
+      "content": "Bagaimana kalau Promise rejected tapi **tidak ada `catch` sama sekali**?\n\n```javascript run\nfunction simpan() {\n  return new Promise((_, reject) => setTimeout(() => reject(new Error(\"Server penuh\")), 100));\n}\nsimpan().then(() => console.log(\"Tersimpan\"));\nconsole.log(\"Lanjut bekerja\");\n```\n\nHasil di console:\n\n```text\nLanjut bekerja\nUncaught (in promise) Error: Server penuh (baris 2)\n```\n\nBrowser mencatat **unhandled rejection**: Promise gagal tanpa ada yang menanganinya. Pengguna tidak melihat apa-apa, aplikasi diam saja, dan masalahnya baru ketahuan di console. Di Node.js, unhandled rejection bahkan menghentikan program.\n\nAturannya: **setiap rangkaian Promise harus berakhir dengan `catch`**, atau dikembalikan (`return`) ke pemanggil yang akan menanganinya. Editor BisaNgoding menampilkan pesan seperti di browser, ditambah nomor baris tempat error dibuat, jadi kamu bisa melihat kalau ada Promise yang lupa ditangani."
+    },
+    {
+      "type": "runnable",
+      "code": "Promise.reject(new Error(\"Gagal memuat\"))\n  .catch((err) => {\n    console.log(\"catch 1:\", err.message);\n    throw new Error(\"Masih gagal\");\n  })\n  .then(() => console.log(\"then\"))\n  .catch((err) => console.log(\"catch 2:\", err.message))\n  .then(() => console.log(\"akhir\"));",
+      "predict": {
+        "question": "Sebelum menekan Jalankan, tebak dulu: apa baris KEDUA yang akan tercetak?",
+        "options": [
+          "catch 2: Gagal memuat",
+          "catch 2: Masih gagal",
+          "then",
+          "akhir"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Melempar error dari dalam catch membuat rangkaian gagal lagi."
+        },
+        {
+          "line": 6,
+          "note": "Dilewati karena rangkaian sedang gagal."
+        },
+        {
+          "line": 8,
+          "note": "catch 2 menangani error tanpa melempar lagi, jadi rangkaian pulih."
+        }
+      ],
+      "explanation": "`catch` pertama melempar error baru, sehingga rangkaian tetap gagal dan `then` berikutnya dilewati. `catch` kedua menangkap \"Masih gagal\".\n\nKarena `catch` kedua tidak melempar apa-apa, rangkaian pulih, dan `then` terakhir mencetak \"akhir\".",
+      "tryThis": [
+        {
+          "task": "Hapus baris throw di catch pertama. Baris apa saja yang tercetak sekarang?",
+          "hint": "Rangkaian pulih setelah catch pertama, jadi \"then\" ikut tercetak."
+        },
+        {
+          "task": "Hapus catch kedua. Apa yang muncul di akhir output?",
+          "hint": "Error \"Masih gagal\" tidak ditangani siapa pun, jadi muncul sebagai Uncaught (in promise)."
+        }
+      ]
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "Promise.reject(new Error(\"x\"))\n  .catch(() => 10)\n  .then((n) => console.log(n + 1));",
+          "options": [
+            "10",
+            "x",
+            "11",
+            "NaN"
+          ],
+          "answer": 2,
+          "explanation": "catch mengembalikan 10 sehingga rangkaian pulih, lalu then menerima 10.",
+          "remedial": "Bayangkan **bagian pengaduan pelanggan** di sebuah toko.\n\nKalau ada masalah, keluhan diteruskan ke bagian pengaduan (`catch`). Kalau petugas bisa menyelesaikannya, misalnya mengganti barang, pelayanan berlanjut seperti biasa: rangkaian pulih.\n\nKalau petugas tidak bisa menyelesaikannya, ia meneruskan keluhan ke manajer (`throw` lagi). Dan kalau toko itu sama sekali tidak punya bagian pengaduan, keluhan pelanggan menumpuk tanpa ada yang membaca: itulah unhandled rejection."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "Promise.resolve(1)\n  .then(() => { throw new Error(\"rusak\"); })\n  .then(() => console.log(\"A\"))\n  .catch((e) => console.log(e.message));",
+          "options": [
+            "A",
+            "rusak",
+            "A lalu rusak",
+            "1"
+          ],
+          "answer": 1,
+          "explanation": "throw di dalam then membuat then berikutnya dilewati, langsung ke catch.",
+          "remedial": "Bayangkan **bagian pengaduan pelanggan** di sebuah toko.\n\nKalau ada masalah, keluhan diteruskan ke bagian pengaduan (`catch`). Kalau petugas bisa menyelesaikannya, misalnya mengganti barang, pelayanan berlanjut seperti biasa: rangkaian pulih.\n\nKalau petugas tidak bisa menyelesaikannya, ia meneruskan keluhan ke manajer (`throw` lagi). Dan kalau toko itu sama sekali tidak punya bagian pengaduan, keluhan pelanggan menumpuk tanpa ada yang membaca: itulah unhandled rejection."
+        },
+        {
+          "question": "Apa yang dimaksud unhandled rejection?",
+          "options": [
+            "Promise yang terlalu lama pending",
+            "Promise yang fulfilled dua kali",
+            "Error di kode sinkron",
+            "Promise yang rejected tanpa ada catch yang menanganinya"
+          ],
+          "answer": 3,
+          "explanation": "Promise gagal tanpa penanganan. Pengguna tidak melihat apa-apa, dan masalahnya hanya tercatat di console.",
+          "remedial": "Bayangkan **bagian pengaduan pelanggan** di sebuah toko.\n\nKalau ada masalah, keluhan diteruskan ke bagian pengaduan (`catch`). Kalau petugas bisa menyelesaikannya, misalnya mengganti barang, pelayanan berlanjut seperti biasa: rangkaian pulih.\n\nKalau petugas tidak bisa menyelesaikannya, ia meneruskan keluhan ke manajer (`throw` lagi). Dan kalau toko itu sama sekali tidak punya bagian pengaduan, keluhan pelanggan menumpuk tanpa ada yang membaca: itulah unhandled rejection."
+        }
+      ]
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "ambilMenu() selalu gagal. Lengkapi rangkaiannya: tangkap error dengan mencetak \"Gagal: <pesan>\", kembalikan menu cadangan [\"kopi\", \"teh\"], lalu cetak \"Menu: kopi, teh\".",
+      "starterCode": "function ambilMenu() {\n  return new Promise((_, rej) => setTimeout(() => rej(new Error(\"Server mati\")), 100));\n}\nambilMenu()\n  .then((menu) => console.log(\"Menu:\", menu.join(\", \")));\n",
+      "steps": [
+        "Tambahkan catch setelah ambilMenu().",
+        "Di dalam catch, cetak pesan error lalu return [\"kopi\", \"teh\"].",
+        "then sesudahnya menerima menu cadangan dan mencetaknya."
+      ],
+      "skeleton": "function ambilMenu() {\n  return new Promise((_, rej) => setTimeout(() => rej(new Error(\"Server mati\")), 100));\n}\nambilMenu()\n  .___((err) => {\n    console.log(\"Gagal:\", err.message);\n    ___ [\"kopi\", \"teh\"];\n  })\n  .then((menu) => console.log(\"Menu:\", menu.join(\", \")));",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Gagal: Server mati\nMenu: kopi, teh\n"
+        }
+      ],
+      "hints": [
+        "catch harus diletakkan sebelum then yang mencetak menu, supaya then itu menerima nilai cadangan.",
+        "Tanpa return, then berikutnya menerima undefined dan join akan error."
+      ],
+      "solution": "function ambilMenu() {\n  return new Promise((_, rej) => setTimeout(() => rej(new Error(\"Server mati\")), 100));\n}\nambilMenu()\n  .catch((err) => {\n    console.log(\"Gagal:\", err.message);\n    return [\"kopi\", \"teh\"];\n  })\n  .then((menu) => console.log(\"Menu:\", menu.join(\", \")));"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "throw di dalam then membuat rangkaian gagal dan melewati then berikutnya.",
+        "catch yang tidak melempar lagi membuat rangkaian pulih dengan nilai yang dikembalikannya.",
+        "Lempar ulang dari catch kalau error harus ditangani di tempat lain.",
+        "Promise rejected tanpa catch menjadi unhandled rejection; selalu akhiri rangkaian dengan catch."
+      ]
+    }
+  ]
+}
