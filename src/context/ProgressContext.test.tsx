@@ -106,6 +106,7 @@ describe('ProgressContext', () => {
     // Set last active to yesterday
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
+    const lokal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
     localStorageMock.setItem(
       'bisangoding_progress',
@@ -113,6 +114,7 @@ describe('ProgressContext', () => {
         completedLessons: [],
         xp: 0,
         streak: 1,
+        streakDate: lokal(yesterday),
         lastActiveDate: yesterday.toISOString().split('T')[0],
         version: 1,
       })
