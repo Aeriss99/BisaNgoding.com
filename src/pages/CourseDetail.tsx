@@ -81,7 +81,9 @@ export default function CourseDetail() {
   const paths = courseId ? jalurKelas(courseId) : [];
 
   let jenisKelas = 'Praktik di komputer sendiri';
-  if (course.language === 'java' || course.language === 'javascript') {
+  if (course.id === 'spring-boot' || course.language === 'devops') {
+    jenisKelas = 'Teori + praktik di komputer sendiri';
+  } else if (course.language === 'java' || course.language === 'javascript') {
     jenisKelas = 'Latihan jalan di browser';
   } else if (course.language === 'english') {
     jenisKelas = '5 menit sehari';

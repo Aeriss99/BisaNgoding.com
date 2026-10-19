@@ -1,0 +1,99 @@
+{
+  "id": "devops-compose-04",
+  "moduleId": "devops-compose",
+  "order": 4,
+  "title": "Jaringan Antar Service dan Healthcheck",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di materi pertama, Adminer terhubung ke MySQL dengan mengisi Server **`db`**. Kenapa bisa, padahal `db` bukan alamat IP?\n\nSaat `docker compose up`, Compose membuat satu **network** khusus untuk proyek (misalnya `toko-db_default`) dan memasukkan semua service ke dalamnya. Di network itu, Docker menyediakan **DNS internal**: setiap **nama service** otomatis menjadi nama alamat. Container `adminer` cukup menghubungi `db`, dan Docker mengarahkannya ke container MySQL.\n\nIbarat grup obrolan kantor: semua anggota grup bisa saling menyebut nama (\"@db, tolong kirim data\") tanpa perlu tahu nomor telepon masing-masing. Orang di luar grup (komputermu) hanya bisa masuk lewat pintu yang dibuka dengan `ports`.\n\nArtinya, service database **tidak perlu** membuka `ports` ke komputermu kalau hanya dipakai service lain. Lebih aman, karena database tidak bisa diakses dari luar."
+    },
+    {
+      "type": "theory",
+      "content": "**Siapa menghubungi siapa**\n\n| Dari | Ke | Alamat yang dipakai |\n|---|---|---|\n| browser di komputermu | adminer | `localhost:8080` (lewat `ports: \"8080:8080\"`) |\n| container adminer | container db | `db:3306` (nama service + port di dalam container) |\n| aplikasi Spring Boot di container | database | `jdbc:mysql://db:3306/toko` |\n\nPerhatikan: antar container memakai **port di dalam container** (3306), bukan port di komputer.\n\n**`depends_on` dan healthcheck**\n\n`depends_on: [db]` hanya menjamin container `db` **dinyalakan lebih dulu**. MySQL butuh beberapa detik sampai siap menerima koneksi, jadi aplikasi yang langsung menyambung bisa gagal.\n\nSolusinya, beri `db` sebuah **healthcheck** (perintah untuk mengecek apakah service sehat), lalu minta service lain menunggu sampai `db` berstatus **healthy**:\n\n```yaml\n  db:\n    image: mysql:8.4\n    healthcheck:\n      test: [\"CMD\", \"mysqladmin\", \"ping\", \"-h\", \"localhost\"]\n      interval: 5s\n      timeout: 3s\n      retries: 10\n\n  adminer:\n    image: adminer\n    depends_on:\n      db:\n        condition: service_healthy\n```\n\nDocker menjalankan `mysqladmin ping` setiap 5 detik. Begitu berhasil, status `db` menjadi `(healthy)` dan Adminer baru dinyalakan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDi proyek `toko-lengkap`, Budi memasang healthcheck seperti di atas. Hasil `up` dan `ps`:\n\n```text\nbudi@laptop:~/toko-lengkap$ docker compose up -d\n[+] up 6/6\n ✔ Image toko-lengkap-web           Built                                  0.9s\n ✔ Network toko-lengkap_default     Created                                0.1s\n ✔ Volume toko-lengkap_db-data      Created                                0.0s\n ✔ Container toko-lengkap-db-1      Healthy                               15.9s\n ✔ Container toko-lengkap-web-1     Started                                0.4s\n ✔ Container toko-lengkap-adminer-1 Started                               16.0s\nbudi@laptop:~/toko-lengkap$ docker compose ps\nNAME                     IMAGE              COMMAND                  SERVICE   CREATED          STATUS                    PORTS\ntoko-lengkap-adminer-1   adminer            \"entrypoint.sh docke…\"   adminer   20 seconds ago   Up 4 seconds              0.0.0.0:8081->8080/tcp\ntoko-lengkap-db-1        mysql:8.4          \"docker-entrypoint.s…\"   db        20 seconds ago   Up 19 seconds (healthy)   3306/tcp, 33060/tcp\ntoko-lengkap-web-1       toko-lengkap-web   \"/docker-entrypoint.…\"   web       20 seconds ago   Up 19 seconds             0.0.0.0:8080->80/tcp\n```\n\nDari dalam container `web`, nama `db` dan `adminer` bisa dihubungi:\n\n```text\nbudi@laptop:~/toko-lengkap$ docker compose exec web ping -c 1 db\nPING db (172.18.0.3): 56 data bytes\n64 bytes from 172.18.0.3: seq=0 ttl=64 time=0.112 ms\n\n--- db ping statistics ---\n1 packets transmitted, 1 packets received, 0% packet loss\nround-trip min/avg/max = 0.112/0.112/0.112 ms\n```\n\n- Container `db` ditandai `Healthy` dulu, baru `adminer` dinyalakan (perhatikan waktunya).\n- Kolom PORTS `db` hanya `3306/tcp, 33060/tcp` tanpa `0.0.0.0:...`: port itu terbuka di dalam network saja, tidak bisa diakses dari komputer. Itu disengaja.\n- `ping db` menunjukkan nama service diterjemahkan ke IP container (`172.18.0.3`). IP di komputermu bisa berbeda, tapi nama `db` selalu sama."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai `localhost` untuk menghubungi service lain**\n\nSalah:\n\n```text\nspring.datasource.url=jdbc:mysql://localhost:3306/toko\n```\n\nBenar:\n\n```text\nspring.datasource.url=jdbc:mysql://db:3306/toko\n```\n\nDi dalam container, `localhost` berarti **container itu sendiri**, bukan database. Pakai nama service.\n\n**2. Mengira `depends_on` biasa sudah menunggu database siap**\n\nSalah:\n\n```yaml\n  app:\n    depends_on:\n      - db\n# aplikasi langsung menyambung ke MySQL yang belum siap -> gagal start\n```\n\nBenar:\n\n```yaml\n  app:\n    depends_on:\n      db:\n        condition: service_healthy\n# db diberi healthcheck\n```\n\n`depends_on` bentuk pendek hanya mengatur urutan **nyala container**, bukan menunggu aplikasinya siap."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Dari container `adminer`, alamat yang benar untuk menghubungi service MySQL bernama `db` adalah...",
+          "options": [
+            "db:3306",
+            "localhost:3306",
+            "127.0.0.1:3306",
+            "adminer:3306"
+          ],
+          "answer": 0,
+          "explanation": "Di network Compose, nama service menjadi alamat. Port yang dipakai adalah port di dalam container MySQL (3306).",
+          "remedial": "- Compose membuat satu **network** per proyek; semua service otomatis terhubung\n- Di dalam network, **nama service** bisa dipakai sebagai alamat (contoh: `db:3306`)\n- `ports` hanya untuk akses dari komputermu; antar service tidak butuh `ports`\n- `depends_on` mengatur urutan nyala, tapi tidak menunggu aplikasi siap\n- `healthcheck` + `condition: service_healthy` = tunggu sampai service benar-benar siap"
+        },
+        {
+          "question": "Service `db` tidak punya `ports:`. Apa akibatnya?",
+          "options": [
+            "Tidak ada yang bisa menghubungi db sama sekali",
+            "Service lain di proyek tetap bisa menghubunginya, tapi komputermu tidak bisa langsung",
+            "Compose menolak menjalankan file itu",
+            "db otomatis memakai port 80"
+          ],
+          "answer": 1,
+          "explanation": "`ports` hanya membuka akses dari komputer. Antar service di network yang sama selalu bisa terhubung.",
+          "remedial": "- Compose membuat satu **network** per proyek; semua service otomatis terhubung\n- Di dalam network, **nama service** bisa dipakai sebagai alamat (contoh: `db:3306`)\n- `ports` hanya untuk akses dari komputermu; antar service tidak butuh `ports`\n- `depends_on` mengatur urutan nyala, tapi tidak menunggu aplikasi siap\n- `healthcheck` + `condition: service_healthy` = tunggu sampai service benar-benar siap"
+        },
+        {
+          "question": "`condition: service_healthy` pada `depends_on` berarti...",
+          "options": [
+            "Service ini dinyalakan bersamaan tanpa menunggu",
+            "Service yang ditunggu akan di-restart setiap 5 detik",
+            "Service ini baru dinyalakan setelah healthcheck service yang ditunggu berhasil",
+            "Healthcheck tidak dijalankan"
+          ],
+          "answer": 2,
+          "explanation": "Compose menunggu status `(healthy)` dari service yang disebut, baru menyalakan service ini.",
+          "remedial": "- Compose membuat satu **network** per proyek; semua service otomatis terhubung\n- Di dalam network, **nama service** bisa dipakai sebagai alamat (contoh: `db:3306`)\n- `ports` hanya untuk akses dari komputermu; antar service tidak butuh `ports`\n- `depends_on` mengatur urutan nyala, tapi tidak menunggu aplikasi siap\n- `healthcheck` + `condition: service_healthy` = tunggu sampai service benar-benar siap"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Di `docker compose ps`, kolom STATUS service `db` menunjukkan `Up 19 seconds (healthy)`. Apa artinya?",
+      "code": "NAME                IMAGE       SERVICE   STATUS                    PORTS\ntoko-lengkap-db-1   mysql:8.4   db        Up 19 seconds (healthy)   3306/tcp, 33060/tcp",
+      "options": [
+        "Container berjalan tapi belum diperiksa sama sekali",
+        "Container berhenti dengan sehat",
+        "Port 3306 bisa dibuka dari browser di komputer",
+        "Container berjalan dan perintah healthcheck-nya berhasil"
+      ],
+      "answer": 3,
+      "explanation": "`(healthy)` hanya muncul kalau service punya healthcheck dan pengecekannya berhasil. PORTS tanpa `0.0.0.0` berarti port tidak dibuka ke komputer."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Aplikasi di container menghubungi service database bernama db\nspring.datasource.url=jdbc:mysql://___:3306/toko\n\n# compose.yaml: tunggu sampai db sehat\n    depends_on:\n      db:\n        condition: ___",
+      "answers": [
+        "db",
+        "service_healthy"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Compose membuat satu network per proyek, dan nama service menjadi alamat di dalamnya.",
+        "Antar container memakai nama service dan port di dalam container, misalnya db:3306.",
+        "ports hanya untuk akses dari komputer; database tidak perlu dibuka ke luar.",
+        "depends_on bentuk pendek hanya mengatur urutan nyala container.",
+        "healthcheck + condition: service_healthy menunggu sampai service benar-benar siap."
+      ]
+    }
+  ]
+}

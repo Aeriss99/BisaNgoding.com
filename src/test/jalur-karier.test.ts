@@ -82,11 +82,24 @@ describe('statusKartu', () => {
     expect(semua).not.toContain('server segera');
   });
 
-  it('kelas baru: ungu dan membuka halaman rencana; kelas segera: tidak bisa diklik', () => {
-    expect(statusKartu({ kelas: 'devops', nama: 'DevOps: Docker' })).toMatchObject({ jenis: 'baru', nama: 'DevOps: Docker' });
-    const sb = statusKartu({ kelas: 'spring-boot' });
-    expect(sb).toMatchObject({ jenis: 'segera', teks: 'Segera hadir', nama: 'Spring Boot' });
-    expect(sb.url).toBeUndefined();
+  it('DevOps dan Spring Boot sudah dibuka; bagian yang belum ada tampil segera; kelas segera tidak bisa diklik', () => {
+    expect(jumlahModulTersedia('devops')).toBe(3);
+    expect(statusKartu({ kelas: 'devops', nama: 'DevOps: Docker', modul: 'devops-docker', meta: 'Docker dan Compose' })).toMatchObject({
+      jenis: 'tersedia',
+      teks: 'Tersedia · Docker dan Compose',
+      url: '/kelas/devops?modul=devops-docker',
+      nama: 'DevOps: Docker',
+    });
+    expect(statusKartu({ kelas: 'devops', segera: true })).toMatchObject({ jenis: 'segera', teks: 'Segera hadir' });
+    expect(statusKartu({ kelas: 'spring-boot', sebagian: 'modul lain segera' })).toMatchObject({
+      jenis: 'sebagian',
+      teks: '1 modul · modul lain segera',
+      url: '/kelas/spring-boot',
+      nama: 'Spring Boot',
+    });
+    const node = statusKartu({ kelas: 'nodejs' });
+    expect(node).toMatchObject({ jenis: 'segera', teks: 'Segera hadir', nama: 'Node.js' });
+    expect(node.url).toBeUndefined();
   });
 });
 

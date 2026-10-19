@@ -9,8 +9,10 @@ import mysqlModules from '../../content/mysql/modules.json';
 import linuxModules from '../../content/linux/modules.json';
 import htmlCssModules from '../../content/html-css/modules.json';
 import restApiModules from '../../content/rest-api/modules.json';
+import springBootModules from '../../content/spring-boot/modules.json';
+import devopsModules from '../../content/devops/modules.json';
 
-export const modulesData = [...javaModules, ...jsModules, ...englishModules, ...gitModules, ...mysqlModules, ...linuxModules, ...htmlCssModules, ...restApiModules] as Module[];
+export const modulesData = [...javaModules, ...jsModules, ...englishModules, ...gitModules, ...mysqlModules, ...linuxModules, ...htmlCssModules, ...restApiModules, ...springBootModules, ...devopsModules] as Module[];
 export const coursesData = coursesJson as Course[];
 
 /**

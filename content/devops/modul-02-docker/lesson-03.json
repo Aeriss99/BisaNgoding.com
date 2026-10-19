@@ -1,0 +1,99 @@
+{
+  "id": "devops-docker-03",
+  "moduleId": "devops-docker",
+  "order": 3,
+  "title": "Menjalankan Container",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`hello-world` langsung selesai. Kebanyakan container sungguhan justru harus **terus berjalan**, misalnya web server atau database. Untuk itu ada beberapa opsi penting di `docker run`:\n\n- **`-d`** (*detached*): container berjalan di latar belakang, terminal langsung bisa dipakai lagi.\n- **`--name web`**: memberi nama, supaya mudah dipanggil (daripada mengetik ID).\n- **`-p 8080:80`**: membuka **port**.\n\nContainer punya jaringan sendiri yang terpisah dari komputermu. Nginx di dalam container mendengarkan di port 80, tapi port itu tidak bisa diakses dari browser sampai kamu menyambungkannya.\n\nIbarat gedung kantor: setiap ruangan (container) punya nomor ekstensi telepon sendiri (port di dalam container). Supaya orang luar bisa menelepon, resepsionis memasang aturan \"telepon ke nomor 8080 sambungkan ke ruangan web, ekstensi 80\". Aturan itulah `-p 8080:80`: **kiri port komputermu, kanan port di dalam container**."
+    },
+    {
+      "type": "theory",
+      "content": "**Perintah mengelola container**\n\n| Perintah | Fungsinya |\n|---|---|\n| `docker run -d --name web -p 8080:80 nginx:alpine` | membuat dan menjalankan container bernama `web` di latar belakang |\n| `docker logs web` | menampilkan output (log) container |\n| `docker logs -f web` | mengikuti log terus-menerus (berhenti dengan Ctrl+C) |\n| `docker stop web` | menghentikan container (data di dalamnya masih ada) |\n| `docker start web` | menjalankan lagi container yang sudah berhenti |\n| `docker restart web` | stop lalu start |\n| `docker rm web` | menghapus container yang sudah berhenti |\n| `docker rm -f web` | menghentikan dan menghapus sekaligus |\n\n**Siklus hidup container**\n\n```text\ndocker run  ->  berjalan (Up)  ->  docker stop  ->  berhenti (Exited)  ->  docker rm  ->  hilang\n                     ^                                   |\n                     +----------- docker start ----------+\n```\n\n`docker run` selalu membuat container **baru**. Untuk menyalakan lagi container yang sudah ada, pakai `docker start`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```text\nbudi@laptop:~$ docker run -d --name web -p 8080:80 nginx:alpine\n945c659fb073b3e574e6cc393c674cbb1cf5a6a8ba175843f680fe7a6aa6309d\nbudi@laptop:~$ docker ps\nCONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS        PORTS                  NAMES\n945c659fb073   nginx:alpine   \"/docker-entrypoint.…\"   2 seconds ago   Up 1 second   0.0.0.0:8080->80/tcp   web\n```\n\nBudi membuka `http://localhost:8080` di browser dan melihat halaman **Welcome to nginx!**. Dari terminal pun bisa (output dipotong):\n\n```text\nbudi@laptop:~$ curl localhost:8080\n<!DOCTYPE html>\n<html>\n<head>\n<title>Welcome to nginx!</title>\n...\n```\n\n```text\nbudi@laptop:~$ docker logs web\n/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration\n/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/\n/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh\n10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf\n10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf\n/docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh\n/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh\n/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh\n/docker-entrypoint.sh: Configuration complete; ready for start up\n...\n172.17.0.1 - - [19/Oct/2026:11:28:53 +0000] \"GET / HTTP/1.1\" 200 896 \"-\" \"curl/8.5.0\" \"-\"\nbudi@laptop:~$ docker stop web\nweb\nbudi@laptop:~$ docker ps -a\nCONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS                     PORTS     NAMES\n945c659fb073   nginx:alpine   \"/docker-entrypoint.…\"   12 minutes ago   Exited (0) 3 seconds ago             web\n```\n\n- `docker run -d` hanya mencetak ID panjang container, lalu terminal kembali bisa dipakai.\n- Kolom PORTS `0.0.0.0:8080->80/tcp`: port 8080 di semua alamat komputer diteruskan ke port 80 di container.\n- Baris terakhir log adalah catatan akses dari `curl`: alamat pengakses, waktu, permintaan `GET /`, kode `200`, dan ukuran halaman.\n- Setelah `docker stop`, container masih ada dengan status `Exited (0)` dan bisa dinyalakan lagi dengan `docker start web`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Port di komputer sudah dipakai**\n\nSalah:\n\n```text\nbudi@laptop:~$ docker run -d --name web2 -p 8080:80 nginx:alpine\ne7d245987604c564d3a65d27aa0892d2084b6b6eb05a930dbd7711b90f2fa244\ndocker: Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint web2 (d2265b82b5c4...): Bind for 0.0.0.0:8080 failed: port is already allocated\n```\n\nBenar:\n\n```bash\ndocker run -d --name web2 -p 8081:80 nginx:alpine\n```\n\nSatu port di komputer hanya bisa dipakai satu container. Port **di dalam** container (80) boleh sama, karena setiap container punya jaringannya sendiri.\n\n**2. Memakai nama yang sudah ada**\n\nSalah:\n\n```text\nbudi@laptop:~$ docker run -d --name web nginx:alpine\ndocker: Error response from daemon: Conflict. The container name \"/web\" is already in use by container \"945c659fb073b3e5...\". You have to remove (or rename) that container to be able to reuse that name.\n```\n\nBenar:\n\n```bash\ndocker start web        # kalau ingin menyalakan container lama\n# atau\ndocker rm -f web        # hapus dulu, lalu docker run lagi\n```\n\nNama container harus unik, termasuk dengan container yang sudah berhenti."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Arti `-p 8080:80` pada `docker run` adalah...",
+          "options": [
+            "Port 80 di komputer diteruskan ke port 8080 di dalam container",
+            "Container boleh memakai 8080 sampai 80 port",
+            "Container dijalankan 8080 kali",
+            "Port 8080 di komputer diteruskan ke port 80 di dalam container"
+          ],
+          "answer": 3,
+          "explanation": "Formatnya `port_komputer:port_container`. Kiri milik komputermu, kanan milik container.",
+          "remedial": "- `-d` menjalankan container di latar belakang; `--name` memberi nama\n- `-p 8080:80` = port **8080 di komputermu** diteruskan ke port **80 di dalam container**\n- `docker logs <nama>` menampilkan output container\n- `docker stop`, `docker start`, `docker restart` mengatur container yang sudah ada\n- `docker rm -f` menghentikan sekaligus menghapus container"
+        },
+        {
+          "question": "Fungsi opsi `-d` pada `docker run` adalah...",
+          "options": [
+            "Menjalankan container di latar belakang sehingga terminal bisa dipakai lagi",
+            "Menghapus container setelah selesai",
+            "Mengunduh image versi terbaru",
+            "Memberi nama container"
+          ],
+          "answer": 0,
+          "explanation": "`-d` = detached. Container tetap berjalan walaupun terminal dipakai untuk perintah lain.",
+          "remedial": "- `-d` menjalankan container di latar belakang; `--name` memberi nama\n- `-p 8080:80` = port **8080 di komputermu** diteruskan ke port **80 di dalam container**\n- `docker logs <nama>` menampilkan output container\n- `docker stop`, `docker start`, `docker restart` mengatur container yang sudah ada\n- `docker rm -f` menghentikan sekaligus menghapus container"
+        },
+        {
+          "question": "Container `web` sedang berjalan. Apa yang terjadi saat `docker rm web`?",
+          "options": [
+            "Container langsung terhapus tanpa pesan",
+            "Error, karena container yang berjalan harus dihentikan dulu atau dipaksa dengan -f",
+            "Image nginx ikut terhapus",
+            "Container berhenti tapi tidak terhapus"
+          ],
+          "answer": 1,
+          "explanation": "Docker menolak menghapus container yang berjalan: `cannot remove container \"web\": container is running`. Pakai `docker stop` dulu, atau `docker rm -f`.",
+          "remedial": "- `-d` menjalankan container di latar belakang; `--name` memberi nama\n- `-p 8080:80` = port **8080 di komputermu** diteruskan ke port **80 di dalam container**\n- `docker logs <nama>` menampilkan output container\n- `docker stop`, `docker start`, `docker restart` mengatur container yang sudah ada\n- `docker rm -f` menghentikan sekaligus menghapus container"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Setelah perintah ini, alamat apa yang dibuka di browser untuk melihat halaman nginx?",
+      "code": "docker run -d --name toko -p 3000:80 nginx:alpine",
+      "options": [
+        "http://localhost:80",
+        "http://localhost:8080",
+        "http://localhost:3000",
+        "http://toko:80"
+      ],
+      "answer": 2,
+      "explanation": "Port kiri (3000) adalah port di komputermu. Nginx di dalam container tetap mendengarkan di port 80."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Jalankan nginx bernama web yang bisa dibuka di http://localhost:8080, lalu lihat log-nya\ndocker run -d --name web -p ___:80 nginx:alpine\ndocker ___ web",
+      "answers": [
+        "8080",
+        "logs"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "-d menjalankan container di latar belakang; --name memberi nama yang mudah dipanggil.",
+        "-p port_komputer:port_container membuka akses dari luar ke port di dalam container.",
+        "docker logs menampilkan output container; -f untuk mengikutinya terus.",
+        "docker stop menghentikan, docker start menyalakan lagi, docker rm -f menghentikan dan menghapus.",
+        "Satu port di komputer hanya untuk satu container, dan nama container harus unik."
+      ]
+    }
+  ]
+}

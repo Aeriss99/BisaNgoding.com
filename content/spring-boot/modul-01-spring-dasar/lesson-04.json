@@ -1,0 +1,99 @@
+{
+  "id": "spring-dasar-04",
+  "moduleId": "spring-dasar",
+  "order": 4,
+  "title": "Dependency Injection",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Bean jarang berdiri sendiri. `ProdukRepository` butuh `Database`, dan nanti `ProdukService` butuh `ProdukRepository`. Spring bisa menyambungkan semuanya untukmu.\n\nCaranya sederhana: **tulis dependency sebagai parameter method `@Bean`**. Saat membuat bean itu, Spring mencari bean lain yang tipenya cocok dengan parameter, lalu memberikannya. Kalau bean yang dibutuhkan belum dibuat, Spring membuatnya dulu.\n\nIbarat merakit lemari: kamu cukup menulis \"lemari ini butuh 4 papan dan 12 sekrup\". Spring yang mengambil papan dan sekrup dari gudang, lalu merakitnya dengan urutan yang benar."
+    },
+    {
+      "type": "theory",
+      "content": "**Bagaimana Spring memilih bean untuk sebuah parameter?**\n\n1. Spring mencari bean yang **tipenya** cocok dengan tipe parameter.\n2. Kalau tepat satu, bean itu yang dipakai.\n3. Kalau lebih dari satu, Spring memeriksa (berurutan): `@Qualifier`, lalu `@Primary`, lalu **nama parameter** yang sama dengan nama bean.\n4. Kalau tetap tidak bisa memilih, atau tidak ada kandidat sama sekali, container gagal dibuat dengan `UnsatisfiedDependencyException`.\n\n| Cara | Contoh |\n|---|---|\n| Tipe saja (paling sering) | `produkRepository(Database database)` |\n| `@Qualifier` | `produkRepository(@Qualifier(\"cadangan\") Database database)` |\n| Nama parameter = nama bean | `produkRepository(Database cadangan)` |\n\nCara nama parameter bekerja karena proyek Spring Boot otomatis mengompilasi kode dengan opsi `-parameters`, sehingga nama parameter tersimpan. `@Qualifier` lebih jelas maksudnya, jadi lebih disarankan.\n\n**Memanggil method `@Bean` lain.** Di dalam class `@Configuration`, kamu juga boleh menulis `new ProdukRepository(database())`. Spring \"membungkus\" class konfigurasi, sehingga panggilan `database()` tidak membuat objek baru, tapi mengembalikan bean `database` yang sudah ada."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\npublic class Database {\n    private final String nama;\n\n    public Database(String nama) {\n        this.nama = nama;\n        System.out.println(\"Database \" + nama + \" dibuat\");\n    }\n\n    public String getNama() {\n        return nama;\n    }\n}\n```\n\n`ProdukRepository` dan `PesananRepository` sama-sama menerima `Database` lewat constructor dan mencetak `... dibuat, memakai <nama database>`. Keduanya punya method `getDatabase()`.\n\n```java\n@Configuration\npublic class TokoConfig {\n\n    @Bean\n    public Database database() {\n        return new Database(\"toko_db\");\n    }\n\n    @Bean\n    public ProdukRepository produkRepository(Database database) {\n        return new ProdukRepository(database);\n    }\n\n    @Bean\n    public PesananRepository pesananRepository(Database database) {\n        return new PesananRepository(database);\n    }\n}\n```\n\n```java\nvar context = new AnnotationConfigApplicationContext(TokoConfig.class);\n\nProdukRepository produkRepo = context.getBean(ProdukRepository.class);\nPesananRepository pesananRepo = context.getBean(PesananRepository.class);\n\nSystem.out.println(produkRepo.getDatabase() == pesananRepo.getDatabase());\n```\n\nHasilnya:\n\n```text\nDatabase toko_db dibuat\nProdukRepository dibuat, memakai toko_db\nPesananRepository dibuat, memakai toko_db\ntrue\n```\n\n- `Database` dibuat **sekali**, lalu diberikan ke kedua repository.\n- `true` membuktikan kedua repository memegang objek `Database` yang sama.\n- Kamu tidak menulis urutan pembuatan sama sekali. Spring melihat siapa butuh siapa, lalu membuat `Database` lebih dulu."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Dua kandidat tanpa petunjuk**\n\nSalah:\n\n```java\n@Bean\npublic Database utama() { return new Database(\"toko_db\"); }\n\n@Bean\npublic Database cadangan() { return new Database(\"cadangan_db\"); }\n\n@Bean\npublic ProdukRepository produkRepository(Database database) {\n    return new ProdukRepository(database);\n}\n```\n\n```text\nUnsatisfiedDependencyException: Error creating bean with name 'produkRepository' defined in com.example.belajarspring.TokoConfig: Unsatisfied dependency expressed through method 'produkRepository' parameter 0: No qualifying bean of type 'com.example.belajarspring.Database' available: expected single matching bean but found 2: utama,cadangan\n```\n\nBenar:\n\n```java\n@Bean\npublic ProdukRepository produkRepository(@Qualifier(\"cadangan\") Database database) {\n    return new ProdukRepository(database);\n}\n```\n\nNama parameter `database` tidak sama dengan `utama` maupun `cadangan`, jadi Spring tidak bisa memilih. `@Qualifier` menyebut bean yang dimaksud.\n\n**2. Membuat dependency dengan `new` padahal sudah ada bean-nya**\n\nSalah:\n\n```java\n@Bean\npublic ProdukRepository produkRepository(Database database) {\n    return new ProdukRepository(new Database(\"toko_db\"));\n}\n```\n\n```text\nDatabase toko_db dibuat\nDatabase toko_db dibuat\nProdukRepository dibuat, memakai toko_db\n```\n\nBenar:\n\n```java\n@Bean\npublic ProdukRepository produkRepository(Database database) {\n    return new ProdukRepository(database);\n}\n```\n\n`new Database(...)` membuat objek kedua yang tidak dikelola Spring. Pakai parameter yang sudah diberikan Spring."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Method `@Bean public ProdukRepository produkRepository(Database database)`. Dari mana Spring mendapat nilai untuk parameter `database`?",
+          "options": [
+            "Dari bean bertipe Database yang ada di container",
+            "Spring membuat Database baru dengan new setiap kali",
+            "Dari variabel bernama database di method main",
+            "Parameter itu selalu bernilai null"
+          ],
+          "answer": 0,
+          "explanation": "Spring mencari bean yang tipenya cocok dengan parameter (`Database`) lalu memberikannya. Itulah dependency injection.",
+          "remedial": "- Parameter method `@Bean` diisi otomatis oleh Spring dengan bean bertipe sama\n- Spring membuat dependency lebih dulu, lalu bean yang membutuhkannya\n- Satu bean singleton dipakai bersama oleh semua bean lain\n- Kalau ada beberapa kandidat: `@Qualifier(\"nama\")`, `@Primary`, atau nama parameter sama dengan nama bean\n- Memanggil method `@Bean` lain di dalam `@Configuration` tetap mengembalikan bean yang sama"
+        },
+        {
+          "question": "Ada dua bean `Database` bernama `utama` dan `cadangan`. Anotasi apa yang dipasang di parameter supaya Spring memakai `cadangan`?",
+          "options": [
+            "@Primary",
+            "@Qualifier(\"cadangan\")",
+            "@Bean(name = \"cadangan\")",
+            "@Configuration"
+          ],
+          "answer": 1,
+          "explanation": "`@Qualifier` di parameter menyebut nama bean yang diminta. `@Primary` dipasang di method `@Bean`, bukan di parameter.",
+          "remedial": "- Parameter method `@Bean` diisi otomatis oleh Spring dengan bean bertipe sama\n- Spring membuat dependency lebih dulu, lalu bean yang membutuhkannya\n- Satu bean singleton dipakai bersama oleh semua bean lain\n- Kalau ada beberapa kandidat: `@Qualifier(\"nama\")`, `@Primary`, atau nama parameter sama dengan nama bean\n- Memanggil method `@Bean` lain di dalam `@Configuration` tetap mengembalikan bean yang sama"
+        },
+        {
+          "question": "Di sebuah class `@Configuration`, method `produkRepository()` dan `pesananRepository()` sama-sama memanggil `database()`. Berapa kali `Database toko_db dibuat` tercetak?",
+          "options": [
+            "2 kali",
+            "3 kali",
+            "1 kali",
+            "0 kali"
+          ],
+          "answer": 2,
+          "explanation": "Spring membungkus class `@Configuration`, sehingga panggilan `database()` mengembalikan bean singleton yang sudah ada, bukan objek baru.",
+          "remedial": "- Parameter method `@Bean` diisi otomatis oleh Spring dengan bean bertipe sama\n- Spring membuat dependency lebih dulu, lalu bean yang membutuhkannya\n- Satu bean singleton dipakai bersama oleh semua bean lain\n- Kalau ada beberapa kandidat: `@Qualifier(\"nama\")`, `@Primary`, atau nama parameter sama dengan nama bean\n- Memanggil method `@Bean` lain di dalam `@Configuration` tetap mengembalikan bean yang sama"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil program ini?",
+      "code": "@Configuration\npublic class TokoConfig {\n\n    @Bean\n    public Database database() {\n        return new Database(\"toko_db\");\n    }\n\n    @Bean\n    public ProdukRepository produkRepository() {\n        return new ProdukRepository(database());\n    }\n\n    @Bean\n    public PesananRepository pesananRepository() {\n        return new PesananRepository(database());\n    }\n}\n\n// di main:\nvar context = new AnnotationConfigApplicationContext(TokoConfig.class);\nProdukRepository produkRepo = context.getBean(ProdukRepository.class);\nPesananRepository pesananRepo = context.getBean(PesananRepository.class);\nSystem.out.println(produkRepo.getDatabase() == pesananRepo.getDatabase());",
+      "options": [
+        "Database toko_db dibuat\nDatabase toko_db dibuat\nProdukRepository dibuat, memakai toko_db\nDatabase toko_db dibuat\nPesananRepository dibuat, memakai toko_db\nfalse",
+        "Database toko_db dibuat\nProdukRepository dibuat, memakai toko_db\nPesananRepository dibuat, memakai toko_db\nfalse",
+        "ProdukRepository dibuat, memakai toko_db\nPesananRepository dibuat, memakai toko_db\ntrue",
+        "Database toko_db dibuat\nProdukRepository dibuat, memakai toko_db\nPesananRepository dibuat, memakai toko_db\ntrue"
+      ],
+      "answer": 3,
+      "explanation": "Walaupun `database()` dipanggil di dua tempat, Spring mengembalikan bean `database` yang sudah ada. Jadi Database dibuat sekali dan kedua repository memegang objek yang sama (`true`)."
+    },
+    {
+      "type": "fill_blank",
+      "code": "// Pakai bean Database bernama \"cadangan\" untuk ProdukRepository\n@Bean\npublic ProdukRepository produkRepository(@___(\"cadangan\") Database database) {\n    return new ProdukRepository(___);\n}",
+      "answers": [
+        "Qualifier",
+        "database"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tulis dependency sebagai parameter method @Bean; Spring mengisinya dengan bean bertipe sama.",
+        "Spring otomatis membuat dependency lebih dulu, lalu bean yang membutuhkannya.",
+        "Bean singleton dipakai bersama oleh semua bean yang membutuhkannya.",
+        "Kalau ada beberapa kandidat, pakai @Qualifier (paling jelas), @Primary, atau nama parameter yang sama dengan nama bean.",
+        "Jangan membuat dependency dengan new di method @Bean kalau bean-nya sudah ada."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "id": "devops-docker-06",
+  "moduleId": "devops-docker",
+  "order": 6,
+  "title": "Layer, Cache, dan .dockerignore",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Image tidak disimpan sebagai satu file besar, tapi sebagai tumpukan **layer**. Setiap langkah Dockerfile yang mengubah isi image (`FROM`, `COPY`, `RUN`, `WORKDIR`) menghasilkan satu layer.\n\nIbarat kue lapis: setiap lapisan ditumpuk di atas lapisan sebelumnya. Kalau resep lapisan ke-3 berubah, lapisan ke-3 dan semua lapisan di atasnya harus dibuat ulang, tapi lapisan 1 dan 2 tetap bisa dipakai.\n\nDocker menyimpan setiap layer di **cache**. Saat kamu menjalankan `docker build` lagi, Docker memeriksa setiap langkah:\n\n- kalau instruksi dan file yang dipakainya sama seperti sebelumnya → pakai layer lama, ditandai **`CACHED`**\n- kalau ada yang berubah → jalankan ulang langkah itu, **dan semua langkah sesudahnya**\n\nKarena itu urutan langkah di Dockerfile sangat berpengaruh pada kecepatan build."
+    },
+    {
+      "type": "theory",
+      "content": "**Aturan urutan**\n\nTaruh langkah yang **jarang berubah** di atas, dan yang **sering berubah** di bawah. Contoh untuk proyek Maven:\n\n```dockerfile\n# Lambat: setiap kode berubah, semua dependency diunduh ulang\nFROM eclipse-temurin:21-jdk\nWORKDIR /app\nCOPY . .\nRUN ./mvnw -B package -DskipTests\n```\n\n```dockerfile\n# Cepat: dependency hanya diunduh ulang kalau pom.xml berubah\nFROM eclipse-temurin:21-jdk\nWORKDIR /app\nCOPY .mvn .mvn\nCOPY mvnw pom.xml ./\nRUN ./mvnw -B dependency:go-offline\nCOPY src src\nRUN ./mvnw -B package -DskipTests\n```\n\nKode di folder `src` berubah hampir setiap hari, sedangkan `pom.xml` jarang. Di versi kedua, mengubah kode hanya menjalankan ulang dua langkah terakhir.\n\n**`.dockerignore`**\n\nFile ini (di folder yang sama dengan Dockerfile) berisi daftar file dan folder yang **tidak** dikirim ke konteks build. Formatnya mirip `.gitignore`:\n\n```text\n.git\n.env\ntarget\nnode_modules\nDockerfile\n.dockerignore\n```\n\nManfaatnya: build lebih cepat (konteks lebih kecil), image lebih kecil, dan **file rahasia seperti `.env` tidak ikut terbungkus ke image**."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi mengubah Dockerfile-nya dan memakai `COPY . .`:\n\n```dockerfile\nFROM nginx:alpine\nWORKDIR /usr/share/nginx/html\nRUN rm index.html\nCOPY . .\n```\n\nTanpa `.dockerignore`, isi folder halaman di image menjadi:\n\n```text\nbudi@laptop:~/toko-web$ docker run --rm toko-web:2.0 ls -a\n.\n..\n.git\n50x.html\nDockerfile\nREADME.md\nindex.html\nstyle.css\n```\n\nFolder `.git` (seluruh riwayat proyek) dan `Dockerfile` ikut tersalin, dan bisa diunduh siapa saja lewat browser. Budi lalu membuat `.dockerignore`:\n\n```text\n.git\nDockerfile\n.dockerignore\nREADME.md\n```\n\n```text\nbudi@laptop:~/toko-web$ docker run --rm toko-web:2.1 ls -a\n.\n..\n50x.html\nindex.html\nstyle.css\n```\n\nLalu Budi mengubah jam buka di `index.html` dan build lagi (sebagian baris dihilangkan):\n\n```text\nbudi@laptop:~/toko-web$ docker build -t toko-web:2.2 .\n => [1/4] FROM docker.io/library/nginx:alpine@sha256:fdf93e0260ccd0af97f48a5bb2a1b80f0abcb3b4  0.0s\n => CACHED [2/4] WORKDIR /usr/share/nginx/html                                                 0.0s\n => CACHED [3/4] RUN rm index.html                                                             0.0s\n => [4/4] COPY . .                                                                             0.0s\n```\n\n- `WORKDIR` dan `RUN` tidak berubah, jadi memakai cache (`CACHED`).\n- `COPY . .` dijalankan ulang karena salah satu file yang disalin (`index.html`) berubah."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyalin seluruh kode sebelum memasang dependency**\n\nSalah:\n\n```dockerfile\nCOPY . .\nRUN ./mvnw -B dependency:go-offline\n```\n\nBenar:\n\n```dockerfile\nCOPY .mvn .mvn\nCOPY mvnw pom.xml ./\nRUN ./mvnw -B dependency:go-offline\nCOPY src src\n```\n\nDi versi salah, satu huruf yang berubah di kode membuat cache `COPY . .` batal, sehingga semua dependency diunduh ulang di setiap build.\n\n**2. File rahasia ikut masuk ke image**\n\nSalah:\n\n```text\ntoko-web/\n├── .env            <- berisi DB_PASSWORD=...\n├── Dockerfile      <- COPY . .\n└── (tanpa .dockerignore)\n```\n\nBenar:\n\n```text\n# .dockerignore\n.env\n.git\n```\n\nSiapa pun yang mendapat image bisa membaca semua file di dalamnya. Password dan token tidak boleh pernah masuk ke image. Kirim lewat environment variable saat container dijalankan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Build ulang menampilkan `CACHED [2/4]` dan `CACHED [3/4]`. Artinya...",
+          "options": [
+            "Langkah 2 dan 3 gagal",
+            "Langkah 2 dan 3 dilewati dan tidak ada di image",
+            "Langkah 2 dan 3 tidak berubah, jadi Docker memakai layer lama tanpa menjalankannya lagi",
+            "Docker kehabisan memori"
+          ],
+          "answer": 2,
+          "explanation": "`CACHED` berarti hasil langkah itu diambil dari cache. Isinya tetap ada di image.",
+          "remedial": "- Setiap langkah Dockerfile menghasilkan **layer**, dan layer disimpan di **cache**\n- Build ulang memakai cache (`CACHED`) sampai ada langkah yang berubah; langkah itu dan semua sesudahnya dijalankan ulang\n- Taruh langkah yang jarang berubah di atas, yang sering berubah (kode) di bawah\n- `.dockerignore` mencegah file tertentu ikut ke konteks build\n- Selalu abaikan `.git`, `.env`, dan folder hasil build/dependency"
+        },
+        {
+          "question": "Dockerfile berisi 5 langkah. File yang di-COPY di langkah 3 berubah. Langkah mana yang dijalankan ulang?",
+          "options": [
+            "Hanya langkah 3",
+            "Semua langkah 1 sampai 5",
+            "Hanya langkah 5",
+            "Langkah 3, 4, dan 5"
+          ],
+          "answer": 3,
+          "explanation": "Begitu satu langkah berubah, langkah itu dan semua langkah sesudahnya dijalankan ulang. Langkah 1 dan 2 tetap dari cache.",
+          "remedial": "- Setiap langkah Dockerfile menghasilkan **layer**, dan layer disimpan di **cache**\n- Build ulang memakai cache (`CACHED`) sampai ada langkah yang berubah; langkah itu dan semua sesudahnya dijalankan ulang\n- Taruh langkah yang jarang berubah di atas, yang sering berubah (kode) di bawah\n- `.dockerignore` mencegah file tertentu ikut ke konteks build\n- Selalu abaikan `.git`, `.env`, dan folder hasil build/dependency"
+        },
+        {
+          "question": "Kenapa `.env` sebaiknya dimasukkan ke `.dockerignore`?",
+          "options": [
+            "Supaya password di dalamnya tidak ikut terbungkus ke image",
+            "Supaya Docker bisa membaca .env lebih cepat",
+            "Karena Docker tidak bisa membaca file berawalan titik",
+            "Supaya container tidak bisa memakai environment variable"
+          ],
+          "answer": 0,
+          "explanation": "Image bisa dibagikan dan dibongkar. File rahasia yang ikut ter-COPY bisa dibaca siapa pun yang memegang image.",
+          "remedial": "- Setiap langkah Dockerfile menghasilkan **layer**, dan layer disimpan di **cache**\n- Build ulang memakai cache (`CACHED`) sampai ada langkah yang berubah; langkah itu dan semua sesudahnya dijalankan ulang\n- Taruh langkah yang jarang berubah di atas, yang sering berubah (kode) di bawah\n- `.dockerignore` mencegah file tertentu ikut ke konteks build\n- Selalu abaikan `.git`, `.env`, dan folder hasil build/dependency"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Dockerfile ini sudah pernah di-build. Lalu hanya file `style.css` yang diubah, dan build dijalankan lagi. Langkah mana yang ditandai `CACHED`?",
+      "code": "FROM nginx:alpine\nWORKDIR /usr/share/nginx/html\nRUN rm index.html\nCOPY . .",
+      "options": [
+        "Semua langkah",
+        "WORKDIR dan RUN (langkah 2 dan 3)",
+        "Tidak ada sama sekali",
+        "Hanya COPY (langkah 4)"
+      ],
+      "answer": 1,
+      "explanation": "Hanya isi konteks yang berubah, dan file itu baru dipakai di `COPY . .` (langkah 4). Langkah sebelumnya tidak terpengaruh dan diambil dari cache."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# .dockerignore: jangan ikutkan folder riwayat Git dan file berisi password\n___\n___",
+      "answers": [
+        ".git|.git/",
+        ".env"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Setiap langkah Dockerfile yang mengubah isi image menghasilkan layer yang disimpan di cache.",
+        "Begitu satu langkah berubah, langkah itu dan semua sesudahnya dijalankan ulang.",
+        "Taruh langkah yang jarang berubah (dependency) di atas, kode di bawah.",
+        ".dockerignore mencegah file ikut ke konteks build, sehingga build lebih cepat dan image lebih kecil.",
+        "Selalu abaikan .git dan .env; file rahasia tidak boleh masuk ke image."
+      ]
+    }
+  ]
+}

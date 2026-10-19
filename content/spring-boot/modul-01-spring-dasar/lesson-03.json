@@ -1,0 +1,99 @@
+{
+  "id": "spring-dasar-03",
+  "moduleId": "spring-dasar",
+  "order": 3,
+  "title": "Membuat Bean dengan @Bean",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di materi sebelumnya kamu sudah membuat bean berupa `String`. Sekarang bean berupa objek dari class buatan sendiri.\n\nCaranya: tulis method di class `@Configuration`, beri anotasi `@Bean`, lalu kembalikan objek yang ingin disimpan. Spring memanggil method itu **satu kali** saat container dibuat, lalu menyimpan hasilnya.\n\nAnggap container seperti etalase toko. Method `@Bean` adalah resep. Saat toko dibuka, semua resep dimasak sekali lalu hasilnya dipajang di etalase. Setiap pembeli yang meminta \"kopi susu\" menerima kopi susu yang sudah dipajang itu, bukan dibuatkan yang baru.\n\nPerilaku \"dibuat sekali, dipakai bersama\" ini disebut **singleton**, dan inilah perilaku bawaan semua bean di Spring."
+    },
+    {
+      "type": "theory",
+      "content": "**Mengambil bean**\n\n| Kode | Mengambil bean... |\n|---|---|\n| `getBean(Produk.class)` | yang bertipe `Produk` (harus tepat satu) |\n| `getBean(\"produk\", Produk.class)` | yang bernama `produk`, dan harus bertipe `Produk` |\n| `containsBean(\"produk\")` | tidak mengambil; hanya mengecek apakah bean bernama `produk` ada (`true`/`false`) |\n\n**Nama bean** sama dengan nama method. Method `public Produk kopi()` menghasilkan bean bernama `kopi`. Nama bisa diganti dengan `@Bean(name = \"kopiSusu\")`.\n\n**Error yang sering muncul**\n\n| Error | Penyebab |\n|---|---|\n| `NoSuchBeanDefinitionException: No qualifying bean of type '...' available` | tidak ada bean dengan tipe itu |\n| `NoSuchBeanDefinitionException: No bean named '...' available` | tidak ada bean dengan nama itu |\n| `NoUniqueBeanDefinitionException: ... expected single matching bean but found 2: kopi,teh` | ada lebih dari satu bean bertipe sama, dan kamu mengambil berdasarkan tipe |\n\nKalau memang ada beberapa bean bertipe sama, pasang `@Primary` di salah satunya. Bean itu yang dipakai saat Spring diminta berdasarkan tipe. Bean lain tetap bisa diambil berdasarkan nama."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\npublic record Produk(String nama, int harga) {\n}\n```\n\n```java\n@Configuration\npublic class BeanConfig {\n\n    @Bean\n    public Produk produk() {\n        System.out.println(\"Membuat bean produk\");\n        return new Produk(\"Kopi Susu\", 18000);\n    }\n}\n```\n\n```java\npublic class BeanApp {\n    public static void main(String[] args) {\n        var context = new AnnotationConfigApplicationContext(BeanConfig.class);\n        System.out.println(\"Context siap\");\n\n        Produk p1 = context.getBean(Produk.class);\n        Produk p2 = context.getBean(\"produk\", Produk.class);\n\n        System.out.println(p1);\n        System.out.println(p1 == p2);\n\n        context.close();\n    }\n}\n```\n\nHasilnya:\n\n```text\nMembuat bean produk\nContext siap\nProduk[nama=Kopi Susu, harga=18000]\ntrue\n```\n\n- `Membuat bean produk` tercetak **sebelum** `Context siap`: bean singleton dibuat saat container dibuat, bukan saat `getBean`.\n- `p1 == p2` bernilai `true`. Mengambil berdasarkan tipe maupun nama menghasilkan **objek yang sama persis**.\n- `record` dipakai supaya ringkas; method `toString()` bawaannya mencetak `Produk[nama=..., harga=...]`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Dua bean bertipe sama, lalu mengambil berdasarkan tipe**\n\nSalah:\n\n```java\n@Bean\npublic Produk kopi() { return new Produk(\"Kopi Susu\", 18000); }\n\n@Bean\npublic Produk teh() { return new Produk(\"Teh Manis\", 8000); }\n\n// di main:\ncontext.getBean(Produk.class);\n```\n\n```text\nException in thread \"main\" org.springframework.beans.factory.NoUniqueBeanDefinitionException: No qualifying bean of type 'com.example.belajarspring.Produk' available: expected single matching bean but found 2: kopi,teh\n```\n\nBenar:\n\n```java\n@Primary\n@Bean\npublic Produk kopi() { return new Produk(\"Kopi Susu\", 18000); }\n\n@Bean\npublic Produk teh() { return new Produk(\"Teh Manis\", 8000); }\n```\n\nDengan `@Primary`, `getBean(Produk.class)` mengembalikan kopi. Teh tetap bisa diambil dengan `getBean(\"teh\", Produk.class)`.\n\n**2. Memakai nama method setelah nama bean diganti**\n\nSalah:\n\n```java\n@Bean(name = \"tehManis\")\npublic Produk teh() { ... }\n\n// di main:\ncontext.getBean(\"teh\", Produk.class);\n```\n\n```text\norg.springframework.beans.factory.NoSuchBeanDefinitionException: No bean named 'teh' available\n```\n\nBenar:\n\n```java\ncontext.getBean(\"tehManis\", Produk.class);\n```\n\nKalau `@Bean(name = ...)` diisi, nama method tidak lagi dipakai sebagai nama bean."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Method `@Bean public Produk kopiSusu()` menghasilkan bean dengan nama...",
+          "options": [
+            "produk",
+            "KopiSusu",
+            "Produk",
+            "kopiSusu"
+          ],
+          "answer": 3,
+          "explanation": "Nama bean sama dengan nama method, persis termasuk huruf besar-kecilnya.",
+          "remedial": "- `@Bean` di method dalam class `@Configuration`: nilai kembaliannya menjadi bean\n- Nama bean = nama method (bisa diganti dengan `@Bean(name = \"...\")`)\n- Bawaannya **singleton**: dibuat sekali saat container dibuat, `getBean` selalu mengembalikan objek yang sama\n- Dua bean bertipe sama + `getBean(Tipe.class)` = `NoUniqueBeanDefinitionException`\n- Solusinya: `@Primary`, atau ambil berdasarkan nama"
+        },
+        {
+          "question": "Bean `produk` bawaan (singleton). `Produk p1 = context.getBean(Produk.class);` lalu `Produk p2 = context.getBean(Produk.class);`. Nilai `p1 == p2` adalah...",
+          "options": [
+            "true",
+            "false",
+            "Error karena bean diambil dua kali",
+            "Tergantung isi record-nya"
+          ],
+          "answer": 0,
+          "explanation": "Singleton dibuat sekali dan disimpan. Setiap `getBean` mengembalikan objek yang sama, jadi `==` bernilai `true`.",
+          "remedial": "- `@Bean` di method dalam class `@Configuration`: nilai kembaliannya menjadi bean\n- Nama bean = nama method (bisa diganti dengan `@Bean(name = \"...\")`)\n- Bawaannya **singleton**: dibuat sekali saat container dibuat, `getBean` selalu mengembalikan objek yang sama\n- Dua bean bertipe sama + `getBean(Tipe.class)` = `NoUniqueBeanDefinitionException`\n- Solusinya: `@Primary`, atau ambil berdasarkan nama"
+        },
+        {
+          "question": "Ada dua bean bertipe `Produk` (`kopi` dan `teh`) tanpa `@Primary`. Apa yang terjadi saat `context.getBean(Produk.class)`?",
+          "options": [
+            "Spring mengembalikan bean yang ditulis paling atas",
+            "NoUniqueBeanDefinitionException: Spring menemukan 2 bean dan tidak tahu harus memilih yang mana",
+            "Spring mengembalikan list berisi kedua bean",
+            "NoSuchBeanDefinitionException: tidak ada bean bertipe Produk"
+          ],
+          "answer": 1,
+          "explanation": "Mengambil berdasarkan tipe butuh tepat satu kandidat. Dengan dua kandidat, pesan errornya `expected single matching bean but found 2: kopi,teh`.",
+          "remedial": "- `@Bean` di method dalam class `@Configuration`: nilai kembaliannya menjadi bean\n- Nama bean = nama method (bisa diganti dengan `@Bean(name = \"...\")`)\n- Bawaannya **singleton**: dibuat sekali saat container dibuat, `getBean` selalu mengembalikan objek yang sama\n- Dua bean bertipe sama + `getBean(Tipe.class)` = `NoUniqueBeanDefinitionException`\n- Solusinya: `@Primary`, atau ambil berdasarkan nama"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil program ini?",
+      "code": "@Configuration\npublic class MenuConfig {\n\n    @Bean\n    public Produk kopi() {\n        return new Produk(\"Kopi Susu\", 18000);\n    }\n\n    @Primary\n    @Bean\n    public Produk teh() {\n        return new Produk(\"Teh Manis\", 8000);\n    }\n}\n\n// di main:\nvar context = new AnnotationConfigApplicationContext(MenuConfig.class);\nProduk a = context.getBean(Produk.class);\nProduk b = context.getBean(\"kopi\", Produk.class);\nSystem.out.println(a.nama());\nSystem.out.println(b.nama());",
+      "options": [
+        "Kopi Susu\nKopi Susu",
+        "Kopi Susu\nTeh Manis",
+        "Teh Manis\nKopi Susu",
+        "NoUniqueBeanDefinitionException"
+      ],
+      "answer": 2,
+      "explanation": "`@Primary` ada di `teh`, jadi `getBean(Produk.class)` mengembalikan Teh Manis. Bean `kopi` tetap bisa diambil berdasarkan namanya."
+    },
+    {
+      "type": "fill_blank",
+      "code": "// Jadikan kopi pilihan utama, dan beri bean kedua nama \"tehManis\"\n@Configuration\npublic class MenuConfig {\n\n    @___\n    @Bean\n    public Produk kopi() {\n        return new Produk(\"Kopi Susu\", 18000);\n    }\n\n    @Bean(name = \"___\")\n    public Produk teh() {\n        return new Produk(\"Teh Manis\", 8000);\n    }\n}",
+      "answers": [
+        "Primary",
+        "tehManis"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@Bean di method dalam class @Configuration menjadikan nilai kembaliannya sebuah bean.",
+        "Nama bean sama dengan nama method, kecuali diganti dengan @Bean(name = ...).",
+        "Bean bawaannya singleton: dibuat sekali saat container dibuat, dan getBean selalu mengembalikan objek yang sama.",
+        "Dua bean bertipe sama membuat getBean(Tipe.class) gagal dengan NoUniqueBeanDefinitionException.",
+        "@Primary memilih bean utama; bean lain tetap bisa diambil berdasarkan nama."
+      ]
+    }
+  ]
+}
