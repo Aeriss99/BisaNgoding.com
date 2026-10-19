@@ -1,0 +1,99 @@
+{
+  "id": "devops-compose-03",
+  "moduleId": "devops-compose",
+  "order": 3,
+  "title": "Environment Variable dan File .env",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "File `compose.yaml` di materi sebelumnya menulis password langsung: `MYSQL_ROOT_PASSWORD: rahasia`. Masalahnya, file itu akan disimpan di Git dan dibaca banyak orang. **Password tidak boleh ditulis di file yang di-commit.**\n\nSolusinya, tulis **variabel** di `compose.yaml`, lalu isi nilainya dari tempat lain:\n\n```yaml\nenvironment:\n  MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}\n```\n\nSaat Compose membaca file, `${DB_PASSWORD}` diganti dengan nilai variabel `DB_PASSWORD`. Nilai itu bisa berasal dari environment variable di terminal, atau dari file **`.env`** di folder yang sama, yang dibaca otomatis.\n\nIbarat formulir dengan isian kosong: `compose.yaml` adalah formulirnya (boleh dibagikan ke semua orang), `.env` adalah isian pribadimu (disimpan sendiri)."
+    },
+    {
+      "type": "theory",
+      "content": "**Isi file `.env`**\n\n```text\nDB_PASSWORD=rahasia123\n```\n\nFormatnya `NAMA=nilai`, satu per baris, tanpa spasi di sekitar `=`.\n\n**Cara menulis variabel di `compose.yaml`**\n\n| Penulisan | Artinya |\n|---|---|\n| `${DB_PASSWORD}` | nilai `DB_PASSWORD`; kalau tidak ada, diganti string kosong dan muncul peringatan |\n| `${DB_PORT:-3306}` | nilai `DB_PORT`, atau `3306` kalau tidak diisi |\n| `${DB_PASSWORD:?wajib diisi}` | berhenti dengan error `wajib diisi` kalau tidak diisi |\n\n**Mengecek hasilnya**\n\n`docker compose config` menampilkan isi `compose.yaml` setelah semua variabel diisi. Berguna untuk memastikan nilai sudah benar sebelum `up`.\n\n**Jangan commit `.env`**\n\nTambahkan ke `.gitignore`:\n\n```text\n.env\n```\n\nSebagai gantinya, commit file contoh bernama `.env.example` berisi nama variabel tanpa nilai asli (`DB_PASSWORD=isi-password-di-sini`), supaya anggota tim tahu variabel apa saja yang perlu diisi."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi membuat proyek `toko-lengkap`. Bagian service `db` di `compose.yaml`:\n\n```yaml\n  db:\n    image: mysql:8.4\n    environment:\n      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}\n      MYSQL_DATABASE: toko\n```\n\nSebelum membuat `.env`, ia mengecek hasilnya (output dipotong):\n\n```text\nbudi@laptop:~/toko-lengkap$ docker compose config\nWARN[0000] The \"DB_PASSWORD\" variable is not set. Defaulting to a blank string.\nname: toko-lengkap\nservices:\n  db:\n    environment:\n      MYSQL_DATABASE: toko\n      MYSQL_ROOT_PASSWORD: \"\"\n...\n```\n\nIa lalu membuat `.env` dan menjalankan ulang:\n\n```text\nbudi@laptop:~/toko-lengkap$ echo \"DB_PASSWORD=rahasia123\" > .env\nbudi@laptop:~/toko-lengkap$ echo \".env\" >> .gitignore\nbudi@laptop:~/toko-lengkap$ docker compose up -d\n...\nbudi@laptop:~/toko-lengkap$ docker compose exec db printenv MYSQL_ROOT_PASSWORD\nrahasia123\n```\n\n- Tanpa `.env`, Compose memberi peringatan `WARN` dan mengisi password dengan string kosong (`\"\"`). MySQL akan menolak jalan karena password kosong tidak diizinkan.\n- Setelah `.env` dibuat, nilai `rahasia123` sampai ke dalam container.\n- `.env` masuk `.gitignore`, jadi password tidak ikut ter-commit."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Commit file `.env` ke GitHub**\n\nSalah:\n\n```bash\ngit add .\ngit commit -m \"tambah compose\"\ngit push           # .env ikut terunggah, password terbaca semua orang\n```\n\nBenar:\n\n```bash\necho \".env\" >> .gitignore\ngit add .gitignore compose.yaml .env.example\ngit commit -m \"tambah compose\"\n```\n\nKalau `.env` terlanjur ter-push, **ganti password-nya**. Menghapus file di commit berikutnya tidak menghapusnya dari riwayat Git.\n\n**2. Menulis spasi di sekitar tanda sama dengan**\n\nSalah:\n\n```text\nDB_PASSWORD = rahasia123\n```\n\nBenar:\n\n```text\nDB_PASSWORD=rahasia123\n```\n\nDi file `.env`, tulis `NAMA=nilai` tanpa spasi di sekitar `=`. Dengan spasi, nilai yang terbaca bisa berbeda dari yang kamu maksud. Selalu cek dengan `docker compose config`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Compose otomatis membaca nilai variabel dari file bernama...",
+          "options": [
+            "variables.yaml",
+            "Dockerfile",
+            "settings.txt",
+            ".env"
+          ],
+          "answer": 3,
+          "explanation": "File `.env` di folder yang sama dengan `compose.yaml` dibaca otomatis.",
+          "remedial": "- Nilai di `compose.yaml` bisa memakai variabel: `${DB_PASSWORD}`\n- Compose otomatis membaca file **`.env`** di folder yang sama\n- Variabel yang tidak diisi diganti string kosong dan memunculkan peringatan `WARN`\n- `docker compose config` menampilkan hasil akhir setelah variabel diisi\n- `.env` berisi rahasia: masukkan ke `.gitignore`, jangan di-commit"
+        },
+        {
+          "question": "`compose.yaml` memakai `${DB_PASSWORD}` tapi variabel itu tidak diisi di mana pun. Apa yang terjadi?",
+          "options": [
+            "Muncul peringatan WARN dan nilainya diganti string kosong",
+            "Compose memakai password acak",
+            "Compose memakai teks ${DB_PASSWORD} apa adanya sebagai password",
+            "Compose otomatis membuat file .env"
+          ],
+          "answer": 0,
+          "explanation": "Pesannya: `The \"DB_PASSWORD\" variable is not set. Defaulting to a blank string.`",
+          "remedial": "- Nilai di `compose.yaml` bisa memakai variabel: `${DB_PASSWORD}`\n- Compose otomatis membaca file **`.env`** di folder yang sama\n- Variabel yang tidak diisi diganti string kosong dan memunculkan peringatan `WARN`\n- `docker compose config` menampilkan hasil akhir setelah variabel diisi\n- `.env` berisi rahasia: masukkan ke `.gitignore`, jangan di-commit"
+        },
+        {
+          "question": "Kenapa `.env` dimasukkan ke `.gitignore`?",
+          "options": [
+            "Karena Git tidak bisa menyimpan file berawalan titik",
+            "Karena berisi rahasia seperti password yang tidak boleh ikut ter-commit",
+            "Supaya Compose bisa membacanya lebih cepat",
+            "Karena .env hanya dipakai di Windows"
+          ],
+          "answer": 1,
+          "explanation": "`compose.yaml` aman dibagikan, `.env` berisi nilai pribadi. Commit `.env.example` tanpa nilai asli sebagai panduan.",
+          "remedial": "- Nilai di `compose.yaml` bisa memakai variabel: `${DB_PASSWORD}`\n- Compose otomatis membaca file **`.env`** di folder yang sama\n- Variabel yang tidak diisi diganti string kosong dan memunculkan peringatan `WARN`\n- `docker compose config` menampilkan hasil akhir setelah variabel diisi\n- `.env` berisi rahasia: masukkan ke `.gitignore`, jangan di-commit"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Isi `.env` dan `compose.yaml` seperti di bawah. Apa nilai `MYSQL_ROOT_PASSWORD` di dalam container?",
+      "code": "# .env\nDB_PASSWORD=kopi2026\n\n# compose.yaml (sebagian)\n    environment:\n      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}\n      MYSQL_DATABASE: ${DB_NAME:-toko}",
+      "options": [
+        "${DB_PASSWORD}",
+        "toko",
+        "kopi2026",
+        "string kosong"
+      ],
+      "answer": 2,
+      "explanation": "`${DB_PASSWORD}` diganti nilai dari `.env`, yaitu `kopi2026`. (`MYSQL_DATABASE` akan bernilai `toko` karena `DB_NAME` tidak diisi.)"
+    },
+    {
+      "type": "fill_blank",
+      "code": "# compose.yaml: ambil password dari variabel DB_PASSWORD\n    environment:\n      MYSQL_ROOT_PASSWORD: ${___}\n\n# .env (jangan di-commit)\n___=rahasia123",
+      "answers": [
+        "DB_PASSWORD",
+        "DB_PASSWORD"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tulis variabel di compose.yaml dengan ${NAMA}; nilainya diisi saat Compose membaca file.",
+        "Compose otomatis membaca file .env di folder yang sama.",
+        "Variabel yang tidak diisi menjadi string kosong dan memunculkan peringatan WARN.",
+        "docker compose config menampilkan hasil akhir setelah variabel diisi.",
+        ".env berisi rahasia: masukkan ke .gitignore dan commit .env.example sebagai gantinya."
+      ]
+    }
+  ]
+}

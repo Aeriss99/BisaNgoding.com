@@ -1,0 +1,99 @@
+{
+  "id": "devops-docker-04",
+  "moduleId": "devops-docker",
+  "order": 4,
+  "title": "Masuk ke Container dan Environment Variable",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kadang kamu perlu melihat isi container yang sedang berjalan: file apa saja yang ada, atau kenapa aplikasinya error. Untuk itu ada **`docker exec`**, yang menjalankan perintah **di dalam** container yang sudah berjalan.\n\n- `docker exec web ls /usr/share/nginx/html`: menjalankan satu perintah lalu selesai.\n- `docker exec -it web sh`: membuka **shell** di dalam container, seperti masuk ke komputer lain lewat SSH. `-i` menjaga input tetap terbuka, `-t` memberi tampilan terminal. Ketik `exit` untuk keluar.\n\nImage berbasis Alpine biasanya hanya punya `sh`. Image berbasis Debian, Ubuntu, atau Oracle Linux biasanya punya `bash`.\n\nHal penting kedua adalah **environment variable**, variabel milik sistem operasi yang bisa dibaca program. Banyak image resmi memakai environment variable sebagai \"formulir pengaturan\". Misalnya image `mysql` membaca `MYSQL_ROOT_PASSWORD` untuk menentukan password root saat database pertama kali dibuat. Environment variable dikirim dengan opsi **`-e`**."
+    },
+    {
+      "type": "theory",
+      "content": "| Perintah | Fungsinya |\n|---|---|\n| `docker exec web ls /usr/share/nginx/html` | menjalankan `ls` di container `web` |\n| `docker exec -it web sh` | membuka shell interaktif di container `web` |\n| `docker run -e MYSQL_ROOT_PASSWORD=rahasia mysql:8.4` | menjalankan MySQL dengan password root `rahasia` |\n| `docker run --rm alpine:3.24 echo halo` | container sekali pakai: setelah selesai langsung dihapus |\n\n**Environment variable penting image `mysql`**\n\n| Variabel | Fungsinya |\n|---|---|\n| `MYSQL_ROOT_PASSWORD` | password user `root` (wajib salah satu dari tiga pilihan password) |\n| `MYSQL_DATABASE` | nama database yang dibuat otomatis |\n| `MYSQL_USER` dan `MYSQL_PASSWORD` | user biasa beserta password-nya |\n\n**Urutan penulisan `docker run`**\n\n```text\ndocker run [opsi Docker]  nama-image  [perintah untuk di dalam container]\n```\n\nSemua opsi Docker (`-d`, `--name`, `-p`, `-e`, `--rm`) harus ditulis **sebelum** nama image. Apa pun yang ditulis setelah nama image dianggap perintah untuk dijalankan di dalam container."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMelihat isi folder halaman web di container nginx:\n\n```text\nbudi@laptop:~$ docker exec web ls /usr/share/nginx/html\n50x.html\nindex.html\n```\n\nBudi mencoba menjalankan MySQL tanpa password:\n\n```text\nbudi@laptop:~$ docker run --name db mysql:8.4\n2026-10-19 11:45:22+00:00 [ERROR] [Entrypoint]: Database is uninitialized and password option is not specified\n    You need to specify one of the following as an environment variable:\n    - MYSQL_ROOT_PASSWORD\n    - MYSQL_ALLOW_EMPTY_PASSWORD\n    - MYSQL_RANDOM_ROOT_PASSWORD\nbudi@laptop:~$ docker ps -a --filter name=db\nCONTAINER ID   IMAGE       COMMAND                  CREATED          STATUS                      PORTS     NAMES\n625919fa1276   mysql:8.4   \"docker-entrypoint.s…\"   10 seconds ago   Exited (1) 10 seconds ago             db\n```\n\nContainer langsung berhenti dengan kode `1` (error). Budi menghapusnya, lalu menjalankan ulang dengan password:\n\n```text\nbudi@laptop:~$ docker rm db\ndb\nbudi@laptop:~$ docker run -d --name db -e MYSQL_ROOT_PASSWORD=rahasia mysql:8.4\nf040e7a9fdd7054f02f6c5be1bf0ac0d7f29c13491c6d77bfe843343be1c6229\nbudi@laptop:~$ docker exec db printenv MYSQL_ROOT_PASSWORD\nrahasia\n```\n\nContainer sekali pakai dengan `--rm`:\n\n```text\nbudi@laptop:~$ docker run --rm alpine:3.24 echo Halo dari container\nHalo dari container\n```\n\n- Pesan error MySQL sangat jelas: sebutkan salah satu dari tiga environment variable.\n- `printenv` di dalam container membuktikan variabel `-e` benar-benar sampai.\n- Container `--rm` tidak muncul lagi di `docker ps -a` karena langsung dihapus setelah `echo` selesai."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis opsi Docker setelah nama image**\n\nSalah:\n\n```text\nbudi@laptop:~$ docker run -d --name db mysql:8.4 -e MYSQL_ROOT_PASSWORD=rahasia\nbudi@laptop:~$ docker ps -a --filter name=db\nCONTAINER ID   IMAGE       COMMAND                  CREATED        STATUS                    PORTS     NAMES\n4d0b9b65e4d4   mysql:8.4   \"docker-entrypoint.s…\"   1 second ago   Exited (1) 1 second ago             db\n```\n\nBenar:\n\n```bash\ndocker run -d --name db -e MYSQL_ROOT_PASSWORD=rahasia mysql:8.4\n```\n\n`-e ...` yang ditulis setelah `mysql:8.4` dikirim sebagai argumen ke program di dalam container, bukan ke Docker. Password tidak pernah diatur, jadi MySQL berhenti dengan error yang sama.\n\n**2. Memakai bash di image yang tidak punya bash**\n\nSalah:\n\n```text\nbudi@laptop:~$ docker exec -it web bash\nOCI runtime exec failed: exec failed: unable to start container process: exec: \"bash\": executable file not found in $PATH\n```\n\nBenar:\n\n```bash\ndocker exec -it web sh\n```\n\nImage Alpine (seperti `nginx:alpine`) sangat kecil dan tidak menyertakan `bash`. Pakai `sh`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Perbedaan `docker exec` dan `docker run` adalah...",
+          "options": [
+            "exec menjalankan perintah di container yang sudah berjalan; run membuat container baru",
+            "exec membuat container baru; run masuk ke container yang ada",
+            "Keduanya sama persis",
+            "exec hanya untuk image Windows"
+          ],
+          "answer": 0,
+          "explanation": "`docker run` selalu membuat container baru dari image. `docker exec` masuk ke container yang sudah berjalan.",
+          "remedial": "- `docker exec <container> <perintah>` menjalankan perintah di container yang sedang berjalan\n- `docker exec -it <container> sh` membuka shell interaktif (keluar dengan `exit`)\n- `-e NAMA=nilai` mengirim environment variable ke container\n- Banyak image resmi diatur lewat environment variable, misalnya `MYSQL_ROOT_PASSWORD`\n- Opsi Docker ditulis **sebelum** nama image; `--rm` menghapus container otomatis setelah selesai"
+        },
+        {
+          "question": "Opsi `docker run` untuk mengirim environment variable ke container adalah...",
+          "options": [
+            "-p",
+            "-e",
+            "-d",
+            "-v"
+          ],
+          "answer": 1,
+          "explanation": "Contoh: `-e MYSQL_ROOT_PASSWORD=rahasia`. `-p` untuk port, `-d` untuk latar belakang, `-v` untuk volume.",
+          "remedial": "- `docker exec <container> <perintah>` menjalankan perintah di container yang sedang berjalan\n- `docker exec -it <container> sh` membuka shell interaktif (keluar dengan `exit`)\n- `-e NAMA=nilai` mengirim environment variable ke container\n- Banyak image resmi diatur lewat environment variable, misalnya `MYSQL_ROOT_PASSWORD`\n- Opsi Docker ditulis **sebelum** nama image; `--rm` menghapus container otomatis setelah selesai"
+        },
+        {
+          "question": "Kegunaan opsi `--rm` adalah...",
+          "options": [
+            "Menghapus image setelah dipakai",
+            "Menghapus semua container yang ada",
+            "Menghapus container otomatis setelah container selesai",
+            "Menghentikan container yang sedang berjalan"
+          ],
+          "answer": 2,
+          "explanation": "`--rm` cocok untuk container sekali pakai, supaya tidak menumpuk di `docker ps -a`.",
+          "remedial": "- `docker exec <container> <perintah>` menjalankan perintah di container yang sedang berjalan\n- `docker exec -it <container> sh` membuka shell interaktif (keluar dengan `exit`)\n- `-e NAMA=nilai` mengirim environment variable ke container\n- Banyak image resmi diatur lewat environment variable, misalnya `MYSQL_ROOT_PASSWORD`\n- Opsi Docker ditulis **sebelum** nama image; `--rm` menghapus container otomatis setelah selesai"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa status container `db` setelah perintah ini?",
+      "code": "budi@laptop:~$ docker run -d --name db mysql:8.4\nbudi@laptop:~$ docker ps -a --filter name=db",
+      "options": [
+        "Up, MySQL berjalan normal tanpa password",
+        "Exited (0), karena MySQL selesai dengan sukses",
+        "Container tidak dibuat sama sekali",
+        "Exited (1), karena password root tidak diatur"
+      ],
+      "answer": 3,
+      "explanation": "Image mysql mewajibkan salah satu pengaturan password. Tanpa itu entrypoint mencetak error lalu keluar dengan kode 1."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Jalankan MySQL dengan password root \"rahasia\", lalu buka shell di dalamnya\ndocker run -d --name db ___ MYSQL_ROOT_PASSWORD=rahasia mysql:8.4\ndocker exec -it db ___",
+      "answers": [
+        "-e|--env",
+        "bash|sh"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "docker exec menjalankan perintah di container yang sedang berjalan; -it untuk shell interaktif.",
+        "Image Alpine biasanya hanya punya sh, bukan bash.",
+        "-e NAMA=nilai mengirim environment variable; image mysql butuh MYSQL_ROOT_PASSWORD.",
+        "Opsi Docker ditulis sebelum nama image; setelah nama image adalah perintah untuk container.",
+        "--rm menghapus container otomatis setelah selesai."
+      ]
+    }
+  ]
+}

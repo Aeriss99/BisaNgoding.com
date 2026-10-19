@@ -1,0 +1,99 @@
+{
+  "id": "spring-dasar-07",
+  "moduleId": "spring-dasar",
+  "order": 7,
+  "title": "Bean di Aplikasi Spring Boot",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di materi-materi sebelumnya kamu membuat container sendiri dengan `new AnnotationConfigApplicationContext(...)`. Di aplikasi Spring Boot sungguhan, kamu hampir tidak pernah menulis itu. Semuanya diurus oleh class bawaan proyek:\n\n```java\npackage com.example.belajarspring;\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n\n@SpringBootApplication\npublic class BelajarSpringApplication {\n\n\tpublic static void main(String[] args) {\n\t\tSpringApplication.run(BelajarSpringApplication.class, args);\n\t}\n\n}\n```\n\nDua baris itu melakukan semua yang sudah kamu pelajari: membuat container, memindai `@Component`, membuat bean, menyuntikkan dependency, dan menjalankan `@PostConstruct`. Ditambah pekerjaan khas Spring Boot: menyiapkan logging, membaca `application.properties`, dan **auto-configuration** (membuat bean-bean umum secara otomatis sesuai library yang ada di proyek)."
+    },
+    {
+      "type": "theory",
+      "content": "**Isi `@SpringBootApplication`**\n\n| Anotasi di dalamnya | Fungsinya |\n|---|---|\n| `@SpringBootConfiguration` | class ini adalah `@Configuration`, jadi boleh berisi method `@Bean` |\n| `@ComponentScan` | memindai package class ini beserta semua sub-package-nya |\n| `@EnableAutoConfiguration` | menyalakan auto-configuration (dibahas di modul Spring Boot Dasar) |\n\n**Akibat penting dari `@ComponentScan`:** semua class `@Component`, `@Service`, dan `@Repository` harus berada di package `com.example.belajarspring` atau sub-package-nya, misalnya `com.example.belajarspring.toko`.\n\n**Menjalankan kode setelah aplikasi siap**\n\nBuat bean yang meng-*implement* `CommandLineRunner`. Method `run`-nya dipanggil sekali, setelah semua bean dibuat dan aplikasi selesai dimulai. Cocok untuk latihan atau tugas awal seperti mengisi data contoh.\n\n**Mengambil container**\n\n`SpringApplication.run(...)` mengembalikan container bertipe `ConfigurableApplicationContext`. Kalau perlu, simpan di variabel lalu panggil `getBean(...)` seperti biasa.\n\n**Menjalankan aplikasi**: tombol ▶ di samping `main` pada IDE, atau dari terminal di folder proyek: `./mvnw spring-boot:run` (di Windows: `mvnw.cmd spring-boot:run`)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`ProdukRepository` dan `ProdukService` sama seperti materi component scan, sekarang ditaruh di package `com.example.belajarspring.toko`. Ditambah satu bean `CommandLineRunner`:\n\n```java\npackage com.example.belajarspring.toko;\n\nimport org.springframework.boot.CommandLineRunner;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class TampilkanProduk implements CommandLineRunner {\n    private final ProdukService service;\n\n    public TampilkanProduk(ProdukService service) {\n        this.service = service;\n    }\n\n    @Override\n    public void run(String... args) {\n        System.out.println(service.tampilkan(1));\n    }\n}\n```\n\nSaat `BelajarSpringApplication` dijalankan (baris log dipotong di sebelah kanan):\n\n```text\n  .   ____          _            __ _ _\n /\\\\ / ___'_ __ _ _(_)_ __  __ _ \\ \\ \\ \\\n( ( )\\___ | '_ | '_| | '_ \\/ _` | \\ \\ \\ \\\n \\\\/  ___)| |_)| | | | | || (_| |  ) ) ) )\n  '  |____| .__|_| |_|_| |_\\__, | / / / /\n =========|_|==============|___/=/_/_/_/\n\n :: Spring Boot ::                (v4.0.8)\n\n2026-10-19T18:50:51.228+07:00  INFO 14074 --- [belajar-spring] [           main] c.e.b.BelajarSpringApplication           : Starting BelajarSpringApplication using Java 21.0.10 with PID 14074 (...)\n2026-10-19T18:50:51.232+07:00  INFO 14074 --- [belajar-spring] [           main] c.e.b.BelajarSpringApplication           : No active profile set, falling back to 1 default profile: \"default\"\nProdukRepository dibuat\nProdukService dibuat\n2026-10-19T18:50:51.805+07:00  INFO 14074 --- [belajar-spring] [           main] c.e.b.BelajarSpringApplication           : Started BelajarSpringApplication in 1.051 seconds (process running for 1.326)\nProduk #1: Kopi Susu\n```\n\n- Tidak ada `@ComponentScan` atau `new AnnotationConfigApplicationContext` yang ditulis sendiri. Semua class di `toko` tetap ditemukan karena berada di bawah package `com.example.belajarspring`.\n- Bean dibuat sebelum baris `Started ...`. `CommandLineRunner` dijalankan **setelah** aplikasi selesai dimulai.\n- `[belajar-spring]` di setiap baris log berasal dari `spring.application.name=belajar-spring` di `application.properties` buatan start.spring.io. Angka waktu dan PID di komputermu berbeda."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menaruh class di luar package aplikasi**\n\nSalah:\n\n```text\ncom.example.belajarspring.BelajarSpringApplication   <- @SpringBootApplication\ncom.example.belajarspring.toko.ProdukService\ncom.example.toko.ProdukRepository                    <- di luar com.example.belajarspring\n```\n\n```text\n***************************\nAPPLICATION FAILED TO START\n***************************\n\nDescription:\n\nParameter 0 of constructor in com.example.belajarspring.toko.ProdukService required a bean of type 'com.example.toko.ProdukRepository' that could not be found.\n\n\nAction:\n\nConsider defining a bean of type 'com.example.toko.ProdukRepository' in your configuration.\n```\n\nBenar:\n\n```text\ncom.example.belajarspring.BelajarSpringApplication\ncom.example.belajarspring.toko.ProdukService\ncom.example.belajarspring.toko.ProdukRepository\n```\n\nSpring Boot menjelaskan error dengan ramah: baca bagian **Description** (apa yang salah) dan **Action** (saran perbaikan).\n\n**2. Membuat container sendiri di aplikasi Spring Boot**\n\nSalah:\n\n```java\npublic static void main(String[] args) {\n    SpringApplication.run(BelajarSpringApplication.class, args);\n    var context = new AnnotationConfigApplicationContext(TokoConfig.class);\n}\n```\n\nBenar:\n\n```java\npublic static void main(String[] args) {\n    SpringApplication.run(BelajarSpringApplication.class, args);\n}\n```\n\n`SpringApplication.run` sudah membuat container. Container kedua akan membuat semua bean dua kali dan keduanya tidak saling kenal."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "`@SpringBootApplication` sudah termasuk anotasi berikut, **kecuali**...",
+          "options": [
+            "@ComponentScan",
+            "@SpringBootConfiguration",
+            "@EnableAutoConfiguration",
+            "@Scope(\"prototype\")"
+          ],
+          "answer": 3,
+          "explanation": "`@SpringBootApplication` menggabungkan `@SpringBootConfiguration`, `@EnableAutoConfiguration`, dan `@ComponentScan`. `@Scope` dipasang di bean, tidak ada hubungannya.",
+          "remedial": "- `@SpringBootApplication` = `@SpringBootConfiguration` (sebuah `@Configuration`) + `@EnableAutoConfiguration` + `@ComponentScan`\n- `SpringApplication.run(...)` membuat container untukmu dan mengembalikannya\n- Component scan dimulai dari package class `@SpringBootApplication`\n- Bean `CommandLineRunner` dijalankan setelah aplikasi selesai dimulai\n- Class di luar package itu tidak ditemukan: **APPLICATION FAILED TO START**"
+        },
+        {
+          "question": "Class `@SpringBootApplication` berada di `com.example.belajarspring`. Class `@Service` mana yang **tidak** akan ditemukan?",
+          "options": [
+            "com.example.layanan.EmailService",
+            "com.example.belajarspring.EmailService",
+            "com.example.belajarspring.notifikasi.EmailService",
+            "com.example.belajarspring.notifikasi.email.EmailService"
+          ],
+          "answer": 0,
+          "explanation": "Component scan dimulai dari `com.example.belajarspring` dan mencakup semua sub-package-nya. `com.example.layanan` berada di luar.",
+          "remedial": "- `@SpringBootApplication` = `@SpringBootConfiguration` (sebuah `@Configuration`) + `@EnableAutoConfiguration` + `@ComponentScan`\n- `SpringApplication.run(...)` membuat container untukmu dan mengembalikannya\n- Component scan dimulai dari package class `@SpringBootApplication`\n- Bean `CommandLineRunner` dijalankan setelah aplikasi selesai dimulai\n- Class di luar package itu tidak ditemukan: **APPLICATION FAILED TO START**"
+        },
+        {
+          "question": "Kapan method `run` milik bean `CommandLineRunner` dipanggil?",
+          "options": [
+            "Sebelum container dibuat",
+            "Sekali, setelah semua bean dibuat dan aplikasi selesai dimulai",
+            "Setiap kali getBean dipanggil",
+            "Saat aplikasi dimatikan"
+          ],
+          "answer": 1,
+          "explanation": "Itulah sebabnya hasil `run` tercetak setelah baris log `Started ...`.",
+          "remedial": "- `@SpringBootApplication` = `@SpringBootConfiguration` (sebuah `@Configuration`) + `@EnableAutoConfiguration` + `@ComponentScan`\n- `SpringApplication.run(...)` membuat container untukmu dan mengembalikannya\n- Component scan dimulai dari package class `@SpringBootApplication`\n- Bean `CommandLineRunner` dijalankan setelah aplikasi selesai dimulai\n- Class di luar package itu tidak ditemukan: **APPLICATION FAILED TO START**"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Abaikan banner dan baris log. Teks apa saja yang tercetak, dan dalam urutan apa?",
+      "code": "@SpringBootApplication\npublic class BelajarSpringApplication {\n\tpublic static void main(String[] args) {\n\t\tSpringApplication.run(BelajarSpringApplication.class, args);\n\t\tSystem.out.println(\"main selesai\");\n\t}\n}\n\n@Component\npublic class Sapa implements CommandLineRunner {\n\n    public Sapa() {\n        System.out.println(\"Sapa dibuat\");\n    }\n\n    @Override\n    public void run(String... args) {\n        System.out.println(\"Halo dari CommandLineRunner\");\n    }\n}",
+      "options": [
+        "main selesai\nSapa dibuat\nHalo dari CommandLineRunner",
+        "Halo dari CommandLineRunner\nSapa dibuat\nmain selesai",
+        "Sapa dibuat\nHalo dari CommandLineRunner\nmain selesai",
+        "Sapa dibuat\nmain selesai\nHalo dari CommandLineRunner"
+      ],
+      "answer": 2,
+      "explanation": "Saat aplikasi dimulai, bean `Sapa` dibuat dulu. Setelah aplikasi siap, `run` dipanggil. Baru setelah `SpringApplication.run(...)` selesai, `main` lanjut mencetak `main selesai`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "// Class utama aplikasi Spring Boot\n@___\npublic class BelajarSpringApplication {\n\n\tpublic static void main(String[] args) {\n\t\t___.run(BelajarSpringApplication.class, args);\n\t}\n\n}",
+      "answers": [
+        "SpringBootApplication",
+        "SpringApplication"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@SpringBootApplication menggabungkan @SpringBootConfiguration, @EnableAutoConfiguration, dan @ComponentScan.",
+        "SpringApplication.run membuat container, memindai komponen, dan membuat semua bean untukmu.",
+        "Semua komponen harus berada di package class @SpringBootApplication atau sub-package-nya.",
+        "CommandLineRunner dijalankan sekali setelah aplikasi selesai dimulai.",
+        "Saat gagal start, baca bagian Description dan Action di laporan APPLICATION FAILED TO START."
+      ]
+    }
+  ]
+}

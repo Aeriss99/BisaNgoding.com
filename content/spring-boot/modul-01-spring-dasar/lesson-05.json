@@ -1,0 +1,99 @@
+{
+  "id": "spring-dasar-05",
+  "moduleId": "spring-dasar",
+  "order": 5,
+  "title": "@Component dan Component Scan",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Menulis method `@Bean` untuk setiap class lama-lama melelahkan. Bayangkan aplikasi dengan 50 class service dan repository.\n\nSpring punya cara yang lebih praktis: pasang anotasi **`@Component`** langsung di class-nya. Lalu di class konfigurasi pasang **`@ComponentScan`**. Saat container dibuat, Spring **memindai** (*scan*) package, menemukan semua class ber-`@Component`, dan menjadikannya bean.\n\nIbarat absen di kelas: guru tidak perlu menulis nama murid satu per satu di papan. Cukup panggil \"yang memakai seragam sekolah ini, berdiri\", dan semua murid yang memenuhi syarat langsung terdata.\n\nUntuk class yang butuh dependency, cukup tulis dependency itu sebagai **parameter constructor**. Spring otomatis mengisinya. Inilah cara yang paling sering dipakai di aplikasi Spring Boot sungguhan."
+    },
+    {
+      "type": "theory",
+      "content": "**Anotasi komponen**\n\n| Anotasi | Biasanya dipakai untuk |\n|---|---|\n| `@Component` | class umum |\n| `@Service` | class berisi logika bisnis |\n| `@Repository` | class yang mengakses database |\n| `@Controller` | class yang menerima request web (dibahas di modul web) |\n\nKeempatnya sama-sama menjadikan class sebagai bean. Bedanya hanya pada **maksud** (supaya kode mudah dibaca), dan beberapa fitur tambahan di modul lanjutan.\n\n**Aturan penting**\n\n- `@ComponentScan` tanpa isi memindai **package class konfigurasi beserta semua sub-package-nya**. Untuk package lain: `@ComponentScan(\"com.example.lain\")`.\n- **Nama bean** = nama class dengan huruf pertama kecil: `ProdukService` → `produkService`.\n- **Constructor injection.** Kalau class hanya punya **satu constructor**, Spring otomatis memakainya dan mengisi semua parameternya. Tidak perlu `@Autowired`. Kalau ada lebih dari satu constructor, pasang `@Autowired` di constructor yang harus dipakai.\n- **Field injection** (`@Autowired` langsung di field) juga bisa, tapi field tidak bisa `final`, dan objek bisa terlanjur dibuat dengan dependency kosong. Pakai constructor injection."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSemua class berada di package `com.example.belajarspring.toko`.\n\n```java\n@Repository\npublic class ProdukRepository {\n\n    public ProdukRepository() {\n        System.out.println(\"ProdukRepository dibuat\");\n    }\n\n    public String cariNama(int id) {\n        return \"Kopi Susu\";\n    }\n}\n```\n\n```java\n@Service\npublic class ProdukService {\n    private final ProdukRepository repository;\n\n    public ProdukService(ProdukRepository repository) {\n        this.repository = repository;\n        System.out.println(\"ProdukService dibuat\");\n    }\n\n    public String tampilkan(int id) {\n        return \"Produk #\" + id + \": \" + repository.cariNama(id);\n    }\n}\n```\n\n```java\n@Configuration\n@ComponentScan\npublic class TokoConfig {\n}\n```\n\n```java\nvar context = new AnnotationConfigApplicationContext(TokoConfig.class);\n\nProdukService service = context.getBean(ProdukService.class);\nSystem.out.println(service.tampilkan(1));\n\nSystem.out.println(context.containsBean(\"produkService\"));\nSystem.out.println(context.containsBean(\"ProdukService\"));\n```\n\nHasilnya:\n\n```text\nProdukRepository dibuat\nProdukService dibuat\nProduk #1: Kopi Susu\ntrue\nfalse\n```\n\n- `TokoConfig` kosong, tapi kedua class tetap menjadi bean karena ditemukan oleh `@ComponentScan`.\n- Constructor `ProdukService` otomatis diberi `ProdukRepository`, tanpa `@Autowired`.\n- Nama bean `produkService` (huruf p kecil). `ProdukService` dengan P besar tidak ada."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa memasang anotasi di dependency**\n\nSalah:\n\n```java\npublic class ProdukRepository {   // tanpa @Repository\n    ...\n}\n```\n\n```text\nUnsatisfiedDependencyException: Error creating bean with name 'produkService' defined in file [.../ProdukService.class]: Unsatisfied dependency expressed through constructor parameter 0: No qualifying bean of type 'com.example.belajarspring.toko.ProdukRepository' available: expected at least 1 bean which qualifies as autowire candidate. Dependency annotations: {}\n```\n\nBenar:\n\n```java\n@Repository\npublic class ProdukRepository {\n    ...\n}\n```\n\nPesan yang sama muncul kalau class-nya berada **di luar** package yang dipindai. Pindahkan class ke package (atau sub-package) class konfigurasi.\n\n**2. Membuat sendiri objek yang memakai field injection**\n\nSalah:\n\n```java\n@Component\npublic class Pengingat {\n    @Autowired\n    private Jam jam;\n\n    public String sekarang() { return \"Sekarang \" + jam.waktu(); }\n}\n\n// di main:\nnew Pengingat().sekarang();\n```\n\n```text\njava.lang.NullPointerException: Cannot invoke \"com.example.belajarspring.Jam.waktu()\" because \"this.jam\" is null\n```\n\nBenar:\n\n```java\n@Component\npublic class Pengingat {\n    private final Jam jam;\n\n    public Pengingat(Jam jam) {\n        this.jam = jam;\n    }\n    ...\n}\n```\n\nObjek buatan `new` tidak diisi Spring, jadi field `jam` tetap `null`. Dengan constructor injection, objek tidak mungkin dibuat tanpa `Jam`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Class `PesananService` diberi anotasi `@Service` dan ditemukan oleh component scan. Apa nama bean-nya?",
+          "options": [
+            "PesananService",
+            "pesananService",
+            "pesanan",
+            "service"
+          ],
+          "answer": 1,
+          "explanation": "Nama bean dari component scan adalah nama class dengan huruf pertama kecil.",
+          "remedial": "- `@Component` (atau `@Service`, `@Repository`, `@Controller`) menjadikan class sebagai bean tanpa menulis `@Bean`\n- `@ComponentScan` mencari class seperti itu di package class konfigurasi beserta sub-package-nya\n- Nama bean = nama class dengan huruf pertama kecil (`ProdukService` → `produkService`)\n- Constructor injection: satu constructor otomatis diisi Spring, field dibuat `final`\n- Field injection (`@Autowired` di field) bisa jalan tapi tidak disarankan"
+        },
+        {
+          "question": "`@ComponentScan` tanpa isi dipasang di `com.example.belajarspring.toko.TokoConfig`. Package mana yang dipindai?",
+          "options": [
+            "Hanya com.example",
+            "Seluruh package di proyek dan semua library",
+            "com.example.belajarspring.toko beserta semua sub-package-nya",
+            "Tidak ada; @ComponentScan wajib diberi nama package"
+          ],
+          "answer": 2,
+          "explanation": "Tanpa isi, pemindaian dimulai dari package class konfigurasi itu sendiri dan mencakup semua sub-package di bawahnya.",
+          "remedial": "- `@Component` (atau `@Service`, `@Repository`, `@Controller`) menjadikan class sebagai bean tanpa menulis `@Bean`\n- `@ComponentScan` mencari class seperti itu di package class konfigurasi beserta sub-package-nya\n- Nama bean = nama class dengan huruf pertama kecil (`ProdukService` → `produkService`)\n- Constructor injection: satu constructor otomatis diisi Spring, field dibuat `final`\n- Field injection (`@Autowired` di field) bisa jalan tapi tidak disarankan"
+        },
+        {
+          "question": "Cara menyuntikkan dependency yang paling disarankan untuk class `@Service` adalah...",
+          "options": [
+            "@Autowired di field private",
+            "Membuat dependency dengan new di dalam class",
+            "Mengambil dari context.getBean di dalam method",
+            "Lewat constructor, dengan field final"
+          ],
+          "answer": 3,
+          "explanation": "Constructor injection membuat dependency wajib ada saat objek dibuat dan field bisa `final`. Field injection dan `new` sama-sama tidak disarankan.",
+          "remedial": "- `@Component` (atau `@Service`, `@Repository`, `@Controller`) menjadikan class sebagai bean tanpa menulis `@Bean`\n- `@ComponentScan` mencari class seperti itu di package class konfigurasi beserta sub-package-nya\n- Nama bean = nama class dengan huruf pertama kecil (`ProdukService` → `produkService`)\n- Constructor injection: satu constructor otomatis diisi Spring, field dibuat `final`\n- Field injection (`@Autowired` di field) bisa jalan tapi tidak disarankan"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Kedua class ditemukan component scan. Apa hasil program ini?",
+      "code": "@Service\npublic class KasirService {\n    private final StokRepository stokRepository;\n\n    public KasirService(StokRepository stokRepository) {\n        this.stokRepository = stokRepository;\n        System.out.println(\"KasirService dibuat\");\n    }\n}\n\n@Repository\npublic class StokRepository {\n    public StokRepository() {\n        System.out.println(\"StokRepository dibuat\");\n    }\n}\n\n// di main:\nSystem.out.println(\"Mulai\");\nvar context = new AnnotationConfigApplicationContext(KasirConfig.class);\nSystem.out.println(\"Context siap\");",
+      "options": [
+        "Mulai\nStokRepository dibuat\nKasirService dibuat\nContext siap",
+        "Mulai\nKasirService dibuat\nStokRepository dibuat\nContext siap",
+        "Mulai\nContext siap\nStokRepository dibuat\nKasirService dibuat",
+        "Mulai\nKasirService dibuat\nContext siap"
+      ],
+      "answer": 0,
+      "explanation": "`KasirService` butuh `StokRepository` di constructor-nya, jadi Spring harus membuat `StokRepository` lebih dulu. Semua bean singleton dibuat sebelum `Context siap`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "// Jadikan class ini bean (logika bisnis), dan pindai package-nya dari class konfigurasi\n@___\npublic class ProdukService {\n    ...\n}\n\n@Configuration\n@___\npublic class TokoConfig {\n}",
+      "answers": [
+        "Service",
+        "ComponentScan"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@Component, @Service, @Repository, dan @Controller menjadikan class sebagai bean tanpa menulis @Bean.",
+        "@ComponentScan memindai package class konfigurasi beserta sub-package-nya.",
+        "Nama bean dari component scan adalah nama class dengan huruf pertama kecil.",
+        "Constructor injection: satu constructor otomatis diisi Spring, dan field bisa final.",
+        "Objek yang dibuat dengan new tidak diisi Spring; hindari field injection."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "id": "spring-dasar-01",
+  "moduleId": "spring-dasar",
+  "order": 1,
+  "title": "Mengenal Spring dan IoC",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Bayangkan sebuah kedai kopi. Barista tidak pergi ke kebun untuk memetik biji kopi, tidak memerah susu sendiri, dan tidak membuat gelas. Semua bahan **diantarkan** oleh pemasok, jadi barista cukup fokus membuat kopi.\n\nProgram Java juga begitu. Sebuah class hampir selalu butuh objek lain untuk bekerja: `ProdukService` butuh `ProdukRepository`, dan `ProdukRepository` butuh koneksi `Database`. Objek yang dibutuhkan itu disebut **dependency**.\n\nCara paling sederhana adalah membuat dependency sendiri dengan `new` di dalam class. Masalahnya, setiap class jadi terikat erat ke class lain, objek yang sama dibuat berkali-kali, dan class sulit diganti atau dites.\n\n**Spring** adalah framework Java yang mengambil alih tugas \"membuat dan menyambungkan objek\" itu. Kamu cukup menjelaskan objek apa saja yang ada, lalu Spring yang membuat, menyimpan, dan mengantarkannya ke class yang membutuhkan. Pembalikan tugas inilah yang disebut **Inversion of Control** (IoC)."
+    },
+    {
+      "type": "theory",
+      "content": "| Istilah | Artinya |\n|---|---|\n| **Spring Framework** | framework inti: container IoC, dependency injection, dan banyak modul lain |\n| **Spring Boot** | lapisan di atas Spring Framework yang mengatur hampir semuanya secara otomatis, sehingga proyek bisa langsung jalan |\n| **IoC** (*Inversion of Control*) | kendali pembuatan objek dibalik: bukan class yang membuat dependency, tapi container |\n| **Container** | \"gudang\" objek milik Spring. Di kode, container diwakili oleh `ApplicationContext` |\n| **Bean** | objek yang dibuat dan dikelola oleh container |\n| **Dependency Injection** (DI) | cara container memberikan dependency ke sebuah objek, misalnya lewat parameter constructor |\n\n**Kenapa memakai Spring?**\n\n- **Objek dibuat sekali lalu dipakai bersama.** Satu `Database` cukup untuk semua repository.\n- **Mudah diganti.** Mau ganti database asli dengan database palsu untuk tes? Ubah satu tempat saja.\n- **Kode lebih bersih.** Class fokus pada tugasnya, bukan pada cara merakit objek lain.\n\nHampir semua lowongan backend Java di Indonesia meminta Spring Boot, jadi kelas ini memakai **Spring Boot 4** (dibangun di atas **Spring Framework 7**) dengan **Java 17 atau lebih baru**. Kelas ini adalah kelas (K): teori dan contoh dibaca di sini, lalu dipraktikkan di komputermu sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nToko online Budi punya tiga class. Setiap class membuat dependency-nya sendiri dengan `new`. Di `main`, Budi membuat dua `ProdukService`:\n\n```java\nclass Database {\n    Database() {\n        System.out.println(\"Database dibuat\");\n    }\n}\n\nclass ProdukRepository {\n    private final Database database;\n\n    ProdukRepository() {\n        this.database = new Database();\n        System.out.println(\"ProdukRepository dibuat\");\n    }\n}\n\nclass ProdukService {\n    private final ProdukRepository repository;\n\n    ProdukService() {\n        this.repository = new ProdukRepository();\n        System.out.println(\"ProdukService dibuat\");\n    }\n}\n\npublic class TanpaSpring {\n    public static void main(String[] args) {\n        ProdukService service1 = new ProdukService();\n        ProdukService service2 = new ProdukService();\n    }\n}\n```\n\nHasilnya:\n\n```text\nDatabase dibuat\nProdukRepository dibuat\nProdukService dibuat\nDatabase dibuat\nProdukRepository dibuat\nProdukService dibuat\n```\n\n- Setiap `new ProdukService()` ikut membuat `ProdukRepository` dan `Database` baru. Dua service berarti **dua koneksi database**, padahal satu sudah cukup.\n\nSekarang dependency **diberikan dari luar** lewat constructor (inilah dependency injection, masih tanpa Spring):\n\n```java\nclass ProdukRepository {\n    private final Database database;\n\n    ProdukRepository(Database database) {\n        this.database = database;\n        System.out.println(\"ProdukRepository dibuat\");\n    }\n}\n\nclass ProdukService {\n    private final ProdukRepository repository;\n\n    ProdukService(ProdukRepository repository) {\n        this.repository = repository;\n        System.out.println(\"ProdukService dibuat\");\n    }\n}\n\npublic class DenganDI {\n    public static void main(String[] args) {\n        Database database = new Database();\n        ProdukRepository repository = new ProdukRepository(database);\n        ProdukService service1 = new ProdukService(repository);\n        ProdukService service2 = new ProdukService(repository);\n    }\n}\n```\n\n```text\nDatabase dibuat\nProdukRepository dibuat\nProdukService dibuat\nProdukService dibuat\n```\n\n- `Database` dan `ProdukRepository` sekarang hanya dibuat **sekali**, lalu dipakai bersama.\n- Yang masih merepotkan: `main` harus merakit semuanya sendiri, dan urutannya harus benar. Di materi berikutnya, tugas merakit ini diserahkan ke Spring."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membuat dependency sendiri di dalam class**\n\nSalah:\n\n```java\nclass ProdukService {\n    private final ProdukRepository repository = new ProdukRepository();\n}\n```\n\nBenar:\n\n```java\nclass ProdukService {\n    private final ProdukRepository repository;\n\n    ProdukService(ProdukRepository repository) {\n        this.repository = repository;\n    }\n}\n```\n\nDengan `new` di dalam class, `ProdukService` selalu memakai `ProdukRepository` buatannya sendiri dan tidak bisa diberi yang lain. Menerima dependency lewat constructor membuat class bisa dirakit oleh siapa saja, termasuk oleh Spring.\n\n**2. Mengira Spring Boot dan Spring Framework saling menggantikan**\n\nSalah:\n\n```text\n\"Saya belajar Spring Boot saja, tidak perlu tahu bean dan dependency injection.\"\n```\n\nBenar:\n\n```text\n\"Spring Boot memakai Spring Framework di dalamnya.\n Bean dan dependency injection tetap dipakai di setiap aplikasi Spring Boot.\"\n```\n\nSpring Boot hanya mengotomatiskan pengaturan. Saat aplikasi error karena bean tidak ditemukan, yang perlu kamu pahami adalah konsep dasar di modul ini."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pada contoh `TanpaSpring`, kalau `main` membuat **tiga** `ProdukService`, berapa kali `Database dibuat` tercetak?",
+          "options": [
+            "1 kali",
+            "3 kali",
+            "6 kali",
+            "Tidak pernah"
+          ],
+          "answer": 1,
+          "explanation": "Setiap `new ProdukService()` membuat `ProdukRepository` baru, dan setiap `ProdukRepository` membuat `Database` baru. Tiga service berarti tiga database.",
+          "remedial": "- Tanpa Spring, setiap class membuat sendiri objek yang dibutuhkannya dengan `new`\n- **IoC** (*Inversion of Control*): tugas membuat dan menyambungkan objek diserahkan ke **container**\n- **Bean** = objek yang dibuat dan dikelola container Spring\n- **Dependency Injection**: objek yang dibutuhkan *diberikan* dari luar, biasanya lewat constructor\n- Spring Boot dibangun di atas Spring Framework, bukan penggantinya"
+        },
+        {
+          "question": "Di Spring, objek yang dibuat dan dikelola oleh container disebut...",
+          "options": [
+            "dependency",
+            "interface",
+            "bean",
+            "package"
+          ],
+          "answer": 2,
+          "explanation": "Objek yang dikelola container Spring disebut bean. Dependency adalah objek yang *dibutuhkan* oleh objek lain; dependency itu sendiri biasanya juga sebuah bean.",
+          "remedial": "- Tanpa Spring, setiap class membuat sendiri objek yang dibutuhkannya dengan `new`\n- **IoC** (*Inversion of Control*): tugas membuat dan menyambungkan objek diserahkan ke **container**\n- **Bean** = objek yang dibuat dan dikelola container Spring\n- **Dependency Injection**: objek yang dibutuhkan *diberikan* dari luar, biasanya lewat constructor\n- Spring Boot dibangun di atas Spring Framework, bukan penggantinya"
+        },
+        {
+          "question": "Apa arti *Inversion of Control* (IoC)?",
+          "options": [
+            "Urutan baris program dijalankan dari bawah ke atas",
+            "Class anak mengendalikan class induknya",
+            "Program hanya boleh punya satu objek dari setiap class",
+            "Pembuatan dan penyambungan objek diserahkan ke container, bukan dilakukan sendiri oleh setiap class"
+          ],
+          "answer": 3,
+          "explanation": "Yang \"dibalik\" adalah kendali pembuatan objek: class tidak lagi membuat dependency dengan `new`, tapi menerimanya dari container.",
+          "remedial": "- Tanpa Spring, setiap class membuat sendiri objek yang dibutuhkannya dengan `new`\n- **IoC** (*Inversion of Control*): tugas membuat dan menyambungkan objek diserahkan ke **container**\n- **Bean** = objek yang dibuat dan dikelola container Spring\n- **Dependency Injection**: objek yang dibutuhkan *diberikan* dari luar, biasanya lewat constructor\n- Spring Boot dibangun di atas Spring Framework, bukan penggantinya"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil program ini?",
+      "code": "// Database, ProdukRepository, dan ProdukService sama seperti contoh DenganDI\npublic class DenganDI {\n    public static void main(String[] args) {\n        Database database = new Database();\n        ProdukRepository repository = new ProdukRepository(database);\n        ProdukService service1 = new ProdukService(repository);\n        ProdukService service2 = new ProdukService(repository);\n        ProdukService service3 = new ProdukService(repository);\n    }\n}",
+      "options": [
+        "Database dibuat\nProdukRepository dibuat\nProdukService dibuat\nProdukService dibuat\nProdukService dibuat",
+        "Database dibuat\nProdukRepository dibuat\nProdukService dibuat",
+        "Database dibuat\nProdukRepository dibuat\nProdukService dibuat\nDatabase dibuat\nProdukRepository dibuat\nProdukService dibuat\nDatabase dibuat\nProdukRepository dibuat\nProdukService dibuat",
+        "ProdukService dibuat\nProdukService dibuat\nProdukService dibuat\nProdukRepository dibuat\nDatabase dibuat"
+      ],
+      "answer": 0,
+      "explanation": "`Database` dan `ProdukRepository` dibuat sekali di awal `main`, lalu objek yang sama diberikan ke ketiga `ProdukService`. Constructor `ProdukService` tidak membuat apa-apa lagi."
+    },
+    {
+      "type": "fill_blank",
+      "code": "// Terima ProdukRepository lewat constructor, jangan membuatnya dengan new\nclass ProdukService {\n    private final ProdukRepository repository;\n\n    ProdukService(___ repository) {\n        this.repository = ___;\n    }\n}",
+      "answers": [
+        "ProdukRepository",
+        "repository"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Dependency adalah objek yang dibutuhkan sebuah class untuk bekerja.",
+        "Membuat dependency sendiri dengan new membuat class terikat erat dan objek dibuat berulang kali.",
+        "IoC: pembuatan dan penyambungan objek diserahkan ke container Spring.",
+        "Bean adalah objek yang dikelola container; dependency injection memberikan dependency dari luar, biasanya lewat constructor.",
+        "Spring Boot dibangun di atas Spring Framework, jadi konsep bean dan DI tetap dipakai."
+      ]
+    }
+  ]
+}

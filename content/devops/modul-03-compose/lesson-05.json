@@ -1,0 +1,99 @@
+{
+  "id": "devops-compose-05",
+  "moduleId": "devops-compose",
+  "order": 5,
+  "title": "Proyek: Website dan Database dengan Compose",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya menggabungkan semua yang sudah dipelajari menjadi satu proyek utuh. Budi ingin toko kopinya punya:\n\n1. **web**: website toko dari Dockerfile buatan sendiri (materi Dockerfile)\n2. **db**: MySQL dengan data yang awet (volume) dan password dari `.env`\n3. **adminer**: alat admin database, menunggu MySQL siap (healthcheck)\n\nUntuk service yang image-nya dibuat sendiri, ganti `image:` dengan **`build:`** berisi folder yang memuat Dockerfile. Compose akan membangun image itu otomatis saat `up`.\n\nDengan cara ini, anggota tim baru cukup melakukan tiga langkah untuk menjalankan seluruh proyek di laptopnya: clone repository, salin `.env.example` menjadi `.env` lalu isi password, dan jalankan `docker compose up -d`."
+    },
+    {
+      "type": "theory",
+      "content": "**Struktur folder**\n\n```text\ntoko-lengkap/\n├── compose.yaml\n├── .env              <- tidak di-commit\n├── .env.example\n├── .gitignore        <- berisi .env\n└── web/\n    ├── Dockerfile\n    ├── index.html\n    └── style.css\n```\n\n**`compose.yaml`**\n\n```yaml\nservices:\n  web:\n    build: ./web\n    ports:\n      - \"8080:80\"\n\n  db:\n    image: mysql:8.4\n    environment:\n      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}\n      MYSQL_DATABASE: toko\n    volumes:\n      - db-data:/var/lib/mysql\n    healthcheck:\n      test: [\"CMD\", \"mysqladmin\", \"ping\", \"-h\", \"localhost\"]\n      interval: 5s\n      timeout: 3s\n      retries: 10\n\n  adminer:\n    image: adminer\n    ports:\n      - \"8081:8080\"\n    depends_on:\n      db:\n        condition: service_healthy\n\nvolumes:\n  db-data:\n```\n\n| Perintah | Kapan dipakai |\n|---|---|\n| `docker compose up -d` | pertama kali (image `web` dibangun otomatis kalau belum ada) |\n| `docker compose up -d --build` | setelah mengubah file di folder `web`, supaya image dibangun ulang |\n| `docker compose build web` | hanya membangun image tanpa menjalankan |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`web/Dockerfile`:\n\n```dockerfile\nFROM nginx:alpine\nCOPY . /usr/share/nginx/html/\n```\n\nMenjalankan seluruh proyek (output build dipersingkat):\n\n```text\nbudi@laptop:~/toko-lengkap$ docker compose up -d --build\n[+] Building 0.8s (9/9) FINISHED\n => [internal] load local bake definitions                                 0.0s\n => [internal] load build definition from Dockerfile                       0.1s\n ...\n => [2/2] COPY . /usr/share/nginx/html/                                    0.0s\n => exporting to image                                                     0.3s\n => => naming to docker.io/library/toko-lengkap-web:latest                 0.0s\n[+] up 6/6\n ✔ Image toko-lengkap-web           Built                                  0.9s\n ✔ Network toko-lengkap_default     Created                                0.1s\n ✔ Volume toko-lengkap_db-data      Created                                0.0s\n ✔ Container toko-lengkap-db-1      Healthy                               15.9s\n ✔ Container toko-lengkap-web-1     Started                                0.4s\n ✔ Container toko-lengkap-adminer-1 Started                               16.0s\nbudi@laptop:~/toko-lengkap$ docker compose exec web ls /usr/share/nginx/html\n50x.html\nDockerfile\nindex.html\nstyle.css\n```\n\n- Image hasil build diberi nama `toko-lengkap-web` (proyek + service).\n- `http://localhost:8080` membuka website toko, `http://localhost:8081` membuka Adminer (Server: `db`).\n- Ada yang kurang rapi: `Dockerfile` ikut tersalin ke folder halaman. Perbaikannya sudah kamu pelajari: tambahkan `web/.dockerignore` berisi `Dockerfile` dan `.dockerignore`, lalu `docker compose up -d --build`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengubah file website tapi lupa build ulang**\n\nSalah:\n\n```bash\n# edit web/index.html\ndocker compose up -d        # image lama tetap dipakai, perubahan tidak terlihat\n```\n\nBenar:\n\n```bash\ndocker compose up -d --build\n```\n\nImage `web` sudah ada, jadi `up` biasa tidak membangunnya lagi. Tambahkan `--build` setiap kali isi folder `web` berubah.\n\n**2. Menulis `image` dan `build` dengan maksud yang tertukar**\n\nSalah:\n\n```yaml\n  web:\n    image: ./web\n```\n\n```text\n[+] up 0/1\n ⠋ Image ./web Pulling\ninvalid reference format\n```\n\nBenar:\n\n```yaml\n  web:\n    build: ./web\n```\n\n`image:` berisi **nama image** (misalnya `nginx:alpine`). Folder berisi Dockerfile ditulis di `build:`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Service `web` image-nya dibuat dari Dockerfile di folder `web`. Yang ditulis di `compose.yaml` adalah...",
+          "options": [
+            "image: ./web",
+            "build: ./web",
+            "dockerfile: web",
+            "from: ./web"
+          ],
+          "answer": 1,
+          "explanation": "`build:` menunjuk folder berisi Dockerfile. `image:` untuk nama image yang sudah ada.",
+          "remedial": "- `build: ./web` membangun image dari Dockerfile di folder itu, sebagai pengganti `image:`\n- `docker compose up -d --build` memaksa build ulang sebelum menjalankan\n- Nama image hasil build: `<proyek>-<service>`\n- Satu `compose.yaml` bisa menggabungkan service buatan sendiri dan image dari Docker Hub\n- Simpan `compose.yaml`, Dockerfile, dan `.env.example` di Git; `.env` tidak"
+        },
+        {
+          "question": "Setelah mengubah `web/index.html`, perintah yang memastikan perubahan terlihat adalah...",
+          "options": [
+            "docker compose up -d",
+            "docker compose ps",
+            "docker compose up -d --build",
+            "docker compose logs"
+          ],
+          "answer": 2,
+          "explanation": "Tanpa `--build`, Compose memakai image `web` yang sudah ada.",
+          "remedial": "- `build: ./web` membangun image dari Dockerfile di folder itu, sebagai pengganti `image:`\n- `docker compose up -d --build` memaksa build ulang sebelum menjalankan\n- Nama image hasil build: `<proyek>-<service>`\n- Satu `compose.yaml` bisa menggabungkan service buatan sendiri dan image dari Docker Hub\n- Simpan `compose.yaml`, Dockerfile, dan `.env.example` di Git; `.env` tidak"
+        },
+        {
+          "question": "Proyek di folder `toko-lengkap` punya service `web` dengan `build: ./web`. Nama image hasil build-nya adalah...",
+          "options": [
+            "web",
+            "nginx:alpine",
+            "toko-lengkap",
+            "toko-lengkap-web"
+          ],
+          "answer": 3,
+          "explanation": "Compose menamai image hasil build dengan pola `<proyek>-<service>`.",
+          "remedial": "- `build: ./web` membangun image dari Dockerfile di folder itu, sebagai pengganti `image:`\n- `docker compose up -d --build` memaksa build ulang sebelum menjalankan\n- Nama image hasil build: `<proyek>-<service>`\n- Satu `compose.yaml` bisa menggabungkan service buatan sendiri dan image dari Docker Hub\n- Simpan `compose.yaml`, Dockerfile, dan `.env.example` di Git; `.env` tidak"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Dari folder `toko-lengkap`, alamat apa yang membuka Adminer di browser?",
+      "code": "services:\n  web:\n    build: ./web\n    ports:\n      - \"8080:80\"\n  db:\n    image: mysql:8.4\n  adminer:\n    image: adminer\n    ports:\n      - \"8081:8080\"",
+      "options": [
+        "http://localhost:8081",
+        "http://localhost:8080",
+        "http://db:8080",
+        "http://localhost:3306"
+      ],
+      "answer": 0,
+      "explanation": "Port kiri adalah port di komputer. Adminer dibuka lewat 8081, sedangkan 8080 dipakai website."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Bangun image service web dari folder ./web, lalu jalankan semua dengan build ulang\nservices:\n  web:\n    ___: ./web\n\n# di terminal:\ndocker compose up -d ___",
+      "answers": [
+        "build",
+        "--build"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "build: menunjuk folder berisi Dockerfile, sebagai pengganti image:.",
+        "docker compose up -d --build membangun ulang image sebelum menjalankan.",
+        "Nama image hasil build berpola proyek-service.",
+        "Satu compose.yaml bisa menggabungkan service buatan sendiri dan image dari Docker Hub.",
+        "Commit compose.yaml, Dockerfile, dan .env.example; jangan commit .env."
+      ]
+    }
+  ]
+}

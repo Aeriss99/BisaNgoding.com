@@ -1,0 +1,99 @@
+{
+  "id": "devops-docker-07",
+  "moduleId": "devops-docker",
+  "order": 7,
+  "title": "Volume dan Bind Mount",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Container dirancang **sekali pakai**: boleh dihapus dan dibuat ulang kapan saja. Masalahnya, semua file yang ditulis di dalam container **ikut hilang** saat container dihapus. Untuk website statis itu tidak masalah, tapi untuk database itu bencana.\n\nDocker punya dua cara menyimpan data di luar container:\n\n- **Volume**: tempat penyimpanan yang dibuat dan dikelola Docker. Kamu cukup memberi nama, Docker yang mengurus letaknya.\n- **Bind mount**: folder tertentu di komputermu dipasang langsung ke dalam container. Perubahan di satu sisi langsung terlihat di sisi lain.\n\nIbarat kamar kos: container adalah kamar yang bisa dikosongkan dan disewakan ulang kapan saja. Volume adalah loker penyimpanan milikmu di gudang: walaupun kamu pindah kamar, barang di loker tetap aman dan bisa dipakai di kamar baru."
+    },
+    {
+      "type": "theory",
+      "content": "| Jenis | Cara memasang | Cocok untuk |\n|---|---|---|\n| Volume | `-v db-data:/var/lib/mysql` | data database dan data aplikasi yang harus awet |\n| Bind mount | `-v \"$(pwd)\":/usr/share/nginx/html` | pengembangan: edit file di laptop, langsung terlihat di container |\n\nFormatnya sama dengan `-p`: **kiri milik komputermu** (nama volume atau path folder), **kanan path di dalam container**. Kalau bagian kiri berupa nama (tanpa `/`), itu volume. Kalau berupa path (`/home/...`, `./`, `\"$(pwd)\"`), itu bind mount.\n\n**Perintah volume**\n\n| Perintah | Fungsinya |\n|---|---|\n| `docker volume create catatan` | membuat volume (juga dibuat otomatis oleh `-v` kalau belum ada) |\n| `docker volume ls` | daftar volume |\n| `docker volume inspect catatan` | detail volume, termasuk lokasinya di disk |\n| `docker volume rm catatan` | menghapus volume beserta seluruh isinya |\n\nImage database resmi sudah memberi tahu folder datanya. Untuk `mysql`, folder itu `/var/lib/mysql`. Jadi menjalankan MySQL yang datanya awet:\n\n```bash\ndocker run -d --name db -e MYSQL_ROOT_PASSWORD=rahasia -v db-data:/var/lib/mysql mysql:8.4\n```\n\nDi Windows PowerShell, `\"$(pwd)\"` ditulis `\"${PWD}\"`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi membuktikan volume tetap menyimpan data walaupun container-nya selalu dihapus (`--rm`):\n\n```text\nbudi@laptop:~$ docker run --rm -v catatan:/data alpine:3.24 sh -c \"echo Belajar Docker hari 1 >> /data/catatan.txt\"\nbudi@laptop:~$ docker run --rm -v catatan:/data alpine:3.24 sh -c \"echo Belajar Docker hari 2 >> /data/catatan.txt\"\nbudi@laptop:~$ docker run --rm -v catatan:/data alpine:3.24 cat /data/catatan.txt\nBelajar Docker hari 1\nBelajar Docker hari 2\nbudi@laptop:~$ docker volume ls\nDRIVER    VOLUME NAME\nlocal     catatan\nbudi@laptop:~$ docker volume inspect catatan\n[\n    {\n        \"CreatedAt\": \"2026-10-19T18:35:03+07:00\",\n        \"Driver\": \"local\",\n        \"Labels\": null,\n        \"Mountpoint\": \"/var/lib/docker/volumes/catatan/_data\",\n        \"Name\": \"catatan\",\n        \"Options\": null,\n        \"Scope\": \"local\"\n    }\n]\n```\n\nTanpa volume, container baru tidak melihat file itu:\n\n```text\nbudi@laptop:~$ docker run --rm alpine:3.24 cat /data/catatan.txt\ncat: can't open '/data/catatan.txt': No such file or directory\n```\n\n- Tiga container berbeda (semuanya langsung dihapus) memakai volume `catatan` yang sama. Isi file terus bertambah.\n- Volume disimpan Docker di `/var/lib/docker/volumes/...`. Kamu tidak perlu mengutak-atik folder itu langsung.\n- Container terakhir tidak memasang volume, jadi `/data/catatan.txt` tidak ada."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menjalankan database tanpa volume**\n\nSalah:\n\n```bash\ndocker run -d --name db -e MYSQL_ROOT_PASSWORD=rahasia mysql:8.4\n# ... mengisi data ...\ndocker rm -f db          # semua tabel dan data ikut hilang\n```\n\nBenar:\n\n```bash\ndocker run -d --name db -e MYSQL_ROOT_PASSWORD=rahasia -v db-data:/var/lib/mysql mysql:8.4\ndocker rm -f db          # data tetap aman di volume db-data\ndocker run -d --name db -e MYSQL_ROOT_PASSWORD=rahasia -v db-data:/var/lib/mysql mysql:8.4\n```\n\nContainer baru yang memasang volume `db-data` langsung memakai data lama.\n\n**2. Menghapus volume yang masih dipakai container**\n\nSalah:\n\n```text\nbudi@laptop:~$ docker volume rm db-data\nError response from daemon: remove db-data: volume is in use - [bb79551ab277c9e180083f5e5cfdfd397327bf5d0356298301634c958268b755]\n```\n\nBenar:\n\n```bash\ndocker rm -f db\ndocker volume rm db-data     # hati-hati: seluruh data di dalamnya terhapus permanen\n```\n\nDocker melindungi volume yang sedang dipakai. Sebelum menghapus volume database, pastikan datanya memang sudah tidak dibutuhkan atau sudah di-backup."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Container MySQL tanpa volume dihapus dengan `docker rm -f db`. Apa yang terjadi pada datanya?",
+          "options": [
+            "Tetap aman di dalam image mysql:8.4",
+            "Otomatis dipindah ke volume",
+            "Tersimpan di Docker Hub",
+            "Ikut hilang bersama container"
+          ],
+          "answer": 3,
+          "explanation": "Tanpa volume, data hanya ada di lapisan tulis milik container itu. Container dihapus, datanya ikut hilang.",
+          "remedial": "- File di dalam container hilang saat container dihapus\n- **Volume** (`-v nama:/path`): penyimpanan yang dikelola Docker, tetap ada walaupun container dihapus\n- **Bind mount** (`-v \"$(pwd)\":/path`): folder di komputermu dipasang langsung ke container\n- Data database selalu disimpan di volume\n- `docker volume ls`, `docker volume inspect`, `docker volume rm` untuk mengelola volume"
+        },
+        {
+          "question": "Pada `-v db-data:/var/lib/mysql`, bagian `db-data` adalah...",
+          "options": [
+            "Nama volume di sisi komputer (dikelola Docker)",
+            "Folder di dalam container",
+            "Nama database MySQL",
+            "Nama image"
+          ],
+          "answer": 0,
+          "explanation": "Kiri = milik komputer (di sini nama volume), kanan = path di dalam container.",
+          "remedial": "- File di dalam container hilang saat container dihapus\n- **Volume** (`-v nama:/path`): penyimpanan yang dikelola Docker, tetap ada walaupun container dihapus\n- **Bind mount** (`-v \"$(pwd)\":/path`): folder di komputermu dipasang langsung ke container\n- Data database selalu disimpan di volume\n- `docker volume ls`, `docker volume inspect`, `docker volume rm` untuk mengelola volume"
+        },
+        {
+          "question": "Kamu ingin mengedit `index.html` di laptop dan langsung melihat hasilnya di container nginx tanpa build ulang. Yang dipakai adalah...",
+          "options": [
+            "Volume bernama html",
+            "Bind mount, misalnya -v \"$(pwd)\":/usr/share/nginx/html",
+            "docker build ulang setiap kali",
+            "docker exec lalu mengetik ulang isi file"
+          ],
+          "answer": 1,
+          "explanation": "Bind mount memasang folder laptop langsung ke container, jadi perubahan file langsung terlihat.",
+          "remedial": "- File di dalam container hilang saat container dihapus\n- **Volume** (`-v nama:/path`): penyimpanan yang dikelola Docker, tetap ada walaupun container dihapus\n- **Bind mount** (`-v \"$(pwd)\":/path`): folder di komputermu dipasang langsung ke container\n- Data database selalu disimpan di volume\n- `docker volume ls`, `docker volume inspect`, `docker volume rm` untuk mengelola volume"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "docker run --rm -v buku:/data alpine:3.24 sh -c \"echo Bab 1 >> /data/isi.txt\"\ndocker run --rm -v buku:/data alpine:3.24 sh -c \"echo Bab 2 >> /data/isi.txt\"\ndocker run --rm -v buku:/data alpine:3.24 sh -c \"echo Bab 3 >> /data/isi.txt\"\ndocker run --rm -v buku:/data alpine:3.24 cat /data/isi.txt",
+      "options": [
+        "Bab 3",
+        "cat: can't open '/data/isi.txt': No such file or directory",
+        "Bab 1\nBab 2\nBab 3",
+        "Bab 1"
+      ],
+      "answer": 2,
+      "explanation": "Walaupun setiap container langsung dihapus (`--rm`), semuanya memakai volume `buku` yang sama, dan `>>` menambah baris di akhir file."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Simpan data MySQL di volume bernama db-data, lalu tampilkan daftar volume\ndocker run -d --name db -e MYSQL_ROOT_PASSWORD=rahasia -v ___:/var/lib/mysql mysql:8.4\ndocker volume ___",
+      "answers": [
+        "db-data",
+        "ls|list"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "File di dalam container hilang saat container dihapus.",
+        "Volume (-v nama:/path) dikelola Docker dan tetap ada walaupun container dihapus.",
+        "Bind mount (-v path-komputer:/path) memasang folder laptop langsung ke container.",
+        "Data database selalu disimpan di volume; folder data mysql adalah /var/lib/mysql.",
+        "docker volume rm menghapus volume beserta isinya secara permanen."
+      ]
+    }
+  ]
+}

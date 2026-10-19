@@ -9,7 +9,7 @@ describe('Pencarian menu atas', () => {
     expect(idx.some((h) => h.jenis === 'modul' && h.id === 'generics')).toBe(true);
     expect(idx.some((h) => h.jenis === 'materi')).toBe(true);
     // Kelas yang belum siap tidak ikut
-    expect(idx.some((h) => h.jenis === 'kelas' && h.id === 'spring-boot')).toBe(false);
+    expect(idx.some((h) => h.jenis === 'kelas' && h.id === 'nodejs')).toBe(false);
   });
 
   it('mencari tanpa peduli huruf besar-kecil, semua kata harus ada', () => {

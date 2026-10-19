@@ -1,0 +1,99 @@
+{
+  "id": "spring-dasar-06",
+  "moduleId": "spring-dasar",
+  "order": 6,
+  "title": "Scope dan Siklus Hidup Bean",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sejauh ini semua bean adalah **singleton**: dibuat sekali, dipakai bersama. Itu cocok untuk service, repository, dan koneksi database. Tapi kadang kamu butuh objek baru setiap kali, misalnya **keranjang belanja**: setiap pembeli harus punya keranjangnya sendiri.\n\nAturan berapa banyak objek yang dibuat untuk sebuah bean disebut **scope**.\n\n- **singleton** ibarat printer kantor: satu untuk semua orang.\n- **prototype** ibarat gelas kertas: setiap orang yang minta diberi gelas baru.\n\nSelain scope, bean juga punya **siklus hidup**. Kadang ada pekerjaan yang harus dilakukan tepat setelah bean siap (misalnya membuka koneksi), atau tepat sebelum aplikasi berhenti (menutup koneksi). Spring menyediakan tempat untuk kedua momen itu."
+    },
+    {
+      "type": "theory",
+      "content": "**Scope**\n\n| Scope | Cara memasang | Perilaku |\n|---|---|---|\n| singleton | bawaan, tidak perlu ditulis | satu objek per container; dibuat saat container dibuat |\n| prototype | `@Scope(\"prototype\")` | objek baru setiap `getBean` atau setiap disuntikkan; dibuat saat diminta |\n\nAda juga scope khusus aplikasi web (`request`, `session`) yang dibahas di modul web. Singleton bisa ditunda pembuatannya sampai pertama kali diminta dengan `@Lazy`.\n\n**Siklus hidup bean singleton**\n\n1. Constructor dipanggil\n2. Dependency diisi\n3. Method ber-`@PostConstruct` dipanggil\n4. Bean siap dipakai\n5. Saat `context.close()`: method ber-`@PreDestroy` dipanggil\n\n`@PostConstruct` dan `@PreDestroy` diimpor dari **`jakarta.annotation`**, dan sudah ikut di `spring-boot-starter`. Alternatifnya, untuk method `@Bean`: `@Bean(initMethod = \"buka\", destroyMethod = \"tutup\")`.\n\n**Penting untuk prototype:** Spring membuat bean prototype lalu langsung menyerahkannya ke pemanggil, tanpa menyimpannya. Karena itu `@PostConstruct` tetap dipanggil, tapi **`@PreDestroy` tidak pernah dipanggil**."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\npublic class Keranjang {\n    private final List<String> isi = new ArrayList<>();\n\n    public Keranjang() {\n        System.out.println(\"Keranjang baru dibuat\");\n    }\n\n    public void tambah(String produk) { isi.add(produk); }\n    public List<String> getIsi() { return isi; }\n}\n```\n\n```java\nimport jakarta.annotation.PostConstruct;\nimport jakarta.annotation.PreDestroy;\n\npublic class KoneksiDatabase {\n\n    public KoneksiDatabase() {\n        System.out.println(\"1. Constructor dipanggil\");\n    }\n\n    @PostConstruct\n    public void buka() {\n        System.out.println(\"2. Koneksi dibuka\");\n    }\n\n    @PreDestroy\n    public void tutup() {\n        System.out.println(\"3. Koneksi ditutup\");\n    }\n}\n```\n\n```java\n@Configuration\npublic class ScopeConfig {\n\n    @Bean\n    @Scope(\"prototype\")\n    public Keranjang keranjang() {\n        return new Keranjang();\n    }\n\n    @Bean\n    public KoneksiDatabase koneksiDatabase() {\n        return new KoneksiDatabase();\n    }\n}\n```\n\n```java\nvar context = new AnnotationConfigApplicationContext(ScopeConfig.class);\nSystem.out.println(\"Context siap\");\n\nKeranjang k1 = context.getBean(Keranjang.class);\nKeranjang k2 = context.getBean(Keranjang.class);\nk1.tambah(\"Kopi Susu\");\n\nSystem.out.println(k1 == k2);\nSystem.out.println(k2.getIsi());\n\ncontext.close();\nSystem.out.println(\"Selesai\");\n```\n\nHasilnya:\n\n```text\n1. Constructor dipanggil\n2. Koneksi dibuka\nContext siap\nKeranjang baru dibuat\nKeranjang baru dibuat\nfalse\n[]\n3. Koneksi ditutup\nSelesai\n```\n\n- `KoneksiDatabase` (singleton) dibuat dan dibuka **sebelum** `Context siap`.\n- `Keranjang` (prototype) baru dibuat saat diminta, dan setiap `getBean` menghasilkan objek baru. Karena itu `k1 == k2` bernilai `false` dan isi `k2` masih kosong.\n- `context.close()` memanggil `@PreDestroy` milik `KoneksiDatabase`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan data milik satu pengguna di bean singleton**\n\nSalah:\n\n```java\n@Bean\npublic Keranjang keranjang() {   // singleton\n    return new Keranjang();\n}\n// Andi menambah \"Kopi Susu\", lalu Sari mengambil keranjang: isinya sudah ada \"Kopi Susu\"\n```\n\nBenar:\n\n```java\n@Bean\n@Scope(\"prototype\")\npublic Keranjang keranjang() {\n    return new Keranjang();\n}\n```\n\nSingleton dipakai bersama oleh semua pemanggil. Data yang berbeda untuk setiap pengguna jangan disimpan di field bean singleton.\n\n**2. Mengimpor anotasi dari package lama `javax`**\n\nSalah:\n\n```java\nimport javax.annotation.PostConstruct;\n```\n\n```text\nerror: package javax.annotation does not exist\n```\n\nBenar:\n\n```java\nimport jakarta.annotation.PostConstruct;\n```\n\nTutorial lama (Spring Boot 2) memakai `javax`. Sejak Spring Boot 3, semua package itu pindah ke `jakarta`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa scope bawaan sebuah bean di Spring?",
+          "options": [
+            "prototype",
+            "request",
+            "singleton",
+            "session"
+          ],
+          "answer": 2,
+          "explanation": "Tanpa `@Scope`, bean adalah singleton: satu objek untuk seluruh container.",
+          "remedial": "- **singleton** (bawaan): satu objek untuk seluruh container\n- **prototype** (`@Scope(\"prototype\")`): objek baru setiap kali bean diminta\n- Urutan hidup bean: constructor → dependency diisi → `@PostConstruct` → siap dipakai → `@PreDestroy` saat container ditutup\n- `@PreDestroy` tidak dipanggil untuk bean prototype\n- `@PostConstruct` dan `@PreDestroy` berasal dari package `jakarta.annotation`"
+        },
+        {
+          "question": "Untuk bean singleton, mana urutan yang benar?",
+          "options": [
+            "@PostConstruct, lalu constructor, lalu @PreDestroy",
+            "Constructor, lalu @PreDestroy, lalu @PostConstruct",
+            "@PreDestroy dipanggil sebelum bean dipakai pertama kali",
+            "Constructor, lalu @PostConstruct, lalu bean dipakai, lalu @PreDestroy saat container ditutup"
+          ],
+          "answer": 3,
+          "explanation": "Objek harus dibuat dulu (constructor) dan dependency diisi, baru `@PostConstruct` dipanggil. `@PreDestroy` dipanggil paling akhir saat `close()`.",
+          "remedial": "- **singleton** (bawaan): satu objek untuk seluruh container\n- **prototype** (`@Scope(\"prototype\")`): objek baru setiap kali bean diminta\n- Urutan hidup bean: constructor → dependency diisi → `@PostConstruct` → siap dipakai → `@PreDestroy` saat container ditutup\n- `@PreDestroy` tidak dipanggil untuk bean prototype\n- `@PostConstruct` dan `@PreDestroy` berasal dari package `jakarta.annotation`"
+        },
+        {
+          "question": "Bean `KoneksiDatabase` diberi `@Scope(\"prototype\")`. Saat `context.close()`, apakah method `@PreDestroy`-nya dipanggil?",
+          "options": [
+            "Tidak, Spring tidak mengurus akhir hidup bean prototype",
+            "Ya, sekali untuk semua objek",
+            "Ya, sekali untuk setiap objek yang pernah dibuat",
+            "Muncul error karena prototype tidak boleh punya @PreDestroy"
+          ],
+          "answer": 0,
+          "explanation": "Bean prototype diserahkan ke pemanggil dan tidak disimpan container, jadi container tidak tahu kapan harus membereskannya.",
+          "remedial": "- **singleton** (bawaan): satu objek untuk seluruh container\n- **prototype** (`@Scope(\"prototype\")`): objek baru setiap kali bean diminta\n- Urutan hidup bean: constructor → dependency diisi → `@PostConstruct` → siap dipakai → `@PreDestroy` saat container ditutup\n- `@PreDestroy` tidak dipanggil untuk bean prototype\n- `@PostConstruct` dan `@PreDestroy` berasal dari package `jakarta.annotation`"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil program ini?",
+      "code": "@Configuration\npublic class ScopeConfig {\n\n    @Bean\n    @Scope(\"prototype\")\n    public KoneksiDatabase koneksiDatabase() {\n        return new KoneksiDatabase();   // class KoneksiDatabase sama seperti contoh\n    }\n}\n\n// di main:\nvar context = new AnnotationConfigApplicationContext(ScopeConfig.class);\nSystem.out.println(\"Context siap\");\n\ncontext.getBean(KoneksiDatabase.class);\ncontext.getBean(KoneksiDatabase.class);\n\ncontext.close();\nSystem.out.println(\"Selesai\");",
+      "options": [
+        "1. Constructor dipanggil\n2. Koneksi dibuka\nContext siap\n3. Koneksi ditutup\nSelesai",
+        "Context siap\n1. Constructor dipanggil\n2. Koneksi dibuka\n1. Constructor dipanggil\n2. Koneksi dibuka\nSelesai",
+        "Context siap\n1. Constructor dipanggil\n2. Koneksi dibuka\n1. Constructor dipanggil\n2. Koneksi dibuka\n3. Koneksi ditutup\n3. Koneksi ditutup\nSelesai",
+        "Context siap\n1. Constructor dipanggil\n2. Koneksi dibuka\nSelesai"
+      ],
+      "answer": 1,
+      "explanation": "Prototype baru dibuat saat diminta, dua `getBean` berarti dua objek (masing-masing memanggil constructor dan `@PostConstruct`). Saat `close()`, `@PreDestroy` tidak dipanggil untuk prototype."
+    },
+    {
+      "type": "fill_blank",
+      "code": "// Jadikan Keranjang prototype, dan panggil method siapkan() setelah bean dibuat\n@Bean\n@___(\"prototype\")\npublic Keranjang keranjang() {\n    return new Keranjang();\n}\n\npublic class Keranjang {\n    @___\n    public void siapkan() {\n        System.out.println(\"Keranjang siap dipakai\");\n    }\n}",
+      "answers": [
+        "Scope",
+        "PostConstruct"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Singleton (bawaan): satu objek untuk seluruh container, dibuat saat container dibuat.",
+        "Prototype: objek baru setiap kali bean diminta.",
+        "Siklus hidup: constructor, dependency diisi, @PostConstruct, dipakai, lalu @PreDestroy saat close.",
+        "@PreDestroy tidak dipanggil untuk bean prototype.",
+        "Impor @PostConstruct dan @PreDestroy dari jakarta.annotation, bukan javax."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "id": "devops-docker-05",
+  "moduleId": "devops-docker",
+  "order": 5,
+  "title": "Membuat Image dengan Dockerfile",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sejauh ini kamu memakai image buatan orang lain. Sekarang saatnya membuat image sendiri yang berisi aplikasimu.\n\nImage dibuat dari file bernama **`Dockerfile`** (tanpa ekstensi). Dockerfile adalah **resep**: daftar langkah berurutan untuk membangun image. Contoh paling sederhana untuk website statis:\n\n```dockerfile\nFROM nginx:alpine\nCOPY index.html style.css /usr/share/nginx/html/\n```\n\nArtinya: \"mulai dari image `nginx:alpine`, lalu salin `index.html` dan `style.css` ke folder halaman web nginx\". Hasilnya adalah image nginx yang sudah berisi website-mu.\n\nImage dibangun dengan:\n\n```bash\ndocker build -t toko-web:1.0 .\n```\n\n- `-t toko-web:1.0` memberi nama dan tag image.\n- **Titik** di akhir adalah **konteks build**: folder yang isinya boleh dipakai oleh `COPY`. Biasanya folder tempat Dockerfile berada."
+    },
+    {
+      "type": "theory",
+      "content": "**Instruksi Dockerfile yang paling sering dipakai**\n\n| Instruksi | Fungsinya | Contoh |\n|---|---|---|\n| `FROM` | image dasar, selalu di baris pertama | `FROM eclipse-temurin:21-jre` |\n| `WORKDIR` | folder kerja untuk instruksi berikutnya (dibuat otomatis kalau belum ada) | `WORKDIR /app` |\n| `COPY` | menyalin file dari konteks build ke image | `COPY target/toko.jar app.jar` |\n| `RUN` | menjalankan perintah **saat build** | `RUN apk add --no-cache curl` |\n| `ENV` | mengatur environment variable di image | `ENV TZ=Asia/Jakarta` |\n| `EXPOSE` | mencatat port yang dipakai aplikasi | `EXPOSE 8080` |\n| `CMD` | perintah bawaan **saat container dijalankan** | `CMD [\"java\", \"-jar\", \"app.jar\"]` |\n\n**`RUN` vs `CMD`.** `RUN` dijalankan sekali saat image dibangun (misalnya memasang paket). `CMD` dijalankan setiap kali container dinyalakan. Dockerfile untuk website di atas tidak menulis `CMD`, karena `CMD` milik `nginx:alpine` (menjalankan nginx) ikut diwarisi.\n\n**`EXPOSE` hanya catatan.** Menulis `EXPOSE 80` tidak membuka port apa pun. Port tetap harus dibuka dengan `-p` saat `docker run`.\n\nContoh Dockerfile untuk aplikasi Spring Boot yang sudah di-build menjadi `.jar`:\n\n```dockerfile\nFROM eclipse-temurin:21-jre\nWORKDIR /app\nCOPY target/toko.jar app.jar\nEXPOSE 8080\nCMD [\"java\", \"-jar\", \"app.jar\"]\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nFolder proyek Budi:\n\n```text\ntoko-web/\n├── Dockerfile\n├── index.html\n└── style.css\n```\n\n```dockerfile\nFROM nginx:alpine\nCOPY index.html style.css /usr/share/nginx/html/\n```\n\n```text\nbudi@laptop:~/toko-web$ docker build -t toko-web:1.0 .\n[+] Building 0.8s (7/7) FINISHED                                 docker:default\n => [internal] load build definition from Dockerfile                       0.0s\n => => transferring dockerfile: 104B                                       0.0s\n => [internal] load metadata for docker.io/library/nginx:alpine            0.0s\n => [internal] load .dockerignore                                          0.0s\n => => transferring context: 2B                                            0.0s\n => [internal] load build context                                          0.0s\n => => transferring context: 370B                                          0.0s\n => [1/2] FROM docker.io/library/nginx:alpine@sha256:fdf93e0260ccd0af97f4  0.2s\n => => resolve docker.io/library/nginx:alpine@sha256:fdf93e0260ccd0af97f4  0.0s\n => [2/2] COPY index.html style.css /usr/share/nginx/html/                 0.0s\n => exporting to image                                                     0.4s\n => => exporting layers                                                    0.1s\n => => exporting manifest sha256:5a8a851a5d65ee6d92a2f6e76eda05fb2c7965d1  0.0s\n => => exporting config sha256:dbbf78e1cc87c25fba2086ad298c3d2db940271443  0.0s\n => => exporting attestation manifest sha256:b080fde110112fed0c9858ae5889  0.0s\n => => exporting manifest list sha256:d7646c747f8924ba08b7fb046384ed9813d  0.0s\n => => naming to docker.io/library/toko-web:1.0                            0.1s\n => => unpacking to docker.io/library/toko-web:1.0                         0.0s\nbudi@laptop:~/toko-web$ docker run -d --name toko -p 8080:80 toko-web:1.0\n10d5fc5a3404d34f9fbb5e237397348051c36ae7aab0b52ed0ac0fc4514d0cec\nbudi@laptop:~/toko-web$ curl localhost:8080\n<!DOCTYPE html>\n<html lang=\"id\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Toko Kopi Budi</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n  <h1>Toko Kopi Budi</h1>\n  <p>Buka setiap hari, 08.00 - 22.00</p>\n</body>\n</html>\n```\n\n- Baris `[1/2]` dan `[2/2]` adalah dua langkah Dockerfile: `FROM` lalu `COPY`. Baris berlabel `[internal]` dan `exporting` adalah pekerjaan Docker sendiri.\n- `naming to docker.io/library/toko-web:1.0`: image baru tersimpan dengan nama `toko-web:1.0`.\n- Halaman nginx bawaan sudah diganti dengan `index.html` milik Budi."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa titik di akhir `docker build`**\n\nSalah:\n\n```text\nbudi@laptop:~/toko-web$ docker build -t toko-web:1.0\nERROR: docker: 'docker buildx build' requires 1 argument\n\nUsage:  docker buildx build [OPTIONS] PATH | URL | -\n\nRun 'docker buildx build --help' for more information\n```\n\nBenar:\n\n```bash\ndocker build -t toko-web:1.0 .\n```\n\n`docker build` butuh satu argumen: folder konteks build. Titik berarti \"folder ini\".\n\n**2. COPY file yang tidak ada di konteks (atau salah ketik)**\n\nSalah:\n\n```dockerfile\nFROM nginx:alpine\nCOPY indx.html /usr/share/nginx/html/\n```\n\n```text\n => ERROR [2/2] COPY indx.html /usr/share/nginx/html/                      0.0s\n------\nDockerfile:2\n--------------------\n   1 |     FROM nginx:alpine\n   2 | >>> COPY indx.html /usr/share/nginx/html/\n   3 |\n--------------------\nERROR: failed to build: failed to solve: failed to compute cache key: failed to calculate checksum of ref fyw48hn411yxecr4ctwcwoivl::ldkup2rnm8uw1te7pkt8jw9sm: \"/indx.html\": not found\n```\n\nBenar:\n\n```dockerfile\nCOPY index.html /usr/share/nginx/html/\n```\n\nDocker menunjukkan baris yang salah (`>>>`) dan nama file yang tidak ditemukan (`\"/indx.html\": not found`). `COPY` juga tidak bisa mengambil file di luar konteks, misalnya `../rahasia.txt`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Instruksi yang harus ada di baris pertama Dockerfile (menentukan image dasar) adalah...",
+          "options": [
+            "RUN",
+            "FROM",
+            "CMD",
+            "COPY"
+          ],
+          "answer": 1,
+          "explanation": "`FROM` menentukan image dasar yang akan ditambah langkah-langkah berikutnya.",
+          "remedial": "- **Dockerfile** = resep membuat image sendiri\n- `FROM` (image dasar), `WORKDIR` (folder kerja), `COPY` (salin file), `RUN` (jalankan perintah saat build), `EXPOSE` (catatan port), `CMD` (perintah saat container dijalankan)\n- `docker build -t nama:tag .` membangun image; titik = folder konteks build\n- `EXPOSE` hanya dokumentasi; tetap butuh `-p` saat `docker run`\n- File yang di-COPY harus ada di folder konteks"
+        },
+        {
+          "question": "Pada `docker build -t toko-web:1.0 .`, titik di akhir berarti...",
+          "options": [
+            "Akhir dari perintah, seperti titik di kalimat",
+            "Tag image kosong",
+            "Folder saat ini dipakai sebagai konteks build",
+            "Build diulang sekali lagi"
+          ],
+          "answer": 2,
+          "explanation": "Konteks build adalah folder yang isinya boleh dipakai oleh `COPY`. Titik = folder tempat kamu berada.",
+          "remedial": "- **Dockerfile** = resep membuat image sendiri\n- `FROM` (image dasar), `WORKDIR` (folder kerja), `COPY` (salin file), `RUN` (jalankan perintah saat build), `EXPOSE` (catatan port), `CMD` (perintah saat container dijalankan)\n- `docker build -t nama:tag .` membangun image; titik = folder konteks build\n- `EXPOSE` hanya dokumentasi; tetap butuh `-p` saat `docker run`\n- File yang di-COPY harus ada di folder konteks"
+        },
+        {
+          "question": "Dockerfile berisi `EXPOSE 80`. Apakah container otomatis bisa dibuka di `http://localhost:80`?",
+          "options": [
+            "Ya, EXPOSE membuka port 80 di komputer",
+            "Ya, tapi hanya di Windows",
+            "Tidak, karena EXPOSE menutup port 80",
+            "Tidak, EXPOSE hanya catatan; port tetap harus dibuka dengan -p saat docker run"
+          ],
+          "answer": 3,
+          "explanation": "`EXPOSE` adalah dokumentasi tentang port yang dipakai aplikasi. Yang benar-benar membuka akses adalah `-p port_komputer:port_container`.",
+          "remedial": "- **Dockerfile** = resep membuat image sendiri\n- `FROM` (image dasar), `WORKDIR` (folder kerja), `COPY` (salin file), `RUN` (jalankan perintah saat build), `EXPOSE` (catatan port), `CMD` (perintah saat container dijalankan)\n- `docker build -t nama:tag .` membangun image; titik = folder konteks build\n- `EXPOSE` hanya dokumentasi; tetap butuh `-p` saat `docker run`\n- File yang di-COPY harus ada di folder konteks"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Berapa langkah bernomor (`[1/N]` sampai `[N/N]`) yang muncul saat Dockerfile ini di-build?",
+      "code": "FROM nginx:alpine\nWORKDIR /usr/share/nginx/html\nRUN rm index.html\nCOPY . .\nEXPOSE 80",
+      "options": [
+        "4 langkah: FROM, WORKDIR, RUN, COPY",
+        "5 langkah: semua baris",
+        "2 langkah: FROM dan COPY",
+        "1 langkah: FROM saja"
+      ],
+      "answer": 0,
+      "explanation": "`EXPOSE` (juga `CMD` dan `ENV`) hanya menambah informasi ke image, bukan langkah yang dikerjakan, jadi tidak diberi nomor. Hasil build-nya `[1/4]` sampai `[4/4]`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Image website: mulai dari nginx alpine, salin halaman ke folder nginx\n___ nginx:alpine\n___ index.html style.css /usr/share/nginx/html/",
+      "answers": [
+        "FROM",
+        "COPY"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Dockerfile adalah resep untuk membangun image sendiri.",
+        "FROM menentukan image dasar; COPY menyalin file; RUN dijalankan saat build; CMD saat container dijalankan.",
+        "docker build -t nama:tag . membangun image dari folder saat ini sebagai konteks.",
+        "EXPOSE hanya catatan; port tetap dibuka dengan -p.",
+        "File yang di-COPY harus ada di dalam folder konteks build."
+      ]
+    }
+  ]
+}

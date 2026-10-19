@@ -1,0 +1,99 @@
+{
+  "id": "devops-compose-01",
+  "moduleId": "devops-compose",
+  "order": 1,
+  "title": "Mengenal Docker Compose",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi sungguhan jarang hanya satu container. Toko online butuh setidaknya aplikasi web dan database, kadang ditambah alat admin database, cache, dan lainnya.\n\nDengan `docker run` saja, kamu harus mengetik perintah panjang untuk setiap container, dengan urutan yang benar, dan mengingat semua opsinya:\n\n```bash\ndocker volume create db-data\ndocker run -d --name db -e MYSQL_ROOT_PASSWORD=rahasia -e MYSQL_DATABASE=toko -v db-data:/var/lib/mysql mysql:8.4\ndocker run -d --name adminer -p 8080:8080 adminer\n```\n\n**Docker Compose** menyelesaikan masalah itu. Semua container ditulis sekali di file **`compose.yaml`**, lalu cukup satu perintah untuk menjalankan semuanya: `docker compose up -d`.\n\nIbarat memesan paket nasi kotak untuk acara: daripada memesan nasi, lauk, sayur, dan minuman satu per satu ke penjual berbeda, kamu menyerahkan satu daftar pesanan, dan semuanya datang bersamaan. File `compose.yaml` adalah daftar pesanan itu, dan karena berupa file, ia bisa disimpan di Git bersama kode."
+    },
+    {
+      "type": "theory",
+      "content": "**Struktur `compose.yaml`**\n\n| Bagian | Artinya | Setara `docker run` |\n|---|---|---|\n| `services:` | daftar container | - |\n| `db:` | nama service (bebas dipilih) | mirip `--name` |\n| `image: mysql:8.4` | image yang dipakai | nama image |\n| `ports:` | daftar port | `-p` |\n| `environment:` | environment variable | `-e` |\n| `volumes:` (di dalam service) | volume atau bind mount | `-v` |\n| `depends_on:` | service yang dinyalakan lebih dulu | - |\n| `volumes:` (paling bawah, sejajar `services:`) | deklarasi volume bernama | `docker volume create` |\n\n**Aturan YAML yang perlu diingat**\n\n- Indentasi menunjukkan isi. Pakai **2 spasi**, jangan tab.\n- Daftar ditulis dengan `- ` (tanda minus dan spasi).\n- `kunci: nilai` dengan spasi setelah titik dua.\n- Tulis port dalam tanda kutip (`\"8080:8080\"`) supaya tidak salah dibaca sebagai angka.\n\nNama file yang dianjurkan adalah `compose.yaml`. Nama lama `docker-compose.yml` masih dikenali. Perintahnya sekarang `docker compose` (dengan spasi), bagian dari Docker. Perintah lama `docker-compose` (dengan tanda minus) adalah versi 1 yang sudah tidak dirawat."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi ingin menjalankan MySQL beserta **Adminer**, aplikasi web kecil untuk mengelola database lewat browser. Ia membuat folder `toko-db` berisi `compose.yaml`:\n\n```yaml\nservices:\n  db:\n    image: mysql:8.4\n    environment:\n      MYSQL_ROOT_PASSWORD: rahasia\n      MYSQL_DATABASE: toko\n    volumes:\n      - db-data:/var/lib/mysql\n\n  adminer:\n    image: adminer\n    ports:\n      - \"8080:8080\"\n    depends_on:\n      - db\n\nvolumes:\n  db-data:\n```\n\n```text\nbudi@laptop:~/toko-db$ docker compose up -d\n[+] up 14/14\n ✔ Image adminer               Pulled                                     16.2s\n ✔ Image mysql:8.4             Pulled                                     31.5s\n ✔ Network toko-db_default     Created                                     0.1s\n ✔ Volume toko-db_db-data      Created                                     0.0s\n ✔ Container toko-db-db-1      Started                                     0.4s\n ✔ Container toko-db-adminer-1 Started                                     0.7s\nbudi@laptop:~/toko-db$ docker compose ps\nNAME                IMAGE       COMMAND                  SERVICE   CREATED         STATUS         PORTS\ntoko-db-adminer-1   adminer     \"entrypoint.sh docke…\"   adminer   2 seconds ago   Up 2 seconds   0.0.0.0:8080->8080/tcp\ntoko-db-db-1        mysql:8.4   \"docker-entrypoint.s…\"   db        3 seconds ago   Up 2 seconds   3306/tcp, 33060/tcp\n```\n\nBudi membuka `http://localhost:8080`, lalu login ke Adminer dengan System **MySQL**, Server **db**, Username **root**, Password **rahasia**, Database **toko**.\n\n- Tiga perintah `docker run` panjang diganti satu file dan satu perintah.\n- Compose memberi awalan nama folder: network `toko-db_default`, volume `toko-db_db-data`, container `toko-db-db-1` dan `toko-db-adminer-1`.\n- Kolom `SERVICE` di `docker compose ps` menunjukkan nama service sesuai di file.\n- Server diisi `db`, yaitu **nama service**. Kenapa nama service bisa dipakai sebagai alamat dibahas di materi jaringan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Indentasi salah**\n\nSalah:\n\n```yaml\nservices:\n  db:\n  image: mysql:8.4\n```\n\n```text\nservices.image must be a mapping\n```\n\nBenar:\n\n```yaml\nservices:\n  db:\n    image: mysql:8.4\n```\n\n`image` harus menjorok di bawah `db` (2 spasi lebih dalam). Kalau sejajar, YAML menganggap `image` adalah nama service baru, dan Compose menolak file itu.\n\n**2. Lupa mendeklarasikan volume bernama**\n\nSalah:\n\n```yaml\nservices:\n  db:\n    image: mysql:8.4\n    volumes:\n      - db-data:/var/lib/mysql\n```\n\n```text\nservice \"db\" refers to undefined volume db-data: invalid compose project\n```\n\nBenar:\n\n```yaml\nservices:\n  db:\n    image: mysql:8.4\n    volumes:\n      - db-data:/var/lib/mysql\n\nvolumes:\n  db-data:\n```\n\nVolume bernama yang dipakai di service harus ditulis juga di bagian `volumes:` paling bawah."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa kegunaan utama Docker Compose?",
+          "options": [
+            "Membuat image dari Dockerfile tanpa Docker",
+            "Menjalankan beberapa container sekaligus dari satu file konfigurasi",
+            "Mengganti Docker Hub",
+            "Menulis kode Java lebih cepat"
+          ],
+          "answer": 1,
+          "explanation": "Compose membaca `compose.yaml` yang berisi semua service, lalu menjalankannya dengan satu perintah.",
+          "remedial": "- **Docker Compose** menjalankan beberapa container sekaligus dari satu file `compose.yaml`\n- Setiap container ditulis sebagai **service** di bawah `services:`\n- `image`, `ports`, `environment`, `volumes` = versi tertulis dari opsi `docker run`\n- Volume bernama dideklarasikan juga di bagian `volumes:` paling bawah\n- Indentasi YAML memakai spasi, bukan tab"
+        },
+        {
+          "question": "Bagian `ports:` di `compose.yaml` setara dengan opsi `docker run` yang mana?",
+          "options": [
+            "-e",
+            "-v",
+            "-p",
+            "-d"
+          ],
+          "answer": 2,
+          "explanation": "`ports` untuk port (`-p`), `environment` untuk `-e`, `volumes` untuk `-v`.",
+          "remedial": "- **Docker Compose** menjalankan beberapa container sekaligus dari satu file `compose.yaml`\n- Setiap container ditulis sebagai **service** di bawah `services:`\n- `image`, `ports`, `environment`, `volumes` = versi tertulis dari opsi `docker run`\n- Volume bernama dideklarasikan juga di bagian `volumes:` paling bawah\n- Indentasi YAML memakai spasi, bukan tab"
+        },
+        {
+          "question": "Nama file Compose yang dianjurkan saat ini adalah...",
+          "options": [
+            "Dockerfile",
+            "docker.json",
+            "compose.txt",
+            "compose.yaml"
+          ],
+          "answer": 3,
+          "explanation": "`compose.yaml` adalah nama yang dianjurkan. `docker-compose.yml` masih dikenali untuk proyek lama.",
+          "remedial": "- **Docker Compose** menjalankan beberapa container sekaligus dari satu file `compose.yaml`\n- Setiap container ditulis sebagai **service** di bawah `services:`\n- `image`, `ports`, `environment`, `volumes` = versi tertulis dari opsi `docker run`\n- Volume bernama dideklarasikan juga di bagian `volumes:` paling bawah\n- Indentasi YAML memakai spasi, bukan tab"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Di folder `kasir`, file `compose.yaml` punya service `app` dan `db`. Setelah `docker compose up -d`, nama container service `db` adalah...",
+      "code": "budi@laptop:~$ cd kasir\nbudi@laptop:~/kasir$ cat compose.yaml\nservices:\n  app:\n    image: nginx:alpine\n  db:\n    image: mysql:8.4\n    environment:\n      MYSQL_ROOT_PASSWORD: rahasia\nbudi@laptop:~/kasir$ docker compose up -d",
+      "options": [
+        "kasir-db-1",
+        "db",
+        "compose-db-1",
+        "mysql-1"
+      ],
+      "answer": 0,
+      "explanation": "Compose menamai container dengan pola `<nama-proyek>-<nama-service>-<nomor>`. Nama proyek bawaannya adalah nama folder, yaitu `kasir`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Service db memakai MySQL 8.4 dan volume bernama db-data\nservices:\n  db:\n    ___: mysql:8.4\n    volumes:\n      - db-data:/var/lib/mysql\n\n___:\n  db-data:",
+      "answers": [
+        "image",
+        "volumes"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Docker Compose menjalankan beberapa container dari satu file compose.yaml.",
+        "Setiap container ditulis sebagai service di bawah services.",
+        "image, ports, environment, dan volumes setara dengan opsi docker run.",
+        "Volume bernama harus dideklarasikan di bagian volumes paling bawah.",
+        "Indentasi YAML memakai spasi; nama container berpola proyek-service-nomor."
+      ]
+    }
+  ]
+}
