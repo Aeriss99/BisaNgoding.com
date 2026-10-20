@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { pasangPembaruanOtomatis, sedangBelajar } from '../lib/pembaruanAplikasi';
+import { pasangPembaruanOtomatis, sedangBelajar, versiLamaTerdeteksi } from '../lib/pembaruanAplikasi';
 
 function jendelaPalsu(hash: string, adaController = true) {
   const dengar: Record<string, (() => void)[]> = {};
@@ -45,6 +45,26 @@ describe('pembaruan versi aplikasi', () => {
     expect(j.win.location.reload).not.toHaveBeenCalled();
     j.win.location.hash = '#/kelas/java';
     j.jendela('hashchange');
+    expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('gambar materi gagal dimuat: cari versi baru dan muat ulang walaupun sedang di materi', async () => {
+    const j = jendelaPalsu('#/lesson/gh-keamanan-02');
+    pasangPembaruanOtomatis(j.win as unknown as Window);
+    versiLamaTerdeteksi();
+    await Promise.resolve(); await Promise.resolve();
+    expect(j.update).toHaveBeenCalled();
+    expect(j.win.location.reload).not.toHaveBeenCalled();
+    j.sw('controllerchange');
+    expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('versi baru sudah aktif tapi tertunda di materi: gambar rusak langsung memicu muat ulang', () => {
+    const j = jendelaPalsu('#/lesson/gh-keamanan-02');
+    pasangPembaruanOtomatis(j.win as unknown as Window);
+    j.sw('controllerchange');
+    expect(j.win.location.reload).not.toHaveBeenCalled();
+    versiLamaTerdeteksi();
     expect(j.win.location.reload).toHaveBeenCalledTimes(1);
   });
 

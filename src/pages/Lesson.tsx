@@ -15,6 +15,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useProgress } from '../context/ProgressContext';
 import { initCheerpJ } from '../lib/javaRunner';
+import { versiLamaTerdeteksi } from '../lib/pembaruanAplikasi';
 import {
   RunnableCardComponent,
   CodeChallengeCardComponent,
@@ -239,6 +240,10 @@ export default function LessonPage() {
                 ),
                 td: ({ children }: any) => (
                   <td className="px-4 py-3">{children}</td>
+                ),
+                img: ({ node, ...props }: any) => (
+                  // Gambar gagal dimuat biasanya berarti materi yang tampil masih versi lama (tersimpan di HP).
+                  <img {...props} onError={versiLamaTerdeteksi} />
                 ),
                 code({ className, children, node, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || '');
