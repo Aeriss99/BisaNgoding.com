@@ -1,0 +1,99 @@
+{
+  "id": "devops-cloud-03",
+  "moduleId": "devops-cloud",
+  "order": 3,
+  "title": "Compute, Storage, Database, dan Jaringan",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Nama layanan cloud sangat banyak dan berbeda di setiap penyedia, tapi hampir semuanya masuk ke empat kelompok besar:\n\n1. **Compute**: tempat kode berjalan.\n2. **Storage**: tempat menyimpan file.\n3. **Database**: tempat menyimpan data terstruktur.\n4. **Network**: cara semua bagian terhubung satu sama lain dan ke internet.\n\nKalau kamu paham keempat kelompok ini, kamu bisa membaca arsitektur aplikasi di penyedia mana pun. Nama boleh berbeda (EC2 di AWS, Compute Engine di Google Cloud, Virtual Machines di Azure), konsepnya sama.\n\nIbarat membangun toko: compute adalah karyawannya, storage adalah gudang, database adalah buku catatan penjualan, dan network adalah jalan, pintu, serta satpam yang mengatur siapa boleh masuk."
+    },
+    {
+      "type": "theory",
+      "content": "**Compute**\n\n| Jenis | Contoh layanan | Cocok untuk |\n|---|---|---|\n| Virtual machine | AWS EC2, Google Compute Engine | kendali penuh, seperti VPS |\n| Container terkelola | Google Cloud Run, Amazon ECS dengan AWS Fargate | menjalankan image tanpa mengurus server |\n| Kubernetes terkelola | Amazon EKS, Google GKE, Azure AKS | banyak service, tim besar |\n| Serverless function | AWS Lambda, Google Cloud Run functions | tugas kecil yang dipicu kejadian |\n\n**Storage**\n\n| Jenis | Cara kerja | Contoh pemakaian |\n|---|---|---|\n| **Block storage** | disk yang dipasang ke satu VM, seperti harddisk | sistem operasi, data aplikasi di VM |\n| **Object storage** | file (objek) disimpan di *bucket* dan diakses lewat HTTP | gambar produk, backup, file unggahan pengguna |\n\nContoh object storage: Amazon S3, Google Cloud Storage, Azure Blob Storage. Object storage murah, hampir tidak terbatas, dan tidak terikat ke satu server.\n\n**Database terkelola**\n\nContoh: Amazon RDS, Google Cloud SQL, Azure Database for MySQL. Penyedia mengurus pemasangan, pembaruan, backup otomatis, dan cadangan di AZ lain. Kamu tetap mengurus desain tabel dan query (kelas MySQL).\n\n**Network**\n\n| Istilah | Artinya |\n|---|---|\n| **VPC** (*Virtual Private Cloud*) | jaringan pribadi milikmu di dalam cloud |\n| **Subnet publik** | bagian VPC yang bisa dijangkau dari internet (untuk load balancer) |\n| **Subnet privat** | bagian VPC yang tidak bisa dijangkau langsung dari internet (untuk aplikasi dan database) |\n| **Security group** / firewall rule | aturan siapa boleh terhubung ke port mana, seperti `ufw` di kelas Linux |\n| **Load balancer** | membagi pengunjung ke beberapa server atau container |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nArsitektur toko online Budi di cloud:\n\n```text\nInternet\n   |\n   v\nLoad balancer (subnet publik)      <- security group: izinkan 443 dari mana saja\n   |\n   v\nContainer web x2 (subnet privat)   <- security group: izinkan 8080 hanya dari load balancer\n   |                       \\\n   v                        v\nDatabase MySQL terkelola   Object storage (bucket gambar-produk)\n(subnet privat)            gambar produk diakses lewat HTTPS\n<- security group: izinkan 3306 hanya dari container web\n```\n\nAturan security group yang dibuat Budi:\n\n```text\nGrup         Masuk dari            Port\nsg-lb        0.0.0.0/0 (internet)  443\nsg-web       sg-lb                 8080\nsg-db        sg-web                3306\n```\n\n- Pengunjung hanya bisa masuk lewat load balancer di port 443.\n- Database tidak bisa dihubungi dari internet sama sekali, hanya dari container web. Prinsip ini sama dengan tidak membuka `ports` database di modul Compose.\n- Gambar produk disimpan di object storage, bukan di disk container, sehingga tidak hilang saat container diganti dan bisa dipakai oleh semua container."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Database dibuka ke internet**\n\nSalah:\n\n```text\nSecurity group database: izinkan 3306 dari 0.0.0.0/0\n\"Biar gampang dibuka dari laptop.\"\n```\n\nBenar:\n\n```text\nSecurity group database: izinkan 3306 hanya dari security group aplikasi.\nAkses dari laptop lewat jalur aman (misalnya bastion/SSH tunnel atau VPN).\n```\n\nDatabase yang terbuka ke internet langsung menjadi sasaran robot penebak password dan pencuri data.\n\n**2. Menyimpan file unggahan di disk container**\n\nSalah:\n\n```text\nFoto produk disimpan di /app/uploads di dalam container.\n```\n\nBenar:\n\n```text\nFoto produk diunggah ke object storage (bucket), aplikasi menyimpan alamatnya di database.\n```\n\nDisk container hilang saat container diganti (ingat modul Docker: volume), dan tidak terbagi ke container lain. Dengan dua container, separuh foto bisa \"hilang\" tergantung container mana yang melayani."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Layanan untuk menyimpan gambar produk dan backup yang diakses lewat HTTP adalah...",
+          "options": [
+            "Block storage",
+            "Security group",
+            "VPC",
+            "Object storage"
+          ],
+          "answer": 3,
+          "explanation": "Object storage menyimpan file di bucket dan diakses lewat HTTP, tidak terikat ke satu server.",
+          "remedial": "- **Compute**: tempat kode berjalan (VM, container terkelola, Kubernetes, serverless)\n- **Storage**: **block storage** (disk untuk VM) dan **object storage** (file lewat HTTP, misalnya gambar produk)\n- **Database terkelola**: backup, pembaruan, dan cadangan diurus penyedia\n- **Network**: VPC (jaringan pribadi), subnet publik/privat, **security group** (firewall), load balancer\n- Database dan server internal diletakkan di subnet privat, hanya load balancer yang menghadap internet"
+        },
+        {
+          "question": "Fungsi security group adalah...",
+          "options": [
+            "Mengatur siapa boleh terhubung ke port mana, seperti firewall",
+            "Menyimpan password database",
+            "Membangun image Docker",
+            "Membagi biaya cloud"
+          ],
+          "answer": 0,
+          "explanation": "Security group adalah aturan firewall di cloud.",
+          "remedial": "- **Compute**: tempat kode berjalan (VM, container terkelola, Kubernetes, serverless)\n- **Storage**: **block storage** (disk untuk VM) dan **object storage** (file lewat HTTP, misalnya gambar produk)\n- **Database terkelola**: backup, pembaruan, dan cadangan diurus penyedia\n- **Network**: VPC (jaringan pribadi), subnet publik/privat, **security group** (firewall), load balancer\n- Database dan server internal diletakkan di subnet privat, hanya load balancer yang menghadap internet"
+        },
+        {
+          "question": "Di mana database sebaiknya diletakkan?",
+          "options": [
+            "Di subnet publik dengan port terbuka ke internet",
+            "Di subnet privat, hanya bisa dihubungi dari aplikasi",
+            "Di laptop programmer",
+            "Di object storage"
+          ],
+          "answer": 1,
+          "explanation": "Database tidak perlu dan tidak boleh dijangkau langsung dari internet.",
+          "remedial": "- **Compute**: tempat kode berjalan (VM, container terkelola, Kubernetes, serverless)\n- **Storage**: **block storage** (disk untuk VM) dan **object storage** (file lewat HTTP, misalnya gambar produk)\n- **Database terkelola**: backup, pembaruan, dan cadangan diurus penyedia\n- **Network**: VPC (jaringan pribadi), subnet publik/privat, **security group** (firewall), load balancer\n- Database dan server internal diletakkan di subnet privat, hanya load balancer yang menghadap internet"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Dengan aturan security group ini, siapa yang bisa terhubung langsung ke database di port 3306?",
+      "code": "Grup         Masuk dari            Port\nsg-lb        0.0.0.0/0 (internet)  443\nsg-web       sg-lb                 8080\nsg-db        sg-web                3306",
+      "options": [
+        "Siapa saja di internet",
+        "Load balancer",
+        "Hanya server/container yang memakai sg-web",
+        "Laptop Budi dari rumah"
+      ],
+      "answer": 2,
+      "explanation": "sg-db hanya mengizinkan port 3306 dari grup sg-web. Internet dan load balancer tidak termasuk."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Jenis penyimpanan cloud\n# disk yang dipasang ke satu VM:\n___ storage\n# file di bucket yang diakses lewat HTTP:\n___ storage",
+      "answers": [
+        "block",
+        "object"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Layanan cloud terbagi menjadi compute, storage, database, dan network.",
+        "Block storage adalah disk untuk VM; object storage menyimpan file di bucket lewat HTTP.",
+        "Database terkelola mengurus backup, pembaruan, dan cadangan; desain tabel tetap tugasmu.",
+        "VPC, subnet publik/privat, security group, dan load balancer mengatur jaringan.",
+        "Database dan aplikasi di subnet privat; hanya load balancer yang menghadap internet."
+      ]
+    }
+  ]
+}

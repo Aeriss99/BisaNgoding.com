@@ -1,0 +1,99 @@
+{
+  "id": "devops-monitoring-02",
+  "moduleId": "devops-monitoring",
+  "order": 2,
+  "title": "Metrik dengan Prometheus",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Prometheus** adalah sistem pengumpul metrik open source yang paling banyak dipakai, dan bagian dari Cloud Native Computing Foundation seperti Kubernetes.\n\nCara kerjanya *pull*: setiap beberapa detik, Prometheus **mengambil** (*scrape*) metrik dari alamat HTTP yang disediakan aplikasi, lalu menyimpannya sebagai deret waktu (*time series*). Data itu kemudian bisa dihitung dengan bahasa kueri **PromQL** dan ditampilkan sebagai grafik.\n\nAplikasi Spring Boot bisa menyediakan metrik dengan dua dependency: `spring-boot-starter-actuator` dan `micrometer-registry-prometheus`. Setelah itu metrik tersedia di `/actuator/prometheus` (kamu akan memakainya di kelas Spring Boot, modul Actuator).\n\nIbarat petugas pencatat meteran listrik: setiap hari ia datang ke setiap rumah (scrape), mencatat angka meteran, lalu dari catatan itu bisa dihitung berapa pemakaian per hari."
+    },
+    {
+      "type": "theory",
+      "content": "**Isi endpoint metrik (format teks Prometheus, label dipersingkat)**\n\n```text\n# TYPE http_server_requests_seconds summary\nhttp_server_requests_seconds_count{method=\"GET\",status=\"200\",uri=\"/produk\"} 15230\nhttp_server_requests_seconds_count{method=\"POST\",status=\"500\",uri=\"/checkout\"} 42\n# TYPE jvm_memory_used_bytes gauge\njvm_memory_used_bytes{area=\"heap\",id=\"G1 Eden Space\"} 5.24288E7\n```\n\nSetiap baris: **nama metrik**, **label** di dalam `{}`, lalu **nilai**.\n\n**Jenis metrik**\n\n| Jenis | Sifat | Contoh |\n|---|---|---|\n| **Counter** | hanya naik (kembali ke 0 saat aplikasi restart) | jumlah request sejak aplikasi menyala |\n| **Gauge** | bisa naik dan turun | memori terpakai, jumlah koneksi aktif |\n| **Histogram** | menghitung sebaran nilai dalam \"ember\" (*bucket*) | waktu respons, untuk menghitung p95 |\n\n**Konfigurasi scrape (`prometheus.yml`)**\n\n```yaml\nscrape_configs:\n  - job_name: toko-api\n    metrics_path: /actuator/prometheus\n    static_configs:\n      - targets: [\"toko-api:8080\"]\n```\n\n**PromQL dasar**\n\n| Kueri | Artinya |\n|---|---|\n| `http_server_requests_seconds_count` | nilai counter saat ini (angka total, jarang berguna langsung) |\n| `rate(http_server_requests_seconds_count[5m])` | rata-rata request **per detik** selama 5 menit terakhir |\n| `sum(rate(http_server_requests_seconds_count[5m]))` | total request per detik semua endpoint |\n| `sum by (status) (rate(http_server_requests_seconds_count[5m]))` | request per detik, dikelompokkan per kode status |\n| `histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket[5m])))` | latency p95 (butuh histogram aktif) |\n\nCounter hampir selalu dibaca dengan `rate()`, karena yang penting adalah **lajunya**, bukan totalnya sejak aplikasi menyala."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi menghitung persentase error API tokonya selama 5 menit terakhir:\n\n```text\nsum(rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]))\n/\nsum(rate(http_server_requests_seconds_count[5m]))\n```\n\n- `status=~\"5..\"` memilih label `status` yang cocok dengan pola `5..` (500 sampai 599). `=~` artinya cocok dengan regex.\n- Pembilang: request error per detik. Penyebut: semua request per detik.\n\nMisalnya hasil `rate` per detik dalam 5 menit terakhir:\n\n```text\nstatus=\"200\"   57,0 req/s\nstatus=\"404\"    0,6 req/s\nstatus=\"500\"    2,4 req/s\n```\n\nMaka:\n\n```text\nerror = 2,4 / (57,0 + 0,6 + 2,4) = 2,4 / 60,0 = 0,04  ->  4%\n```\n\n- 404 tidak dihitung sebagai error server, karena polanya `5..`. Kesalahan alamat dari pengguna bukan kerusakan aplikasi.\n- Angka 4% inilah yang ditampilkan di dasbor dan dipakai untuk alert di materi berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membuat grafik dari nilai counter mentah**\n\nSalah:\n\n```text\nhttp_server_requests_seconds_count\n(grafiknya terus naik, lalu jatuh ke 0 setiap kali aplikasi di-deploy)\n```\n\nBenar:\n\n```text\nrate(http_server_requests_seconds_count[5m])\n```\n\nCounter adalah total sejak aplikasi menyala. `rate()` mengubahnya menjadi laju per detik dan otomatis menangani counter yang kembali ke 0 saat restart.\n\n**2. Label berisi nilai yang tidak terbatas**\n\nSalah:\n\n```text\npesanan_total{id_pengguna=\"81723\"} 1\npesanan_total{id_pengguna=\"81724\"} 1\n... (satu deret waktu untuk setiap pengguna)\n```\n\nBenar:\n\n```text\npesanan_total{metode_bayar=\"transfer\"} 1520\npesanan_total{metode_bayar=\"ewallet\"}  3410\n```\n\nSetiap kombinasi label membuat deret waktu baru. Label seperti ID pengguna atau ID pesanan membuat jumlahnya meledak (*high cardinality*) dan Prometheus menjadi lambat atau kehabisan memori. Simpan detail seperti itu di log, bukan di label metrik."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Cara Prometheus mendapatkan metrik dari aplikasi adalah...",
+          "options": [
+            "Aplikasi mengirim email ke Prometheus",
+            "Membaca kode sumber aplikasi",
+            "Mengambil (scrape) dari endpoint HTTP aplikasi secara berkala",
+            "Mengunduh image Docker aplikasi"
+          ],
+          "answer": 2,
+          "explanation": "Prometheus memakai model pull: ia mendatangi endpoint metrik, misalnya `/actuator/prometheus`.",
+          "remedial": "- **Prometheus** mengambil (*scrape*) metrik dari endpoint HTTP aplikasi secara berkala\n- Spring Boot menyediakan metrik di `/actuator/prometheus` (Actuator + Micrometer)\n- Jenis metrik: **counter** (hanya naik), **gauge** (naik-turun), **histogram** (sebaran nilai)\n- PromQL: `rate(x[5m])` = laju per detik dari counter, `sum by (label)` = menjumlahkan per label\n- `histogram_quantile(0.95, ...)` menghitung p95 dari histogram"
+        },
+        {
+          "question": "Metrik yang nilainya hanya bisa naik, seperti jumlah request sejak aplikasi menyala, disebut...",
+          "options": [
+            "gauge",
+            "label",
+            "bucket",
+            "counter"
+          ],
+          "answer": 3,
+          "explanation": "Counter hanya naik dan kembali ke 0 saat restart. Gauge bisa naik dan turun.",
+          "remedial": "- **Prometheus** mengambil (*scrape*) metrik dari endpoint HTTP aplikasi secara berkala\n- Spring Boot menyediakan metrik di `/actuator/prometheus` (Actuator + Micrometer)\n- Jenis metrik: **counter** (hanya naik), **gauge** (naik-turun), **histogram** (sebaran nilai)\n- PromQL: `rate(x[5m])` = laju per detik dari counter, `sum by (label)` = menjumlahkan per label\n- `histogram_quantile(0.95, ...)` menghitung p95 dari histogram"
+        },
+        {
+          "question": "Fungsi PromQL untuk mengubah counter menjadi laju per detik adalah...",
+          "options": [
+            "rate()",
+            "sum()",
+            "count()",
+            "label()"
+          ],
+          "answer": 0,
+          "explanation": "`rate(x[5m])` menghitung rata-rata laju per detik selama 5 menit terakhir.",
+          "remedial": "- **Prometheus** mengambil (*scrape*) metrik dari endpoint HTTP aplikasi secara berkala\n- Spring Boot menyediakan metrik di `/actuator/prometheus` (Actuator + Micrometer)\n- Jenis metrik: **counter** (hanya naik), **gauge** (naik-turun), **histogram** (sebaran nilai)\n- PromQL: `rate(x[5m])` = laju per detik dari counter, `sum by (label)` = menjumlahkan per label\n- `histogram_quantile(0.95, ...)` menghitung p95 dari histogram"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Hasil `sum by (status) (rate(http_server_requests_seconds_count[5m]))` seperti di bawah. Berapa persentase error server (5xx)?",
+      "code": "{status=\"200\"}   45,0\n{status=\"404\"}    3,0\n{status=\"500\"}    1,5\n{status=\"503\"}    0,5",
+      "options": [
+        "10%",
+        "4%",
+        "2%",
+        "1,5%"
+      ],
+      "answer": 1,
+      "explanation": "Error 5xx = 1,5 + 0,5 = 2,0 req/s. Total = 45 + 3 + 1,5 + 0,5 = 50 req/s. 2 / 50 = 0,04 = 4%."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Request per detik selama 5 menit terakhir, dikelompokkan per kode status\nsum ___ (status) (___(http_server_requests_seconds_count[5m]))",
+      "answers": [
+        "by",
+        "rate"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Prometheus mengambil (scrape) metrik dari endpoint HTTP aplikasi secara berkala.",
+        "Spring Boot menyediakan metrik di /actuator/prometheus lewat Actuator dan Micrometer.",
+        "Counter hanya naik, gauge naik-turun, histogram mencatat sebaran untuk menghitung persentil.",
+        "Counter dibaca dengan rate(); sum by (label) menjumlahkan per label.",
+        "Jangan pakai label bernilai tak terbatas seperti ID pengguna."
+      ]
+    }
+  ]
+}

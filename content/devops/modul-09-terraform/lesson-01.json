@@ -1,0 +1,99 @@
+{
+  "id": "devops-terraform-01",
+  "moduleId": "devops-terraform",
+  "order": 1,
+  "title": "Mengenal Infrastructure as Code dan Terraform",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Cloud Dasar, membuat server bisa dilakukan dengan mengklik di console. Untuk satu server itu mudah. Tapi bagaimana kalau butuh 3 lingkungan (development, staging, production), masing-masing berisi server, database, dan jaringan yang harus sama persis? Mengklik ulang puluhan kali pasti ada yang terlewat, dan tidak ada catatan siapa mengubah apa.\n\n**Infrastructure as Code (IaC)** menyelesaikan masalah ini: infrastruktur **ditulis sebagai kode**, disimpan di Git, direview lewat pull request, dan dijalankan oleh alat. Hasilnya bisa diulang persis sama berkali-kali.\n\n**Terraform** (buatan HashiCorp, sekarang bagian dari IBM) adalah alat IaC yang paling banyak dipakai. Kodenya ditulis dalam bahasa **HCL** (*HashiCorp Configuration Language*) di file berakhiran `.tf`. Terraform bisa mengelola hampir semua platform: AWS, Google Cloud, Azure, Kubernetes, GitHub, bahkan Docker di laptopmu.\n\nIbarat resep masakan yang ditulis lengkap: siapa pun yang mengikuti resep yang sama akan menghasilkan masakan yang sama. Tanpa resep, setiap juru masak membuat versinya sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "**Deklaratif, bukan langkah demi langkah**\n\n| Cara | Yang ditulis |\n|---|---|\n| Imperatif (skrip shell) | \"jalankan container A, lalu buka port 8080, lalu ...\" |\n| **Deklaratif (Terraform)** | \"harus ada container A dengan port 8080\" |\n\nDengan cara deklaratif, kamu menulis **keadaan akhir** yang diinginkan. Terraform membandingkannya dengan keadaan sekarang, lalu menghitung sendiri apa yang perlu dibuat, diubah, atau dihapus. Kalau dijalankan dua kali, kali kedua tidak ada yang berubah karena keadaannya sudah sesuai.\n\n**Istilah dasar**\n\n| Istilah | Artinya | Contoh |\n|---|---|---|\n| **Provider** | plugin untuk berbicara dengan satu platform | `hashicorp/aws`, `kreuzwerker/docker` |\n| **Resource** | satu benda yang dikelola | `docker_container`, `aws_instance` |\n| **Registry** | tempat mengunduh provider dan module | `registry.terraform.io` |\n| **State** | catatan Terraform tentang benda yang sudah dibuatnya | file `terraform.tfstate` |\n\n**Bentuk sebuah resource**\n\n```hcl\nresource \"docker_container\" \"web\" {\n  name  = \"toko-web\"\n  image = docker_image.nginx.image_id\n}\n```\n\n- `docker_container` adalah **jenis** resource (dari provider Docker).\n- `web` adalah **nama lokal**, dipakai untuk merujuknya dari bagian lain: `docker_container.web`.\n- Di dalam kurung kurawal ada **argumen** berbentuk `nama = nilai`.\n\n**Terraform dan OpenTofu**\n\nSejak 2023 lisensi Terraform tidak lagi open source. Komunitas lalu membuat **OpenTofu** (di bawah Linux Foundation), turunan Terraform yang tetap open source. Bahasa dan perintahnya hampir sama (`tofu plan` alih-alih `terraform plan`), jadi yang kamu pelajari di sini berlaku untuk keduanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTim Budi butuh lingkungan staging yang sama dengan production. Dulu Andi menyiapkannya dengan mengklik console selama setengah hari, dan beberapa minggu kemudian ternyata staging memakai ukuran database yang berbeda dari production, sehingga masalah performa tidak terlihat saat pengujian.\n\nSekarang infrastruktur ditulis sebagai kode di repo `toko-infra`:\n\n```text\ntoko-infra/\n├── modules/\n│   └── web/               # resep satu aplikasi web\n├── staging/\n│   └── main.tf            # memakai module web dengan ukuran kecil\n└── production/\n    └── main.tf            # memakai module web yang sama dengan ukuran besar\n```\n\n- Staging dan production dibuat dari **resep yang sama**, hanya ukurannya yang dibedakan dengan variable.\n- Setiap perubahan lewat pull request, sehingga ada review dan riwayat di Git: siapa mengubah apa, kapan, dan kenapa.\n- Kalau staging rusak parah, tinggal hapus dan buat ulang dari kode dalam beberapa menit."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengubah infrastruktur lewat console setelah memakai Terraform**\n\nSalah:\n\n```text\nKode Terraform: server ukuran kecil.\nAndi menaikkan ukuran server lewat console karena sedang ramai.\nMinggu depan Sari menjalankan Terraform -> server diubah kembali ke ukuran kecil.\n```\n\nBenar:\n\n```text\nUbah ukuran server di kode Terraform, buat pull request, review, lalu jalankan Terraform.\n```\n\nKode adalah sumber kebenaran. Perubahan manual akan \"dibatalkan\" Terraform pada eksekusi berikutnya, atau membuat kode dan kenyataan berbeda (*drift*).\n\n**2. Mengira Terraform menjalankan perintah berurutan seperti skrip**\n\nSalah:\n\n```text\n\"Resource di baris atas pasti dibuat duluan.\"\n```\n\nBenar:\n\n```text\nTerraform menentukan urutan dari ketergantungan. Container yang memakai\ndocker_image.nginx.image_id otomatis dibuat setelah image siap.\n```\n\nUrutan penulisan di file tidak menentukan urutan pembuatan. Yang menentukan adalah rujukan antar-resource."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Infrastructure as Code berarti...",
+          "options": [
+            "Kode aplikasi disimpan di server",
+            "Infrastruktur ditulis sebagai kode, disimpan di Git, dan dijalankan oleh alat",
+            "Server menulis kode sendiri",
+            "Semua infrastruktur dibuat lewat console"
+          ],
+          "answer": 1,
+          "explanation": "Dengan IaC, infrastruktur bisa direview, dilacak riwayatnya, dan dibuat ulang persis sama.",
+          "remedial": "- **Infrastructure as Code (IaC)**: server, jaringan, dan layanan ditulis sebagai kode dan disimpan di Git\n- **Terraform** memakai bahasa **HCL** dan bersifat **deklaratif**: tulis hasil akhirnya, Terraform yang menghitung langkahnya\n- **Provider** = plugin untuk berbicara dengan satu platform (AWS, Google Cloud, Docker, dan lain-lain)\n- **Resource** = satu benda yang dikelola, misalnya satu container atau satu server\n- **OpenTofu** adalah turunan open source Terraform dengan bahasa yang sama"
+        },
+        {
+          "question": "Terraform disebut deklaratif karena...",
+          "options": [
+            "Kita harus menulis setiap langkah berurutan",
+            "Terraform hanya bisa membaca, tidak bisa membuat",
+            "Kita menulis keadaan akhir yang diinginkan, Terraform menghitung langkahnya",
+            "Kodenya ditulis dalam Java"
+          ],
+          "answer": 2,
+          "explanation": "Terraform membandingkan keadaan yang diinginkan dengan keadaan sekarang, lalu menghitung perubahan.",
+          "remedial": "- **Infrastructure as Code (IaC)**: server, jaringan, dan layanan ditulis sebagai kode dan disimpan di Git\n- **Terraform** memakai bahasa **HCL** dan bersifat **deklaratif**: tulis hasil akhirnya, Terraform yang menghitung langkahnya\n- **Provider** = plugin untuk berbicara dengan satu platform (AWS, Google Cloud, Docker, dan lain-lain)\n- **Resource** = satu benda yang dikelola, misalnya satu container atau satu server\n- **OpenTofu** adalah turunan open source Terraform dengan bahasa yang sama"
+        },
+        {
+          "question": "Pada `resource \"docker_container\" \"web\"`, bagian `web` adalah...",
+          "options": [
+            "Nama image Docker",
+            "Nama provider",
+            "Nama file Terraform",
+            "Nama lokal untuk merujuk resource itu di kode Terraform"
+          ],
+          "answer": 3,
+          "explanation": "Resource ini dirujuk dengan `docker_container.web`. Nama container sebenarnya diatur lewat argumen `name`.",
+          "remedial": "- **Infrastructure as Code (IaC)**: server, jaringan, dan layanan ditulis sebagai kode dan disimpan di Git\n- **Terraform** memakai bahasa **HCL** dan bersifat **deklaratif**: tulis hasil akhirnya, Terraform yang menghitung langkahnya\n- **Provider** = plugin untuk berbicara dengan satu platform (AWS, Google Cloud, Docker, dan lain-lain)\n- **Resource** = satu benda yang dikelola, misalnya satu container atau satu server\n- **OpenTofu** adalah turunan open source Terraform dengan bahasa yang sama"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Kode Terraform berisi satu container. Andi menjalankan perintah apply dua kali berturut-turut tanpa mengubah kode. Apa yang terjadi pada apply kedua?",
+      "code": "resource \"docker_container\" \"web\" {\n  name  = \"toko-web\"\n  image = docker_image.nginx.image_id\n}",
+      "options": [
+        "Tidak ada perubahan, karena keadaan sudah sesuai dengan kode",
+        "Container kedua bernama toko-web dibuat",
+        "Container dihapus lalu dibuat ulang",
+        "Terjadi error karena container sudah ada"
+      ],
+      "answer": 0,
+      "explanation": "Terraform deklaratif: keadaan sudah sesuai kode, jadi tidak ada yang perlu dibuat atau diubah."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Jenis resource container dari provider Docker, dengan nama lokal web\nresource \"docker____\" \"___\" {\n  name = \"toko-web\"\n}",
+      "answers": [
+        "container",
+        "web"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Infrastructure as Code: infrastruktur ditulis sebagai kode, disimpan di Git, dan direview.",
+        "Terraform memakai HCL dan bersifat deklaratif: tulis keadaan akhir, Terraform menghitung langkahnya.",
+        "Provider berbicara dengan satu platform; resource adalah satu benda yang dikelola.",
+        "Urutan pembuatan ditentukan oleh rujukan antar-resource, bukan urutan baris.",
+        "OpenTofu adalah turunan open source Terraform dengan bahasa yang hampir sama."
+      ]
+    }
+  ]
+}

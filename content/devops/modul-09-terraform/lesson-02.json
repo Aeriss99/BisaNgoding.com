@@ -1,0 +1,100 @@
+{
+  "id": "devops-terraform-02",
+  "moduleId": "devops-terraform",
+  "order": 2,
+  "title": "Alur Kerja: init, plan, apply, destroy",
+  "estimatedMinutes": 13,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Cara paling mudah mencoba Terraform tanpa akun cloud adalah memakai **provider Docker** (`kreuzwerker/docker`): Terraform akan membuat container di Docker laptopmu, sama seperti `docker run`, tapi lewat kode.\n\nSiapkan folder `latihan-tf` berisi satu file `main.tf`:\n\n```hcl\nterraform {\n  required_providers {\n    docker = {\n      source  = \"kreuzwerker/docker\"\n      version = \"~> 4.6\"\n    }\n  }\n}\n\nprovider \"docker\" {}\n\nresource \"docker_image\" \"nginx\" {\n  name = \"nginx:alpine\"\n}\n\nresource \"docker_container\" \"web\" {\n  name  = \"toko-web\"\n  image = docker_image.nginx.image_id\n\n  ports {\n    internal = 80\n    external = 8081\n  }\n}\n```\n\n- Blok `terraform` menyebutkan provider yang dibutuhkan beserta versinya. `~> 4.6` artinya versi 4.6 ke atas, tapi masih di bawah 5.0.\n- `docker_image` mengunduh image, `docker_container` menjalankan container dari image itu.\n- `docker_image.nginx.image_id` adalah rujukan, sehingga Terraform tahu image harus siap sebelum container dibuat.\n\nTerraform bisa dipasang dari situs resmi `developer.hashicorp.com/terraform/install`, dan Docker Desktop atau Docker Engine harus sudah berjalan."
+    },
+    {
+      "type": "theory",
+      "content": "**Empat perintah utama**\n\n| Perintah | Fungsi |\n|---|---|\n| `terraform init` | mengunduh provider ke folder `.terraform/` dan membuat file kunci versi `.terraform.lock.hcl`. Dijalankan sekali di awal dan setiap kali provider atau module berubah |\n| `terraform plan` | membandingkan kode dengan keadaan sekarang, lalu menampilkan rencana. **Tidak mengubah apa pun** |\n| `terraform apply` | menampilkan rencana lagi, menunggu kamu mengetik `yes`, lalu menjalankannya |\n| `terraform destroy` | menghapus semua resource yang dikelola folder ini, juga setelah konfirmasi `yes` |\n\n**Membaca hasil `terraform init`** (dipersingkat)\n\n```text\nInitializing the backend...\nInitializing provider plugins...\n- Finding kreuzwerker/docker versions matching \"~> 4.6\"...\n- Installing kreuzwerker/docker v4.6.0...\n\nTerraform has been successfully initialized!\n```\n\n**Simbol di hasil plan**\n\n| Simbol | Artinya |\n|---|---|\n| `+` | akan dibuat |\n| `~` | akan diubah di tempat (*in-place*) |\n| `-` | akan dihapus |\n| `-/+` | harus diganti: dihapus lalu dibuat ulang |\n| `# forces replacement` | perubahan argumen ini yang membuat resource harus diganti |\n\nBaris terakhir plan selalu berupa ringkasan, misalnya `Plan: 2 to add, 0 to change, 0 to destroy.` **Selalu baca plan sebelum menjawab `yes`**, terutama angka `to destroy`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi menjalankan `terraform plan` (hasil dipersingkat):\n\n```text\nTerraform will perform the following actions:\n\n  # docker_container.web will be created\n  + resource \"docker_container\" \"web\" {\n      + id    = (known after apply)\n      + image = (known after apply)\n      + name  = \"toko-web\"\n\n      + ports {\n          + external = 8081\n          + internal = 80\n        }\n    }\n\n  # docker_image.nginx will be created\n  + resource \"docker_image\" \"nginx\" {\n      + id       = (known after apply)\n      + image_id = (known after apply)\n      + name     = \"nginx:alpine\"\n    }\n\nPlan: 2 to add, 0 to change, 0 to destroy.\n```\n\nLalu `terraform apply` dan mengetik `yes`:\n\n```text\ndocker_image.nginx: Creating...\ndocker_image.nginx: Creation complete after 6s [id=sha256:...]\ndocker_container.web: Creating...\ndocker_container.web: Creation complete after 1s [id=...]\n\nApply complete! Resources: 2 added, 0 changed, 0 destroyed.\n```\n\n- `(known after apply)` berarti nilainya baru diketahui setelah resource benar-benar dibuat, misalnya ID.\n- Image dibuat lebih dulu karena container merujuk `docker_image.nginx.image_id`.\n- Buka `http://localhost:8081`, halaman \"Welcome to nginx!\" tampil.\n\nKemudian Budi mengganti `external = 8081` menjadi `8082` dan menjalankan plan lagi (dipersingkat):\n\n```text\n  # docker_container.web must be replaced\n-/+ resource \"docker_container\" \"web\" {\n      ~ ports {\n          ~ external = 8081 -> 8082 # forces replacement\n            # (atribut lain yang tidak berubah disembunyikan)\n        }\n    }\n\nPlan: 1 to add, 0 to change, 1 to destroy.\n```\n\nPort container tidak bisa diubah saat container berjalan, jadi Terraform menghapus container lama dan membuat yang baru. Image tidak tersentuh. Saat latihan selesai, `terraform destroy` menghapus keduanya: `Destroy complete! Resources: 2 destroyed.`"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menjawab `yes` tanpa membaca plan**\n\nSalah:\n\n```text\n$ terraform apply\n... (rencana panjang tidak dibaca)\nPlan: 1 to add, 0 to change, 1 to destroy.\n  Enter a value: yes\n```\n\nBenar:\n\n```text\nBaca bagian \"must be replaced\" dan angka \"to destroy\". Untuk database,\npenggantian berarti data lama ikut hilang. Kalau tidak yakin, jawab selain yes\ndan periksa dulu.\n```\n\n`-/+` pada resource berisi data (database, disk) bisa menghapus data. Plan ada justru untuk mencegah kejutan ini.\n\n**2. Lupa menjalankan `terraform init`**\n\nSalah:\n\n```text\n$ git clone .../toko-infra && cd toko-infra\n$ terraform plan\nError: Required plugins are not installed\n...\nTo download the plugins required for this configuration, run:\n  terraform init\n```\n\nBenar:\n\n```text\n$ terraform init\n$ terraform plan\n```\n\nJalankan `terraform init` di folder baru, setelah clone repo, dan setiap kali menambah atau mengganti versi provider maupun module."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Perintah yang menampilkan rencana perubahan tanpa mengubah apa pun adalah...",
+          "options": [
+            "terraform apply",
+            "terraform destroy",
+            "terraform plan",
+            "terraform init"
+          ],
+          "answer": 2,
+          "explanation": "`plan` hanya membandingkan dan menampilkan rencana.",
+          "remedial": "- `terraform init`: mengunduh provider dan menyiapkan folder kerja\n- `terraform plan`: menampilkan rencana perubahan tanpa mengubah apa pun\n- `terraform apply`: menjalankan rencana setelah kamu mengetik `yes`\n- `terraform destroy`: menghapus semua resource yang dikelola\n- Simbol plan: `+` dibuat, `~` diubah, `-` dihapus, `-/+` diganti (hapus lalu buat ulang)"
+        },
+        {
+          "question": "Simbol `-/+` di hasil plan berarti...",
+          "options": [
+            "Resource akan dibuat",
+            "Resource akan diubah di tempat",
+            "Resource tidak berubah",
+            "Resource akan dihapus lalu dibuat ulang"
+          ],
+          "answer": 3,
+          "explanation": "Penggantian terjadi saat argumen yang diubah tidak bisa diperbarui di tempat (`# forces replacement`).",
+          "remedial": "- `terraform init`: mengunduh provider dan menyiapkan folder kerja\n- `terraform plan`: menampilkan rencana perubahan tanpa mengubah apa pun\n- `terraform apply`: menjalankan rencana setelah kamu mengetik `yes`\n- `terraform destroy`: menghapus semua resource yang dikelola\n- Simbol plan: `+` dibuat, `~` diubah, `-` dihapus, `-/+` diganti (hapus lalu buat ulang)"
+        },
+        {
+          "question": "`version = \"~> 4.6\"` pada provider berarti...",
+          "options": [
+            "Versi 4.6 ke atas, tapi di bawah 5.0",
+            "Tepat versi 4.6.0 saja",
+            "Versi apa pun di atas 4.6, termasuk 5.0",
+            "Versi di bawah 4.6"
+          ],
+          "answer": 0,
+          "explanation": "`~>` mengizinkan kenaikan versi kecil, tapi tidak lompat ke versi besar berikutnya.",
+          "remedial": "- `terraform init`: mengunduh provider dan menyiapkan folder kerja\n- `terraform plan`: menampilkan rencana perubahan tanpa mengubah apa pun\n- `terraform apply`: menjalankan rencana setelah kamu mengetik `yes`\n- `terraform destroy`: menghapus semua resource yang dikelola\n- Simbol plan: `+` dibuat, `~` diubah, `-` dihapus, `-/+` diganti (hapus lalu buat ulang)"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Dari hasil plan ini, apa yang akan terjadi kalau dijawab `yes`?",
+      "code": "  # docker_container.api will be created\n  + resource \"docker_container\" \"api\" {\n      + name = \"toko-api\"\n    }\n\n  # docker_container.web will be updated in-place\n  ~ resource \"docker_container\" \"web\" {\n      ~ restart = \"no\" -> \"unless-stopped\"\n    }\n\n  # docker_container.worker will be destroyed\n  - resource \"docker_container\" \"worker\" {\n      - name = \"toko-worker\"\n    }",
+      "options": [
+        "Plan: 2 to add, 0 to change, 1 to destroy.",
+        "Plan: 1 to add, 1 to change, 1 to destroy.",
+        "Plan: 1 to add, 0 to change, 2 to destroy.",
+        "Plan: 3 to add, 0 to change, 0 to destroy."
+      ],
+      "answer": 1,
+      "explanation": "`api` dibuat (+), `web` diubah di tempat (~), `worker` dihapus (-)."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Unduh provider, lihat rencana, lalu jalankan\nterraform ___\nterraform ___\nterraform ___",
+      "answers": [
+        "init",
+        "plan",
+        "apply"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "terraform init mengunduh provider dan membuat .terraform.lock.hcl.",
+        "terraform plan menampilkan rencana tanpa mengubah apa pun.",
+        "terraform apply menjalankan rencana setelah konfirmasi yes; terraform destroy menghapus semuanya.",
+        "Simbol plan: + dibuat, ~ diubah, - dihapus, -/+ diganti.",
+        "Selalu baca plan, terutama angka to destroy dan tanda forces replacement."
+      ]
+    }
+  ]
+}

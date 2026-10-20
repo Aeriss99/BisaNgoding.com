@@ -1,0 +1,99 @@
+{
+  "id": "devops-terraform-05",
+  "moduleId": "devops-terraform",
+  "order": 5,
+  "title": "Module dan Praktik Baik Terraform",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saat staging dan production butuh resource yang mirip, menyalin kode ke dua folder membuat perbaikan harus dilakukan dua kali, dan cepat atau lambat keduanya berbeda.\n\n**Module** menyelesaikan ini. Module adalah satu folder berisi file Terraform (resource, variable, output) yang bisa **dipanggil berkali-kali** dengan masukan berbeda. Sebenarnya setiap folder Terraform sudah merupakan module; folder tempat kamu menjalankan `terraform apply` disebut *root module*.\n\nModule bisa berasal dari:\n\n- folder lokal, misalnya `./modules/web`,\n- Terraform Registry, misalnya module resmi komunitas untuk membuat jaringan AWS,\n- repo Git.\n\nIbarat komponen siap pakai di dapur restoran: saus dasar dibuat dengan satu resep, lalu dipakai di banyak menu. Kalau resep sausnya diperbaiki, semua menu ikut membaik."
+    },
+    {
+      "type": "theory",
+      "content": "**Membuat dan memanggil module lokal**\n\n```text\nlatihan-tf/\n├── main.tf\n└── modules/\n    └── web/\n        ├── main.tf          # docker_image + docker_container\n        ├── variables.tf     # variable nama dan port_luar\n        └── outputs.tf       # output alamat\n```\n\n```hcl\n# main.tf (root module)\nmodule \"web_staging\" {\n  source    = \"./modules/web\"\n  nama      = \"toko-web-staging\"\n  port_luar = 8082\n}\n\nmodule \"web_demo\" {\n  source    = \"./modules/web\"\n  nama      = \"toko-web-demo\"\n  port_luar = 8083\n}\n\noutput \"alamat_staging\" {\n  value = module.web_staging.alamat\n}\n```\n\n- `source` menunjuk lokasi module. Argumen lain diisi ke variable milik module.\n- Output module dibaca dengan `module.<nama>.<output>`.\n- Setelah menambah atau mengubah `source` module, jalankan `terraform init`.\n\n**Praktik baik**\n\n| Praktik | Cara |\n|---|---|\n| Penulisan rapi dan seragam | `terraform fmt` (di CI: `terraform fmt -check`) |\n| Konfigurasi valid | `terraform validate` |\n| Versi terkunci | `required_version` untuk Terraform, `version` untuk provider dan module dari registry, commit `.terraform.lock.hcl` |\n| Review sebelum berubah | `terraform plan` otomatis di pull request, `apply` setelah disetujui |\n| State terpisah per lingkungan | staging dan production punya state sendiri, supaya kesalahan di staging tidak menyentuh production |\n| Rahasia aman | dari secret manager atau secret CI, tidak di kode |\n\n```hcl\nterraform {\n  required_version = \">= 1.10\"\n\n  required_providers {\n    docker = {\n      source  = \"kreuzwerker/docker\"\n      version = \"~> 4.6\"\n    }\n  }\n}\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nAlur kerja tim Budi untuk repo `toko-infra` di GitHub Actions (dipersingkat):\n\n```yaml\nname: terraform\non:\n  pull_request:\n  push:\n    branches: [main]\n\njobs:\n  plan:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v7\n      - uses: hashicorp/setup-terraform@v4\n      - run: terraform fmt -check -recursive\n      - run: terraform init\n      - run: terraform validate\n      - run: terraform plan -out=rencana.tfplan\n```\n\nHasil di pull request \"naikkan jumlah container web\":\n\n```text\nterraform fmt -check -recursive    lulus\nterraform validate                 Success! The configuration is valid.\nterraform plan                     Plan: 1 to add, 0 to change, 0 to destroy.\n```\n\n- Reviewer membaca plan langsung di pull request: hanya **menambah** satu resource, tidak ada yang dihapus. Aman untuk disetujui.\n- Setelah merge ke `main`, job terpisah (dengan environment yang butuh persetujuan, seperti di modul CI/CD) menjalankan `terraform apply`.\n- `-out=rencana.tfplan` menyimpan rencana, sehingga `terraform apply rencana.tfplan` menjalankan **persis** rencana yang sudah dibaca.\n- Kredensial cloud diberikan lewat secret atau OIDC, tidak ditulis di workflow."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tidak mengunci versi**\n\nSalah:\n\n```hcl\nmodule \"jaringan\" {\n  source = \"terraform-aws-modules/vpc/aws\"\n  # tanpa version -> init berikutnya bisa mengambil versi besar baru yang berbeda perilakunya\n}\n```\n\nBenar:\n\n```hcl\nmodule \"jaringan\" {\n  source  = \"terraform-aws-modules/vpc/aws\"\n  version = \"~> 6.0\"\n}\n```\n\nTanpa versi, kode yang kemarin berjalan bisa tiba-tiba menghasilkan plan berbeda tanpa ada perubahan di repo.\n\n**2. Satu state raksasa untuk semua lingkungan**\n\nSalah:\n\n```text\nSatu folder dan satu state berisi staging + production.\nMengubah staging berarti plan juga menyentuh production.\n```\n\nBenar:\n\n```text\nstaging/ dan production/ memakai module yang sama, tapi masing-masing\npunya state sendiri (key berbeda di backend).\n```\n\nKesalahan kecil di satu lingkungan tidak boleh bisa merusak lingkungan lain."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Output `alamat` dari module bernama `web_staging` dibaca dengan...",
+          "options": [
+            "var.web_staging.alamat",
+            "module.web_staging.alamat",
+            "output.web_staging.alamat",
+            "web_staging.output.alamat"
+          ],
+          "answer": 1,
+          "explanation": "Output module dirujuk dengan `module.<nama>.<output>`.",
+          "remedial": "- **Module** = kumpulan file Terraform yang bisa dipakai ulang, dipanggil dengan blok `module`\n- Output module dibaca dengan `module.nama.output`\n- `terraform fmt` merapikan penulisan, `terraform validate` memeriksa kebenaran konfigurasi\n- Kunci versi Terraform, provider, dan module; commit `.terraform.lock.hcl`\n- Jalankan `plan` otomatis di pull request, dan `apply` hanya setelah review"
+        },
+        {
+          "question": "Perintah untuk merapikan penulisan file Terraform adalah...",
+          "options": [
+            "terraform validate",
+            "terraform state list",
+            "terraform fmt",
+            "terraform output"
+          ],
+          "answer": 2,
+          "explanation": "`terraform fmt` merapikan; `terraform validate` memeriksa kebenaran konfigurasi.",
+          "remedial": "- **Module** = kumpulan file Terraform yang bisa dipakai ulang, dipanggil dengan blok `module`\n- Output module dibaca dengan `module.nama.output`\n- `terraform fmt` merapikan penulisan, `terraform validate` memeriksa kebenaran konfigurasi\n- Kunci versi Terraform, provider, dan module; commit `.terraform.lock.hcl`\n- Jalankan `plan` otomatis di pull request, dan `apply` hanya setelah review"
+        },
+        {
+          "question": "Kenapa staging dan production sebaiknya punya state terpisah?",
+          "options": [
+            "Supaya Terraform lebih cepat diunduh",
+            "Karena satu state hanya boleh berisi satu resource",
+            "Supaya tidak perlu memakai Git",
+            "Supaya perubahan atau kesalahan di staging tidak menyentuh production"
+          ],
+          "answer": 3,
+          "explanation": "State terpisah membatasi dampak setiap apply ke satu lingkungan.",
+          "remedial": "- **Module** = kumpulan file Terraform yang bisa dipakai ulang, dipanggil dengan blok `module`\n- Output module dibaca dengan `module.nama.output`\n- `terraform fmt` merapikan penulisan, `terraform validate` memeriksa kebenaran konfigurasi\n- Kunci versi Terraform, provider, dan module; commit `.terraform.lock.hcl`\n- Jalankan `plan` otomatis di pull request, dan `apply` hanya setelah review"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Workflow CI berikut gagal di langkah mana, dan apa artinya?",
+      "code": "- run: terraform fmt -check -recursive\n  # keluaran: main.tf\n  # exit code 3\n- run: terraform init\n- run: terraform validate",
+      "options": [
+        "Gagal di fmt -check: file main.tf belum dirapikan dengan terraform fmt",
+        "Gagal di init: provider tidak ditemukan",
+        "Gagal di validate: konfigurasi tidak valid",
+        "Tidak gagal, exit code 3 berarti sukses"
+      ],
+      "answer": 0,
+      "explanation": "`fmt -check` mencetak nama file yang penulisannya belum rapi dan keluar dengan kode bukan nol. Jalankan `terraform fmt` lalu commit."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Memanggil module lokal web untuk staging\n___ \"web_staging\" {\n  ___ = \"./modules/web\"\n  port_luar = 8082\n}",
+      "answers": [
+        "module",
+        "source"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Module adalah folder Terraform yang bisa dipanggil ulang dengan blok module dan argumen source.",
+        "Output module dibaca dengan module.nama.output.",
+        "terraform fmt merapikan, terraform validate memeriksa; keduanya dijalankan di CI.",
+        "Kunci versi Terraform, provider, dan module, lalu commit .terraform.lock.hcl.",
+        "Plan otomatis di pull request, apply setelah review, state terpisah per lingkungan."
+      ]
+    }
+  ]
+}

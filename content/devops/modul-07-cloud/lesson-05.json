@@ -1,0 +1,99 @@
+{
+  "id": "devops-cloud-05",
+  "moduleId": "devops-cloud",
+  "order": 5,
+  "title": "Keamanan Akun Cloud dan IAM",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Penyedia cloud menjaga gedung pusat data, server fisik, dan jaringan intinya dengan sangat ketat. Tapi itu tidak berarti semua yang kamu taruh di cloud otomatis aman.\n\nPembagian tanggung jawab ini disebut **shared responsibility model**:\n\n- **Penyedia** bertanggung jawab atas keamanan **cloud itu sendiri**: gedung, perangkat keras, jaringan inti, dan layanan yang mereka kelola.\n- **Kamu** bertanggung jawab atas keamanan **apa yang kamu taruh di cloud**: akun dan izin, data, konfigurasi jaringan, sistem operasi VM (untuk IaaS), dan aplikasimu.\n\nSebagian besar kebocoran data di cloud terjadi karena kesalahan di sisi pengguna: password akun lemah tanpa MFA, bucket dibuka ke publik, atau access key tertinggal di kode.\n\nIbarat menyewa unit apartemen: pengelola menjaga gerbang, lift, dan struktur gedung. Mengunci pintu unit dan tidak memberikan kuncinya ke sembarang orang adalah tanggung jawabmu."
+    },
+    {
+      "type": "theory",
+      "content": "**IAM (*Identity and Access Management*)**\n\nIAM menjawab tiga pertanyaan: **siapa** (user, grup, atau aplikasi), boleh melakukan **apa** (membaca, membuat, menghapus), terhadap sumber daya **mana**.\n\n| Praktik | Penjelasan |\n|---|---|\n| Kunci akun root | akun pemilik (root) hanya untuk keperluan khusus seperti tagihan. Aktifkan MFA, jangan dipakai sehari-hari |\n| MFA untuk semua orang | password saja tidak cukup; wajibkan kode dari aplikasi authenticator |\n| Satu orang satu akun | jangan berbagi satu login untuk satu tim |\n| *Least privilege* | beri izin seminimal mungkin. Developer yang hanya perlu melihat log tidak perlu izin menghapus database |\n| Akun terpisah untuk aplikasi | aplikasi dan pipeline memakai identitas sendiri (*service account*/*role*) dengan izin terbatas |\n| Tanpa access key permanen di kode | access key yang ter-commit adalah penyebab kebocoran yang sangat umum |\n\n**CI/CD tanpa access key permanen**\n\nDi modul CI/CD Lanjutan, pipeline memakai secret. Untuk cloud besar ada cara yang lebih aman: **OIDC** (*OpenID Connect*). GitHub Actions membuktikan identitasnya ke penyedia cloud, lalu mendapat **izin sementara** yang kedaluwarsa dalam hitungan jam. Tidak ada access key permanen yang bisa bocor. Di workflow, ini butuh `permissions: id-token: write` (yang kamu lihat di workflow deploy GitHub Pages pada kelas Git & GitHub)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTim Budi terdiri dari tiga orang dan satu pipeline. Pengaturan IAM mereka:\n\n```text\nIdentitas                Jenis        Izin\nakun root                pemilik      MFA aktif, hanya untuk tagihan\nbudi                     user         admin proyek toko, MFA wajib\nsari                     user         deploy + lihat log, MFA wajib\nandi (magang)            user         hanya lihat (read-only), MFA wajib\ngithub-actions-toko      role (OIDC)  push image + deploy ke layanan container,\n                                      hanya dari repo budi/toko-web, branch main/tag v*\n```\n\nSuatu hari Andi tanpa sengaja membagikan tangkapan layar yang memperlihatkan password akunnya. Akibatnya:\n\n```text\n- Penyerang tidak bisa login karena MFA aktif.\n- Kalaupun berhasil, akun Andi hanya bisa melihat, tidak bisa menghapus atau membuat apa pun.\n- Budi mereset password Andi, masalah selesai.\n```\n\n- Least privilege membatasi kerusakan. Akun yang bocor dengan izin kecil hanya menimbulkan masalah kecil.\n- Pipeline tidak memakai access key permanen. Izinnya dibatasi ke repo dan branch tertentu, jadi repo lain tidak bisa menyamar sebagai pipeline toko."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Access key ter-commit ke repo**\n\nSalah:\n\n```text\n# application.properties (ter-commit ke GitHub)\ncloud.access-key=AKIA................\ncloud.secret-key=..............................\n```\n\nBenar:\n\n```text\nAplikasi di cloud memakai identitas/role bawaan layanan (tanpa key di kode).\nPipeline memakai OIDC atau secret GitHub.\nKalau key terlanjur ter-commit: cabut (nonaktifkan) key itu SEKARANG, lalu buat yang baru.\n```\n\nRobot pencari terus memindai GitHub untuk mencari access key cloud. Key yang ter-commit ke repo publik bisa disalahgunakan dalam hitungan menit, misalnya untuk menyalakan banyak server penambang kripto atas tagihanmu.\n\n**2. Memberi izin admin ke semua orang**\n\nSalah:\n\n```text\nSemua anggota tim dan pipeline memakai izin AdministratorAccess\n\"supaya tidak ada yang terhalang\".\n```\n\nBenar:\n\n```text\nSetiap orang dan pipeline mendapat izin sesuai tugasnya,\ndan ditambah hanya saat benar-benar dibutuhkan.\n```\n\nDengan izin admin di mana-mana, satu akun yang bocor atau satu salah ketik bisa menghapus seluruh infrastruktur."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Menurut shared responsibility model, siapa yang bertanggung jawab atas izin akun dan data yang kamu simpan di cloud?",
+          "options": [
+            "Penyedia cloud",
+            "Kamu sebagai pengguna",
+            "Pemerintah",
+            "GitHub"
+          ],
+          "answer": 1,
+          "explanation": "Penyedia mengamankan cloud-nya; kamu mengamankan akun, data, dan konfigurasi di dalamnya.",
+          "remedial": "- **Shared responsibility**: penyedia mengamankan cloud-nya, kamu mengamankan apa yang kamu taruh di dalamnya\n- **IAM** mengatur siapa boleh melakukan apa terhadap sumber daya mana\n- Jangan memakai akun root untuk pekerjaan sehari-hari; aktifkan **MFA**\n- Beri izin seminimal mungkin (*least privilege*), per orang dan per aplikasi\n- Jangan simpan access key di kode; untuk CI/CD pakai identitas sementara (misalnya OIDC)"
+        },
+        {
+          "question": "Prinsip least privilege berarti...",
+          "options": [
+            "Semua orang mendapat izin admin",
+            "Tidak ada yang boleh punya akun",
+            "Memberi izin seminimal mungkin sesuai tugas",
+            "Izin diberikan berdasarkan senioritas"
+          ],
+          "answer": 2,
+          "explanation": "Izin kecil membatasi kerusakan kalau akun bocor atau terjadi kesalahan.",
+          "remedial": "- **Shared responsibility**: penyedia mengamankan cloud-nya, kamu mengamankan apa yang kamu taruh di dalamnya\n- **IAM** mengatur siapa boleh melakukan apa terhadap sumber daya mana\n- Jangan memakai akun root untuk pekerjaan sehari-hari; aktifkan **MFA**\n- Beri izin seminimal mungkin (*least privilege*), per orang dan per aplikasi\n- Jangan simpan access key di kode; untuk CI/CD pakai identitas sementara (misalnya OIDC)"
+        },
+        {
+          "question": "Cara yang lebih aman bagi GitHub Actions untuk mengakses cloud tanpa access key permanen adalah...",
+          "options": [
+            "Menyimpan access key di file workflow",
+            "Memakai akun root",
+            "Membagikan password admin ke pipeline",
+            "OIDC, yang memberi izin sementara"
+          ],
+          "answer": 3,
+          "explanation": "Dengan OIDC, pipeline mendapat izin sementara yang cepat kedaluwarsa, jadi tidak ada key permanen yang bisa bocor.",
+          "remedial": "- **Shared responsibility**: penyedia mengamankan cloud-nya, kamu mengamankan apa yang kamu taruh di dalamnya\n- **IAM** mengatur siapa boleh melakukan apa terhadap sumber daya mana\n- Jangan memakai akun root untuk pekerjaan sehari-hari; aktifkan **MFA**\n- Beri izin seminimal mungkin (*least privilege*), per orang dan per aplikasi\n- Jangan simpan access key di kode; untuk CI/CD pakai identitas sementara (misalnya OIDC)"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Access key cloud milik Sari tidak sengaja ter-commit ke repo publik 10 menit yang lalu. Langkah pertama yang paling tepat adalah...",
+      "code": "commit 7a1c9e2  \"tambah konfigurasi upload\"\n+ cloud.access-key=AKIA................\n+ cloud.secret-key=..............................",
+      "options": [
+        "Cabut (nonaktifkan) access key itu segera, lalu buat yang baru",
+        "Hapus file itu di commit berikutnya dan anggap selesai",
+        "Menunggu sampai ada tagihan aneh",
+        "Mengubah repo menjadi private saja"
+      ],
+      "answer": 0,
+      "explanation": "Key bisa sudah disalin robot dalam hitungan menit, dan tetap ada di riwayat Git. Mencabut key adalah satu-satunya cara memastikan key itu tidak bisa dipakai."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Keamanan akun cloud\n# login wajib memakai kode tambahan dari aplikasi authenticator:\n___\n# beri izin seminimal mungkin sesuai tugas:\nleast ___",
+      "answers": [
+        "MFA|2FA",
+        "privilege"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Shared responsibility: penyedia mengamankan cloud-nya, kamu mengamankan isi dan konfigurasimu.",
+        "IAM mengatur siapa boleh melakukan apa terhadap sumber daya mana.",
+        "Jangan pakai akun root sehari-hari; aktifkan MFA untuk semua orang.",
+        "Least privilege: izin seminimal mungkin per orang dan per aplikasi.",
+        "Jangan simpan access key di kode; pipeline sebaiknya memakai OIDC."
+      ]
+    }
+  ]
+}

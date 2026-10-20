@@ -1,0 +1,99 @@
+{
+  "id": "devops-kubernetes-03",
+  "moduleId": "devops-kubernetes",
+  "order": 3,
+  "title": "Deployment dan Replika",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pod yang dibuat langsung seperti di materi sebelumnya punya kelemahan besar: kalau Pod itu dihapus atau node-nya mati, **tidak ada yang membuatnya lagi**.\n\nKarena itu, di dunia nyata Pod hampir tidak pernah dibuat langsung. Yang dibuat adalah **Deployment**: objek yang berisi \"cetakan\" Pod (*template*) dan jumlah salinan yang diinginkan (`replicas`). Deployment menyerahkan tugas menjaga jumlah itu ke **ReplicaSet**, yang terus memastikan jumlah Pod selalu sesuai.\n\nKamu sudah mengenal pola ini di Java: Deployment seperti **class** dengan aturan \"harus selalu ada 3 object\", dan setiap Pod adalah **object**-nya. Kalau satu object hilang, object baru langsung dibuat dari class yang sama.\n\nBagaimana Deployment tahu Pod mana miliknya? Lewat **label**: pasangan `kunci: nilai` yang ditempel di Pod, misalnya `app: toko-web`. Deployment memilih Pod dengan **selector** yang mencari label itu."
+    },
+    {
+      "type": "theory",
+      "content": "**`deployment.yaml`**\n\n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: toko-web\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: toko-web\n  template:\n    metadata:\n      labels:\n        app: toko-web\n    spec:\n      containers:\n        - name: web\n          image: ghcr.io/budi/toko-web:1.2.0\n          ports:\n            - containerPort: 80\n```\n\n| Bagian | Artinya |\n|---|---|\n| `kind: Deployment`, `apiVersion: apps/v1` | jenis objek dan grup API-nya |\n| `replicas: 3` | harus selalu ada 3 Pod |\n| `selector.matchLabels` | Pod yang dihitung milik Deployment ini: yang berlabel `app: toko-web` |\n| `template` | cetakan Pod. Label di `template.metadata.labels` **wajib cocok** dengan `selector` |\n| `containers` | container di setiap Pod, sama seperti di file Pod |\n\n**Perintah**\n\n| Perintah | Fungsinya |\n|---|---|\n| `kubectl apply -f deployment.yaml` | membuat atau memperbarui Deployment |\n| `kubectl get deployments` (`deploy`) | kolom `READY` (siap/diinginkan), `UP-TO-DATE`, `AVAILABLE` |\n| `kubectl get replicasets` (`rs`) | ReplicaSet yang dibuat Deployment |\n| `kubectl get pods -l app=toko-web` | Pod yang berlabel `app=toko-web` |\n| `kubectl scale deployment toko-web --replicas=5` | mengubah jumlah Pod (cara cepat; sebaiknya ubah juga file YAML-nya) |\n\nNama Pod dari Deployment berbentuk `toko-web-<kode ReplicaSet>-<kode acak>`, misalnya `toko-web-5f7c9d8b6d-2xkqp`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```text\nbudi@laptop:~$ kubectl apply -f deployment.yaml\ndeployment.apps/toko-web created\nbudi@laptop:~$ kubectl get deployments\nNAME       READY   UP-TO-DATE   AVAILABLE   AGE\ntoko-web   3/3     3            3           40s\nbudi@laptop:~$ kubectl get pods\nNAME                        READY   STATUS    RESTARTS   AGE\ntoko-web-5f7c9d8b6d-2xkqp   1/1     Running   0          40s\ntoko-web-5f7c9d8b6d-8lmzr   1/1     Running   0          40s\ntoko-web-5f7c9d8b6d-tq4vn   1/1     Running   0          40s\n```\n\nBudi sengaja menghapus satu Pod untuk menguji:\n\n```text\nbudi@laptop:~$ kubectl delete pod toko-web-5f7c9d8b6d-8lmzr\npod \"toko-web-5f7c9d8b6d-8lmzr\" deleted from default namespace\nbudi@laptop:~$ kubectl get pods\nNAME                        READY   STATUS    RESTARTS   AGE\ntoko-web-5f7c9d8b6d-2xkqp   1/1     Running   0          2m\ntoko-web-5f7c9d8b6d-tq4vn   1/1     Running   0          2m\ntoko-web-5f7c9d8b6d-w9r7c   1/1     Running   0          4s\n```\n\nLalu menambah kapasitas untuk promo:\n\n```text\nbudi@laptop:~$ kubectl scale deployment toko-web --replicas=5\ndeployment.apps/toko-web scaled\nbudi@laptop:~$ kubectl get deployments\nNAME       READY   UP-TO-DATE   AVAILABLE   AGE\ntoko-web   5/5     5            5           3m\n```\n\n- Pod yang dihapus langsung diganti Pod baru (`w9r7c`, umur 4 detik). Itulah *self-healing*.\n- Semua Pod punya awalan sama `toko-web-5f7c9d8b6d`, karena dibuat oleh ReplicaSet yang sama.\n- Kode acak di nama Pod di laptopmu akan berbeda."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Label template tidak cocok dengan selector**\n\nSalah:\n\n```yaml\n  selector:\n    matchLabels:\n      app: toko-web\n  template:\n    metadata:\n      labels:\n        app: toko\n```\n\n```text\nThe Deployment \"toko-web\" is invalid: spec.template.metadata.labels: Invalid value: {\"app\":\"toko\"}: `selector` does not match template `labels`\n```\n\nBenar:\n\n```yaml\n  template:\n    metadata:\n      labels:\n        app: toko-web\n```\n\nKubernetes menolak Deployment yang Pod buatannya tidak akan pernah terpilih oleh selector-nya sendiri.\n\n**2. Mengubah jumlah replika hanya dengan `kubectl scale`**\n\nSalah:\n\n```text\nkubectl scale deployment toko-web --replicas=5\n(file deployment.yaml masih replicas: 3)\n... minggu depan: kubectl apply -f deployment.yaml  -> kembali menjadi 3 Pod\n```\n\nBenar:\n\n```text\nUbah replicas: 5 di deployment.yaml, commit ke Git, lalu kubectl apply.\n```\n\nFile YAML adalah sumber kebenaran. Perubahan yang hanya dilakukan lewat perintah akan tertimpa saat file di-apply lagi."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa Pod jarang dibuat langsung dan lebih sering lewat Deployment?",
+          "options": [
+            "Pod tidak bisa menjalankan container",
+            "Deployment membuat image lebih kecil",
+            "Pod hanya bisa dibuat di cloud",
+            "Deployment otomatis mengganti Pod yang hilang dan menjaga jumlahnya"
+          ],
+          "answer": 3,
+          "explanation": "Pod yang dibuat langsung tidak dibuat ulang kalau hilang. Deployment (lewat ReplicaSet) menjaga jumlah Pod.",
+          "remedial": "- Pod jarang dibuat langsung; yang dibuat adalah **Deployment**\n- Deployment menjaga jumlah Pod (`replicas`) lewat **ReplicaSet**\n- Pod dipilih berdasarkan **label** yang cocok dengan `selector`\n- Pod yang dihapus atau mati otomatis diganti (self-healing)\n- `kubectl scale deployment <nama> --replicas=5` menambah atau mengurangi Pod"
+        },
+        {
+          "question": "Bagaimana Deployment tahu Pod mana yang miliknya?",
+          "options": [
+            "Lewat label yang cocok dengan selector",
+            "Lewat urutan pembuatan Pod",
+            "Lewat nama node",
+            "Lewat alamat IP Pod"
+          ],
+          "answer": 0,
+          "explanation": "Selector `matchLabels` memilih Pod berdasarkan label, misalnya `app: toko-web`.",
+          "remedial": "- Pod jarang dibuat langsung; yang dibuat adalah **Deployment**\n- Deployment menjaga jumlah Pod (`replicas`) lewat **ReplicaSet**\n- Pod dipilih berdasarkan **label** yang cocok dengan `selector`\n- Pod yang dihapus atau mati otomatis diganti (self-healing)\n- `kubectl scale deployment <nama> --replicas=5` menambah atau mengurangi Pod"
+        },
+        {
+          "question": "Perintah untuk mengubah jumlah Pod Deployment `toko-web` menjadi 5 adalah...",
+          "options": [
+            "kubectl get deployment toko-web 5",
+            "kubectl scale deployment toko-web --replicas=5",
+            "kubectl logs toko-web --replicas=5",
+            "kubectl describe toko-web=5"
+          ],
+          "answer": 1,
+          "explanation": "`kubectl scale` mengubah `replicas`. Ubah juga file YAML-nya supaya tidak tertimpa.",
+          "remedial": "- Pod jarang dibuat langsung; yang dibuat adalah **Deployment**\n- Deployment menjaga jumlah Pod (`replicas`) lewat **ReplicaSet**\n- Pod dipilih berdasarkan **label** yang cocok dengan `selector`\n- Pod yang dihapus atau mati otomatis diganti (self-healing)\n- `kubectl scale deployment <nama> --replicas=5` menambah atau mengurangi Pod"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Deployment `toko-web` punya `replicas: 3` dan ketiga Pod-nya Running. Budi menghapus 2 Pod sekaligus. Berapa Pod yang ada beberapa detik kemudian?",
+      "code": "budi@laptop:~$ kubectl delete pod toko-web-5f7c9d8b6d-2xkqp toko-web-5f7c9d8b6d-tq4vn\nbudi@laptop:~$ kubectl get pods",
+      "options": [
+        "1 Pod, karena 2 sudah dihapus",
+        "0 Pod",
+        "3 Pod: 1 lama dan 2 baru",
+        "5 Pod"
+      ],
+      "answer": 2,
+      "explanation": "ReplicaSet melihat hanya ada 1 Pod padahal yang diinginkan 3, lalu membuat 2 Pod baru."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Deployment memilih Pod berlabel app: toko-web dan menjaga 3 salinannya\nspec:\n  ___: 3\n  selector:\n    ___:\n      app: toko-web",
+      "answers": [
+        "replicas",
+        "matchLabels"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Di dunia nyata yang dibuat adalah Deployment, bukan Pod langsung.",
+        "Deployment menjaga jumlah Pod (replicas) lewat ReplicaSet; Pod yang hilang otomatis diganti.",
+        "Pod dipilih lewat label yang cocok dengan selector; label template wajib cocok.",
+        "kubectl scale mengubah jumlah Pod dengan cepat, tapi ubah juga file YAML-nya.",
+        "File YAML adalah sumber kebenaran dan sebaiknya disimpan di Git."
+      ]
+    }
+  ]
+}
