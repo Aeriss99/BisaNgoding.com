@@ -1,0 +1,99 @@
+{
+  "id": "devops-kubernetes-05",
+  "moduleId": "devops-kubernetes",
+  "order": 5,
+  "title": "Rolling Update, Probe, dan Resources",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Deploy ke Server, mengganti versi berarti container lama dihentikan lalu container baru dinyalakan. Ada jeda singkat saat website tidak bisa diakses.\n\nDengan Deployment Kubernetes, mengganti versi image memicu **rolling update**: Pod versi baru dibuat **sedikit demi sedikit**, dan Pod versi lama baru dihentikan setelah Pod baru siap. Pengunjung tidak merasakan jeda sama sekali.\n\nAgar ini bekerja, Kubernetes harus tahu kapan sebuah Pod benar-benar **siap**. Container yang sudah \"Running\" belum tentu siap: aplikasi Spring Boot, misalnya, butuh beberapa detik untuk menyala. Untuk itu ada **probe**, pemeriksaan kesehatan yang dijalankan kubelet secara berkala.\n\nIbarat mengganti pemain di pertandingan sepak bola: pemain pengganti harus sudah pemanasan dan siap di pinggir lapangan sebelum pemain lama keluar. Tim tidak pernah bermain dengan kurang orang."
+    },
+    {
+      "type": "theory",
+      "content": "**Mengganti versi dan rollback**\n\n| Perintah | Fungsinya |\n|---|---|\n| ubah `image:` di YAML, lalu `kubectl apply -f deployment.yaml` | memulai rolling update (cara yang disarankan) |\n| `kubectl set image deployment/toko-web web=ghcr.io/budi/toko-web:1.3.0` | cara cepat dari terminal (`web` = nama container) |\n| `kubectl rollout status deployment/toko-web` | menunggu dan menampilkan kemajuan rolling update |\n| `kubectl rollout history deployment/toko-web` | daftar revisi |\n| `kubectl rollout undo deployment/toko-web` | kembali ke revisi sebelumnya |\n\n**Probe dan resources di dalam container**\n\n```yaml\n      containers:\n        - name: web\n          image: ghcr.io/budi/toko-web:1.3.0\n          readinessProbe:\n            httpGet:\n              path: /\n              port: 80\n            periodSeconds: 5\n          livenessProbe:\n            httpGet:\n              path: /\n              port: 80\n            periodSeconds: 10\n          resources:\n            requests:\n              cpu: 100m\n              memory: 64Mi\n            limits:\n              memory: 128Mi\n```\n\n| Bagian | Artinya |\n|---|---|\n| `readinessProbe` | selama gagal, Pod tidak menerima lalu lintas dari Service, dan rolling update menunggu |\n| `livenessProbe` | kalau gagal berulang kali, container direstart (berguna saat aplikasi macet) |\n| `requests` | jatah minimum yang dipesan; dipakai scheduler untuk memilih node. `100m` = 0,1 CPU |\n| `limits.memory` | batas maksimum memori; kalau dilewati, container dimatikan (*OOMKilled*) |\n\nUntuk Spring Boot, path probe biasanya `/actuator/health/readiness` dan `/actuator/health/liveness` (dibahas di kelas Spring Boot, modul Actuator)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi merilis versi `1.3.0`:\n\n```text\nbudi@laptop:~$ kubectl set image deployment/toko-web web=ghcr.io/budi/toko-web:1.3.0\ndeployment.apps/toko-web image updated\nbudi@laptop:~$ kubectl rollout status deployment/toko-web\nWaiting for deployment \"toko-web\" rollout to finish: 1 out of 3 new replicas have been updated...\nWaiting for deployment \"toko-web\" rollout to finish: 2 out of 3 new replicas have been updated...\nWaiting for deployment \"toko-web\" rollout to finish: 1 old replicas are pending termination...\ndeployment \"toko-web\" successfully rolled out\n```\n\nTernyata halaman pembayaran di versi `1.3.0` error. Budi melihat riwayat lalu kembali ke versi sebelumnya:\n\n```text\nbudi@laptop:~$ kubectl rollout history deployment/toko-web\ndeployment.apps/toko-web\nREVISION  CHANGE-CAUSE\n1         <none>\n2         <none>\n\nbudi@laptop:~$ kubectl rollout undo deployment/toko-web\ndeployment.apps/toko-web rolled back\nbudi@laptop:~$ kubectl rollout status deployment/toko-web\nWaiting for deployment \"toko-web\" rollout to finish: 1 out of 3 new replicas have been updated...\nWaiting for deployment \"toko-web\" rollout to finish: 2 out of 3 new replicas have been updated...\nWaiting for deployment \"toko-web\" rollout to finish: 1 old replicas are pending termination...\ndeployment \"toko-web\" successfully rolled out\n```\n\n- Selama kedua proses, selalu ada Pod yang melayani pengunjung. Pod lama baru dihentikan setelah Pod baru lolos readinessProbe.\n- Revisi 1 adalah `1.2.0`, revisi 2 adalah `1.3.0`. `rollout undo` membuat Deployment kembali memakai template revisi 1.\n- Rollback dengan `undo` cepat untuk keadaan darurat. Setelah itu, samakan kembali file YAML di Git dengan versi yang berjalan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tanpa readinessProbe**\n\nSalah:\n\n```yaml\n      containers:\n        - name: api\n          image: ghcr.io/budi/toko-api:2.0.0\n# aplikasi Spring Boot butuh 20 detik untuk siap\n```\n\nBenar:\n\n```yaml\n          readinessProbe:\n            httpGet:\n              path: /actuator/health/readiness\n              port: 8080\n```\n\nTanpa readinessProbe, Kubernetes menganggap Pod siap begitu container berjalan. Saat rolling update, pengunjung diarahkan ke aplikasi yang belum siap dan mendapat error selama beberapa detik.\n\n**2. Limit memori terlalu kecil**\n\nSalah:\n\n```yaml\n          resources:\n            limits:\n              memory: 64Mi\n# aplikasi Java butuh sekitar 300 MB\n```\n\n```text\nbudi@laptop:~$ kubectl get pods\nNAME                       READY   STATUS      RESTARTS     AGE\ntoko-api-6c9f7b5d4-k2xvz   0/1     OOMKilled   3 (20s ago)  2m\n```\n\nBenar:\n\n```yaml\n          resources:\n            requests:\n              memory: 384Mi\n            limits:\n              memory: 512Mi\n```\n\n`OOMKilled` berarti container dimatikan karena memakai memori melebihi limit. Ukur pemakaian sebenarnya dulu, lalu beri limit dengan ruang cadangan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dimaksud rolling update?",
+          "options": [
+            "Semua Pod dihapus lalu dibuat ulang sekaligus",
+            "Pod versi baru dibuat bertahap dan Pod lama dihentikan setelah Pod baru siap, tanpa website mati",
+            "Cluster di-restart total",
+            "Image dibangun ulang di setiap node"
+          ],
+          "answer": 1,
+          "explanation": "Rolling update mengganti Pod sedikit demi sedikit sehingga selalu ada Pod yang melayani.",
+          "remedial": "- Mengganti image di Deployment memicu **rolling update**: Pod diganti bertahap tanpa website mati\n- `kubectl rollout status` memantau proses, `kubectl rollout history` melihat riwayat revisi\n- `kubectl rollout undo` mengembalikan ke revisi sebelumnya\n- **readinessProbe**: Pod baru menerima lalu lintas setelah siap; **livenessProbe**: container yang macet direstart\n- `resources.requests` dan `resources.limits` mengatur CPU dan memori"
+        },
+        {
+          "question": "Perintah untuk kembali ke revisi Deployment sebelumnya adalah...",
+          "options": [
+            "kubectl delete deployment toko-web",
+            "kubectl scale deployment toko-web --replicas=0",
+            "kubectl rollout undo deployment/toko-web",
+            "kubectl logs deployment/toko-web"
+          ],
+          "answer": 2,
+          "explanation": "`rollout undo` memakai lagi template revisi sebelumnya dengan rolling update.",
+          "remedial": "- Mengganti image di Deployment memicu **rolling update**: Pod diganti bertahap tanpa website mati\n- `kubectl rollout status` memantau proses, `kubectl rollout history` melihat riwayat revisi\n- `kubectl rollout undo` mengembalikan ke revisi sebelumnya\n- **readinessProbe**: Pod baru menerima lalu lintas setelah siap; **livenessProbe**: container yang macet direstart\n- `resources.requests` dan `resources.limits` mengatur CPU dan memori"
+        },
+        {
+          "question": "Probe yang menentukan apakah Pod boleh menerima lalu lintas dari Service adalah...",
+          "options": [
+            "livenessProbe",
+            "startupScript",
+            "imagePullPolicy",
+            "readinessProbe"
+          ],
+          "answer": 3,
+          "explanation": "Selama readinessProbe gagal, Pod tidak menerima lalu lintas. livenessProbe untuk merestart container yang macet.",
+          "remedial": "- Mengganti image di Deployment memicu **rolling update**: Pod diganti bertahap tanpa website mati\n- `kubectl rollout status` memantau proses, `kubectl rollout history` melihat riwayat revisi\n- `kubectl rollout undo` mengembalikan ke revisi sebelumnya\n- **readinessProbe**: Pod baru menerima lalu lintas setelah siap; **livenessProbe**: container yang macet direstart\n- `resources.requests` dan `resources.limits` mengatur CPU dan memori"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Status Pod di bawah ini paling mungkin disebabkan oleh...",
+      "code": "NAME                       READY   STATUS      RESTARTS      AGE\ntoko-api-6c9f7b5d4-k2xvz   0/1     OOMKilled   3 (20s ago)   2m\n\n# potongan deployment.yaml\n          resources:\n            limits:\n              memory: 64Mi",
+      "options": [
+        "Container memakai memori melebihi limit 64Mi lalu dimatikan",
+        "Image tidak ditemukan di registry",
+        "Service tidak punya endpoint",
+        "Node belum siap"
+      ],
+      "answer": 0,
+      "explanation": "`OOMKilled` = container dimatikan karena kehabisan memori sesuai limit. Naikkan limit setelah mengukur kebutuhan sebenarnya."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Pantau rolling update, lalu kembali ke versi sebelumnya kalau bermasalah\nkubectl rollout ___ deployment/toko-web\nkubectl rollout ___ deployment/toko-web",
+      "answers": [
+        "status",
+        "undo"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Mengganti image Deployment memicu rolling update tanpa website mati.",
+        "kubectl rollout status memantau, rollout history melihat revisi, rollout undo mengembalikan.",
+        "readinessProbe menahan lalu lintas sampai Pod siap; livenessProbe merestart container yang macet.",
+        "requests dipakai scheduler; limits.memory yang terlewati menyebabkan OOMKilled.",
+        "Setelah rollback darurat, samakan kembali file YAML di Git."
+      ]
+    }
+  ]
+}

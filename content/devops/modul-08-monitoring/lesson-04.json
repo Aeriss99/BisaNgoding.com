@@ -1,0 +1,99 @@
+{
+  "id": "devops-monitoring-04",
+  "moduleId": "devops-monitoring",
+  "order": 4,
+  "title": "Log Terpusat dan Structured Logging",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Metrik memberi tahu **ada** masalah (error naik 6%). Log memberi tahu **kenapa** (pesanan gagal karena koneksi ke database terputus).\n\nSaat aplikasi hanya satu container, `docker compose logs` sudah cukup. Tapi dengan 10 container di beberapa server atau Pod Kubernetes yang terus berganti, mencari log satu per satu tidak mungkin dilakukan. Lagi pula, log container ikut hilang saat container dihapus.\n\nSolusinya **log terpusat**: semua container mengirim log ke satu tempat yang bisa dicari, disaring, dan disimpan berhari-hari. Contohnya **Grafana Loki** atau **Elasticsearch/OpenSearch**, atau layanan log milik penyedia cloud.\n\nSupaya mudah dicari mesin, log sebaiknya ditulis dalam format terstruktur (**structured logging**), biasanya **JSON**: setiap informasi punya nama kolom sendiri.\n\nIbarat kotak hitam pesawat: tidak berguna kalau tercecer di banyak tempat dan ditulis acak. Catatan harus lengkap, rapi, dan terkumpul supaya penyebab kejadian bisa ditemukan."
+    },
+    {
+      "type": "theory",
+      "content": "**Level log**\n\n| Level | Dipakai untuk |\n|---|---|\n| `ERROR` | sesuatu gagal dan perlu perhatian (pesanan gagal disimpan) |\n| `WARN` | hal tidak biasa tapi masih tertangani (percobaan ulang ke payment gateway) |\n| `INFO` | kejadian penting normal (aplikasi menyala, pesanan dibuat) |\n| `DEBUG` | detail untuk mencari bug; biasanya dimatikan di production |\n\n**Teks biasa vs structured (JSON)**\n\n```text\n2026-10-20T12:10:03.118+07:00 ERROR 1 --- [toko-api] [nio-8080-exec-7] c.e.t.CheckoutService : Gagal menyimpan pesanan 1042: koneksi database terputus\n```\n\n```json\n{\"waktu\":\"2026-10-20T12:10:03.118+07:00\",\"level\":\"ERROR\",\"service\":\"toko-api\",\"message\":\"Gagal menyimpan pesanan\",\"pesanan_id\":1042,\"trace_id\":\"4bf92f3577b34da6a3ce929d0e0e4736\",\"error\":\"koneksi database terputus\"}\n```\n\nVersi JSON (contoh di atas disederhanakan) bisa langsung disaring: \"semua `ERROR` dari `toko-api` dengan `trace_id` tertentu\". Spring Boot 3.4 ke atas punya dukungan bawaan untuk log terstruktur, misalnya `logging.structured.format.console=ecs` di `application.properties` untuk format ECS (Elastic Common Schema).\n\n**Correlation ID / trace ID**\n\nSatu klik \"Bayar\" bisa melewati beberapa service (web → API → layanan pembayaran). Kalau setiap log membawa **trace ID** yang sama, semua log dari klik itu bisa dikumpulkan dalam satu pencarian. OpenTelemetry dan Micrometer Tracing bisa menambahkan trace ID ini otomatis.\n\n**Yang tidak boleh masuk log**: password, token, isi header `Authorization`, nomor kartu, dan data pribadi yang tidak perlu. Log biasa dibaca lebih banyak orang dan disimpan lebih lama daripada database."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nAlert ErrorTinggi berbunyi. Sari membuka pencarian log di Grafana (Loki) dan menyaring log `ERROR` dari `toko-api` dalam 15 menit terakhir. Hasilnya (dipersingkat):\n\n```text\n12:10:03  ERROR  toko-api  Gagal menyimpan pesanan  pesanan_id=1042  trace_id=4bf92f35...  error=\"koneksi database terputus\"\n12:10:04  ERROR  toko-api  Gagal menyimpan pesanan  pesanan_id=1043  trace_id=9a1c07e2...  error=\"koneksi database terputus\"\n12:10:04  ERROR  toko-api  Gagal menyimpan pesanan  pesanan_id=1044  trace_id=17d3bb90...  error=\"koneksi database terputus\"\n... (318 baris serupa)\n```\n\nIa lalu mencari satu trace ID untuk melihat seluruh perjalanan pesanan 1042:\n\n```text\n12:10:02.901  INFO   toko-web     POST /checkout diterima                    trace_id=4bf92f35...\n12:10:02.950  INFO   toko-api     Memvalidasi keranjang (3 produk)           trace_id=4bf92f35...\n12:10:03.118  ERROR  toko-api     Gagal menyimpan pesanan                    trace_id=4bf92f35...\n12:10:03.120  INFO   toko-web     Menampilkan halaman error ke pengguna      trace_id=4bf92f35...\n```\n\n- Satu penyaringan menunjukkan pola: semua error berasal dari koneksi database. Sari langsung memeriksa database, bukan menebak-nebak.\n- Trace ID menyambungkan log dari dua service berbeda menjadi satu cerita utuh."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis data rahasia ke log**\n\nSalah:\n\n```java\nlog.info(\"Login berhasil untuk {} dengan password {}\", email, password);\nlog.debug(\"Header request: {}\", headers);   // termasuk Authorization: Bearer ...\n```\n\nBenar:\n\n```java\nlog.info(\"Login berhasil untuk pengguna id={}\", penggunaId);\n```\n\nLog dikirim ke banyak tempat, dibaca banyak orang, dan disimpan lama. Password dan token di log sama dengan membocorkannya.\n\n**2. Pesan log yang tidak bisa ditindaklanjuti**\n\nSalah:\n\n```text\nERROR Terjadi kesalahan\n```\n\nBenar:\n\n```text\nERROR Gagal menyimpan pesanan pesanan_id=1042 error=\"koneksi database terputus\"\n```\n\nPesan yang baik menjawab: apa yang gagal, untuk data yang mana, dan kenapa."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Level log yang tepat untuk \"pesanan gagal disimpan ke database\" adalah...",
+          "options": [
+            "ERROR",
+            "DEBUG",
+            "INFO",
+            "TRACE"
+          ],
+          "answer": 0,
+          "explanation": "Kegagalan yang butuh perhatian dicatat sebagai ERROR.",
+          "remedial": "- Log yang baik punya **waktu**, **level** (ERROR, WARN, INFO, DEBUG), dan pesan yang jelas\n- **Structured logging**: log ditulis sebagai JSON supaya mudah dicari dan disaring mesin\n- **Correlation/trace ID** menyambungkan semua log dari satu permintaan\n- Log dari banyak container dikumpulkan di satu tempat (misalnya Loki atau Elasticsearch/OpenSearch)\n- Jangan pernah menulis password, token, atau data kartu ke log"
+        },
+        {
+          "question": "Keuntungan structured logging (JSON) dibanding teks bebas adalah...",
+          "options": [
+            "Ukuran log selalu lebih kecil",
+            "Setiap informasi punya nama kolom sehingga mudah dicari dan disaring mesin",
+            "Log tidak perlu disimpan",
+            "Log otomatis terenkripsi"
+          ],
+          "answer": 1,
+          "explanation": "Dengan kolom bernama, pencarian seperti 'level=ERROR dan service=toko-api' menjadi mudah.",
+          "remedial": "- Log yang baik punya **waktu**, **level** (ERROR, WARN, INFO, DEBUG), dan pesan yang jelas\n- **Structured logging**: log ditulis sebagai JSON supaya mudah dicari dan disaring mesin\n- **Correlation/trace ID** menyambungkan semua log dari satu permintaan\n- Log dari banyak container dikumpulkan di satu tempat (misalnya Loki atau Elasticsearch/OpenSearch)\n- Jangan pernah menulis password, token, atau data kartu ke log"
+        },
+        {
+          "question": "Gunanya trace ID di setiap log adalah...",
+          "options": [
+            "Menghitung jumlah server",
+            "Menyimpan password pengguna",
+            "Menyambungkan semua log dari satu permintaan, termasuk lintas service",
+            "Menentukan level log"
+          ],
+          "answer": 2,
+          "explanation": "Satu pencarian trace ID mengumpulkan seluruh perjalanan satu permintaan.",
+          "remedial": "- Log yang baik punya **waktu**, **level** (ERROR, WARN, INFO, DEBUG), dan pesan yang jelas\n- **Structured logging**: log ditulis sebagai JSON supaya mudah dicari dan disaring mesin\n- **Correlation/trace ID** menyambungkan semua log dari satu permintaan\n- Log dari banyak container dikumpulkan di satu tempat (misalnya Loki atau Elasticsearch/OpenSearch)\n- Jangan pernah menulis password, token, atau data kartu ke log"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Baris log mana yang **melanggar** praktik keamanan?",
+      "code": "A: INFO  Pesanan dibuat pesanan_id=1050 pengguna_id=771\nB: WARN  Payment gateway lambat, mencoba ulang (percobaan 2 dari 3)\nC: DEBUG Request header Authorization: Bearer eyJhbGciOiJIUzI1NiIs...\nD: ERROR Gagal mengirim email pesanan_id=1050 error=\"SMTP timeout\"",
+      "options": [
+        "A",
+        "B",
+        "D",
+        "C"
+      ],
+      "answer": 3,
+      "explanation": "Baris C menulis token Bearer ke log. Siapa pun yang membaca log bisa memakai token itu."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Spring Boot 3.4+: log konsol dalam format JSON terstruktur (ECS)\nlogging.structured.format.___=ecs\n# Level log untuk kegagalan yang perlu perhatian:\n___",
+      "answers": [
+        "console",
+        "ERROR"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Log yang baik punya waktu, level, dan pesan yang menjelaskan apa, data mana, dan kenapa.",
+        "Structured logging (JSON) membuat log mudah dicari dan disaring.",
+        "Trace ID menyambungkan semua log dari satu permintaan lintas service.",
+        "Log dari banyak container dikumpulkan di tempat terpusat seperti Loki atau Elasticsearch/OpenSearch.",
+        "Jangan menulis password, token, atau data kartu ke log."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "id": "devops-terraform-03",
+  "moduleId": "devops-terraform",
+  "order": 3,
+  "title": "Variable dan Output",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kode di materi sebelumnya menulis port `8081` dan nama `toko-web` langsung di resource. Kalau staging butuh port `8082` dan production `80`, kita harus menyalin file dan mengubahnya satu per satu. Itu rawan salah.\n\n**Variable** membuat kode bisa dipakai ulang: nilai yang berbeda-beda dijadikan masukan. **Output** adalah kebalikannya: nilai yang ditampilkan setelah `terraform apply`, misalnya alamat aplikasi atau ID server, supaya mudah dilihat atau dipakai alat lain.\n\nIbarat formulir pendaftaran: bentuk formulirnya sama untuk semua orang (kode Terraform), isiannya berbeda (variable), dan setelah diproses kamu menerima nomor pendaftaran (output).\n\nBiasanya file dipisah supaya rapi:\n\n| File | Isi |\n|---|---|\n| `main.tf` | provider dan resource |\n| `variables.tf` | daftar variable |\n| `outputs.tf` | daftar output |\n| `terraform.tfvars` | nilai variable untuk folder ini |\n\nTerraform membaca semua file `.tf` di satu folder sekaligus, jadi pembagian file hanya untuk kerapian."
+    },
+    {
+      "type": "theory",
+      "content": "**Mendeklarasikan variable**\n\n```hcl\nvariable \"port_luar\" {\n  type        = number\n  description = \"Port di komputer untuk membuka web toko\"\n  default     = 8081\n\n  validation {\n    condition     = var.port_luar >= 1024 && var.port_luar <= 65535\n    error_message = \"Port harus antara 1024 dan 65535.\"\n  }\n}\n\nvariable \"nama_container\" {\n  type    = string\n  default = \"toko-web\"\n}\n```\n\nDipakai di resource dengan `var.nama`:\n\n```hcl\nresource \"docker_container\" \"web\" {\n  name  = var.nama_container\n  image = docker_image.nginx.image_id\n\n  ports {\n    internal = 80\n    external = var.port_luar\n  }\n}\n```\n\n**Cara memberi nilai** (dari prioritas tertinggi)\n\n| Cara | Contoh |\n|---|---|\n| `-var` di perintah | `terraform apply -var=\"port_luar=9090\"` |\n| file `terraform.tfvars` | `port_luar = 8082` |\n| environment variable | `export TF_VAR_port_luar=8083` |\n| `default` di blok variable | `default = 8081` |\n\nKalau variable tidak punya `default` dan tidak diberi nilai, Terraform akan menanyakannya saat `plan`/`apply`.\n\n**Output**\n\n```hcl\noutput \"alamat\" {\n  description = \"Alamat web toko\"\n  value       = \"http://localhost:${var.port_luar}\"\n}\n```\n\n`${...}` menyisipkan nilai ke dalam teks. Setelah apply, output tampil di bagian `Outputs:`, dan bisa dibaca lagi dengan `terraform output alamat`.\n\n**Nilai rahasia**\n\n```hcl\nvariable \"password_db\" {\n  type      = string\n  sensitive = true\n}\n```\n\n`sensitive = true` membuat nilai tampil sebagai `(sensitive value)` di plan dan `<sensitive>` di output. Tapi nilainya **tetap tersimpan apa adanya di file state**, jadi state harus dijaga (materi berikutnya)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nIsi `terraform.tfvars` di folder staging:\n\n```hcl\nport_luar      = 8082\nnama_container = \"toko-web-staging\"\n```\n\nBudi menjalankan:\n\n```text\n$ terraform apply\n...\nApply complete! Resources: 2 added, 0 changed, 0 destroyed.\n\nOutputs:\n\nalamat = \"http://localhost:8082\"\n```\n\nNilai `8082` diambil dari `terraform.tfvars` karena lebih diutamakan daripada `default = 8081`.\n\nLalu ia mencoba port yang tidak valid:\n\n```text\n$ terraform plan -var=\"port_luar=80\"\n\nError: Invalid value for variable\n...\nPort harus antara 1024 dan 65535.\n```\n\n- `-var` menimpa nilai dari `terraform.tfvars`, lalu blok `validation` menolak nilai 80 sebelum ada yang dibuat.\n- Untuk dipakai skrip lain, `terraform output -raw alamat` mencetak `http://localhost:8082` tanpa tanda kutip."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan password di `terraform.tfvars` lalu commit ke Git**\n\nSalah:\n\n```hcl\n# terraform.tfvars (ikut di-commit)\npassword_db = \"Rahasia123!\"\n```\n\nBenar:\n\n```text\n$ export TF_VAR_password_db=\"...\"     # diisi dari secret CI atau password manager\n$ terraform apply\n```\n\nAtau ambil dari layanan penyimpan rahasia (misalnya AWS Secrets Manager). File `.tfvars` berisi rahasia wajib masuk `.gitignore`.\n\n**2. Mengira `sensitive = true` membuat nilai aman sepenuhnya**\n\nSalah:\n\n```text\n\"Sudah sensitive = true, jadi state boleh dibagikan ke siapa saja.\"\n```\n\nBenar:\n\n```text\nsensitive hanya menyembunyikan nilai di layar. State tetap berisi nilai aslinya,\njadi state disimpan di backend yang terenkripsi dengan akses terbatas.\n```"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Cara membaca variable bernama `port_luar` di dalam resource adalah...",
+          "options": [
+            "variable.port_luar",
+            "${port_luar}",
+            "input.port_luar",
+            "var.port_luar"
+          ],
+          "answer": 3,
+          "explanation": "Variable dirujuk dengan awalan `var.`.",
+          "remedial": "- **Variable** (`variable`) = masukan supaya kode yang sama bisa dipakai dengan nilai berbeda, dibaca dengan `var.nama`\n- Nilai variable bisa dari `default`, file `terraform.tfvars`, environment `TF_VAR_nama`, atau `-var` di perintah\n- Urutan prioritas: `-var` > `terraform.tfvars` > `TF_VAR_` > `default`\n- **Output** (`output`) = nilai yang ditampilkan setelah apply, misalnya alamat aplikasi\n- `sensitive = true` menyembunyikan nilai di layar, tapi nilainya **tetap tersimpan** di state"
+        },
+        {
+          "question": "Mana yang paling diutamakan Terraform saat memberi nilai variable?",
+          "options": [
+            "-var di perintah",
+            "default di blok variable",
+            "environment TF_VAR_",
+            "terraform.tfvars"
+          ],
+          "answer": 0,
+          "explanation": "Urutan: `-var` > `terraform.tfvars` > `TF_VAR_` > `default`.",
+          "remedial": "- **Variable** (`variable`) = masukan supaya kode yang sama bisa dipakai dengan nilai berbeda, dibaca dengan `var.nama`\n- Nilai variable bisa dari `default`, file `terraform.tfvars`, environment `TF_VAR_nama`, atau `-var` di perintah\n- Urutan prioritas: `-var` > `terraform.tfvars` > `TF_VAR_` > `default`\n- **Output** (`output`) = nilai yang ditampilkan setelah apply, misalnya alamat aplikasi\n- `sensitive = true` menyembunyikan nilai di layar, tapi nilainya **tetap tersimpan** di state"
+        },
+        {
+          "question": "Apa efek `sensitive = true` pada variable?",
+          "options": [
+            "Nilai dienkripsi di state",
+            "Nilai disembunyikan di layar, tapi tetap tersimpan di state",
+            "Nilai tidak disimpan di mana pun",
+            "Variable tidak bisa dipakai di resource"
+          ],
+          "answer": 1,
+          "explanation": "Nilai tampil sebagai `(sensitive value)` di plan, tapi state tetap berisi nilai aslinya.",
+          "remedial": "- **Variable** (`variable`) = masukan supaya kode yang sama bisa dipakai dengan nilai berbeda, dibaca dengan `var.nama`\n- Nilai variable bisa dari `default`, file `terraform.tfvars`, environment `TF_VAR_nama`, atau `-var` di perintah\n- Urutan prioritas: `-var` > `terraform.tfvars` > `TF_VAR_` > `default`\n- **Output** (`output`) = nilai yang ditampilkan setelah apply, misalnya alamat aplikasi\n- `sensitive = true` menyembunyikan nilai di layar, tapi nilainya **tetap tersimpan** di state"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Dengan konfigurasi berikut, berapa nilai `var.port_luar` saat perintah di bawah dijalankan?",
+      "code": "# variables.tf\nvariable \"port_luar\" {\n  type    = number\n  default = 8081\n}\n\n# terraform.tfvars\nport_luar = 8082\n\n# terminal\n$ export TF_VAR_port_luar=8083\n$ terraform apply -var=\"port_luar=9090\"",
+      "options": [
+        "8083",
+        "8082",
+        "9090",
+        "8081"
+      ],
+      "answer": 2,
+      "explanation": "`-var` di perintah paling diutamakan, di atas `terraform.tfvars`, `TF_VAR_`, dan `default`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Variable port dengan nilai bawaan 8081, lalu output alamatnya\nvariable \"port_luar\" {\n  type    = number\n  ___ = 8081\n}\n\noutput \"alamat\" {\n  value = \"http://localhost:${___.port_luar}\"\n}",
+      "answers": [
+        "default",
+        "var"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Variable membuat kode bisa dipakai ulang dengan nilai berbeda, dibaca dengan var.nama.",
+        "Nilai variable dari -var, terraform.tfvars, TF_VAR_nama, atau default, berurutan dari prioritas tertinggi.",
+        "Blok validation menolak nilai yang tidak sesuai sebelum ada yang dibuat.",
+        "Output menampilkan nilai setelah apply dan bisa dibaca dengan terraform output.",
+        "sensitive = true hanya menyembunyikan nilai di layar; rahasia jangan di-commit."
+      ]
+    }
+  ]
+}

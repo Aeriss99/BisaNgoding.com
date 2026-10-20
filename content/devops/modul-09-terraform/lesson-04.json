@@ -1,0 +1,99 @@
+{
+  "id": "devops-terraform-04",
+  "moduleId": "devops-terraform",
+  "order": 4,
+  "title": "State: Catatan Milik Terraform",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setelah `terraform apply`, muncul file baru bernama **`terraform.tfstate`**. Inilah **state**: catatan Terraform tentang benda apa saja yang sudah dibuatnya dan ID aslinya di platform.\n\nKenapa perlu? Kode hanya berkata \"harus ada container bernama toko-web\". Untuk tahu container itu sudah ada atau belum, dan yang mana yang miliknya, Terraform melihat state. Saat `plan`, Terraform:\n\n1. membaca kode (keadaan yang diinginkan),\n2. membaca state (benda yang dikelolanya),\n3. mengecek keadaan nyata di platform,\n4. lalu menghitung perbedaannya.\n\nState adalah file JSON yang berisi semua atribut resource, **termasuk nilai rahasia** seperti password database, dalam bentuk teks biasa.\n\nIbarat buku inventaris gudang: tanpa buku itu, petugas tidak tahu barang mana yang miliknya dan mana yang milik orang lain. Buku itu juga mencatat hal-hal berharga, jadi tidak boleh ditinggal di meja umum."
+    },
+    {
+      "type": "theory",
+      "content": "**Aturan menjaga state**\n\n| Aturan | Alasan |\n|---|---|\n| Jangan commit `terraform.tfstate` ke Git | berisi rahasia, dan mudah konflik antar-anggota tim |\n| Jangan mengedit file state dengan tangan | gunakan perintah `terraform state ...` kalau memang perlu |\n| Untuk tim, pakai **remote backend** | semua orang memakai state yang sama dari satu tempat |\n| Aktifkan **locking** | mencegah dua apply berjalan bersamaan dan merusak state |\n| Simpan backend terenkripsi dengan akses terbatas | karena state berisi rahasia |\n\n**`.gitignore` untuk proyek Terraform**\n\n```text\n.terraform/\n*.tfstate\n*.tfstate.*\n*.tfvars\n```\n\nFile `.terraform.lock.hcl` justru **di-commit**, supaya semua orang dan CI memakai versi provider yang sama persis. Kalau ada `.tfvars` tanpa rahasia yang perlu dibagikan, kecualikan dari `.gitignore` secara khusus.\n\n**Remote backend dengan S3**\n\n```hcl\nterraform {\n  backend \"s3\" {\n    bucket       = \"toko-terraform-state\"\n    key          = \"production/terraform.tfstate\"\n    region       = \"ap-southeast-3\"\n    encrypt      = true\n    use_lockfile = true\n  }\n}\n```\n\n- `key` adalah lokasi file state di dalam bucket. Pisahkan per lingkungan (staging dan production).\n- `use_lockfile = true` membuat Terraform menaruh file kunci di S3 selama apply berjalan (didukung sejak Terraform 1.10). Orang kedua yang menjalankan apply akan mendapat pesan error karena state sedang dikunci.\n- Setelah menambah blok `backend`, jalankan `terraform init` lagi.\n\nAlternatif lain: Google Cloud Storage (`backend \"gcs\"`), Azure Storage, atau HCP Terraform.\n\n**Perintah state yang aman**\n\n| Perintah | Fungsi |\n|---|---|\n| `terraform state list` | daftar resource yang tercatat di state |\n| `terraform state show docker_container.web` | detail satu resource |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSuatu malam, Andi menghapus container secara manual saat mencoba sesuatu:\n\n```text\n$ docker rm -f toko-web\n```\n\nBesok paginya Sari menjalankan `terraform plan` (dipersingkat):\n\n```text\nNote: Objects have changed outside of Terraform\n\n  # docker_container.web has been deleted\n  - resource \"docker_container\" \"web\" {\n      - name = \"toko-web\"\n    }\n\n...\n\n  # docker_container.web will be created\n  + resource \"docker_container\" \"web\" {\n      + name = \"toko-web\"\n      ...\n    }\n\nPlan: 1 to add, 0 to change, 0 to destroy.\n```\n\n- Terraform mendeteksi **drift**: state mencatat container ada, tapi kenyataannya sudah hilang.\n- Karena kode masih meminta container itu, rencananya adalah membuatnya kembali. Setelah apply, kenyataan sesuai dengan kode lagi.\n- Tim lalu menyepakati: semua perubahan lewat kode dan pull request, bukan perintah manual.\n\nDi proyek lain, dua orang menjalankan `terraform apply` hampir bersamaan. Karena backend memakai locking, apply kedua langsung berhenti dengan pesan bahwa state sedang dikunci, dan menunggu apply pertama selesai. Tanpa locking, keduanya bisa menulis state bersamaan dan state menjadi rusak."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Commit state ke Git**\n\nSalah:\n\n```text\n$ git add .\n$ git commit -m \"tambah database\"\n# terraform.tfstate ikut ter-commit, berisi password database dalam teks biasa\n```\n\nBenar:\n\n```text\nTambahkan *.tfstate ke .gitignore sejak awal, dan simpan state di remote backend.\n```\n\nKalau terlanjur ter-commit ke repo yang bisa diakses orang lain, anggap rahasianya bocor: ganti password-nya, lalu bersihkan riwayat Git.\n\n**2. Menghapus file state karena \"error aneh\"**\n\nSalah:\n\n```text\n$ rm terraform.tfstate\n$ terraform apply\n# Terraform lupa semua resource lama, lalu mencoba membuat semuanya lagi\n# -> error \"sudah ada\" atau resource kembar\n```\n\nBenar:\n\n```text\nCari penyebab error-nya. Kalau state memang tidak sesuai, gunakan perintah\nterraform state atau blok import, dan simpan cadangan state sebelum mengubahnya.\n```\n\nTanpa state, Terraform tidak tahu benda mana yang miliknya."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Fungsi utama file `terraform.tfstate` adalah...",
+          "options": [
+            "Mencatat hubungan antara kode dan benda nyata yang dibuat Terraform",
+            "Menyimpan kode sumber aplikasi",
+            "Mengunduh provider",
+            "Menyimpan log aplikasi"
+          ],
+          "answer": 0,
+          "explanation": "Dengan state, Terraform tahu benda mana yang miliknya dan menghitung perubahan.",
+          "remedial": "- **State** (`terraform.tfstate`) mencatat hubungan antara kode dan benda nyata yang dibuat Terraform\n- State bisa berisi rahasia dalam bentuk teks biasa: **jangan pernah commit ke Git**\n- Untuk tim, simpan state di **remote backend** (misalnya S3, Google Cloud Storage, HCP Terraform) dengan **locking**\n- Locking mencegah dua orang menjalankan apply bersamaan\n- **Drift** = kenyataan berbeda dari kode karena perubahan manual; terlihat saat `terraform plan`"
+        },
+        {
+          "question": "Kenapa `terraform.tfstate` tidak boleh di-commit ke Git?",
+          "options": [
+            "Ukurannya selalu di atas 1 GB",
+            "Bisa berisi rahasia dalam teks biasa dan mudah konflik antar-anggota tim",
+            "Git tidak bisa menyimpan file JSON",
+            "Terraform akan berhenti bekerja"
+          ],
+          "answer": 1,
+          "explanation": "State menyimpan semua atribut resource, termasuk password.",
+          "remedial": "- **State** (`terraform.tfstate`) mencatat hubungan antara kode dan benda nyata yang dibuat Terraform\n- State bisa berisi rahasia dalam bentuk teks biasa: **jangan pernah commit ke Git**\n- Untuk tim, simpan state di **remote backend** (misalnya S3, Google Cloud Storage, HCP Terraform) dengan **locking**\n- Locking mencegah dua orang menjalankan apply bersamaan\n- **Drift** = kenyataan berbeda dari kode karena perubahan manual; terlihat saat `terraform plan`"
+        },
+        {
+          "question": "Gunanya locking pada remote backend adalah...",
+          "options": [
+            "Mengenkripsi kode Terraform",
+            "Mempercepat init",
+            "Mencegah dua orang menjalankan apply bersamaan",
+            "Menghapus resource lama otomatis"
+          ],
+          "answer": 2,
+          "explanation": "Apply kedua ditolak selama state masih dikunci apply pertama.",
+          "remedial": "- **State** (`terraform.tfstate`) mencatat hubungan antara kode dan benda nyata yang dibuat Terraform\n- State bisa berisi rahasia dalam bentuk teks biasa: **jangan pernah commit ke Git**\n- Untuk tim, simpan state di **remote backend** (misalnya S3, Google Cloud Storage, HCP Terraform) dengan **locking**\n- Locking mencegah dua orang menjalankan apply bersamaan\n- **Drift** = kenyataan berbeda dari kode karena perubahan manual; terlihat saat `terraform plan`"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Container dikelola Terraform. Seseorang menghapusnya dengan `docker rm -f toko-web`. Kode tidak diubah. Apa ringkasan `terraform plan` berikutnya?",
+      "code": "resource \"docker_container\" \"web\" {\n  name  = \"toko-web\"\n  image = docker_image.nginx.image_id\n}\n\n$ docker rm -f toko-web\n$ terraform plan",
+      "options": [
+        "No changes. Your infrastructure matches the configuration.",
+        "Plan: 0 to add, 0 to change, 1 to destroy.",
+        "Plan: 0 to add, 1 to change, 0 to destroy.",
+        "Plan: 1 to add, 0 to change, 0 to destroy."
+      ],
+      "answer": 3,
+      "explanation": "Terraform mendeteksi container sudah hilang (drift), dan karena kode masih memintanya, container akan dibuat lagi."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# .gitignore proyek Terraform\n.terraform/\n*.___\n# Backend S3 dengan kunci supaya tidak ada dua apply bersamaan\nuse____ = true",
+      "answers": [
+        "tfstate",
+        "lockfile"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "State mencatat hubungan antara kode dan benda nyata yang dibuat Terraform.",
+        "State bisa berisi rahasia dalam teks biasa; jangan pernah commit ke Git.",
+        "Untuk tim, simpan state di remote backend terenkripsi dengan locking.",
+        "File .terraform.lock.hcl di-commit; .terraform/, *.tfstate, dan .tfvars berisi rahasia tidak.",
+        "Drift terjadi karena perubahan manual dan terlihat saat terraform plan."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "id": "devops-cloud-02",
+  "moduleId": "devops-cloud",
+  "order": 2,
+  "title": "Region dan Availability Zone",
+  "estimatedMinutes": 9,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Server cloud tetap berada di gedung sungguhan di suatu tempat di dunia. Penyedia cloud mengelompokkan pusat datanya menjadi:\n\n- **Region**: lokasi geografis, misalnya Jakarta, Singapura, atau Tokyo. Setiap region berdiri sendiri.\n- **Availability Zone (AZ)**: satu atau beberapa pusat data terpisah **di dalam** satu region, dengan listrik, pendingin, dan jaringan masing-masing, tapi tersambung dengan jaringan sangat cepat.\n\nUntuk pengguna di Indonesia, beberapa penyedia besar sudah punya region di Jakarta, misalnya AWS (Asia Pacific Jakarta, kode `ap-southeast-3`) dan Google Cloud (`asia-southeast2`). Region Singapura juga sering dipakai karena dekat.\n\nIbarat jaringan minimarket: region adalah kotanya, availability zone adalah beberapa gerai di kota yang sama. Kalau satu gerai tutup karena banjir, pembeli masih bisa ke gerai lain di kota itu."
+    },
+    {
+      "type": "theory",
+      "content": "**Memilih region**\n\n| Pertimbangan | Penjelasan |\n|---|---|\n| **Latensi** | makin dekat region ke pengguna, makin cepat respons. Pengguna di Indonesia dilayani lebih cepat dari Jakarta atau Singapura daripada dari Amerika |\n| **Aturan data** | beberapa jenis data (misalnya data keuangan atau data pribadi) bisa diatur harus disimpan di wilayah tertentu. Tanyakan aturan yang berlaku untuk bisnismu |\n| **Ketersediaan layanan** | tidak semua layanan tersedia di semua region |\n| **Harga** | harga layanan yang sama bisa berbeda antar region |\n\n**Memakai beberapa Availability Zone**\n\nAplikasi yang hanya berjalan di satu AZ ikut mati kalau pusat data itu bermasalah. Aplikasi penting dijalankan di **minimal dua AZ**, dengan load balancer di depannya:\n\n```text\n                 Load balancer (region Jakarta)\n                    /                   \\\n          AZ a: 2 container        AZ b: 2 container\n                    \\                   /\n              Database terkelola (utama di AZ a, cadangan di AZ b)\n```\n\nLayanan terkelola seperti Kubernetes terkelola dan database terkelola biasanya punya pilihan untuk menyebar ke beberapa AZ otomatis.\n\n**Satu region saja cukup?** Untuk sebagian besar aplikasi, beberapa AZ dalam satu region sudah cukup. Menyebar ke beberapa region jauh lebih rumit dan mahal, biasanya hanya untuk aplikasi berskala sangat besar."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi mengukur waktu respons dari Jakarta ke beberapa region dengan `ping` (angka di bawah adalah ilustrasi; hasil di jaringanmu akan berbeda):\n\n```text\nRegion tujuan          rata-rata waktu bolak-balik\nJakarta                ~ 5 ms\nSingapura              ~ 20 ms\nTokyo                  ~ 75 ms\nVirginia (Amerika)     ~ 230 ms\n```\n\nSetiap halaman toko memuat sekitar 20 permintaan berurutan ke server. Selisih 225 ms per permintaan bisa membuat halaman terasa lambat bagi pembeli di Indonesia.\n\nBudi lalu memilih region Jakarta dengan dua AZ. Suatu hari salah satu AZ mengalami gangguan listrik:\n\n```text\n09:10  AZ b gangguan, 2 container di AZ b tidak bisa dihubungi\n09:10  load balancer berhenti mengirim pengunjung ke AZ b\n09:11  semua pengunjung dilayani 2 container di AZ a\n09:12  layanan container terkelola menambah 2 container baru di AZ a\n```\n\n- Pengguna dekat → region dekat → respons cepat.\n- Dengan dua AZ, gangguan satu pusat data tidak membuat toko mati, hanya kapasitasnya turun sebentar."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memilih region terjauh karena paling murah**\n\nSalah:\n\n```text\nServer di Amerika (lebih murah sedikit), padahal semua pembeli di Indonesia.\n```\n\nBenar:\n\n```text\nServer di Jakarta atau Singapura, dekat dengan pembeli.\n```\n\nPenghematan kecil bisa dibayar mahal dengan website yang lambat dan pembeli yang pergi.\n\n**2. Semua komponen di satu AZ untuk aplikasi penting**\n\nSalah:\n\n```text\nAplikasi dan database hanya di AZ a.\n```\n\nBenar:\n\n```text\nAplikasi di AZ a dan AZ b dengan load balancer,\ndatabase terkelola dengan cadangan di AZ lain.\n```\n\nGangguan di satu pusat data memang jarang, tapi terjadi. Untuk aplikasi yang tidak boleh mati, satu AZ adalah titik gagal tunggal."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pusat data terpisah di dalam satu region disebut...",
+          "options": [
+            "Namespace",
+            "Node pool",
+            "Availability Zone",
+            "Bucket"
+          ],
+          "answer": 2,
+          "explanation": "Region adalah lokasi geografis; Availability Zone adalah pusat data terpisah di dalamnya.",
+          "remedial": "- **Region** = lokasi geografis pusat data penyedia cloud (contoh: Jakarta, Singapura)\n- **Availability Zone** (AZ) = pusat data terpisah di dalam satu region\n- Pilih region terdekat dengan pengguna supaya cepat (latensi rendah) dan sesuai aturan data\n- Sebar aplikasi ke beberapa AZ supaya tetap hidup kalau satu pusat data bermasalah\n- Data dan biaya bisa berbeda per region"
+        },
+        {
+          "question": "Alasan utama memilih region yang dekat dengan pengguna adalah...",
+          "options": [
+            "Supaya tidak perlu internet",
+            "Supaya tagihan selalu nol",
+            "Supaya tidak perlu backup",
+            "Latensi lebih rendah sehingga respons lebih cepat"
+          ],
+          "answer": 3,
+          "explanation": "Jarak memengaruhi waktu bolak-balik data. Region dekat = respons lebih cepat.",
+          "remedial": "- **Region** = lokasi geografis pusat data penyedia cloud (contoh: Jakarta, Singapura)\n- **Availability Zone** (AZ) = pusat data terpisah di dalam satu region\n- Pilih region terdekat dengan pengguna supaya cepat (latensi rendah) dan sesuai aturan data\n- Sebar aplikasi ke beberapa AZ supaya tetap hidup kalau satu pusat data bermasalah\n- Data dan biaya bisa berbeda per region"
+        },
+        {
+          "question": "Kenapa aplikasi penting dijalankan di minimal dua Availability Zone?",
+          "options": [
+            "Supaya tetap hidup kalau satu pusat data bermasalah",
+            "Supaya kode lebih mudah ditulis",
+            "Karena satu AZ hanya bisa satu container",
+            "Supaya tidak perlu load balancer"
+          ],
+          "answer": 0,
+          "explanation": "Dua AZ menghilangkan titik gagal tunggal di tingkat pusat data.",
+          "remedial": "- **Region** = lokasi geografis pusat data penyedia cloud (contoh: Jakarta, Singapura)\n- **Availability Zone** (AZ) = pusat data terpisah di dalam satu region\n- Pilih region terdekat dengan pengguna supaya cepat (latensi rendah) dan sesuai aturan data\n- Sebar aplikasi ke beberapa AZ supaya tetap hidup kalau satu pusat data bermasalah\n- Data dan biaya bisa berbeda per region"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Aplikasi Sari berjalan seperti di bawah. AZ a mengalami gangguan total. Apa yang terjadi?",
+      "code": "Region: Jakarta\n  Load balancer\n  AZ a: 3 container web, database (tanpa cadangan)\n  AZ b: 3 container web",
+      "options": [
+        "Website normal karena container web masih ada di AZ b",
+        "Website tetap mati karena database hanya ada di AZ a",
+        "Database otomatis pindah ke AZ b tanpa cadangan",
+        "Load balancer membuat database baru"
+      ],
+      "answer": 1,
+      "explanation": "Container web di AZ b masih hidup, tapi semuanya bergantung pada database di AZ a yang ikut mati. Database juga perlu cadangan di AZ lain."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Struktur lokasi cloud\n# lokasi geografis, misalnya Jakarta:\n___\n# pusat data terpisah di dalam lokasi itu:\navailability ___",
+      "answers": [
+        "region",
+        "zone"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Region adalah lokasi geografis pusat data; Availability Zone adalah pusat data terpisah di dalamnya.",
+        "Pilih region dekat pengguna untuk latensi rendah, dan perhatikan aturan penyimpanan data.",
+        "AWS dan Google Cloud punya region di Jakarta; Singapura juga sering dipakai.",
+        "Aplikasi penting disebar ke minimal dua AZ dengan load balancer.",
+        "Database juga harus punya cadangan di AZ lain supaya tidak menjadi titik gagal tunggal."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "id": "devops-monitoring-05",
+  "moduleId": "devops-monitoring",
+  "order": 5,
+  "title": "Menangani Insiden dan Postmortem",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sebaik apa pun monitoring dan pipeline-nya, gangguan tetap akan terjadi. Yang membedakan tim yang matang adalah **cara menanganinya**.\n\n**Insiden** adalah gangguan yang berdampak ke pengguna: website mati, checkout gagal, data tidak tampil. Saat insiden, prioritasnya jelas:\n\n1. **Pulihkan layanan secepatnya** (misalnya rollback, menambah kapasitas, mematikan fitur yang rusak).\n2. Baru setelah itu **cari penyebab akarnya** dengan tenang.\n\nSetelah insiden selesai, tim menulis **postmortem**: dokumen yang menceritakan apa yang terjadi dan apa yang akan diubah supaya tidak terulang. Postmortem yang baik bersifat **blameless** (tanpa menyalahkan orang). Pertanyaannya bukan \"siapa yang salah?\", tapi \"kenapa sistem membiarkan kesalahan ini terjadi, dan apa yang harus diperbaiki?\".\n\nIbarat tim pemadam kebakaran: saat kebakaran, fokusnya memadamkan api dan menyelamatkan orang. Penyelidikan penyebab dilakukan setelah api padam, dan hasilnya dipakai untuk mencegah kebakaran berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "**Peran saat insiden**\n\n| Peran | Tugas |\n|---|---|\n| **Incident commander** | memimpin, memutuskan langkah, dan menjaga semua orang fokus. Tidak harus orang paling senior |\n| Teknisi | menjalankan pemeriksaan dan perbaikan sesuai arahan |\n| Komunikasi | memberi kabar berkala ke pengguna, tim lain, dan atasan |\n\nUntuk tim kecil, satu orang bisa memegang beberapa peran, tapi tetap harus jelas siapa yang memimpin. Gunakan **satu saluran** (misalnya satu thread chat khusus insiden) supaya informasi tidak tercecer.\n\n**Isi postmortem**\n\n1. **Ringkasan**: apa yang terjadi, dalam dua-tiga kalimat\n2. **Dampak**: berapa lama, berapa pengguna atau transaksi terdampak\n3. **Kronologi**: urutan kejadian dengan jam\n4. **Penyebab**: termasuk kenapa tidak tertangkap lebih awal\n5. **Yang berjalan baik** dan **yang perlu diperbaiki**\n6. **Tindakan**: daftar perbaikan, masing-masing dengan penanggung jawab dan tenggat\n\n**Ukuran waktu**\n\n- **Time to detect**: dari masalah mulai sampai tim tahu.\n- **Time to restore**: dari masalah mulai sampai layanan pulih. Ini dekat dengan ukuran DORA *failed deployment recovery time* di modul Mengenal DevOps."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nPotongan postmortem insiden checkout toko Budi:\n\n```text\nRINGKASAN\nRilis 1.3.0 mengubah query pesanan sehingga koneksi database cepat habis.\nSekitar 7% checkout gagal selama 23 menit.\n\nDAMPAK\n12.05-12.28 WIB, 5.500 checkout gagal (dari sekitar 78.000).\n\nKRONOLOGI\n12.00  Rilis 1.3.0 disetujui dan di-deploy\n12.05  Error checkout mulai naik\n12.17  Alert ErrorTinggi berbunyi (for: 10m), Sari menjadi incident commander\n12.20  Log: \"koneksi database terputus\" di semua error\n12.24  Keputusan: rollback ke 1.2.0\n12.28  Error kembali normal (0,2%)\n\nPENYEBAB\nQuery baru tidak menutup koneksi setelah dipakai. Tes otomatis memakai\ndata kecil sehingga kebocoran koneksi tidak terlihat.\n\nTINDAKAN\n1. Tambah tes beban untuk alur checkout di pipeline       (Andi, 3 Nov)\n2. Tambah metrik & alert koneksi database terpakai        (Sari, 31 Okt)\n3. Rilis besar di luar jam promo                          (Budi, berlaku segera)\n```\n\n- Time to detect: 12 menit (12.05 → 12.17). Time to restore: 23 menit (12.05 → 12.28).\n- Tidak ada kalimat \"Andi salah menulis query\". Fokusnya pada celah di sistem: tes yang kurang dan metrik yang belum ada.\n- Setiap tindakan punya penanggung jawab dan tanggal, jadi bisa dipantau sampai selesai."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mencari penyebab dulu, baru memulihkan**\n\nSalah:\n\n```text\n12.20  \"Kita cari dulu baris kode mana yang salah sebelum melakukan apa pun.\"\n13.10  Bug ditemukan dan diperbaiki, layanan pulih setelah 65 menit.\n```\n\nBenar:\n\n```text\n12.20  Rollback ke versi stabil.\n12.28  Layanan pulih. Pencarian penyebab dilanjutkan tanpa tekanan.\n```\n\nPengguna tidak peduli penyebabnya saat itu. Yang mereka butuhkan adalah layanan kembali normal.\n\n**2. Postmortem yang menyalahkan orang**\n\nSalah:\n\n```text\nPenyebab: Andi ceroboh. Tindakan: Andi harus lebih teliti.\n```\n\nBenar:\n\n```text\nPenyebab: kebocoran koneksi tidak terdeteksi karena tes tidak memakai beban realistis.\nTindakan: tambah tes beban di pipeline dan alert koneksi database.\n```\n\nKalau orang takut disalahkan, mereka menyembunyikan kesalahan, dan tim kehilangan kesempatan belajar. \"Lebih teliti\" juga bukan perbaikan yang bisa diukur."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Saat insiden terjadi, prioritas pertama adalah...",
+          "options": [
+            "Mencari siapa yang salah",
+            "Memulihkan layanan secepatnya",
+            "Menulis postmortem",
+            "Menambah fitur baru"
+          ],
+          "answer": 1,
+          "explanation": "Pulihkan dulu (misalnya rollback), cari penyebab setelah layanan normal.",
+          "remedial": "- **Insiden** = gangguan yang berdampak ke pengguna; prioritas pertama adalah **memulihkan layanan**\n- Tetapkan satu **incident commander** dan satu saluran komunikasi\n- Beri kabar berkala ke pengguna dan pihak terkait\n- Setelah pulih, tulis **postmortem tanpa menyalahkan** (*blameless*): kronologi, dampak, penyebab, tindakan\n- Ukuran penting: waktu sampai terdeteksi dan waktu sampai pulih"
+        },
+        {
+          "question": "Postmortem blameless berarti...",
+          "options": [
+            "Tidak menulis apa pun setelah insiden",
+            "Menyalahkan penyedia cloud",
+            "Fokus pada celah sistem dan perbaikannya, bukan menyalahkan orang",
+            "Hanya atasan yang boleh membaca"
+          ],
+          "answer": 2,
+          "explanation": "Tujuan postmortem adalah belajar dan memperbaiki sistem.",
+          "remedial": "- **Insiden** = gangguan yang berdampak ke pengguna; prioritas pertama adalah **memulihkan layanan**\n- Tetapkan satu **incident commander** dan satu saluran komunikasi\n- Beri kabar berkala ke pengguna dan pihak terkait\n- Setelah pulih, tulis **postmortem tanpa menyalahkan** (*blameless*): kronologi, dampak, penyebab, tindakan\n- Ukuran penting: waktu sampai terdeteksi dan waktu sampai pulih"
+        },
+        {
+          "question": "Masalah mulai 09.00, alert berbunyi 09.08, layanan pulih 09.30. Berapa time to restore?",
+          "options": [
+            "8 menit",
+            "22 menit",
+            "38 menit",
+            "30 menit"
+          ],
+          "answer": 3,
+          "explanation": "Time to restore dihitung dari masalah mulai (09.00) sampai pulih (09.30).",
+          "remedial": "- **Insiden** = gangguan yang berdampak ke pengguna; prioritas pertama adalah **memulihkan layanan**\n- Tetapkan satu **incident commander** dan satu saluran komunikasi\n- Beri kabar berkala ke pengguna dan pihak terkait\n- Setelah pulih, tulis **postmortem tanpa menyalahkan** (*blameless*): kronologi, dampak, penyebab, tindakan\n- Ukuran penting: waktu sampai terdeteksi dan waktu sampai pulih"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Dari kronologi ini, berapa time to detect dan time to restore?",
+      "code": "20.10  Masalah mulai: halaman produk error\n20.25  Alert berbunyi, incident commander ditunjuk\n20.32  Rollback dimulai\n20.40  Layanan pulih",
+      "options": [
+        "Detect 15 menit, restore 30 menit",
+        "Detect 25 menit, restore 15 menit",
+        "Detect 15 menit, restore 15 menit",
+        "Detect 7 menit, restore 8 menit"
+      ],
+      "answer": 0,
+      "explanation": "Time to detect: 20.10 → 20.25 = 15 menit. Time to restore: 20.10 → 20.40 = 30 menit."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Orang yang memimpin penanganan insiden:\nincident ___\n# Dokumen setelah insiden, tanpa menyalahkan orang:\n___",
+      "answers": [
+        "commander",
+        "postmortem"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Insiden adalah gangguan yang berdampak ke pengguna; pulihkan layanan dulu, cari penyebab kemudian.",
+        "Tetapkan incident commander dan satu saluran komunikasi.",
+        "Postmortem berisi ringkasan, dampak, kronologi, penyebab, dan tindakan dengan penanggung jawab.",
+        "Postmortem bersifat blameless: fokus pada celah sistem, bukan menyalahkan orang.",
+        "Pantau time to detect dan time to restore untuk mengukur perbaikan."
+      ]
+    }
+  ]
+}

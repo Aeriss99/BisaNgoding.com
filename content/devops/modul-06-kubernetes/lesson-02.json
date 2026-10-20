@@ -1,0 +1,99 @@
+{
+  "id": "devops-kubernetes-02",
+  "moduleId": "devops-kubernetes",
+  "order": 2,
+  "title": "Cluster Lokal, kubectl, dan Pod",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Cluster Kubernetes sungguhan biasanya berjalan di cloud dan berbayar. Untuk belajar, cukup jalankan cluster kecil **di laptop**:\n\n- **Docker Desktop** (Windows/macOS): Settings > Kubernetes > centang **Enable Kubernetes**.\n- **kind** (*Kubernetes in Docker*): membuat cluster di dalam container Docker. Setelah dipasang, cukup `kind create cluster`.\n- **minikube**: alternatif lain yang juga populer.\n\nSemuanya memakai perintah yang sama untuk berbicara dengan cluster: **`kubectl`**.\n\nSetiap benda di Kubernetes (Pod, Deployment, Service, dan seterusnya) disebut **objek**, dan ditulis dalam file YAML. Empat bagian selalu ada:\n\n| Bagian | Isinya |\n|---|---|\n| `apiVersion` | versi API objek itu, misalnya `v1` atau `apps/v1` |\n| `kind` | jenis objek, misalnya `Pod` |\n| `metadata` | nama dan label |\n| `spec` | keadaan yang diinginkan |"
+    },
+    {
+      "type": "theory",
+      "content": "**Perintah kubectl yang paling sering dipakai**\n\n| Perintah | Fungsinya |\n|---|---|\n| `kubectl get nodes` | daftar node di cluster |\n| `kubectl apply -f pod.yaml` | membuat atau memperbarui objek sesuai file |\n| `kubectl get pods` | daftar Pod (singkatan: `kubectl get po`) |\n| `kubectl get pods -o wide` | ditambah IP Pod dan node tempatnya berjalan |\n| `kubectl describe pod web` | detail lengkap Pod, termasuk bagian **Events** di paling bawah |\n| `kubectl logs web` | output (log) container di Pod |\n| `kubectl delete -f pod.yaml` | menghapus objek yang ada di file |\n\n**Kolom STATUS di `kubectl get pods`**\n\n| Status | Artinya |\n|---|---|\n| `Pending` | Pod belum dijalankan, misalnya belum ada node yang cukup sumber dayanya |\n| `ContainerCreating` | image sedang diunduh dan container sedang dibuat |\n| `Running` | container berjalan |\n| `ImagePullBackOff` / `ErrImagePull` | image gagal diunduh (nama atau tag salah, atau butuh login) |\n| `CrashLoopBackOff` | container berulang kali mati setelah dinyalakan; lihat `kubectl logs` |\n\nKolom `READY` berbentuk `1/1`: jumlah container yang siap dari total container di Pod. Kolom `RESTARTS` menghitung berapa kali container dinyalakan ulang."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi menjalankan cluster kind di laptopnya, lalu membuat satu Pod dari file `pod.yaml`:\n\n```yaml\napiVersion: v1\nkind: Pod\nmetadata:\n  name: web\n  labels:\n    app: toko-web\nspec:\n  containers:\n    - name: web\n      image: ghcr.io/budi/toko-web:1.2.0\n      ports:\n        - containerPort: 80\n```\n\n```text\nbudi@laptop:~$ kubectl get nodes\nNAME                 STATUS   ROLES           AGE   VERSION\nkind-control-plane   Ready    control-plane   3m    v1.37.0\nbudi@laptop:~$ kubectl apply -f pod.yaml\npod/web created\nbudi@laptop:~$ kubectl get pods\nNAME   READY   STATUS    RESTARTS   AGE\nweb    1/1     Running   0          20s\n```\n\nBagian akhir `kubectl describe pod web` (sebagian baris):\n\n```text\nEvents:\n  Type    Reason     Age   From               Message\n  ----    ------     ----  ----               -------\n  Normal  Scheduled  25s   default-scheduler  Successfully assigned default/web to kind-control-plane\n  Normal  Pulling    24s   kubelet            Pulling image \"ghcr.io/budi/toko-web:1.2.0\"\n  Normal  Pulled     18s   kubelet            Successfully pulled image \"ghcr.io/budi/toko-web:1.2.0\" in 5.812s (5.812s including waiting). Image size: 22124515 bytes.\n  Normal  Created    18s   kubelet            Container created\n  Normal  Started    18s   kubelet            Container started\n```\n\n- Cluster kind hanya punya satu node yang sekaligus menjadi control plane. Itu cukup untuk belajar.\n- Bagian **Events** menceritakan perjalanan Pod: dijadwalkan ke node, image diunduh, container dibuat dan dijalankan. Saat Pod bermasalah, bagian inilah yang pertama dibaca.\n- Image di contoh ini dibuat publik di `ghcr.io`. Kalau private, cluster butuh izin login ke registry (*image pull secret*)."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Salah tag image**\n\nSalah:\n\n```yaml\n      image: ghcr.io/budi/toko-web:1.2\n# tag 1.2 tidak pernah dibuat, yang ada 1.2.0\n```\n\n```text\nbudi@laptop:~$ kubectl get pods\nNAME   READY   STATUS             RESTARTS   AGE\nweb    0/1     ImagePullBackOff   0          45s\n```\n\nBenar:\n\n```yaml\n      image: ghcr.io/budi/toko-web:1.2.0\n```\n\n`ImagePullBackOff` berarti Kubernetes gagal mengunduh image dan sedang menunggu sebelum mencoba lagi. Penyebabnya terlihat di Events `kubectl describe pod web`: tag tidak ada, nama salah, atau image private tanpa izin.\n\n**2. Hanya melihat `get pods` saat Pod gagal**\n\nSalah:\n\n```text\n\"Statusnya CrashLoopBackOff, berarti Kubernetes-nya rusak.\"\n```\n\nBenar:\n\n```bash\nkubectl describe pod web     # lihat Events\nkubectl logs web             # lihat output aplikasi\nkubectl logs web --previous  # log container sebelum restart terakhir\n```\n\n`CrashLoopBackOff` hampir selalu berarti aplikasinya yang mati, misalnya environment variable kurang atau database tidak bisa dihubungi. Jawabannya ada di log."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Perintah untuk melihat detail Pod beserta bagian Events adalah...",
+          "options": [
+            "kubectl get nodes",
+            "kubectl apply web",
+            "kubectl describe pod web",
+            "kubectl version"
+          ],
+          "answer": 2,
+          "explanation": "`describe` menampilkan detail lengkap dan Events di bagian bawah.",
+          "remedial": "- Untuk belajar, jalankan cluster di laptop: Kubernetes bawaan Docker Desktop, **kind**, atau minikube\n- `kubectl get nodes`, `kubectl get pods`, `kubectl describe pod <nama>`, `kubectl logs <nama>`\n- Objek Kubernetes ditulis dalam YAML: `apiVersion`, `kind`, `metadata`, `spec`\n- `kubectl apply -f file.yaml` membuat atau memperbarui objek sesuai file\n- Kolom STATUS penting: `Running`, `Pending`, `ImagePullBackOff`, `CrashLoopBackOff`"
+        },
+        {
+          "question": "Status `ImagePullBackOff` biasanya berarti...",
+          "options": [
+            "Container berjalan normal",
+            "Node kehabisan listrik",
+            "Pod sudah dihapus",
+            "Image gagal diunduh, misalnya nama atau tag salah"
+          ],
+          "answer": 3,
+          "explanation": "Kubernetes gagal mengunduh image dan menunggu sebelum mencoba lagi.",
+          "remedial": "- Untuk belajar, jalankan cluster di laptop: Kubernetes bawaan Docker Desktop, **kind**, atau minikube\n- `kubectl get nodes`, `kubectl get pods`, `kubectl describe pod <nama>`, `kubectl logs <nama>`\n- Objek Kubernetes ditulis dalam YAML: `apiVersion`, `kind`, `metadata`, `spec`\n- `kubectl apply -f file.yaml` membuat atau memperbarui objek sesuai file\n- Kolom STATUS penting: `Running`, `Pending`, `ImagePullBackOff`, `CrashLoopBackOff`"
+        },
+        {
+          "question": "Bagian YAML objek Kubernetes yang berisi keadaan yang diinginkan adalah...",
+          "options": [
+            "spec",
+            "metadata",
+            "kind",
+            "apiVersion"
+          ],
+          "answer": 0,
+          "explanation": "`metadata` berisi nama dan label, `spec` berisi keinginan (container, image, port).",
+          "remedial": "- Untuk belajar, jalankan cluster di laptop: Kubernetes bawaan Docker Desktop, **kind**, atau minikube\n- `kubectl get nodes`, `kubectl get pods`, `kubectl describe pod <nama>`, `kubectl logs <nama>`\n- Objek Kubernetes ditulis dalam YAML: `apiVersion`, `kind`, `metadata`, `spec`\n- `kubectl apply -f file.yaml` membuat atau memperbarui objek sesuai file\n- Kolom STATUS penting: `Running`, `Pending`, `ImagePullBackOff`, `CrashLoopBackOff`"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa arti baris ini?",
+      "code": "budi@laptop:~$ kubectl get pods\nNAME   READY   STATUS             RESTARTS      AGE\napi    0/1     CrashLoopBackOff   5 (30s ago)   4m",
+      "options": [
+        "Image belum selesai diunduh",
+        "Container berulang kali mati setelah dinyalakan, sudah direstart 5 kali",
+        "Pod berjalan normal",
+        "Pod menunggu node kosong"
+      ],
+      "answer": 1,
+      "explanation": "`CrashLoopBackOff` dan `RESTARTS 5` menunjukkan container terus mati. Lihat penyebabnya dengan `kubectl logs api`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Buat objek dari file pod.yaml, lalu lihat output aplikasi di Pod web\nkubectl ___ -f pod.yaml\nkubectl ___ web",
+      "answers": [
+        "apply|create",
+        "logs"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Untuk belajar, pakai cluster lokal: Kubernetes bawaan Docker Desktop, kind, atau minikube.",
+        "Objek Kubernetes ditulis dalam YAML dengan apiVersion, kind, metadata, dan spec.",
+        "kubectl apply -f membuat atau memperbarui objek; kubectl get pods menampilkan Pod.",
+        "Saat Pod bermasalah, baca Events di kubectl describe dan output di kubectl logs.",
+        "ImagePullBackOff = image gagal diunduh; CrashLoopBackOff = container terus mati."
+      ]
+    }
+  ]
+}

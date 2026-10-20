@@ -1,0 +1,99 @@
+{
+  "id": "devops-kubernetes-06",
+  "moduleId": "devops-kubernetes",
+  "order": 6,
+  "title": "ConfigMap, Secret, dan Namespace",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di Docker Compose, pengaturan seperti nama database dan password diberikan lewat `environment` dan file `.env`. Di Kubernetes, tempatnya adalah dua objek khusus:\n\n- **ConfigMap**: pengaturan biasa yang boleh dibaca siapa saja, misalnya nama database atau mode aplikasi.\n- **Secret**: data rahasia, misalnya password database atau token API.\n\nMemisahkan pengaturan dari image membuat image yang sama bisa dipakai di mana saja: di staging dengan database staging, di production dengan database production. Prinsip ini sama dengan yang kamu pelajari di modul Compose.\n\nSatu hal lagi yang sering dipakai adalah **Namespace**: \"folder\" di dalam cluster untuk memisahkan objek. Misalnya semua objek staging di namespace `staging` dan production di `production`, sehingga nama `toko-web` boleh ada di keduanya tanpa bentrok.\n\nIbarat lemari arsip kantor: ConfigMap adalah map biasa di rak terbuka, Secret adalah map di laci berkunci, dan Namespace adalah lemari terpisah untuk setiap divisi."
+    },
+    {
+      "type": "theory",
+      "content": "**ConfigMap dan Secret**\n\n```yaml\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: toko-config\ndata:\n  DB_NAME: toko\n  APP_MODE: production\n---\napiVersion: v1\nkind: Secret\nmetadata:\n  name: toko-secret\ntype: Opaque\nstringData:\n  DB_PASSWORD: ganti-dengan-password-kuat\n```\n\n`---` memisahkan beberapa objek dalam satu file. `stringData` membolehkan menulis nilai biasa; Kubernetes menyimpannya dalam bentuk base64.\n\n**Memakainya di container**\n\n```yaml\n      containers:\n        - name: api\n          image: ghcr.io/budi/toko-api:2.0.0\n          envFrom:\n            - configMapRef:\n                name: toko-config\n          env:\n            - name: DB_PASSWORD\n              valueFrom:\n                secretKeyRef:\n                  name: toko-secret\n                  key: DB_PASSWORD\n```\n\n**Secret bukan enkripsi.** Isi Secret hanya di-*encode* base64, yang bisa dikembalikan siapa saja dengan `base64 -d`. Karena itu:\n\n- batasi siapa yang boleh membaca Secret di cluster\n- **jangan commit file YAML berisi nilai Secret asli** ke Git (sama seperti `.env`)\n- di tim besar, Secret biasanya diisi dari pengelola rahasia (misalnya layanan secret manager milik cloud)\n\n**Namespace**\n\n| Perintah | Fungsinya |\n|---|---|\n| `kubectl create namespace staging` | membuat namespace |\n| `kubectl apply -f deployment.yaml -n staging` | membuat objek di namespace `staging` |\n| `kubectl get pods -n staging` | melihat Pod di namespace `staging` |\n| `kubectl get pods -A` | melihat Pod di semua namespace |\n\nTanpa `-n`, kubectl memakai namespace `default`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi membuat Secret, lalu mengecek isinya:\n\n```text\nbudi@laptop:~$ kubectl apply -f config.yaml\nconfigmap/toko-config created\nsecret/toko-secret created\nbudi@laptop:~$ kubectl get secret toko-secret -o jsonpath='{.data.DB_PASSWORD}'\nZ2FudGktZGVuZ2FuLXBhc3N3b3JkLWt1YXQ=\nbudi@laptop:~$ echo Z2FudGktZGVuZ2FuLXBhc3N3b3JkLWt1YXQ= | base64 -d\nganti-dengan-password-kuat\n```\n\nSetelah Deployment `toko-api` memakai ConfigMap dan Secret itu:\n\n```text\nbudi@laptop:~$ kubectl exec deploy/toko-api -- printenv DB_NAME APP_MODE\ntoko\nproduction\n```\n\nBudi juga memisahkan staging dan production:\n\n```text\nbudi@laptop:~$ kubectl create namespace staging\nnamespace/staging created\nbudi@laptop:~$ kubectl apply -f deployment.yaml -n staging\ndeployment.apps/toko-web created\nbudi@laptop:~$ kubectl get deployments -A\nNAMESPACE            NAME                     READY   UP-TO-DATE   AVAILABLE   AGE\ndefault              toko-web                 3/3     3            3           1h\nkube-system          coredns                  2/2     2            2           3h\nlocal-path-storage   local-path-provisioner   1/1     1            1           3h\nstaging              toko-web                 3/3     3            3           15s\n```\n\n- Password terbaca kembali dengan satu perintah `base64 -d`. Inilah alasan Secret tetap harus dijaga aksesnya.\n- `toko-web` ada di dua namespace tanpa bentrok.\n- Namespace `kube-system` dan `local-path-storage` berisi komponen bawaan cluster kind. Jangan diubah."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Commit Secret berisi password asli**\n\nSalah:\n\n```bash\ngit add k8s/secret.yaml      # berisi DB_PASSWORD: rahasia123\ngit commit -m \"tambah secret\"\n```\n\nBenar:\n\n```bash\n# isi Secret langsung ke cluster tanpa file ter-commit\nkubectl create secret generic toko-secret --from-literal=DB_PASSWORD='password-asli'\n# atau diisi otomatis oleh pipeline/secret manager\n```\n\nBase64 bukan pengaman. File Secret yang ter-commit sama dengan menulis password terang-terangan di repo.\n\n**2. Lupa `-n` lalu mengira objek hilang**\n\nSalah:\n\n```text\nbudi@laptop:~$ kubectl get pods\nNo resources found in default namespace.\n\"Pod staging-ku hilang!\"\n```\n\nBenar:\n\n```bash\nkubectl get pods -n staging\n```\n\nTanpa `-n`, kubectl hanya melihat namespace `default`. Pesannya pun memberi petunjuk: `in default namespace`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Data rahasia seperti password database di Kubernetes disimpan di objek...",
+          "options": [
+            "ConfigMap",
+            "Service",
+            "Secret",
+            "Namespace"
+          ],
+          "answer": 2,
+          "explanation": "ConfigMap untuk pengaturan biasa, Secret untuk data rahasia.",
+          "remedial": "- **ConfigMap** menyimpan pengaturan biasa; **Secret** menyimpan data rahasia\n- Keduanya bisa diberikan ke container sebagai environment variable (`envFrom` atau `env.valueFrom`)\n- Secret Kubernetes hanya di-encode **base64**, bukan dienkripsi; batasi akses dan jangan commit isinya\n- **Namespace** memisahkan objek, misalnya `staging` dan `production`, dalam satu cluster\n- Di cloud, cluster biasanya dibuat lewat layanan terkelola (EKS, GKE, AKS)"
+        },
+        {
+          "question": "Pernyataan yang benar tentang Secret Kubernetes adalah...",
+          "options": [
+            "Isinya dienkripsi kuat sehingga aman di-commit ke Git",
+            "Secret otomatis terhapus setiap hari",
+            "Secret hanya bisa dibaca di Windows",
+            "Isinya hanya di-encode base64, jadi aksesnya harus dibatasi dan nilainya jangan di-commit"
+          ],
+          "answer": 3,
+          "explanation": "Base64 bisa dikembalikan dengan `base64 -d`. Lindungi Secret seperti kamu melindungi `.env`.",
+          "remedial": "- **ConfigMap** menyimpan pengaturan biasa; **Secret** menyimpan data rahasia\n- Keduanya bisa diberikan ke container sebagai environment variable (`envFrom` atau `env.valueFrom`)\n- Secret Kubernetes hanya di-encode **base64**, bukan dienkripsi; batasi akses dan jangan commit isinya\n- **Namespace** memisahkan objek, misalnya `staging` dan `production`, dalam satu cluster\n- Di cloud, cluster biasanya dibuat lewat layanan terkelola (EKS, GKE, AKS)"
+        },
+        {
+          "question": "`kubectl get pods` menampilkan `No resources found in default namespace.`, padahal Pod dibuat dengan `-n staging`. Perintah yang tepat adalah...",
+          "options": [
+            "kubectl get pods -n staging",
+            "kubectl get pods --all-nodes",
+            "kubectl describe default",
+            "kubectl get namespace pods"
+          ],
+          "answer": 0,
+          "explanation": "Tanpa `-n`, kubectl melihat namespace `default`. Pakai `-n staging` atau `-A` untuk semua namespace.",
+          "remedial": "- **ConfigMap** menyimpan pengaturan biasa; **Secret** menyimpan data rahasia\n- Keduanya bisa diberikan ke container sebagai environment variable (`envFrom` atau `env.valueFrom`)\n- Secret Kubernetes hanya di-encode **base64**, bukan dienkripsi; batasi akses dan jangan commit isinya\n- **Namespace** memisahkan objek, misalnya `staging` dan `production`, dalam satu cluster\n- Di cloud, cluster biasanya dibuat lewat layanan terkelola (EKS, GKE, AKS)"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil perintah terakhir?",
+      "code": "# Secret dibuat dengan stringData: DB_PASSWORD: kopi2026\nbudi@laptop:~$ kubectl get secret toko-secret -o jsonpath='{.data.DB_PASSWORD}'\na29waTIwMjY=\nbudi@laptop:~$ echo a29waTIwMjY= | base64 -d",
+      "options": [
+        "a29waTIwMjY=",
+        "kopi2026",
+        "error: data terenkripsi",
+        "***"
+      ],
+      "answer": 1,
+      "explanation": "Secret hanya di-encode base64. `base64 -d` mengembalikan nilai aslinya."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Container membaca semua isi ConfigMap toko-config sebagai environment variable\n          ___:\n            - configMapRef:\n                name: toko-config\n# Lihat Pod di namespace staging\nkubectl get pods ___ staging",
+      "answers": [
+        "envFrom",
+        "-n|--namespace"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "ConfigMap untuk pengaturan biasa, Secret untuk data rahasia; keduanya bisa jadi environment variable.",
+        "Secret hanya di-encode base64; batasi aksesnya dan jangan commit nilai aslinya.",
+        "Namespace memisahkan objek dalam satu cluster, misalnya staging dan production.",
+        "Tanpa -n, kubectl memakai namespace default; -A untuk semua namespace.",
+        "Di cloud, cluster biasanya dibuat lewat layanan terkelola seperti EKS, GKE, atau AKS."
+      ]
+    }
+  ]
+}

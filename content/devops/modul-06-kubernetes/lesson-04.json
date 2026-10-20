@@ -1,0 +1,99 @@
+{
+  "id": "devops-kubernetes-04",
+  "moduleId": "devops-kubernetes",
+  "order": 4,
+  "title": "Service: Alamat Tetap untuk Pod",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setiap Pod punya alamat IP sendiri. Masalahnya, Pod bisa dihapus dan diganti kapan saja (saat rilis versi baru, saat node mati, saat scale), dan **Pod pengganti mendapat IP baru**. Kalau aplikasi lain menyimpan IP Pod, koneksinya akan putus.\n\nSolusinya adalah **Service**: objek dengan **nama dan IP yang tetap**, yang meneruskan permintaan ke Pod-Pod yang labelnya cocok. Service juga otomatis **membagi beban** ke semua Pod itu.\n\nIbarat nomor telepon kantor layanan pelanggan: nomornya tetap sama walaupun petugas yang menjawab berganti-ganti. Penelepon tidak perlu tahu nomor HP setiap petugas.\n\nIni mirip dengan nama service di Docker Compose (modul Compose, materi jaringan). Bedanya, Service Kubernetes bekerja lintas banyak node."
+    },
+    {
+      "type": "theory",
+      "content": "**`service.yaml`**\n\n```yaml\napiVersion: v1\nkind: Service\nmetadata:\n  name: toko-web\nspec:\n  type: ClusterIP\n  selector:\n    app: toko-web\n  ports:\n    - port: 80\n      targetPort: 80\n```\n\n| Bagian | Artinya |\n|---|---|\n| `selector: app: toko-web` | teruskan ke Pod yang berlabel `app: toko-web` (Pod milik Deployment di materi sebelumnya) |\n| `port: 80` | port Service |\n| `targetPort: 80` | port container di Pod |\n\n**Jenis Service**\n\n| `type` | Bisa diakses dari | Dipakai untuk |\n|---|---|---|\n| `ClusterIP` (bawaan) | hanya dari dalam cluster | komunikasi antar aplikasi, misalnya web ke database |\n| `NodePort` | port tertentu (30000-32767) di setiap node | percobaan; jarang untuk production |\n| `LoadBalancer` | IP publik yang disediakan cloud | membuka aplikasi ke internet di cluster cloud |\n\n**DNS di dalam cluster.** Pod lain cukup memanggil `http://toko-web` (nama Service). Nama lengkapnya `toko-web.default.svc.cluster.local`, dengan `default` adalah namespace.\n\n**Mencoba dari laptop.** `kubectl port-forward service/toko-web 8080:80` meneruskan `localhost:8080` di laptop ke Service, mirip `-p` di Docker. Perintah ini hanya untuk percobaan dan berhenti saat Ctrl+C."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```text\nbudi@laptop:~$ kubectl apply -f service.yaml\nservice/toko-web created\nbudi@laptop:~$ kubectl get services\nNAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE\nkubernetes   ClusterIP   10.96.0.1      <none>        443/TCP   2h\ntoko-web     ClusterIP   10.96.142.17   <none>        80/TCP    10s\nbudi@laptop:~$ kubectl get endpointslices -l kubernetes.io/service-name=toko-web\nNAME             ADDRESSTYPE   PORTS   ENDPOINTS                           AGE\ntoko-web-7xk2m   IPv4          80      10.244.0.5,10.244.0.6,10.244.0.7   10s\n```\n\nMencoba dari laptop di terminal kedua:\n\n```text\nbudi@laptop:~$ kubectl port-forward service/toko-web 8080:80\nForwarding from 127.0.0.1:8080 -> 80\nForwarding from [::1]:8080 -> 80\n```\n\n```text\nbudi@laptop:~$ curl -s localhost:8080 | grep Versi\n<body><h1>Toko Kopi Budi</h1><p>Versi 1.2.0</p></body>\n```\n\n- Service `kubernetes` selalu ada; itu alamat API cluster sendiri.\n- Service `toko-web` mendapat IP tetap `10.96.142.17`. `EXTERNAL-IP <none>` karena tipenya ClusterIP.\n- Daftar endpoint menunjukkan 3 IP Pod yang sedang menerima lalu lintas. Kalau Pod diganti, daftar ini diperbarui otomatis, tapi IP Service tetap."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Selector Service tidak cocok dengan label Pod**\n\nSalah:\n\n```yaml\n# Pod berlabel app: toko-web\n  selector:\n    app: tokoweb\n```\n\n```text\nbudi@laptop:~$ kubectl get endpointslices -l kubernetes.io/service-name=toko-web\nNAME             ADDRESSTYPE   PORTS     ENDPOINTS   AGE\ntoko-web-7xk2m   IPv4          <unset>   <unset>     1m\n```\n\nBenar:\n\n```yaml\n  selector:\n    app: toko-web\n```\n\nService tanpa endpoint tidak meneruskan ke mana pun, jadi permintaan gagal. Saat Service \"tidak jalan\", periksa dulu endpoint-nya.\n\n**2. Menyimpan IP Pod di konfigurasi aplikasi**\n\nSalah:\n\n```text\nspring.datasource.url=jdbc:mysql://10.244.0.9:3306/toko\n```\n\nBenar:\n\n```text\nspring.datasource.url=jdbc:mysql://mysql:3306/toko\n```\n\nIP Pod berubah setiap kali Pod dibuat ulang. Selalu pakai nama Service (di sini Service bernama `mysql`)."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa aplikasi sebaiknya menghubungi Service, bukan IP Pod langsung?",
+          "options": [
+            "IP Pod berubah saat Pod dibuat ulang, sedangkan Service punya nama dan IP tetap",
+            "Pod tidak punya IP",
+            "Service lebih murah daripada Pod",
+            "IP Pod hanya bisa dipakai di Windows"
+          ],
+          "answer": 0,
+          "explanation": "Service memberi alamat tetap dan membagi beban ke Pod yang labelnya cocok.",
+          "remedial": "- IP Pod berubah setiap kali Pod dibuat ulang, jadi akses lewat **Service**\n- Service punya nama dan IP tetap, lalu membagi lalu lintas ke Pod berlabel yang cocok\n- **ClusterIP** (bawaan): hanya dari dalam cluster; **NodePort**: lewat port di setiap node; **LoadBalancer**: IP publik dari cloud\n- Di dalam cluster, Service bisa dipanggil dengan namanya, misalnya `http://toko-web`\n- `kubectl port-forward` untuk mencoba Service dari laptop"
+        },
+        {
+          "question": "Jenis Service bawaan yang hanya bisa diakses dari dalam cluster adalah...",
+          "options": [
+            "LoadBalancer",
+            "ClusterIP",
+            "NodePort",
+            "ExternalName publik"
+          ],
+          "answer": 1,
+          "explanation": "ClusterIP adalah tipe bawaan, dipakai untuk komunikasi antar aplikasi di dalam cluster.",
+          "remedial": "- IP Pod berubah setiap kali Pod dibuat ulang, jadi akses lewat **Service**\n- Service punya nama dan IP tetap, lalu membagi lalu lintas ke Pod berlabel yang cocok\n- **ClusterIP** (bawaan): hanya dari dalam cluster; **NodePort**: lewat port di setiap node; **LoadBalancer**: IP publik dari cloud\n- Di dalam cluster, Service bisa dipanggil dengan namanya, misalnya `http://toko-web`\n- `kubectl port-forward` untuk mencoba Service dari laptop"
+        },
+        {
+          "question": "Pod lain di namespace yang sama ingin memanggil Service `toko-web`. Alamat yang bisa dipakai adalah...",
+          "options": [
+            "http://localhost:30000",
+            "http://toko-web.github.io",
+            "http://toko-web",
+            "http://10.0.0.1:443"
+          ],
+          "answer": 2,
+          "explanation": "DNS cluster membuat nama Service bisa langsung dipakai sebagai alamat.",
+          "remedial": "- IP Pod berubah setiap kali Pod dibuat ulang, jadi akses lewat **Service**\n- Service punya nama dan IP tetap, lalu membagi lalu lintas ke Pod berlabel yang cocok\n- **ClusterIP** (bawaan): hanya dari dalam cluster; **NodePort**: lewat port di setiap node; **LoadBalancer**: IP publik dari cloud\n- Di dalam cluster, Service bisa dipanggil dengan namanya, misalnya `http://toko-web`\n- `kubectl port-forward` untuk mencoba Service dari laptop"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Service `api` dibuat, tapi semua permintaan gagal. Dari output ini, penyebab paling mungkin adalah...",
+      "code": "budi@laptop:~$ kubectl get endpointslices -l kubernetes.io/service-name=api\nNAME        ADDRESSTYPE   PORTS     ENDPOINTS   AGE\napi-4m9tq   IPv4          <unset>   <unset>     3m",
+      "options": [
+        "Cluster kehabisan IP",
+        "Image Pod terlalu besar",
+        "kubectl belum dipasang",
+        "Selector Service tidak cocok dengan label Pod mana pun"
+      ],
+      "answer": 3,
+      "explanation": "Tidak ada endpoint berarti tidak ada Pod yang terpilih oleh selector Service."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Service meneruskan ke Pod berlabel app: toko-web, hanya dari dalam cluster\nspec:\n  type: ___\n  ___:\n    app: toko-web",
+      "answers": [
+        "ClusterIP",
+        "selector"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "IP Pod berubah saat Pod dibuat ulang; Service memberi nama dan IP tetap.",
+        "Service meneruskan ke Pod yang labelnya cocok dengan selector dan membagi beban.",
+        "ClusterIP untuk dalam cluster, NodePort lewat port node, LoadBalancer untuk IP publik di cloud.",
+        "Di dalam cluster, Service dipanggil dengan namanya, misalnya http://toko-web.",
+        "Kalau Service tidak meneruskan ke mana pun, periksa endpoint dan selector-nya."
+      ]
+    }
+  ]
+}
