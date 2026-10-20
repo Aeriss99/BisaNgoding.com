@@ -17,6 +17,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProgressProvider } from './context/ProgressContext';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
+import NotifVersiBaru from './components/NotifVersiBaru';
 
 export function LayarMemuat() {
   return (
@@ -104,6 +105,7 @@ function App() {
         <ProgressProvider>
           <HashRouter>
             <AppRoutes />
+            <NotifVersiBaru />
           </HashRouter>
         </ProgressProvider>
       </AuthProvider>

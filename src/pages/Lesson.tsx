@@ -15,7 +15,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useProgress } from '../context/ProgressContext';
 import { initCheerpJ } from '../lib/javaRunner';
-import { versiLamaTerdeteksi } from '../lib/pembaruanAplikasi';
+import { versiLamaTerdeteksi, KUNCI_MUAT_ULANG } from '../lib/pembaruanAplikasi';
 import {
   RunnableCardComponent,
   CodeChallengeCardComponent,
@@ -64,6 +64,21 @@ function CodeBlockWithCopy({ children, className, ...props }: any) {
   );
 }
 
+const KUNCI_POSISI = 'bn_posisi_materi';
+
+/** Kartu yang dibuka setelah halaman dimuat ulang karena versi baru; selain itu kartu pertama. */
+function posisiSetelahMuatUlang(lessonId: string | undefined, jumlahKartu: number): number {
+  try {
+    if (sessionStorage.getItem(KUNCI_MUAT_ULANG) !== '1') return 0;
+    sessionStorage.removeItem(KUNCI_MUAT_ULANG);
+    const simpan = JSON.parse(sessionStorage.getItem(KUNCI_POSISI) || 'null');
+    if (!simpan || simpan.lessonId !== lessonId || typeof simpan.index !== 'number') return 0;
+    return Math.max(0, Math.min(simpan.index, jumlahKartu - 1));
+  } catch {
+    return 0;
+  }
+}
+
 export default function LessonPage() {
   const { lessonId } = useParams();
   const lesson = getLesson(lessonId || '');
@@ -89,13 +104,23 @@ export default function LessonPage() {
   >({});
 
   useEffect(() => {
-    setCurrentCardIndex(0);
+    setCurrentCardIndex(posisiSetelahMuatUlang(lessonId, lesson?.cards.length ?? 0));
     setShowExplanation(false);
     setIsAnswerCorrect(null);
     setChallengePassed(false);
     setIsLessonFinished(false);
     setAttemptsPerCard({});
   }, [lessonId]);
+
+  // Simpan posisi kartu supaya bisa dipulihkan kalau halaman dimuat ulang karena versi baru.
+  useEffect(() => {
+    if (!lessonId) return;
+    try {
+      sessionStorage.setItem(KUNCI_POSISI, JSON.stringify({ lessonId, index: currentCardIndex }));
+    } catch {
+      // penyimpanan diblokir: posisi tidak dipulihkan
+    }
+  }, [lessonId, currentCardIndex]);
 
   if (!lesson) {
     return (

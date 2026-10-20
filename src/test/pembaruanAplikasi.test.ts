@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { pasangPembaruanOtomatis, sedangBelajar, versiLamaTerdeteksi } from '../lib/pembaruanAplikasi';
+import { pasangPembaruanOtomatis, sedangBelajar, versiLamaTerdeteksi, dengarVersiBaru, muatUlangSekarang, KUNCI_MUAT_ULANG } from '../lib/pembaruanAplikasi';
 
 function jendelaPalsu(hash: string, adaController = true) {
   const dengar: Record<string, (() => void)[]> = {};
@@ -8,6 +8,7 @@ function jendelaPalsu(hash: string, adaController = true) {
   const update = vi.fn(() => Promise.resolve());
   const win = {
     location: { hash, reload: vi.fn() },
+    sessionStorage: { setItem: vi.fn() },
     navigator: {
       serviceWorker: {
         controller: adaController ? {} : null,
@@ -65,6 +66,29 @@ describe('pembaruan versi aplikasi', () => {
     j.sw('controllerchange');
     expect(j.win.location.reload).not.toHaveBeenCalled();
     versiLamaTerdeteksi();
+    expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('tertunda di materi: notifikasi muncul, tombol Muat ulang menyimpan penanda posisi lalu memuat ulang', () => {
+    const j = jendelaPalsu('#/lesson/spring-dasar-03');
+    pasangPembaruanOtomatis(j.win as unknown as Window);
+    const status: boolean[] = [];
+    const berhenti = dengarVersiBaru((ada) => status.push(ada));
+    j.sw('controllerchange');
+    expect(status).toEqual([false, true]);
+    expect(j.win.location.reload).not.toHaveBeenCalled();
+    muatUlangSekarang();
+    expect(j.win.sessionStorage.setItem).toHaveBeenCalledWith(KUNCI_MUAT_ULANG, '1');
+    expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+    berhenti();
+  });
+
+  it('di quiz: notifikasi muncul, muat ulang tanpa penanda posisi materi', () => {
+    const j = jendelaPalsu('#/quiz/spring-dasar');
+    pasangPembaruanOtomatis(j.win as unknown as Window);
+    j.sw('controllerchange');
+    muatUlangSekarang();
+    expect(j.win.sessionStorage.setItem).not.toHaveBeenCalled();
     expect(j.win.location.reload).toHaveBeenCalledTimes(1);
   });
 
