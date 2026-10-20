@@ -11,6 +11,7 @@ import SemuaKelas from './pages/SemuaKelas';
 import JalurKarier from './pages/JalurKarier';
 import NotifikasiPage from './pages/Notifikasi';
 import ProgresPage from './pages/Progres';
+import Masuk from './pages/Masuk';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -49,14 +50,17 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, sedangPulihkanPassword } = useAuth();
   const nav = useNavigate();
 
-  // Bypass Mode Dev: jika VITE_DEV_BYPASS=true dan sedang mode DEV, anggap sudah login
   const isDevBypass = import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS === 'true';
   const isLoggedIn = user || isDevBypass;
 
   useEffect(() => {
+    if (sedangPulihkanPassword) {
+      nav('/masuk', { replace: true });
+      return;
+    }
     if (!user) return;
     let tujuan: string | null = null;
     try {
@@ -66,7 +70,7 @@ function AppRoutes() {
     if (tujuan && tujuan.startsWith('/') && !tujuan.startsWith('//')) {
       nav(tujuan, { replace: true });
     }
-  }, [user, nav]);
+  }, [user, sedangPulihkanPassword, nav]);
 
   if (loading && !isDevBypass) {
     return <LayarMemuat />;
@@ -74,10 +78,12 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Rute utama: Landing kalau belum masuk, beranda Jalur Karier kalau sudah */}
       <Route path="/" element={isLoggedIn ? <Layout /> : <Landing />}>
         {isLoggedIn && <Route index element={<JalurKarier />} />}
       </Route>
+
+      <Route path="/masuk" element={<Masuk />} />
+      <Route path="/atur-password" element={<Masuk />} />
 
       {/* Other Layout Routes */}
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
