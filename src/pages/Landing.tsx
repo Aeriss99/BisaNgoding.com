@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { BookOpen, Code, Hammer, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { modulesData, coursesData, getVisibleLessons } from '../lib/content';
@@ -7,21 +7,8 @@ import { ComingSoon } from '../components/ComingSoon';
 import JalurBelajar from '../components/JalurBelajar';
 
 export default function Landing() {
-  const { masukGoogle, isSupabaseConfigured } = useAuth();
-  const [sedangMasuk, setSedangMasuk] = useState(false);
-
-  const handleLoginClick = async (e: React.MouseEvent) => {
-    if (isSupabaseConfigured) {
-      e.preventDefault();
-      setSedangMasuk(true);
-      try {
-        await masukGoogle();
-      } catch (e) {
-        alert('Gagal masuk. Silakan coba lagi.');
-        setSedangMasuk(false);
-      }
-    }
-  };
+  const { isSupabaseConfigured } = useAuth();
+  const navigate = useNavigate();
 
   const scrollToKelas = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -76,13 +63,12 @@ export default function Landing() {
             </div>
 
             {isSupabaseConfigured && (
-              <button
-                onClick={handleLoginClick}
-                disabled={sedangMasuk}
-                className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-3 py-1.5 md:px-5 md:py-2 font-bungee text-sm md:text-base shadow-[2px_2px_0_#111111] md:shadow-[4px_4px_0_#111111] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-75 disabled:cursor-wait"
+              <Link
+                to="/masuk"
+                className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-3 py-1.5 md:px-5 md:py-2 font-bungee text-sm md:text-base shadow-[2px_2px_0_#111111] md:shadow-[4px_4px_0_#111111] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all inline-block"
               >
-                {sedangMasuk ? 'MEMBUKA GOOGLE...' : 'MASUK'}
-              </button>
+                MASUK
+              </Link>
             )}
           </div>
         </div>
@@ -110,13 +96,12 @@ export default function Landing() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               {isSupabaseConfigured ? (
-                <button
-                  onClick={handleLoginClick}
-                  disabled={sedangMasuk}
-                  className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-6 py-4 font-bungee text-lg shadow-[4px_4px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-center disabled:opacity-75 disabled:cursor-wait"
+                <Link
+                  to="/masuk"
+                  className="bg-[var(--color-landing-cyan)] border-[3px] border-[var(--color-landing-black)] px-6 py-4 font-bungee text-lg shadow-[4px_4px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-center inline-block"
                 >
-                  {sedangMasuk ? 'MEMBUKA GOOGLE...' : 'MASUK DENGAN GOOGLE (GRATIS)'}
-                </button>
+                  MULAI BELAJAR
+                </Link>
               ) : (
                 <a
                   href="#kelas"
@@ -250,7 +235,7 @@ export default function Landing() {
         <div className="mb-12">
           <h2 className="text-3xl md:text-4xl font-space font-bold uppercase mb-4 shadow-text">Mau jadi apa?</h2>
         </div>
-        <JalurBelajar tampilkanProgres={false} onMulai={() => handleLoginClick({ preventDefault: () => {} } as React.MouseEvent)} />
+        <JalurBelajar tampilkanProgres={false} onMulai={() => navigate('/masuk')} />
       </section>
 
       {/* 4. Kelas Tersedia */}
@@ -343,13 +328,12 @@ export default function Landing() {
                       </div>
                     </div>
                     {isSupabaseConfigured ? (
-                      <button
-                        onClick={handleLoginClick}
-                        disabled={sedangMasuk}
-                        className="w-full bg-[var(--color-landing-black)] text-white border-[3px] border-[var(--color-landing-black)] py-3 font-bungee text-base shadow-[4px_4px_0_var(--color-landing-cyan)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_var(--color-landing-cyan)] transition-all mt-4 disabled:opacity-75 disabled:cursor-wait"
+                      <Link
+                        to="/masuk"
+                        className="w-full bg-[var(--color-landing-black)] text-white border-[3px] border-[var(--color-landing-black)] py-3 font-bungee text-base shadow-[4px_4px_0_var(--color-landing-cyan)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_var(--color-landing-cyan)] transition-all mt-4 text-center inline-block"
                       >
-                        {sedangMasuk ? 'MEMBUKA GOOGLE...' : 'MULAI BELAJAR'}
-                      </button>
+                        MULAI BELAJAR
+                      </Link>
                     ) : (
                       <Link
                         to={`/kelas/${course.id}`}
@@ -512,13 +496,12 @@ export default function Landing() {
             MULAI SEKARANG!
           </h2>
           {isSupabaseConfigured ? (
-            <button
-              onClick={handleLoginClick}
-              disabled={sedangMasuk}
-              className="w-full md:w-auto bg-white text-[var(--color-landing-black)] border-[3px] border-[var(--color-landing-black)] px-8 py-5 font-bungee text-xl shadow-[6px_6px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[4px] hover:translate-y-[4px] transition-all whitespace-nowrap disabled:opacity-75 disabled:cursor-wait"
+            <Link
+              to="/masuk"
+              className="w-full md:w-auto bg-white text-[var(--color-landing-black)] border-[3px] border-[var(--color-landing-black)] px-8 py-5 font-bungee text-xl shadow-[6px_6px_0_#111111] hover:shadow-[2px_2px_0_#111111] hover:translate-x-[4px] hover:translate-y-[4px] transition-all whitespace-nowrap text-center inline-block"
             >
-              {sedangMasuk ? 'MEMBUKA GOOGLE...' : 'MASUK DENGAN GOOGLE'}
-            </button>
+              MULAI SEKARANG
+            </Link>
           ) : (
             <a
               href="#kelas"

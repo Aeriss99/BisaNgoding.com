@@ -6,7 +6,12 @@ interface AuthContextType {
   user: User | null;
   isAdmin: boolean;
   loading: boolean;
+  sedangPulihkanPassword: boolean;
   masukGoogle: () => Promise<void>;
+  masukEmail: (email: string, password: string) => Promise<any>;
+  daftarEmail: (email: string, password: string) => Promise<any>;
+  kirimResetPassword: (email: string) => Promise<any>;
+  aturPassword: (password: string) => Promise<any>;
   keluar: () => Promise<void>;
   isSupabaseConfigured: boolean;
 }
@@ -15,7 +20,12 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isAdmin: false,
   loading: true,
+  sedangPulihkanPassword: false,
   masukGoogle: async () => {},
+  masukEmail: async () => {},
+  daftarEmail: async () => {},
+  kirimResetPassword: async () => {},
+  aturPassword: async () => {},
   keluar: async () => {},
   isSupabaseConfigured: false,
 });
@@ -26,6 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sedangPulihkanPassword, setSedangPulihkanPassword] = useState(false);
 
   const checkAdmin = async (userId: string | undefined) => {
     if (!supabase || !userId) {
@@ -65,12 +76,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         checkAdmin(session.user.id);
       } else {
         setIsAdmin(false);
+      }
+      if (event === 'PASSWORD_RECOVERY') {
+        setSedangPulihkanPassword(true);
       }
       setLoading(false);
     });
@@ -88,8 +102,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
+  const masukEmail = async (email: string, password: string) => {
+    if (!supabase) throw new Error('Supabase belum dikonfigurasi');
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  const daftarEmail = async (email: string, password: string) => {
+    if (!supabase) throw new Error('Supabase belum dikonfigurasi');
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: window.location.origin + import.meta.env.BASE_URL,
+      },
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  const kirimResetPassword = async (email: string) => {
+    if (!supabase) throw new Error('Supabase belum dikonfigurasi');
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + import.meta.env.BASE_URL,
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  const aturPassword = async (password: string) => {
+    if (!supabase) throw new Error('Supabase belum dikonfigurasi');
+    const { data, error } = await supabase.auth.updateUser({
+      password,
+    });
+    if (error) throw error;
+    setSedangPulihkanPassword(false);
+    return data;
+  };
+
   const keluar = async () => {
     if (!supabase) return;
+    setSedangPulihkanPassword(false);
     await supabase.auth.signOut();
   };
 
@@ -99,7 +156,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         user,
         isAdmin,
         loading,
+        sedangPulihkanPassword,
         masukGoogle,
+        masukEmail,
+        daftarEmail,
+        kirimResetPassword,
+        aturPassword,
         keluar,
         isSupabaseConfigured: !!supabase,
       }}
