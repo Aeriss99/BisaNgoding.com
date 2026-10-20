@@ -1,0 +1,99 @@
+{
+  "id": "devops-cicd-03",
+  "moduleId": "devops-cicd",
+  "order": 3,
+  "title": "Memberi Versi Image dengan metadata-action",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di materi sebelumnya, setiap build menimpa tag `ghcr.io/budi/toko-web:latest`. Masalahnya:\n\n- Server menjalankan `latest`, tapi `latest` yang mana? Yang dibangun kemarin atau tadi pagi?\n- Versi baru ternyata rusak. Mau kembali ke versi sebelumnya, tapi `latest` lama sudah tertimpa.\n\nKarena itu image sebaiknya diberi tag yang **tidak pernah berubah artinya**:\n\n- **nomor versi** dari tag Git, misalnya `1.2.0` (aturan *semantic versioning* yang sudah kamu kenal di kelas Git: `MAYOR.MINOR.PATCH`)\n- **commit**, misalnya `sha-860c190`, supaya setiap image bisa dilacak ke commit pembuatnya\n\nMenyusun daftar tag itu dengan tangan merepotkan. **`docker/metadata-action`** membuatnya otomatis berdasarkan kejadian yang memicu workflow (push branch, push tag, pull request)."
+    },
+    {
+      "type": "theory",
+      "content": "**Aturan tag yang paling sering dipakai**\n\n```yaml\n      - id: meta\n        uses: docker/metadata-action@v6\n        with:\n          images: ghcr.io/${{ github.repository }}\n          tags: |\n            type=semver,pattern={{version}}\n            type=semver,pattern={{major}}.{{minor}}\n            type=sha\n```\n\n| Aturan | Push tag `v1.2.3` | Push ke `main` |\n|---|---|---|\n| `type=semver,pattern={{version}}` | `1.2.3` | (tidak menghasilkan) |\n| `type=semver,pattern={{major}}.{{minor}}` | `1.2` | (tidak menghasilkan) |\n| `type=sha` | `sha-` + 7 karakter commit | `sha-` + 7 karakter commit |\n| `latest` (otomatis) | ya | tidak |\n\n- `latest` dibuat otomatis kalau ada aturan `type=semver` yang menghasilkan tag. Versi pre-release seperti `v2.0.0-beta.1` **tidak** mendapat `latest`.\n- `images:` boleh memakai `${{ github.repository }}`. metadata-action mengubah nama image ke **huruf kecil**, jadi username seperti `Aeriss99` aman.\n\n**Menyambungkan ke build-push-action**\n\nBeri step metadata sebuah `id` (misalnya `meta`), lalu ambil hasilnya:\n\n```yaml\n      - uses: docker/build-push-action@v7\n        with:\n          context: .\n          push: ${{ github.event_name != 'pull_request' }}\n          tags: ${{ steps.meta.outputs.tags }}\n          labels: ${{ steps.meta.outputs.labels }}\n```\n\n`labels` menambahkan informasi seperti alamat repo dan commit ke dalam image."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi merilis versi baru dari laptopnya:\n\n```bash\ngit tag v1.2.0\ngit push origin v1.2.0\n```\n\nCommit yang ditandai `v1.2.0` berawalan `860c190`. Workflow berjalan, dan step metadata menghasilkan daftar tag berikut (tampil di log step itu):\n\n```text\nghcr.io/budi/toko-web:1.2.0\nghcr.io/budi/toko-web:1.2\nghcr.io/budi/toko-web:latest\nghcr.io/budi/toko-web:sha-860c190\n```\n\nKetiga tag pertama dan `sha-860c190` menunjuk ke **image yang sama**. Seminggu kemudian Budi merilis `v1.2.1`:\n\n```text\nghcr.io/budi/toko-web:1.2.1\nghcr.io/budi/toko-web:1.2        <- pindah ke 1.2.1\nghcr.io/budi/toko-web:latest     <- pindah ke 1.2.1\nghcr.io/budi/toko-web:sha-4be1f0a\n```\n\n- `1.2.0` tidak berubah dan tetap bisa dipakai untuk rollback.\n- `1.2` dan `latest` selalu menunjuk versi terbaru di jalurnya.\n- Di server, tulis tag yang pasti (`1.2.1`), bukan `latest`, supaya selalu jelas versi mana yang berjalan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Server memakai `latest`**\n\nSalah:\n\n```yaml\n# compose.yaml di server\n    image: ghcr.io/budi/toko-web:latest\n```\n\nBenar:\n\n```yaml\n    image: ghcr.io/budi/toko-web:${TAG}\n# .env berisi TAG=1.2.1\n```\n\nDengan `latest`, `docker compose pull` diam-diam bisa mengambil versi yang belum kamu periksa, dan tidak ada catatan versi sebelumnya untuk rollback.\n\n**2. Memakai `type=semver` padahal workflow hanya dipicu push branch**\n\nSalah:\n\n```yaml\non:\n  push:\n    branches: [main]\n...\n          tags: |\n            type=semver,pattern={{version}}\n```\n\nBenar:\n\n```yaml\non:\n  push:\n    branches: [main]\n    tags: ['v*']\n...\n          tags: |\n            type=semver,pattern={{version}}\n            type=sha\n```\n\n`type=semver` hanya menghasilkan tag saat yang di-push adalah tag Git versi. Kalau workflow tidak pernah dipicu oleh tag, daftar tag bisa kosong dan build tidak tahu harus memberi nama apa."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa image di server sebaiknya tidak memakai tag `latest`?",
+          "options": [
+            "Tag latest membuat image lebih besar",
+            "Docker melarang tag latest di server",
+            "latest hanya bisa dipakai di Windows",
+            "Tidak jelas versi mana yang berjalan dan versi lama tertimpa sehingga sulit rollback"
+          ],
+          "answer": 3,
+          "explanation": "Tag versi yang pasti (misalnya `1.2.1`) membuat jelas apa yang berjalan dan memudahkan kembali ke versi sebelumnya.",
+          "remedial": "- Tag `latest` saja tidak cukup: tidak jelas versi mana yang sedang berjalan, dan sulit rollback\n- `docker/metadata-action` membuat daftar tag otomatis dari kejadian Git\n- `type=semver,pattern={{version}}`: tag `v1.2.3` menjadi `1.2.3`\n- `type=sha`: tag berisi commit, contoh `sha-860c190`\n- Saat tag versi di-push, `latest` ikut dibuat otomatis (kecuali versi pre-release seperti `-beta`)"
+        },
+        {
+          "question": "Dengan aturan `type=semver,pattern={{version}}`, push tag Git `v1.2.3` menghasilkan tag image...",
+          "options": [
+            "1.2.3",
+            "v1.2.3",
+            "1.2",
+            "latest saja"
+          ],
+          "answer": 0,
+          "explanation": "`{{version}}` membuang awalan `v`, sehingga `v1.2.3` menjadi `1.2.3`.",
+          "remedial": "- Tag `latest` saja tidak cukup: tidak jelas versi mana yang sedang berjalan, dan sulit rollback\n- `docker/metadata-action` membuat daftar tag otomatis dari kejadian Git\n- `type=semver,pattern={{version}}`: tag `v1.2.3` menjadi `1.2.3`\n- `type=sha`: tag berisi commit, contoh `sha-860c190`\n- Saat tag versi di-push, `latest` ikut dibuat otomatis (kecuali versi pre-release seperti `-beta`)"
+        },
+        {
+          "question": "Apakah push tag `v2.0.0-beta.1` dengan aturan `type=semver` membuat tag `latest`?",
+          "options": [
+            "Ya, selalu",
+            "Tidak, versi pre-release tidak mendapat latest",
+            "Ya, tapi hanya di hari Senin",
+            "Tidak, karena latest dilarang di ghcr.io"
+          ],
+          "answer": 1,
+          "explanation": "Bawaannya (`latest=auto`), `latest` hanya dibuat untuk versi rilis, bukan pre-release.",
+          "remedial": "- Tag `latest` saja tidak cukup: tidak jelas versi mana yang sedang berjalan, dan sulit rollback\n- `docker/metadata-action` membuat daftar tag otomatis dari kejadian Git\n- `type=semver,pattern={{version}}`: tag `v1.2.3` menjadi `1.2.3`\n- `type=sha`: tag berisi commit, contoh `sha-860c190`\n- Saat tag versi di-push, `latest` ikut dibuat otomatis (kecuali versi pre-release seperti `-beta`)"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Workflow dipicu oleh push tag `v3.1.0` pada commit berawalan `a1b2c3d`. Tag image apa saja yang dihasilkan?",
+      "code": "          images: ghcr.io/budi/toko-web\n          tags: |\n            type=semver,pattern={{version}}\n            type=sha",
+      "options": [
+        "v3.1.0 dan sha-a1b2c3d",
+        "3.1.0 saja",
+        "3.1.0, latest, dan sha-a1b2c3d",
+        "latest saja"
+      ],
+      "answer": 2,
+      "explanation": "`{{version}}` menghasilkan `3.1.0`, `type=sha` menghasilkan `sha-a1b2c3d`, dan karena ada aturan semver untuk versi rilis, `latest` ikut dibuat."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Tag image dari versi Git dan dari commit, lalu dipakai build-push-action\n      - id: meta\n        uses: docker/metadata-action@v6\n        with:\n          images: ghcr.io/${{ github.repository }}\n          tags: |\n            type=semver,pattern={{version}}\n            type=___\n      - uses: docker/build-push-action@v7\n        with:\n          tags: ${{ steps.___.outputs.tags }}",
+      "answers": [
+        "sha",
+        "meta"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tag latest saja tidak cukup: tidak jelas versi yang berjalan dan sulit rollback.",
+        "docker/metadata-action membuat daftar tag otomatis dari kejadian Git.",
+        "type=semver,pattern={{version}} mengubah tag Git v1.2.3 menjadi 1.2.3; type=sha menghasilkan sha-xxxxxxx.",
+        "latest ikut dibuat saat tag versi rilis di-push, tapi tidak untuk pre-release.",
+        "Di server, pakai tag versi yang pasti, bukan latest."
+      ]
+    }
+  ]
+}

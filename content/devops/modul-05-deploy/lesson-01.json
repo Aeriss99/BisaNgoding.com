@@ -1,0 +1,99 @@
+{
+  "id": "devops-deploy-01",
+  "moduleId": "devops-deploy",
+  "order": 1,
+  "title": "Menyiapkan Server untuk Docker",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul-modul sebelumnya semua berjalan di laptop. Supaya bisa dibuka orang lain dari internet, aplikasi harus berjalan di **server** yang menyala terus dan punya alamat IP publik.\n\nUntuk aplikasi kecil sampai menengah, pilihan paling umum adalah **VPS** (*Virtual Private Server*): sebuah virtual machine di pusat data milik penyedia cloud yang kamu sewa per bulan. Kamu mendapat akses root lewat SSH dan bebas memasang apa saja. Pilih sistem operasi **Ubuntu Server LTS** (misalnya 24.04), sama seperti yang dipakai di kelas Linux.\n\nSebelum memasang aplikasi, server **wajib diamankan dulu**. Langkah-langkahnya sudah kamu pelajari di modul Mengamankan Server kelas Linux:\n\n1. buat user biasa (misalnya `deploy`) dan beri akses `sudo`\n2. login dengan kunci SSH, lalu matikan login password dan login root\n3. nyalakan firewall `ufw` dan buka hanya port yang perlu (SSH, 80, 443)\n4. pasang pembaruan keamanan\n\nServer yang langsung dipakai tanpa diamankan biasanya mulai diserang robot penebak password dalam hitungan menit setelah menyala."
+    },
+    {
+      "type": "theory",
+      "content": "**Memasang Docker di server**\n\nSama seperti di modul Docker Dasar, dengan skrip resmi:\n\n```bash\ncurl -fsSL https://get.docker.com -o get-docker.sh\nsudo sh get-docker.sh\nsudo usermod -aG docker deploy\n```\n\nLogout lalu login lagi sebagai `deploy`, kemudian cek dengan `docker version` dan `docker compose version`.\n\n**Folder aplikasi**\n\nSimpan file aplikasi di satu folder yang jelas, misalnya `/opt/toko`, dan jadikan `deploy` pemiliknya:\n\n```bash\nsudo mkdir -p /opt/toko\nsudo chown deploy:deploy /opt/toko\n```\n\n**Docker dan ufw: jebakan yang sering tidak disadari**\n\nDocker mengatur aturan firewall Linux (iptables) sendiri. Port yang dibuka dengan `ports: \"8080:80\"` (atau `-p 8080:80`) bisa diakses dari internet **walaupun ufw tidak mengizinkannya**, karena aturan Docker diproses sebelum aturan ufw.\n\nSolusinya, buka port aplikasi hanya untuk server itu sendiri:\n\n| Penulisan | Bisa diakses dari |\n|---|---|\n| `\"8080:80\"` | siapa saja di internet (melewati ufw) |\n| `\"127.0.0.1:8080:80\"` | hanya dari server itu sendiri |\n\nPengunjung masuk lewat **Nginx** di port 80/443, lalu Nginx meneruskan ke `127.0.0.1:8080`. Database tidak perlu `ports` sama sekali."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSari menyewa VPS dengan IP `203.0.113.10`, lalu mengikuti langkah kelas Linux. Status firewall setelahnya:\n\n```text\ndeploy@server-toko:~$ sudo ufw status\nStatus: active\n\nTo                         Action      From\n--                         ------      ----\nOpenSSH                    ALLOW       Anywhere\nNginx Full                 ALLOW       Anywhere\nOpenSSH (v6)               ALLOW       Anywhere (v6)\nNginx Full (v6)            ALLOW       Anywhere (v6)\n```\n\nSetelah memasang Docker dan login ulang:\n\n```text\ndeploy@server-toko:~$ docker compose version\nDocker Compose version v5.1.3\ndeploy@server-toko:~$ ls -ld /opt/toko\ndrwxr-xr-x 2 deploy deploy 4096 Oct 20 09:12 /opt/toko\n```\n\nSari sempat mencoba menjalankan website dengan `ports: \"8080:80\"`, lalu dari laptopnya:\n\n```text\nsari@laptop:~$ curl -s -o /dev/null -w \"%{http_code}\\n\" http://203.0.113.10:8080\n200\n```\n\n- Port 8080 tidak ada di daftar `ufw status`, tapi tetap bisa dibuka dari internet. Itulah jebakan Docker dan ufw.\n- Setelah diganti menjadi `\"127.0.0.1:8080:80\"`, perintah `curl` yang sama tidak lagi tersambung, sedangkan Nginx di server tetap bisa meneruskan ke `127.0.0.1:8080`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengandalkan ufw untuk menutup port container**\n\nSalah:\n\n```yaml\n    ports:\n      - \"8080:80\"\n# \"aman, ufw tidak mengizinkan 8080\"\n```\n\nBenar:\n\n```yaml\n    ports:\n      - \"127.0.0.1:8080:80\"\n```\n\nPort container yang dibuka ke semua alamat bisa diakses dari internet walaupun ufw menolaknya.\n\n**2. Menjalankan semuanya sebagai root**\n\nSalah:\n\n```text\nroot@server-toko:~# docker compose up -d\n(login SSH sebagai root dengan password)\n```\n\nBenar:\n\n```text\ndeploy@server-toko:/opt/toko$ docker compose up -d\n(login SSH sebagai deploy dengan kunci, login root dimatikan)\n```\n\nIngat juga: anggota grup `docker` bisa mengendalikan Docker sepenuhnya, setara dengan akses root. Jangan masukkan sembarang user ke grup itu."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa port aplikasi di server sebaiknya ditulis `\"127.0.0.1:8080:80\"`?",
+          "options": [
+            "Supaya aplikasi lebih cepat",
+            "Supaya hanya bisa diakses dari server itu sendiri, karena port Docker melewati aturan ufw",
+            "Karena Docker melarang port 8080",
+            "Supaya bisa diakses dari semua alamat"
+          ],
+          "answer": 1,
+          "explanation": "Port yang dibuka Docker ke semua alamat tidak tertahan oleh ufw. Bind ke 127.0.0.1, lalu Nginx yang menghadap internet.",
+          "remedial": "- Server untuk aplikasi kecil biasanya **VPS** Ubuntu LTS\n- Amankan dulu seperti di kelas Linux: user non-root, kunci SSH, login password mati, ufw\n- Pasang Docker Engine, lalu masukkan user deploy ke grup `docker`\n- Port yang dibuka Docker dengan `-p 8080:80` **melewati aturan ufw**\n- Karena itu, bind port aplikasi ke `127.0.0.1` dan biarkan Nginx yang menghadap internet"
+        },
+        {
+          "question": "Sebelum memasang aplikasi di VPS baru, langkah pertama yang tepat adalah...",
+          "options": [
+            "Langsung menjalankan docker compose up sebagai root",
+            "Membuka semua port supaya mudah diakses",
+            "Mengamankan server: user non-root, kunci SSH, matikan login password, nyalakan ufw",
+            "Menonaktifkan pembaruan keamanan"
+          ],
+          "answer": 2,
+          "explanation": "Server baru langsung menjadi sasaran robot penebak password. Amankan dulu seperti di modul Mengamankan Server kelas Linux.",
+          "remedial": "- Server untuk aplikasi kecil biasanya **VPS** Ubuntu LTS\n- Amankan dulu seperti di kelas Linux: user non-root, kunci SSH, login password mati, ufw\n- Pasang Docker Engine, lalu masukkan user deploy ke grup `docker`\n- Port yang dibuka Docker dengan `-p 8080:80` **melewati aturan ufw**\n- Karena itu, bind port aplikasi ke `127.0.0.1` dan biarkan Nginx yang menghadap internet"
+        },
+        {
+          "question": "Kenapa memasukkan user ke grup `docker` harus hati-hati?",
+          "options": [
+            "Grup docker membuat server lambat",
+            "Grup docker menghapus file user",
+            "Grup docker hanya untuk Windows",
+            "Anggota grup docker praktis punya akses setara root"
+          ],
+          "answer": 3,
+          "explanation": "Anggota grup docker bisa menjalankan container dengan akses penuh ke sistem, jadi setara root.",
+          "remedial": "- Server untuk aplikasi kecil biasanya **VPS** Ubuntu LTS\n- Amankan dulu seperti di kelas Linux: user non-root, kunci SSH, login password mati, ufw\n- Pasang Docker Engine, lalu masukkan user deploy ke grup `docker`\n- Port yang dibuka Docker dengan `-p 8080:80` **melewati aturan ufw**\n- Karena itu, bind port aplikasi ke `127.0.0.1` dan biarkan Nginx yang menghadap internet"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "ufw hanya mengizinkan OpenSSH dan Nginx Full. Di server, compose.yaml berisi bagian ini. Apa hasil perintah `curl` dari laptop?",
+      "code": "    ports:\n      - \"3000:80\"\n\nsari@laptop:~$ curl -s -o /dev/null -w \"%{http_code}\\n\" http://203.0.113.10:3000",
+      "options": [
+        "200, karena port Docker melewati aturan ufw",
+        "Tidak tersambung, karena ufw menutup port 3000",
+        "404",
+        "403"
+      ],
+      "answer": 0,
+      "explanation": "`\"3000:80\"` membuka port ke semua alamat lewat aturan iptables milik Docker, yang diproses sebelum ufw. Website tetap bisa dibuka dari internet."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Website hanya boleh diakses dari server itu sendiri (Nginx yang meneruskan)\n    ports:\n      - \"___:8080:80\"\n# Masukkan user deploy ke grup docker\nsudo usermod -aG ___ deploy",
+      "answers": [
+        "127.0.0.1",
+        "docker"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Aplikasi kecil biasanya berjalan di VPS Ubuntu Server LTS.",
+        "Amankan server dulu: user non-root, kunci SSH, login password mati, ufw, pembaruan keamanan.",
+        "Pasang Docker Engine dan simpan file aplikasi di folder seperti /opt/toko milik user deploy.",
+        "Port yang dibuka Docker ke semua alamat melewati aturan ufw.",
+        "Bind port aplikasi ke 127.0.0.1 dan biarkan Nginx yang menghadap internet."
+      ]
+    }
+  ]
+}

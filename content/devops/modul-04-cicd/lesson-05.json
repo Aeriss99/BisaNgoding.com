@@ -1,0 +1,99 @@
+{
+  "id": "devops-cicd-05",
+  "moduleId": "devops-cicd",
+  "order": 5,
+  "title": "Mempercepat Pipeline dengan Cache",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setiap job GitHub Actions berjalan di **mesin baru yang kosong**. Setelah job selesai, mesin itu dibuang. Akibatnya, setiap run harus mengunduh ulang semua dependency Maven, semua layer image dasar, dan seterusnya. Pipeline yang awalnya 2 menit bisa membengkak menjadi 10 menit.\n\n**Cache** menyimpan file yang jarang berubah di antara run. Run berikutnya cukup memulihkan cache itu, tidak perlu mengunduh dari awal.\n\nIbarat koki yang setiap pagi pindah ke dapur kosong. Tanpa cache, ia harus belanja semua bumbu dari nol setiap hari. Dengan cache, bumbu kering yang kemarin sudah dibeli disimpan di lemari dan tinggal diambil.\n\nPipeline yang cepat bukan sekadar nyaman. Makin cepat CI memberi hasil, makin cepat programmer tahu ada yang rusak, dan makin sering tim berani merilis perubahan kecil."
+    },
+    {
+      "type": "theory",
+      "content": "**Tiga cara cache yang paling sering dipakai**\n\n**1. Dependency Maven lewat `setup-java`**\n\n```yaml\n      - uses: actions/setup-java@v6\n        with:\n          distribution: temurin\n          java-version: 21\n          cache: maven\n```\n\nKunci cache dihitung dari isi `pom.xml`. Selama `pom.xml` tidak berubah, folder dependency Maven dipulihkan dari cache.\n\n**2. Layer Docker lewat `build-push-action`**\n\n```yaml\n      - uses: docker/build-push-action@v7\n        with:\n          context: .\n          push: true\n          tags: ${{ steps.meta.outputs.tags }}\n          cache-from: type=gha\n          cache-to: type=gha,mode=max\n```\n\n`type=gha` menyimpan layer di cache GitHub Actions. `mode=max` ikut menyimpan layer dari tahap-tahap perantara. Butuh `docker/setup-buildx-action` sebelumnya.\n\n**3. Cache umum dengan `actions/cache`**\n\n```yaml\n      - uses: actions/cache@v6\n        with:\n          path: ~/.npm\n          key: npm-${{ hashFiles('package-lock.json') }}\n```\n\n`hashFiles(...)` menghasilkan kode unik dari isi file. File berubah → kunci berubah → cache baru dibuat.\n\nCache tidak menggantikan aturan urutan Dockerfile di modul Docker. Cache layer hanya membantu kalau langkah yang jarang berubah ditaruh di atas."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nJob tes proyek Spring Boot milik Budi, sebelum dan sesudah memakai cache:\n\n```yaml\njobs:\n  tes:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v7\n      - uses: actions/setup-java@v6\n        with:\n          distribution: temurin\n          java-version: 21\n          cache: maven\n      - run: ./mvnw -B test\n```\n\nRingkasan durasi dari tab Actions (angka di proyekmu akan berbeda):\n\n```text\nRun   cache maven                 durasi job tes\n#41   tanpa cache                 3m 12s\n#42   pertama kali (cache dibuat) 3m 05s\n#43   cache dipulihkan            1m 08s\n#44   pom.xml diubah              2m 57s  (cache baru dibuat)\n#45   cache dipulihkan            1m 06s\n```\n\n- Run pertama dengan cache tetap lama, karena cache baru dibuat di akhir run itu.\n- Run berikutnya jauh lebih cepat karena dependency tidak diunduh ulang.\n- Saat `pom.xml` diubah (misalnya menambah dependency), kunci cache berubah, sehingga satu run kembali lama lalu cepat lagi."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Kunci cache yang tidak pernah berubah**\n\nSalah:\n\n```yaml\n      - uses: actions/cache@v6\n        with:\n          path: ~/.npm\n          key: npm-cache\n```\n\nBenar:\n\n```yaml\n          key: npm-${{ hashFiles('package-lock.json') }}\n```\n\nDengan kunci tetap, cache dibuat sekali lalu dipakai selamanya, walaupun dependency sudah berubah. Akibatnya cache semakin usang dan tidak lagi membantu.\n\n**2. Memakai cache untuk menyimpan hasil yang seharusnya dibangun ulang**\n\nSalah:\n\n```text\nMenyimpan folder target/ (hasil build) di cache,\nlalu melewati langkah build kalau cache ditemukan.\n```\n\nBenar:\n\n```text\nCache hanya untuk dependency dan layer yang bisa diunduh ulang.\nKode selalu di-build dan dites ulang di setiap run.\n```\n\nKalau hasil build diambil dari cache, perubahan kode bisa tidak ikut ter-build dan tes terlihat hijau padahal yang dites adalah versi lama."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa tanpa cache setiap run GitHub Actions mengunduh ulang dependency?",
+          "options": [
+            "Karena GitHub menghapus repo setelah run",
+            "Karena setiap job berjalan di mesin baru yang kosong",
+            "Karena Maven tidak bisa menyimpan file",
+            "Karena internet GitHub lambat"
+          ],
+          "answer": 1,
+          "explanation": "Mesin runner dibuang setelah job selesai. Cache menyimpan file di antara run.",
+          "remedial": "- Setiap run dimulai di mesin baru yang kosong, jadi dependency diunduh ulang kalau tidak di-cache\n- `actions/setup-java` dengan `cache: maven` menyimpan dependency Maven antar run\n- Cache Docker layer di Actions: `cache-from: type=gha` dan `cache-to: type=gha,mode=max`\n- Cache punya kunci (key); kalau file penentunya berubah, cache dibuat ulang\n- Cache hanya mempercepat; hasil build harus tetap sama tanpa cache"
+        },
+        {
+          "question": "Input `setup-java` untuk menyimpan dependency Maven antar run adalah...",
+          "options": [
+            "java-version: maven",
+            "distribution: cache",
+            "cache: maven",
+            "maven: true"
+          ],
+          "answer": 2,
+          "explanation": "`cache: maven` memakai isi `pom.xml` sebagai kunci cache.",
+          "remedial": "- Setiap run dimulai di mesin baru yang kosong, jadi dependency diunduh ulang kalau tidak di-cache\n- `actions/setup-java` dengan `cache: maven` menyimpan dependency Maven antar run\n- Cache Docker layer di Actions: `cache-from: type=gha` dan `cache-to: type=gha,mode=max`\n- Cache punya kunci (key); kalau file penentunya berubah, cache dibuat ulang\n- Cache hanya mempercepat; hasil build harus tetap sama tanpa cache"
+        },
+        {
+          "question": "Untuk cache layer Docker di GitHub Actions, `build-push-action` diberi...",
+          "options": [
+            "push: false",
+            "no-cache: true",
+            "context: cache",
+            "cache-from: type=gha dan cache-to: type=gha,mode=max"
+          ],
+          "answer": 3,
+          "explanation": "`type=gha` menyimpan dan mengambil layer dari cache GitHub Actions.",
+          "remedial": "- Setiap run dimulai di mesin baru yang kosong, jadi dependency diunduh ulang kalau tidak di-cache\n- `actions/setup-java` dengan `cache: maven` menyimpan dependency Maven antar run\n- Cache Docker layer di Actions: `cache-from: type=gha` dan `cache-to: type=gha,mode=max`\n- Cache punya kunci (key); kalau file penentunya berubah, cache dibuat ulang\n- Cache hanya mempercepat; hasil build harus tetap sama tanpa cache"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Run #50 memakai cache Maven yang sudah ada. Di run #51, Budi menambah satu dependency di `pom.xml`. Apa yang terjadi dengan cache di run #51?",
+      "code": "      - uses: actions/setup-java@v6\n        with:\n          distribution: temurin\n          java-version: 21\n          cache: maven",
+      "options": [
+        "Kunci cache berubah, dependency diunduh ulang, lalu cache baru dibuat",
+        "Cache lama dipakai apa adanya dan dependency baru diabaikan",
+        "Run gagal karena cache tidak cocok",
+        "Cache dihapus dan tidak pernah dibuat lagi"
+      ],
+      "answer": 0,
+      "explanation": "Kunci cache Maven dihitung dari `pom.xml`. Isinya berubah, jadi run #51 mengunduh dependency dan menyimpan cache baru."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Kunci cache npm berubah setiap kali package-lock.json berubah\n      - uses: actions/cache@v6\n        with:\n          path: ~/.npm\n          key: npm-${{ ___('package-lock.json') }}\n\n# Cache layer Docker di GitHub Actions\n          cache-from: type=___",
+      "answers": [
+        "hashFiles",
+        "gha"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Setiap job berjalan di mesin baru, jadi dependency diunduh ulang kalau tidak di-cache.",
+        "setup-java dengan cache: maven menyimpan dependency Maven berdasarkan isi pom.xml.",
+        "Cache layer Docker: cache-from type=gha dan cache-to type=gha,mode=max.",
+        "Kunci cache sebaiknya memakai hashFiles supaya berubah saat file penentunya berubah.",
+        "Cache hanya untuk dependency; kode selalu di-build dan dites ulang."
+      ]
+    }
+  ]
+}

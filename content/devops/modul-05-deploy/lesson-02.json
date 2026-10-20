@@ -1,0 +1,99 @@
+{
+  "id": "devops-deploy-02",
+  "moduleId": "devops-deploy",
+  "order": 2,
+  "title": "Menjalankan Aplikasi di Server dengan Compose",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Image website toko sudah dibangun GitHub Actions dan tersimpan di `ghcr.io/budi/toko-web` (modul CI/CD Lanjutan). Server tidak perlu membangun apa pun lagi. Server cukup:\n\n1. **mengambil** image versi tertentu dari registry\n2. **menjalankannya** bersama database dengan Docker Compose\n\nKarena itu, di server tidak ada kode sumber, tidak ada Dockerfile, dan tidak perlu `git clone`. Cukup dua file di `/opt/toko`:\n\n- `compose.yaml`: daftar service, sama seperti di laptop, tapi memakai image dari registry\n- `.env`: versi image yang dipakai (`TAG`) dan password database. File ini hanya ada di server dan dibatasi aksesnya.\n\nIbarat cabang restoran yang menerima makanan jadi dari dapur pusat: cabang tidak perlu resep dan bahan mentah, cukup tahu menu nomor berapa yang disajikan hari ini."
+    },
+    {
+      "type": "theory",
+      "content": "**`/opt/toko/compose.yaml`**\n\n```yaml\nservices:\n  web:\n    image: ghcr.io/budi/toko-web:${TAG}\n    restart: unless-stopped\n    ports:\n      - \"127.0.0.1:8080:80\"\n\n  db:\n    image: mysql:8.4\n    restart: unless-stopped\n    environment:\n      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}\n      MYSQL_DATABASE: toko\n    volumes:\n      - db-data:/var/lib/mysql\n\nvolumes:\n  db-data:\n```\n\n**`/opt/toko/.env`**\n\n```text\nTAG=1.2.0\nDB_PASSWORD=isi-password-kuat-di-sini\n```\n\nBatasi aksesnya supaya hanya `deploy` yang bisa membaca: `chmod 600 .env`.\n\n| Bagian | Gunanya |\n|---|---|\n| `image: ghcr.io/budi/toko-web:${TAG}` | versi image diambil dari `.env`, jadi mengganti versi cukup mengubah satu baris |\n| `restart: unless-stopped` | kalau container mati karena error atau server reboot, Docker menyalakannya lagi, kecuali kamu sendiri yang menghentikannya dengan `docker compose stop` |\n| `\"127.0.0.1:8080:80\"` | hanya bisa diakses dari server (lihat materi sebelumnya) |\n\n**Login ke `ghcr.io` untuk image private**\n\nBuat token di GitHub: Settings > Developer settings > **Personal access tokens** > **Tokens (classic)**, centang hanya **`read:packages`**. Token ini hanya bisa membaca package, jadi kalau bocor, penyerang tidak bisa mengubah apa pun. Di server, ketik tokennya lewat input supaya tidak tersimpan di riwayat shell:\n\n```bash\ndocker login ghcr.io -u budi\n```\n\nImage publik tidak butuh login."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSari menyiapkan `/opt/toko`, login ke `ghcr.io`, lalu menjalankan versi `1.1.0` (`TAG=1.1.0` di `.env`):\n\n```text\ndeploy@server-toko:/opt/toko$ docker login ghcr.io -u budi\nPassword:\nWARNING! Your credentials are stored unencrypted in '/home/deploy/.docker/config.json'.\nConfigure a credential helper to remove this warning. See\nhttps://docs.docker.com/go/credential-store/\n\nLogin Succeeded\ndeploy@server-toko:/opt/toko$ docker compose pull\n[+] pull 4/4\n ✔ Image mysql:8.4                    Pulled                             19.4s\n ✔ Image ghcr.io/budi/toko-web:1.1.0  Pulled                              4.2s\ndeploy@server-toko:/opt/toko$ docker compose up -d\n[+] up 4/4\n ✔ Network toko_default   Created                                         0.1s\n ✔ Volume toko_db-data    Created                                         0.0s\n ✔ Container toko-db-1    Started                                         1.2s\n ✔ Container toko-web-1   Started                                         1.2s\n```\n\nSeminggu kemudian versi `1.2.0` dirilis. Sari mengubah satu baris di `.env`, lalu:\n\n```text\ndeploy@server-toko:/opt/toko$ sed -i 's/^TAG=.*/TAG=1.2.0/' .env\ndeploy@server-toko:/opt/toko$ docker compose pull web\n[+] pull 3/3\n ✔ Image ghcr.io/budi/toko-web:1.2.0  Pulled                              2.5s\ndeploy@server-toko:/opt/toko$ docker compose up -d\n[+] up 2/2\n ✔ Container toko-db-1    Running                                         0.0s\n ✔ Container toko-web-1   Started                                         1.1s\ndeploy@server-toko:/opt/toko$ curl -s 127.0.0.1:8080 | grep Versi\n<body><h1>Toko Kopi Budi</h1><p>Versi 1.2.0</p></body>\n```\n\n- Peringatan `credentials are stored unencrypted` muncul karena token disimpan di file `config.json`. Itu sebabnya token yang dipakai hanya berizin `read:packages`.\n- Saat versi berganti, hanya container `web` yang dibuat ulang (`Started`). Database tetap berjalan (`Running`) dan datanya tidak tersentuh.\n- `sed -i 's/^TAG=.*/TAG=1.2.0/' .env` mengganti baris yang diawali `TAG=` (perintah `sed` dari kelas Linux)."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai token berizin luas di server**\n\nSalah:\n\n```text\nToken classic dengan centang repo, write:packages, delete:packages, admin:org\ndisimpan di server untuk docker login.\n```\n\nBenar:\n\n```text\nToken classic dengan centang read:packages saja.\n```\n\nToken tersimpan tanpa enkripsi di `~/.docker/config.json`. Kalau server dibobol, token berizin luas bisa dipakai menghapus repo atau mengganti image.\n\n**2. Lupa `restart`, sehingga website mati setelah server reboot**\n\nSalah:\n\n```yaml\n  web:\n    image: ghcr.io/budi/toko-web:${TAG}\n    ports:\n      - \"127.0.0.1:8080:80\"\n```\n\nBenar:\n\n```yaml\n  web:\n    image: ghcr.io/budi/toko-web:${TAG}\n    restart: unless-stopped\n    ports:\n      - \"127.0.0.1:8080:80\"\n```\n\nTanpa `restart`, container tidak menyala lagi setelah penyedia VPS me-reboot server (misalnya untuk pemeliharaan). Website mati sampai ada yang login dan menjalankan `docker compose up -d`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "File apa saja yang perlu ada di folder aplikasi server pada pola ini?",
+          "options": [
+            "Seluruh kode sumber dan Dockerfile",
+            "Hanya Dockerfile",
+            "compose.yaml dan .env",
+            "Folder .git hasil clone"
+          ],
+          "answer": 2,
+          "explanation": "Image sudah dibangun di CI dan disimpan di registry. Server hanya butuh daftar service (`compose.yaml`) dan pengaturan (`.env`).",
+          "remedial": "- Di server cukup ada `compose.yaml` dan `.env`; kode sumber tidak perlu\n- Image diambil dari `ghcr.io` dengan tag versi dari `.env` (`TAG=1.2.0`)\n- Image private: `docker login ghcr.io` dengan token GitHub yang hanya berizin `read:packages`\n- `restart: unless-stopped` menyalakan container lagi setelah error atau server reboot\n- Ganti versi: ubah `TAG`, lalu `docker compose pull` dan `docker compose up -d`"
+        },
+        {
+          "question": "Arti `restart: unless-stopped` adalah...",
+          "options": [
+            "Container tidak pernah dinyalakan ulang",
+            "Container di-restart setiap menit",
+            "Container dihapus setelah berhenti",
+            "Container dinyalakan lagi setelah error atau reboot, kecuali dihentikan sendiri dengan stop"
+          ],
+          "answer": 3,
+          "explanation": "Docker menyalakan ulang container yang mati atau setelah server reboot, kecuali kamu sengaja menghentikannya.",
+          "remedial": "- Di server cukup ada `compose.yaml` dan `.env`; kode sumber tidak perlu\n- Image diambil dari `ghcr.io` dengan tag versi dari `.env` (`TAG=1.2.0`)\n- Image private: `docker login ghcr.io` dengan token GitHub yang hanya berizin `read:packages`\n- `restart: unless-stopped` menyalakan container lagi setelah error atau server reboot\n- Ganti versi: ubah `TAG`, lalu `docker compose pull` dan `docker compose up -d`"
+        },
+        {
+          "question": "Token GitHub untuk `docker login ghcr.io` di server sebaiknya hanya diberi izin...",
+          "options": [
+            "read:packages",
+            "delete:packages",
+            "admin:org",
+            "repo dan workflow"
+          ],
+          "answer": 0,
+          "explanation": "Server hanya perlu mengambil image. Izin sekecil mungkin membatasi kerusakan kalau token bocor.",
+          "remedial": "- Di server cukup ada `compose.yaml` dan `.env`; kode sumber tidak perlu\n- Image diambil dari `ghcr.io` dengan tag versi dari `.env` (`TAG=1.2.0`)\n- Image private: `docker login ghcr.io` dengan token GitHub yang hanya berizin `read:packages`\n- `restart: unless-stopped` menyalakan container lagi setelah error atau server reboot\n- Ganti versi: ubah `TAG`, lalu `docker compose pull` dan `docker compose up -d`"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "`.env` berisi `TAG=1.2.0`. Sari mengubahnya menjadi `TAG=1.3.0`, lalu menjalankan `docker compose pull web` dan `docker compose up -d`. Container mana yang dibuat ulang?",
+      "code": "# compose.yaml\nservices:\n  web:\n    image: ghcr.io/budi/toko-web:${TAG}\n    restart: unless-stopped\n    ports:\n      - \"127.0.0.1:8080:80\"\n\n  db:\n    image: mysql:8.4\n    restart: unless-stopped\n    environment:\n      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}\n      MYSQL_DATABASE: toko\n    volumes:\n      - db-data:/var/lib/mysql\n\nvolumes:\n  db-data:",
+      "options": [
+        "Hanya db",
+        "Hanya web",
+        "web dan db",
+        "Tidak ada"
+      ],
+      "answer": 1,
+      "explanation": "Yang berubah hanya image service `web`. Compose membuat ulang `web`, sedangkan `db` tetap berjalan."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Versi image diambil dari .env, dan container menyala lagi setelah server reboot\n  web:\n    image: ghcr.io/budi/toko-web:${___}\n    restart: ___",
+      "answers": [
+        "TAG",
+        "unless-stopped|always"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Di server cukup compose.yaml dan .env; image diambil dari registry, bukan dibangun.",
+        "Versi image ditulis di .env (TAG), jadi mengganti versi cukup mengubah satu baris.",
+        "Untuk image private, docker login ghcr.io dengan token yang hanya berizin read:packages.",
+        "restart: unless-stopped menyalakan container lagi setelah error atau reboot.",
+        "Saat versi berganti, hanya service yang berubah yang dibuat ulang; database tetap berjalan."
+      ]
+    }
+  ]
+}

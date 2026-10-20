@@ -10,7 +10,7 @@ type Soal = { question: string; options: string[]; answer: number; code?: string
 
 const KELAS = [
   { id: 'spring-boot', komentar: '//', modul: ['spring-dasar'] },
-  { id: 'devops', komentar: '#', modul: ['devops-pengenalan', 'devops-docker', 'devops-compose'] },
+  { id: 'devops', komentar: '#', modul: ['devops-pengenalan', 'devops-docker', 'devops-compose', 'devops-cicd', 'devops-deploy'] },
 ];
 
 for (const kelas of KELAS) {

@@ -1,0 +1,99 @@
+{
+  "id": "devops-deploy-04",
+  "moduleId": "devops-deploy",
+  "order": 4,
+  "title": "Deploy Otomatis dari GitHub Actions",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sekarang semua bagian sudah ada: CI membangun image dan memberi tag versi, dan server menjalankan image berdasarkan `TAG` di `.env`. Langkah terakhir adalah menyambungkan keduanya, supaya **push tag versi** otomatis berujung pada website versi baru di server.\n\nCaranya: setelah job build selesai, job **deploy** masuk ke server lewat **SSH** dan menjalankan perintah yang sama dengan yang Sari ketik manual di materi sebelumnya.\n\nUntuk itu GitHub Actions butuh kunci SSH. Buat **pasangan kunci khusus untuk deploy**, terpisah dari kunci pribadimu:\n\n- **kunci publik** dipasang di server, di `~/.ssh/authorized_keys` milik user `deploy`\n- **kunci privat** disimpan di **GitHub Secrets** environment `production`\n\nKunci privat ini hanya boleh ada di GitHub Secrets. Jangan dikirim lewat chat, jangan diberikan ke orang lain atau alat lain, dan jangan di-commit. Kalau kunci itu bocor, siapa pun bisa masuk ke server sebagai `deploy`."
+    },
+    {
+      "type": "theory",
+      "content": "**Menyiapkan kunci (di laptop)**\n\nPakai `ssh-keygen` seperti di modul Mengamankan Server kelas Linux, tapi dengan nama file khusus dan tanpa passphrase (karena dipakai mesin, bukan manusia):\n\n```bash\nssh-keygen -t ed25519 -C \"deploy-toko\" -f ~/.ssh/deploy_toko -N \"\"\n```\n\n| File | Tempatnya |\n|---|---|\n| `~/.ssh/deploy_toko.pub` (publik) | ditambahkan ke `/home/deploy/.ssh/authorized_keys` di server |\n| `~/.ssh/deploy_toko` (privat) | ditempel ke secret `SSH_PRIVATE_KEY` di environment `production`, lalu **hapus file itu dari laptop** |\n\nSecret lain di environment `production`: `SERVER_HOST` (`203.0.113.10`) dan `SERVER_USER` (`deploy`).\n\n**Job deploy**\n\n```yaml\n  deploy:\n    needs: build\n    if: startsWith(github.ref, 'refs/tags/v')\n    runs-on: ubuntu-latest\n    environment: production\n    concurrency: deploy-production\n    steps:\n      - uses: appleboy/ssh-action@v1.2.5\n        with:\n          host: ${{ secrets.SERVER_HOST }}\n          username: ${{ secrets.SERVER_USER }}\n          key: ${{ secrets.SSH_PRIVATE_KEY }}\n          script: |\n            cd /opt/toko\n            VERSI=\"${{ github.ref_name }}\"\n            sed -i \"s/^TAG=.*/TAG=${VERSI#v}/\" .env\n            docker compose pull web\n            docker compose up -d\n```\n\n- `github.ref_name` untuk tag `v1.2.0` bernilai `v1.2.0`. `${VERSI#v}` (fitur bash) membuang awalan `v`, menjadi `1.2.0`, sama dengan tag image dari `type=semver,pattern={{version}}`.\n- `appleboy/ssh-action` adalah action pihak ketiga. Sesuai materi keamanan pipeline, versinya ditulis pasti, dan lebih aman lagi di-pin ke SHA commit."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nAlur lengkap saat Budi merilis versi baru:\n\n```bash\ngit tag v1.3.0\ngit push origin v1.3.0\n```\n\nRingkasan run di tab Actions:\n\n```text\nPipeline  #57  v1.3.0\n  tes      ✓  42s\n  build    ✓  1m 18s   ghcr.io/budi/toko-web:1.3.0, 1.3, latest, sha-9d2e7f1\n  deploy   ⏳ Waiting  (menunggu persetujuan environment production)\n```\n\nBudi mengklik **Review deployments** > **Approve and deploy**. Bagian akhir log step SSH:\n\n```text\n ✔ Image ghcr.io/budi/toko-web:1.3.0  Pulled\n ✔ Container toko-db-1    Running\n ✔ Container toko-web-1   Started\n```\n\nLalu dari laptop:\n\n```text\nbudi@laptop:~$ curl -s https://toko.contoh | grep Versi\n<body><h1>Toko Kopi Budi</h1><p>Versi 1.3.0</p></body>\n```\n\n- Dari `git push` sampai website berganti versi, satu-satunya langkah manual adalah klik persetujuan. Itulah **continuous delivery**.\n- Kalau persetujuan dihapus dari environment, deploy berjalan langsung setelah build: **continuous deployment**.\n- Di server, `.env` sekarang berisi `TAG=1.3.0`, jadi selalu tercatat versi mana yang berjalan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai kunci SSH pribadi untuk deploy**\n\nSalah:\n\n```text\nMenempel ~/.ssh/id_ed25519 (kunci yang dipakai Budi sehari-hari\nuntuk semua server dan GitHub) ke GitHub Secrets.\n```\n\nBenar:\n\n```text\nMembuat kunci baru khusus deploy (deploy_toko), hanya dipasang\ndi user deploy pada satu server, dan bisa dicabut kapan saja\ntanpa mengganggu akses lain.\n```\n\nKunci khusus membatasi kerusakan kalau bocor, dan mudah dicabut: cukup hapus barisnya dari `authorized_keys`.\n\n**2. Deploy dengan `git pull` dan build di server**\n\nSalah:\n\n```text\nssh ke server -> git pull -> docker compose build -> docker compose up -d\n```\n\nBenar:\n\n```text\nCI membangun dan push image -> ssh ke server -> ubah TAG -> pull -> up -d\n```\n\nBuild di server membuat server butuh kode sumber dan alat build, memakan CPU server yang sedang melayani pengunjung, dan image di server bisa berbeda dari yang sudah dites di CI."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di mana kunci **privat** SSH khusus deploy disimpan?",
+          "options": [
+            "Di GitHub Secrets environment production",
+            "Di repo, folder .ssh",
+            "Di file README",
+            "Di authorized_keys server"
+          ],
+          "answer": 0,
+          "explanation": "Kunci privat hanya disimpan di GitHub Secrets. Yang dipasang di authorized_keys server adalah kunci publik.",
+          "remedial": "- Buat **kunci SSH khusus deploy**; kunci publik ke `authorized_keys` user `deploy`, kunci privat ke GitHub Secrets\n- Kunci privat deploy tidak dibagikan ke siapa pun dan tidak disimpan di repo\n- Job deploy: `needs: build`, `environment: production`, lalu SSH ke server\n- Skrip di server: ubah `TAG` di `.env`, `docker compose pull web`, `docker compose up -d`\n- Action pihak ketiga seperti `appleboy/ssh-action` sebaiknya di-pin versinya"
+        },
+        {
+          "question": "Untuk tag Git `v1.3.0`, nilai `${{ github.ref_name }}` adalah...",
+          "options": [
+            "1.3.0",
+            "v1.3.0",
+            "refs/tags/v1.3.0",
+            "1.3"
+          ],
+          "answer": 1,
+          "explanation": "`ref_name` adalah nama tag apa adanya. Awalan `v` dibuang dengan `${VERSI#v}` di skrip.",
+          "remedial": "- Buat **kunci SSH khusus deploy**; kunci publik ke `authorized_keys` user `deploy`, kunci privat ke GitHub Secrets\n- Kunci privat deploy tidak dibagikan ke siapa pun dan tidak disimpan di repo\n- Job deploy: `needs: build`, `environment: production`, lalu SSH ke server\n- Skrip di server: ubah `TAG` di `.env`, `docker compose pull web`, `docker compose up -d`\n- Action pihak ketiga seperti `appleboy/ssh-action` sebaiknya di-pin versinya"
+        },
+        {
+          "question": "Kenapa job deploy diberi `environment: production`?",
+          "options": [
+            "Supaya job berjalan di server production langsung",
+            "Supaya build lebih cepat",
+            "Supaya bisa membaca secret production dan menunggu persetujuan reviewer",
+            "Supaya image bertag latest"
+          ],
+          "answer": 2,
+          "explanation": "Environment menyimpan secret production dan bisa mewajibkan persetujuan sebelum job berjalan.",
+          "remedial": "- Buat **kunci SSH khusus deploy**; kunci publik ke `authorized_keys` user `deploy`, kunci privat ke GitHub Secrets\n- Kunci privat deploy tidak dibagikan ke siapa pun dan tidak disimpan di repo\n- Job deploy: `needs: build`, `environment: production`, lalu SSH ke server\n- Skrip di server: ubah `TAG` di `.env`, `docker compose pull web`, `docker compose up -d`\n- Action pihak ketiga seperti `appleboy/ssh-action` sebaiknya di-pin versinya"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Skrip deploy berikut dijalankan dengan tag `v2.0.1`. Apa isi baris TAG di `/opt/toko/.env` setelahnya?",
+      "code": "            cd /opt/toko\n            VERSI=\"v2.0.1\"\n            sed -i \"s/^TAG=.*/TAG=${VERSI#v}/\" .env",
+      "options": [
+        "TAG=v2.0.1",
+        "TAG=${VERSI#v}",
+        "TAG=2.0",
+        "TAG=2.0.1"
+      ],
+      "answer": 3,
+      "explanation": "`${VERSI#v}` membuang satu huruf `v` di awal nilai `VERSI`, jadi hasilnya `2.0.1`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Job deploy menunggu build, memakai environment production, lalu SSH ke server\n  deploy:\n    ___: build\n    runs-on: ubuntu-latest\n    environment: production\n    steps:\n      - uses: appleboy/ssh-action@v1.2.5\n        with:\n          host: ${{ secrets.SERVER_HOST }}\n          username: ${{ secrets.SERVER_USER }}\n          key: ${{ secrets.___ }}",
+      "answers": [
+        "needs",
+        "SSH_PRIVATE_KEY"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Buat kunci SSH khusus deploy: publik di authorized_keys user deploy, privat di GitHub Secrets.",
+        "Kunci privat deploy tidak dibagikan ke siapa pun dan tidak disimpan di repo atau laptop.",
+        "Job deploy: needs build, environment production, lalu SSH ke server.",
+        "Skrip server: ubah TAG di .env, docker compose pull web, docker compose up -d.",
+        "Jangan build di server; server hanya mengambil image yang sudah dites di CI."
+      ]
+    }
+  ]
+}
