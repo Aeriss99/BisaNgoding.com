@@ -1,0 +1,99 @@
+{
+  "id": "devops-cicd-02",
+  "moduleId": "devops-cicd",
+  "order": 2,
+  "title": "Build dan Push Image ke GitHub Container Registry",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Docker, Budi membangun image di laptopnya dengan `docker build`. Untuk tim, cara itu punya masalah: hasilnya tergantung laptop siapa yang membangun, dan image harus dikirim manual ke server.\n\nSolusinya, image dibangun oleh **GitHub Actions** setiap ada perubahan, lalu disimpan di **registry** supaya server cukup menjalankan `docker pull`. Registry yang paling praktis untuk repo di GitHub adalah **GitHub Container Registry** dengan alamat `ghcr.io`, bagian dari GitHub Packages yang sudah kamu kenal di kelas Git & GitHub.\n\nAlamat image di `ghcr.io` berbentuk:\n\n```text\nghcr.io/PEMILIK/NAMA_IMAGE:TAG\nghcr.io/budi/toko-web:1.2.0\n```\n\nIbarat dapur pusat sebuah jaringan restoran: semua makanan dimasak di satu dapur dengan resep yang sama (Actions), disimpan di gudang pendingin (registry), lalu setiap cabang (server) tinggal mengambilnya."
+    },
+    {
+      "type": "theory",
+      "content": "**Empat action resmi yang dipakai**\n\n| Step | Fungsinya |\n|---|---|\n| `actions/checkout@v7` | mengambil kode dari repo |\n| `docker/setup-buildx-action@v4` | menyiapkan **Buildx**, mesin build Docker yang mendukung cache dan banyak platform |\n| `docker/login-action@v4` | login ke registry (`ghcr.io`) |\n| `docker/build-push-action@v7` | menjalankan build dari Dockerfile, lalu push ke registry |\n\n**Login ke `ghcr.io` tanpa membuat token sendiri**\n\nSetiap run otomatis mendapat token bernama `GITHUB_TOKEN`. Token ini cukup untuk push ke `ghcr.io` milik pemilik repo, asalkan workflow diberi izin:\n\n```yaml\npermissions:\n  contents: read\n  packages: write\n```\n\n**Input penting `build-push-action`**\n\n| Input | Artinya |\n|---|---|\n| `context: .` | folder konteks build (sama seperti titik di `docker build .`) |\n| `push: true` | push ke registry setelah build. Kalau `false`, image hanya dibangun (berguna untuk pull request) |\n| `tags:` | nama dan tag image, boleh lebih dari satu baris |\n\n**Setelah push pertama**, image muncul di tab **Packages** profilmu dan di halaman repo (bagian kanan). Package baru bersifat **private**: hanya kamu yang bisa `docker pull`. Untuk membuatnya publik, buka package → **Package settings** → **Change visibility**."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nRepo `budi/toko-web` berisi Dockerfile website toko dari modul Docker. Workflow-nya:\n\n```yaml\nname: Image\non:\n  push:\n    branches: [main]\n\npermissions:\n  contents: read\n  packages: write\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v7\n\n      - uses: docker/setup-buildx-action@v4\n\n      - uses: docker/login-action@v4\n        with:\n          registry: ghcr.io\n          username: ${{ github.actor }}\n          password: ${{ secrets.GITHUB_TOKEN }}\n\n      - uses: docker/build-push-action@v7\n        with:\n          context: .\n          push: true\n          tags: ghcr.io/budi/toko-web:latest\n```\n\nSetelah run berhasil, Budi mengambil image itu dari laptop lain:\n\n```text\nbudi@laptop:~$ docker pull ghcr.io/budi/toko-web:latest\nlatest: Pulling from budi/toko-web\n...\nStatus: Downloaded newer image for ghcr.io/budi/toko-web:latest\nghcr.io/budi/toko-web:latest\n```\n\n- `${{ github.actor }}` adalah username yang memicu run, dan `${{ secrets.GITHUB_TOKEN }}` adalah token otomatis. Budi tidak menyimpan password apa pun.\n- `permissions: packages: write` wajib. Tanpa izin itu, langkah push ditolak.\n- Karena package masih private, laptop lain harus `docker login ghcr.io` dulu (caranya di modul Deploy ke Server)."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Nama image mengandung huruf besar**\n\nSalah:\n\n```yaml\ntags: ghcr.io/Budi/toko-web:latest\n```\n\n```text\nERROR: failed to build: invalid tag \"ghcr.io/Budi/toko-web:latest\": repository name must be lowercase\n```\n\nBenar:\n\n```yaml\ntags: ghcr.io/budi/toko-web:latest\n```\n\nNama image Docker wajib huruf kecil semua. Ini sering terjadi kalau username GitHub mengandung huruf besar (misalnya `Aeriss99`) lalu ditulis apa adanya, atau kalau memakai `${{ github.repository }}` langsung. Di materi berikutnya, `docker/metadata-action` mengubahnya ke huruf kecil otomatis.\n\n**2. Push image dari pull request**\n\nSalah:\n\n```yaml\non: [push, pull_request]\n...\n          push: true\n```\n\nBenar:\n\n```yaml\n          push: ${{ github.event_name != 'pull_request' }}\n```\n\nPull request berisi kode yang belum direview. Image cukup dibangun untuk memastikan Dockerfile tidak rusak, tapi jangan sampai masuk registry dan terpasang di server."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Alamat registry container milik GitHub adalah...",
+          "options": [
+            "hub.docker.com",
+            "github.io",
+            "ghcr.io",
+            "registry.github.com/docker"
+          ],
+          "answer": 2,
+          "explanation": "GitHub Container Registry beralamat `ghcr.io`, contohnya `ghcr.io/budi/toko-web:latest`.",
+          "remedial": "- Image dibangun di GitHub Actions lalu disimpan di **GitHub Container Registry** (`ghcr.io`)\n- Langkahnya: `checkout` → `docker/setup-buildx-action` → `docker/login-action` → `docker/build-push-action`\n- Login memakai `GITHUB_TOKEN` bawaan; workflow butuh `permissions: packages: write`\n- Nama image wajib huruf kecil semua\n- Package baru bersifat **private**; ubah visibilitas di pengaturan package kalau ingin publik"
+        },
+        {
+          "question": "Workflow push image ke `ghcr.io` memakai `GITHUB_TOKEN`. Izin apa yang wajib ditulis di `permissions`?",
+          "options": [
+            "pages: write",
+            "issues: write",
+            "id-token: read",
+            "packages: write"
+          ],
+          "answer": 3,
+          "explanation": "Push ke GitHub Packages (termasuk `ghcr.io`) butuh `packages: write`.",
+          "remedial": "- Image dibangun di GitHub Actions lalu disimpan di **GitHub Container Registry** (`ghcr.io`)\n- Langkahnya: `checkout` → `docker/setup-buildx-action` → `docker/login-action` → `docker/build-push-action`\n- Login memakai `GITHUB_TOKEN` bawaan; workflow butuh `permissions: packages: write`\n- Nama image wajib huruf kecil semua\n- Package baru bersifat **private**; ubah visibilitas di pengaturan package kalau ingin publik"
+        },
+        {
+          "question": "Image yang baru pertama kali di-push ke `ghcr.io` bersifat...",
+          "options": [
+            "Private, hanya pemiliknya yang bisa pull",
+            "Publik untuk semua orang",
+            "Otomatis terhapus setelah 1 hari",
+            "Hanya bisa dipakai di GitHub Pages"
+          ],
+          "answer": 0,
+          "explanation": "Package baru private. Visibilitasnya bisa diubah di Package settings.",
+          "remedial": "- Image dibangun di GitHub Actions lalu disimpan di **GitHub Container Registry** (`ghcr.io`)\n- Langkahnya: `checkout` → `docker/setup-buildx-action` → `docker/login-action` → `docker/build-push-action`\n- Login memakai `GITHUB_TOKEN` bawaan; workflow butuh `permissions: packages: write`\n- Nama image wajib huruf kecil semua\n- Package baru bersifat **private**; ubah visibilitas di pengaturan package kalau ingin publik"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa hasil step build ini?",
+      "code": "      - uses: docker/build-push-action@v7\n        with:\n          context: .\n          push: true\n          tags: ghcr.io/Aeriss99/toko-web:latest",
+      "options": [
+        "Berhasil, image tersimpan di ghcr.io/Aeriss99/toko-web",
+        "Gagal: repository name must be lowercase",
+        "Berhasil, tapi image disimpan di Docker Hub",
+        "Gagal karena context harus diisi Dockerfile"
+      ],
+      "answer": 1,
+      "explanation": "Nama image Docker wajib huruf kecil. `Aeriss99` mengandung huruf besar, jadi tag ditolak sebelum build dimulai."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Login ke GitHub Container Registry dengan token otomatis\n      - uses: docker/login-action@v4\n        with:\n          registry: ___\n          username: ${{ github.actor }}\n          password: ${{ secrets.___ }}",
+      "answers": [
+        "ghcr.io",
+        "GITHUB_TOKEN"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "GitHub Actions membangun image dan menyimpannya di ghcr.io, sehingga server cukup docker pull.",
+        "Urutan step: checkout, setup-buildx-action, login-action, build-push-action.",
+        "Login memakai GITHUB_TOKEN bawaan; workflow butuh permissions packages: write.",
+        "Nama image wajib huruf kecil semua.",
+        "Jangan push image dari pull request; package baru bersifat private."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "id": "devops-cicd-01",
+  "moduleId": "devops-cicd",
+  "order": 1,
+  "title": "Workflow Bertahap: Tes, Build, Deploy",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di kelas Git & GitHub kamu sudah membuat workflow CI sederhana: setiap push, tes dijalankan. Pipeline sungguhan biasanya punya beberapa **tahap** yang berurutan:\n\n1. **tes**: jalankan semua tes\n2. **build**: bangun image Docker dan simpan di registry\n3. **deploy**: pasang image itu ke server\n\nTahap berikutnya hanya boleh jalan kalau tahap sebelumnya lulus. Tidak ada gunanya membangun image dari kode yang tesnya merah, apalagi memasangnya ke server.\n\nSelain itu, tidak semua pemicu perlu menjalankan semua tahap. Pull request cukup dites, tidak perlu di-deploy. Push tag versi (misalnya `v1.2.0`) menjalankan semuanya.\n\nIbarat jalur produksi di pabrik roti: adonan dicek dulu, baru dipanggang, baru dikemas dan dikirim. Kalau adonan gagal dicek, oven tidak dinyalakan."
+    },
+    {
+      "type": "theory",
+      "content": "**Pemicu (`on:`) yang paling sering dipakai**\n\n```yaml\non:\n  push:\n    branches: [main]\n    tags: ['v*']\n  pull_request:\n  workflow_dispatch:\n```\n\n| Pemicu | Kapan berjalan |\n|---|---|\n| `push` + `branches: [main]` | ada push ke branch `main` |\n| `push` + `tags: ['v*']` | ada tag yang diawali `v` di-push, misalnya `v1.2.0` |\n| `pull_request` | pull request dibuka atau diperbarui |\n| `workflow_dispatch` | tombol **Run workflow** di tab Actions (manual) |\n\n**Mengatur urutan dan syarat job**\n\n| Kunci | Artinya |\n|---|---|\n| `needs: tes` | job menunggu job `tes` selesai dan lulus. Kalau `tes` gagal, job ini dilewati |\n| `needs: [tes, build]` | menunggu beberapa job sekaligus |\n| `if: github.event_name != 'pull_request'` | job tidak dijalankan untuk pull request |\n| `if: startsWith(github.ref, 'refs/tags/v')` | job hanya dijalankan saat yang di-push adalah tag versi |\n| `concurrency: deploy-production` | run baru dengan nama grup yang sama menunggu run sebelumnya selesai |\n\nTanpa `needs`, semua job dalam satu workflow berjalan **bersamaan** di mesin yang berbeda."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nWorkflow `.github/workflows/pipeline.yml` milik toko online Budi (isi step build dan deploy dibahas di materi berikutnya):\n\n```yaml\nname: Pipeline\non:\n  push:\n    branches: [main]\n    tags: ['v*']\n  pull_request:\n\njobs:\n  tes:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v7\n      - run: ./cek-html.sh\n\n  build:\n    needs: tes\n    if: github.event_name != 'pull_request'\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo \"bangun dan push image\"\n\n  deploy:\n    needs: build\n    if: startsWith(github.ref, 'refs/tags/v')\n    runs-on: ubuntu-latest\n    concurrency: deploy-production\n    steps:\n      - run: echo \"pasang ke server\"\n```\n\nJob yang berjalan untuk setiap kejadian:\n\n```text\nKejadian                       tes    build   deploy\npull request dibuka            ya     -       -\npush ke main                   ya     ya      -\npush tag v1.2.0                ya     ya      ya\npush tag v1.2.0, tes gagal     ya     -       -\n```\n\n- Pull request hanya dites, karena `build` punya syarat `github.event_name != 'pull_request'`, dan `deploy` menunggu `build`.\n- Push ke `main` membangun image (berguna untuk staging), tapi tidak deploy karena `github.ref` bukan tag.\n- Kalau tes gagal, `build` dan `deploy` ditandai **skipped** (dilewati) di tab Actions."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `needs`, sehingga deploy jalan walaupun tes gagal**\n\nSalah:\n\n```yaml\njobs:\n  tes:\n    ...\n  deploy:\n    runs-on: ubuntu-latest\n    steps: ...\n```\n\nBenar:\n\n```yaml\njobs:\n  tes:\n    ...\n  deploy:\n    needs: tes\n    runs-on: ubuntu-latest\n    steps: ...\n```\n\nTanpa `needs`, `tes` dan `deploy` berjalan bersamaan. Server bisa sudah menerima versi baru sebelum ketahuan tesnya merah.\n\n**2. Pola tag yang tidak cocok dengan tag yang di-push**\n\nSalah:\n\n```yaml\non:\n  push:\n    tags: ['v*']\n# lalu yang di-push: git tag 1.2.0 && git push origin 1.2.0\n```\n\nBenar:\n\n```bash\ngit tag v1.2.0\ngit push origin v1.2.0\n```\n\nPola `v*` hanya cocok dengan tag yang diawali huruf `v`. Tag `1.2.0` tidak memicu workflow sama sekali, dan tidak ada pesan error karena memang tidak ada run yang dimulai."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Job `deploy` punya `needs: build`, dan job `build` gagal. Apa yang terjadi pada `deploy`?",
+          "options": [
+            "Tetap berjalan",
+            "Dilewati (skipped)",
+            "Berjalan bersamaan dengan build",
+            "Mengulang build dari awal"
+          ],
+          "answer": 1,
+          "explanation": "`needs` membuat job menunggu job lain lulus. Kalau `build` gagal, `deploy` dilewati.",
+          "remedial": "- `on:` bisa berisi beberapa pemicu: `push` (branch atau tag), `pull_request`, `workflow_dispatch` (tombol manual)\n- Satu workflow boleh punya beberapa job; tanpa `needs`, job berjalan bersamaan\n- `needs: tes` = job ini menunggu job `tes` lulus\n- `if:` menjalankan job atau step hanya kalau syaratnya terpenuhi\n- `concurrency` mencegah dua run (misalnya dua deploy) berjalan bersamaan"
+        },
+        {
+          "question": "Pemicu apa yang membuat workflow bisa dijalankan manual lewat tombol **Run workflow**?",
+          "options": [
+            "pull_request",
+            "schedule",
+            "workflow_dispatch",
+            "needs"
+          ],
+          "answer": 2,
+          "explanation": "`workflow_dispatch` menambahkan tombol Run workflow di tab Actions.",
+          "remedial": "- `on:` bisa berisi beberapa pemicu: `push` (branch atau tag), `pull_request`, `workflow_dispatch` (tombol manual)\n- Satu workflow boleh punya beberapa job; tanpa `needs`, job berjalan bersamaan\n- `needs: tes` = job ini menunggu job `tes` lulus\n- `if:` menjalankan job atau step hanya kalau syaratnya terpenuhi\n- `concurrency` mencegah dua run (misalnya dua deploy) berjalan bersamaan"
+        },
+        {
+          "question": "Apa kegunaan `concurrency: deploy-production` pada job deploy?",
+          "options": [
+            "Menjalankan deploy dua kali",
+            "Mempercepat build",
+            "Menghapus deploy lama dari server",
+            "Mencegah dua deploy berjalan bersamaan"
+          ],
+          "answer": 3,
+          "explanation": "Run baru dengan grup yang sama menunggu run sebelumnya selesai, sehingga server tidak menerima dua deploy sekaligus.",
+          "remedial": "- `on:` bisa berisi beberapa pemicu: `push` (branch atau tag), `pull_request`, `workflow_dispatch` (tombol manual)\n- Satu workflow boleh punya beberapa job; tanpa `needs`, job berjalan bersamaan\n- `needs: tes` = job ini menunggu job `tes` lulus\n- `if:` menjalankan job atau step hanya kalau syaratnya terpenuhi\n- `concurrency` mencegah dua run (misalnya dua deploy) berjalan bersamaan"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Dengan workflow pada contoh, Sari membuka pull request. Job apa saja yang berjalan?",
+      "code": "jobs:\n  tes:\n    ...\n  build:\n    needs: tes\n    if: github.event_name != 'pull_request'\n    ...\n  deploy:\n    needs: build\n    if: startsWith(github.ref, 'refs/tags/v')\n    ...",
+      "options": [
+        "Hanya tes",
+        "tes dan build",
+        "tes, build, dan deploy",
+        "Tidak ada job yang berjalan"
+      ],
+      "answer": 0,
+      "explanation": "`build` dilewati karena kejadiannya pull request. `deploy` menunggu `build`, jadi ikut dilewati."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# deploy hanya boleh jalan setelah job build lulus, dan hanya untuk tag versi\n  deploy:\n    ___: build\n    ___: startsWith(github.ref, 'refs/tags/v')\n    runs-on: ubuntu-latest",
+      "answers": [
+        "needs",
+        "if"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "on bisa berisi push (branch atau tag), pull_request, dan workflow_dispatch.",
+        "Tanpa needs, semua job dalam satu workflow berjalan bersamaan.",
+        "needs membuat job menunggu job lain lulus; kalau gagal, job ini dilewati.",
+        "if menjalankan job hanya kalau syaratnya terpenuhi, misalnya bukan pull request atau hanya tag versi.",
+        "concurrency mencegah dua deploy berjalan bersamaan."
+      ]
+    }
+  ]
+}

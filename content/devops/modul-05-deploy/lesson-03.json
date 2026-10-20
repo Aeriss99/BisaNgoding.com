@@ -1,0 +1,99 @@
+{
+  "id": "devops-deploy-03",
+  "moduleId": "devops-deploy",
+  "order": 3,
+  "title": "Domain, Nginx, dan HTTPS",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Website sudah berjalan di server, tapi baru bisa diakses lewat `127.0.0.1:8080` dari dalam server. Supaya pengunjung bisa membukanya dengan alamat seperti `https://toko.contoh`, dibutuhkan tiga hal:\n\n1. **Domain** yang mengarah ke IP server\n2. **Nginx** sebagai pintu depan yang menerima pengunjung lalu meneruskannya ke container\n3. **Sertifikat HTTPS** supaya koneksi terenkripsi dan browser menampilkan gembok\n\nNginx dan HTTPS sudah kamu pelajari lengkap di modul Web Server Nginx kelas Linux (server block, reverse proxy, dan certbot). Di materi ini kita menyambungkannya dengan container dari materi sebelumnya.\n\nIbarat toko di dalam mal: domain adalah papan nama di peta mal, Nginx adalah pintu masuk utama mal yang dijaga satpam, dan container adalah toko di dalamnya. Pengunjung tidak pernah masuk lewat pintu gudang (port 8080)."
+    },
+    {
+      "type": "theory",
+      "content": "**1. DNS: A record**\n\nDi panel penyedia domain, tambahkan:\n\n| Type | Name | Value |\n|---|---|---|\n| A | `@` (domain utama, `toko.contoh`) | `203.0.113.10` |\n| A | `www` | `203.0.113.10` |\n\nPerubahan DNS butuh waktu untuk menyebar, dari beberapa menit sampai beberapa jam. Cek dengan `dig +short toko.contoh` (atau `getent hosts toko.contoh` seperti di kelas Linux).\n\n**2. Nginx sebagai reverse proxy**\n\nServer block `/etc/nginx/sites-available/toko`:\n\n```text\nserver {\n    listen 80;\n    server_name toko.contoh www.toko.contoh;\n\n    location / {\n        proxy_pass http://127.0.0.1:8080;\n        include proxy_params;\n    }\n}\n```\n\nAktifkan dengan `ln -s` ke `sites-enabled`, cek dengan `sudo nginx -t`, lalu `sudo systemctl reload nginx`, persis seperti di kelas Linux. Bedanya hanya tujuan `proxy_pass`: sekarang port yang dibuka container `web`.\n\n**3. HTTPS**\n\n```bash\nsudo certbot --nginx -d toko.contoh -d www.toko.contoh\n```\n\ncertbot memeriksa domain lewat port 80, jadi **DNS harus sudah mengarah ke server** sebelum perintah ini dijalankan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSari menambahkan A record, menunggu beberapa menit, lalu mengecek dari laptop:\n\n```text\nsari@laptop:~$ dig +short toko.contoh\n203.0.113.10\nsari@laptop:~$ dig +short www.toko.contoh\n203.0.113.10\n```\n\nDi server, setelah membuat server block dan me-reload Nginx:\n\n```text\ndeploy@server-toko:~$ sudo nginx -t\nnginx: the configuration file /etc/nginx/nginx.conf syntax is ok\nnginx: configuration file /etc/nginx/nginx.conf test is successful\ndeploy@server-toko:~$ curl -s http://toko.contoh | grep Versi\n<body><h1>Toko Kopi Budi</h1><p>Versi 1.2.0</p></body>\n```\n\nLalu meminta sertifikat (sebagian baris):\n\n```text\ndeploy@server-toko:~$ sudo certbot --nginx -d toko.contoh -d www.toko.contoh\n...\nSuccessfully received certificate.\n...\nCongratulations! You have successfully enabled HTTPS on https://toko.contoh and https://www.toko.contoh\n```\n\n- Alur lengkapnya: browser → `https://toko.contoh` (port 443, Nginx) → `http://127.0.0.1:8080` (container `web`).\n- Container tidak tahu apa-apa soal domain dan HTTPS. Semua diurus Nginx, sehingga image yang sama bisa dipakai di server mana pun.\n- Saat versi website berganti, Nginx tidak perlu diubah karena alamat `127.0.0.1:8080` tetap sama."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menjalankan certbot sebelum DNS mengarah ke server**\n\nSalah:\n\n```text\n1. Beli domain\n2. Langsung: sudo certbot --nginx -d toko.contoh\n3. Baru menambahkan A record\n```\n\nBenar:\n\n```text\n1. Tambahkan A record ke IP server\n2. Pastikan: dig +short toko.contoh  ->  203.0.113.10\n3. Baru: sudo certbot --nginx -d toko.contoh -d www.toko.contoh\n```\n\nLet's Encrypt memeriksa domain dengan menghubungi `http://toko.contoh`. Kalau domain belum mengarah ke server, pemeriksaan gagal dan sertifikat tidak diterbitkan.\n\n**2. `proxy_pass` ke port di dalam container**\n\nSalah:\n\n```text\n        proxy_pass http://127.0.0.1:80;\n```\n\nBenar:\n\n```text\n        proxy_pass http://127.0.0.1:8080;\n```\n\nNginx di server memakai port yang dibuka di **komputer** (kiri pada `\"127.0.0.1:8080:80\"`), bukan port di dalam container. Port 80 di server sudah dipakai Nginx sendiri."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Record DNS yang mengarahkan domain ke alamat IPv4 server adalah...",
+          "options": [
+            "MX",
+            "TXT",
+            "CNAME ke localhost",
+            "A"
+          ],
+          "answer": 3,
+          "explanation": "A record berisi alamat IPv4. MX untuk email, TXT untuk teks bebas.",
+          "remedial": "- **Domain** diarahkan ke server dengan **A record** berisi IP server\n- Perubahan DNS butuh waktu menyebar; cek dengan `dig +short` atau `getent hosts`\n- **Nginx** di server menerima pengunjung di port 80/443, lalu meneruskan ke `127.0.0.1:8080` (reverse proxy)\n- HTTPS gratis dari Let's Encrypt lewat `certbot --nginx`\n- Urutannya: DNS dulu, baru certbot"
+        },
+        {
+          "question": "compose.yaml berisi `\"127.0.0.1:8080:80\"` untuk service web. `proxy_pass` yang benar di Nginx server adalah...",
+          "options": [
+            "http://127.0.0.1:8080",
+            "http://127.0.0.1:80",
+            "http://web:80",
+            "http://toko.contoh:8080"
+          ],
+          "answer": 0,
+          "explanation": "Nginx di server memakai port milik komputer (8080). `web` hanya dikenal di dalam network Compose.",
+          "remedial": "- **Domain** diarahkan ke server dengan **A record** berisi IP server\n- Perubahan DNS butuh waktu menyebar; cek dengan `dig +short` atau `getent hosts`\n- **Nginx** di server menerima pengunjung di port 80/443, lalu meneruskan ke `127.0.0.1:8080` (reverse proxy)\n- HTTPS gratis dari Let's Encrypt lewat `certbot --nginx`\n- Urutannya: DNS dulu, baru certbot"
+        },
+        {
+          "question": "Kenapa DNS harus sudah mengarah ke server sebelum `certbot --nginx` dijalankan?",
+          "options": [
+            "certbot tidak bisa dipasang sebelum DNS siap",
+            "Let's Encrypt memeriksa domain dengan menghubunginya lewat port 80",
+            "Nginx menolak berjalan tanpa DNS",
+            "Supaya sertifikat berlaku 10 tahun"
+          ],
+          "answer": 1,
+          "explanation": "Pemeriksaan kepemilikan domain dilakukan dengan menghubungi domain itu. Kalau belum mengarah ke server, pemeriksaan gagal.",
+          "remedial": "- **Domain** diarahkan ke server dengan **A record** berisi IP server\n- Perubahan DNS butuh waktu menyebar; cek dengan `dig +short` atau `getent hosts`\n- **Nginx** di server menerima pengunjung di port 80/443, lalu meneruskan ke `127.0.0.1:8080` (reverse proxy)\n- HTTPS gratis dari Let's Encrypt lewat `certbot --nginx`\n- Urutannya: DNS dulu, baru certbot"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Pengunjung membuka `https://toko.contoh`. Urutan perjalanan permintaannya adalah...",
+      "code": "# DNS: toko.contoh -> 203.0.113.10\n# Nginx (server block toko, setelah certbot):\n#   listen 443 ssl; server_name toko.contoh;\n#   location / { proxy_pass http://127.0.0.1:8080; }\n# compose.yaml: web ports \"127.0.0.1:8080:80\"",
+      "options": [
+        "Browser → container web port 8080 → Nginx",
+        "Browser → MySQL → Nginx → container web",
+        "Browser → Nginx port 443 → 127.0.0.1:8080 → port 80 di container web",
+        "Browser → port 8080 server langsung, tanpa Nginx"
+      ],
+      "answer": 2,
+      "explanation": "DNS mengarahkan ke server, Nginx menerima di 443, meneruskan ke 127.0.0.1:8080, dan Docker meneruskannya ke port 80 di container."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Nginx meneruskan pengunjung ke container web di server\n    location / {\n        ___ http://127.0.0.1:8080;\n        include proxy_params;\n    }\n# Minta sertifikat HTTPS untuk domain\nsudo ___ --nginx -d toko.contoh -d www.toko.contoh",
+      "answers": [
+        "proxy_pass",
+        "certbot"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Domain diarahkan ke server dengan A record berisi IP server.",
+        "Perubahan DNS butuh waktu menyebar; cek dengan dig +short.",
+        "Nginx menerima pengunjung di 80/443 dan meneruskan ke 127.0.0.1:8080 (port milik komputer).",
+        "HTTPS gratis dari Let's Encrypt dengan certbot --nginx.",
+        "Urutannya: DNS dulu, cek, baru certbot."
+      ]
+    }
+  ]
+}

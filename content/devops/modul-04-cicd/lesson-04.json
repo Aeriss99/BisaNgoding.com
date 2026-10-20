@@ -1,0 +1,99 @@
+{
+  "id": "devops-cicd-04",
+  "moduleId": "devops-cicd",
+  "order": 4,
+  "title": "Secret, Variable, dan Environment",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pipeline deploy butuh data rahasia: alamat server, kunci SSH, password database. Data seperti itu **tidak boleh** ditulis di file workflow, karena file itu tersimpan di Git dan bisa dibaca semua orang yang punya akses repo.\n\nGitHub menyediakan tiga tempat penyimpanan di **Settings** repo:\n\n- **Secrets**: nilai rahasia, misalnya kunci SSH. Setelah disimpan, isinya tidak bisa dilihat lagi, bahkan oleh pemilik repo. Di log, nilainya disamarkan menjadi `***`.\n- **Variables**: pengaturan yang tidak rahasia, misalnya nama domain atau nama folder di server.\n- **Environments**: kelompok pengaturan untuk satu tujuan deploy, misalnya `staging` dan `production`. Environment bisa punya secret sendiri dan **aturan perlindungan**, misalnya wajib disetujui orang tertentu sebelum deploy.\n\nKamu sudah mengenal secret di kelas Git & GitHub. Di sini kita memakainya untuk deploy, ditambah environment sebagai \"pintu\" sebelum production."
+    },
+    {
+      "type": "theory",
+      "content": "**Cara memakai di workflow**\n\n| Ditulis | Mengambil |\n|---|---|\n| `${{ secrets.SSH_PRIVATE_KEY }}` | secret bernama `SSH_PRIVATE_KEY` |\n| `${{ vars.SERVER_DIR }}` | variable bernama `SERVER_DIR` |\n| `${{ secrets.GITHUB_TOKEN }}` | token otomatis, tidak perlu dibuat |\n\n**Membuat environment `production`**\n\n1. Settings > **Environments** > **New environment**, beri nama `production`.\n2. Centang **Required reviewers**, lalu pilih orang yang harus menyetujui (misalnya Budi sendiri atau ketua tim).\n3. Tambahkan **Environment secrets** khusus production, misalnya `SERVER_HOST` dan `SSH_PRIVATE_KEY`.\n\nDi workflow, job deploy ditandai:\n\n```yaml\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    environment: production\n```\n\nSaat run sampai di job ini, statusnya menjadi **Waiting** sampai reviewer mengklik **Review deployments** > **Approve and deploy**. Secret milik environment `production` baru bisa dibaca setelah disetujui. Inilah bentuk **continuous delivery** yang kamu pelajari di modul Mengenal DevOps: semuanya otomatis, kecuali satu klik persetujuan.\n\nEnvironment beserta Required reviewers bisa dipakai gratis di repo **publik**. Di repo **privat**, fitur ini butuh paket GitHub berbayar."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi menyimpan tiga secret di environment `production` dan satu variable di repo:\n\n```text\nEnvironment secrets (production)\n  SERVER_HOST       ********\n  SERVER_USER       ********\n  SSH_PRIVATE_KEY   ********\n\nRepository variables\n  SERVER_DIR        /opt/toko\n```\n\nStep uji di job deploy:\n\n```yaml\n      - run: |\n          echo \"Folder tujuan: ${{ vars.SERVER_DIR }}\"\n          echo \"Server: ${{ secrets.SERVER_HOST }}\"\n```\n\nLog-nya di tab Actions:\n\n```text\nFolder tujuan: /opt/toko\nServer: ***\n```\n\n- Variable tampil apa adanya karena memang tidak rahasia.\n- Secret disamarkan menjadi `***`. Walaupun begitu, **jangan pernah sengaja mencetak secret**: penyamaran hanya bekerja kalau nilainya muncul persis sama. Kalau diubah sedikit (misalnya di-encode), nilainya bisa bocor.\n- Job deploy berhenti di status Waiting sampai Budi menyetujuinya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis data rahasia langsung di workflow**\n\nSalah:\n\n```yaml\n      - run: ssh deploy@203.0.113.10 \"cd /opt/toko && docker compose up -d\"\n        env:\n          DB_PASSWORD: rahasia123\n```\n\nBenar:\n\n```yaml\n      - run: ...\n        env:\n          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}\n```\n\nFile workflow ikut ter-commit. Password di dalamnya tersimpan di riwayat Git selamanya, walaupun nanti dihapus. Kalau sudah terlanjur, ganti password-nya.\n\n**2. Mengira secret tersedia untuk semua pull request**\n\nSalah:\n\n```text\n\"Workflow PR dari fork gagal karena secret kosong. Berarti secret-nya hilang.\"\n```\n\nBenar:\n\n```text\nSecret memang sengaja tidak diberikan ke workflow yang dipicu pull request dari fork.\nJalankan langkah yang butuh secret (deploy, push image) hanya untuk push ke main atau tag.\n```\n\nKalau secret diberikan ke pull request dari fork, siapa pun bisa membuat PR yang mencetak atau mengirim secret itu keluar."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Secret `SERVER_HOST` dicetak dengan `echo` di workflow. Apa yang tampil di log?",
+          "options": [
+            "***",
+            "Isi asli secret",
+            "Pesan error, karena secret tidak boleh di-echo",
+            "Nama secret, yaitu SERVER_HOST"
+          ],
+          "answer": 0,
+          "explanation": "GitHub menyamarkan nilai secret di log menjadi `***`. Tetap jangan sengaja mencetak secret.",
+          "remedial": "- **Secret** (`secrets.NAMA`) untuk nilai rahasia; tampil sebagai `***` di log\n- **Variable** (`vars.NAMA`) untuk pengaturan yang tidak rahasia\n- **Environment** (misalnya `production`) punya secret sendiri dan bisa mewajibkan persetujuan sebelum job berjalan\n- Job memakai environment dengan `environment: production`\n- Workflow dari pull request fork tidak mendapat secret"
+        },
+        {
+          "question": "Pengaturan tidak rahasia seperti nama folder di server sebaiknya disimpan sebagai...",
+          "options": [
+            "Secret",
+            "Variable (vars)",
+            "Komentar di workflow",
+            "File .env yang di-commit"
+          ],
+          "answer": 1,
+          "explanation": "Variables dibaca dengan `${{ vars.NAMA }}` dan tampil apa adanya di log.",
+          "remedial": "- **Secret** (`secrets.NAMA`) untuk nilai rahasia; tampil sebagai `***` di log\n- **Variable** (`vars.NAMA`) untuk pengaturan yang tidak rahasia\n- **Environment** (misalnya `production`) punya secret sendiri dan bisa mewajibkan persetujuan sebelum job berjalan\n- Job memakai environment dengan `environment: production`\n- Workflow dari pull request fork tidak mendapat secret"
+        },
+        {
+          "question": "Job deploy ditandai `environment: production` yang punya Required reviewers. Apa yang terjadi saat run sampai di job itu?",
+          "options": [
+            "Job langsung berjalan",
+            "Job selalu gagal",
+            "Job menunggu (Waiting) sampai reviewer menyetujui",
+            "Job dilewati tanpa pemberitahuan"
+          ],
+          "answer": 2,
+          "explanation": "Required reviewers membuat job menunggu persetujuan. Secret environment baru bisa dibaca setelah disetujui.",
+          "remedial": "- **Secret** (`secrets.NAMA`) untuk nilai rahasia; tampil sebagai `***` di log\n- **Variable** (`vars.NAMA`) untuk pengaturan yang tidak rahasia\n- **Environment** (misalnya `production`) punya secret sendiri dan bisa mewajibkan persetujuan sebelum job berjalan\n- Job memakai environment dengan `environment: production`\n- Workflow dari pull request fork tidak mendapat secret"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Apa yang tampil di log untuk step ini? Secret `DB_PASSWORD` berisi `kopi2026` dan variable `APP_ENV` berisi `production`.",
+      "code": "      - run: |\n          echo \"Lingkungan: ${{ vars.APP_ENV }}\"\n          echo \"Password: ${{ secrets.DB_PASSWORD }}\"",
+      "options": [
+        "Lingkungan: ***\nPassword: ***",
+        "Lingkungan: production\nPassword: kopi2026",
+        "Lingkungan: ${{ vars.APP_ENV }}\nPassword: ${{ secrets.DB_PASSWORD }}",
+        "Lingkungan: production\nPassword: ***"
+      ],
+      "answer": 3,
+      "explanation": "Variable tidak rahasia, jadi tampil apa adanya. Nilai secret disamarkan menjadi `***`."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Job deploy memakai environment production dan membaca secret SSH dari sana\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    ___: production\n    steps:\n      - run: echo \"${{ ___.SSH_PRIVATE_KEY }}\" > kunci  # contoh, jangan dicetak ke log",
+      "answers": [
+        "environment",
+        "secrets"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Secret untuk nilai rahasia; di log disamarkan menjadi ***.",
+        "Variable (vars) untuk pengaturan yang tidak rahasia.",
+        "Environment punya secret sendiri dan bisa mewajibkan persetujuan reviewer sebelum job berjalan.",
+        "Job memakai environment dengan environment: production.",
+        "Jangan tulis rahasia di workflow; pull request dari fork tidak mendapat secret."
+      ]
+    }
+  ]
+}

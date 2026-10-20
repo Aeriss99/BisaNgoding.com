@@ -12,7 +12,7 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 | **Linux & Terminal** | Mengenal Linux, terminal dan navigasi, file dan folder, membaca dan mencari teks, permission, menginstal program, proses dan service, jaringan dan SSH, bash scripting, cron, mengamankan server, web server Nginx |
 | **RESTful API** | HTTP, prinsip REST, curl dan fetch, desain API, OpenAPI, keamanan (OWASP API Top 10), proyek API toko online |
 | **Spring Boot** | Spring Dasar: IoC, bean, dependency injection, component scan, scope dan siklus hidup bean (teori + praktik di komputer sendiri) |
-| **DevOps** | Mengenal DevOps (siklus, CI/CD, container, DORA), Docker Dasar, dan Docker Compose (teori + praktik di komputer sendiri) |
+| **DevOps** | Mengenal DevOps (siklus, CI/CD, container, DORA), Docker Dasar, Docker Compose, CI/CD Lanjutan (build image, versi, secret, cache, keamanan pipeline), dan Deploy ke Server (teori + praktik di komputer sendiri) |
 | **English for IT** | Bahasa Inggris dasar sehari-hari sampai bahasa Inggris dunia kerja IT, dengan latihan mendengar dan menyusun kalimat |
 
 ## Fitur

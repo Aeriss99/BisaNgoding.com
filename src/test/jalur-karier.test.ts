@@ -83,7 +83,7 @@ describe('statusKartu', () => {
   });
 
   it('DevOps dan Spring Boot sudah dibuka; bagian yang belum ada tampil segera; kelas segera tidak bisa diklik', () => {
-    expect(jumlahModulTersedia('devops')).toBe(3);
+    expect(jumlahModulTersedia('devops')).toBe(5);
     expect(statusKartu({ kelas: 'devops', nama: 'DevOps: Docker', modul: 'devops-docker', meta: 'Docker dan Compose' })).toMatchObject({
       jenis: 'tersedia',
       teks: 'Tersedia · Docker dan Compose',

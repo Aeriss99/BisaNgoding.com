@@ -1,0 +1,99 @@
+{
+  "id": "devops-cicd-06",
+  "moduleId": "devops-cicd",
+  "order": 6,
+  "title": "Menjaga Keamanan Pipeline",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pipeline punya akses ke hal-hal paling berharga: kode, secret, registry image, bahkan server production. Kalau pipeline dibobol, penyerang bisa memasang kode jahat ke server tanpa menyentuh laptop siapa pun. Serangan seperti ini disebut **serangan rantai pasok** (*supply chain attack*), dan beberapa kali terjadi di dunia nyata lewat action pihak ketiga yang diubah diam-diam.\n\nPrinsip pengamannya sama seperti mengamankan server di kelas Linux:\n\n- **Izin seminimal mungkin**: setiap workflow hanya diberi izin yang benar-benar ia butuhkan.\n- **Percaya secukupnya pada pihak luar**: action buatan orang lain dipilih dengan hati-hati dan dikunci versinya.\n- **Rahasia tetap rahasia**: secret tidak dicetak, tidak di-commit, dan tidak diberikan ke kode yang belum direview.\n\nIbarat memberi kunci rumah ke tukang servis: berikan kunci pintu dapur saja kalau ia hanya memperbaiki wastafel, jangan kunci seluruh rumah."
+    },
+    {
+      "type": "theory",
+      "content": "**1. `permissions` seminimal mungkin**\n\n```yaml\npermissions:\n  contents: read\n```\n\nTulis di tingkat workflow, lalu tambahkan izin lain hanya di job yang membutuhkan (misalnya `packages: write` di job build).\n\n**2. Mengunci versi action**\n\n| Cara menulis | Keamanan |\n|---|---|\n| `actions/checkout@main` | buruk: selalu mengambil kode terbaru branch, bisa berubah kapan saja |\n| `actions/checkout@v7` | umum dipakai: tag bisa dipindahkan pemiliknya, tapi aman untuk action resmi yang tepercaya |\n| `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1` | paling aman: SHA commit tidak bisa diubah |\n\nUntuk action dari pihak ketiga (bukan `actions/` atau `docker/`), pin ke SHA sangat dianjurkan. Tulis versi aslinya di komentar supaya mudah dibaca.\n\n**3. Dependabot untuk action**\n\nFile `.github/dependabot.yml`:\n\n```yaml\nversion: 2\nupdates:\n  - package-ecosystem: github-actions\n    directory: /\n    schedule:\n      interval: weekly\n```\n\nSetiap minggu Dependabot membuka pull request kalau ada versi action yang lebih baru, termasuk memperbarui SHA yang sudah di-pin.\n\n**4. Hati-hati dengan `pull_request_target`**\n\nPemicu ini berjalan dengan akses ke secret, walaupun pull request-nya dari fork. Jangan pernah memakainya untuk checkout lalu menjalankan kode dari pull request tersebut."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBagian atas workflow Budi setelah dirapikan:\n\n```yaml\nname: Pipeline\non:\n  push:\n    branches: [main]\n    tags: ['v*']\n  pull_request:\n\npermissions:\n  contents: read\n\njobs:\n  tes:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n      - run: ./cek-html.sh\n\n  build:\n    needs: tes\n    if: github.event_name != 'pull_request'\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n      packages: write\n    steps:\n      ...\n```\n\nRingkasan izin setiap job:\n\n```text\nJob     contents   packages   secret production\ntes     read       -          tidak\nbuild   read       write      tidak\ndeploy  read       -          ya (setelah disetujui)\n```\n\n- Job `tes`, yang juga berjalan untuk pull request, hanya bisa membaca kode.\n- Hanya job `build` yang boleh menulis ke registry.\n- Hanya job `deploy`, setelah persetujuan environment, yang bisa membaca kunci SSH server."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memberi semua izin agar \"tidak ribet\"**\n\nSalah:\n\n```yaml\npermissions: write-all\n```\n\nBenar:\n\n```yaml\npermissions:\n  contents: read\n# lalu di job build saja:\n#    permissions:\n#      contents: read\n#      packages: write\n```\n\nDengan `write-all`, satu step yang disusupi bisa mengubah kode, membuat release, dan mengganti image di registry.\n\n**2. Memakai action pihak ketiga dari branch**\n\nSalah:\n\n```yaml\n      - uses: seseorang/deploy-action@main\n```\n\nBenar:\n\n```yaml\n      - uses: seseorang/deploy-action@0123abc...  # v2.1.0 (SHA lengkap 40 karakter)\n```\n\nBranch `main` milik orang lain bisa berubah kapan saja. Kalau akun pemiliknya dibobol, kode jahat langsung ikut berjalan di pipeline-mu. SHA commit tidak bisa diubah, jadi yang berjalan selalu kode yang sudah kamu periksa."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Cara menulis action yang paling aman dari perubahan diam-diam adalah...",
+          "options": [
+            "Memakai @main",
+            "Memakai @latest",
+            "Pin ke SHA commit lengkap",
+            "Tidak menulis versi sama sekali"
+          ],
+          "answer": 2,
+          "explanation": "SHA commit menunjuk satu versi kode yang tidak bisa diubah. Tag dan branch bisa dipindahkan.",
+          "remedial": "- Beri izin seminimal mungkin dengan `permissions` (bawaan: `contents: read`)\n- Action pihak ketiga bisa diubah pemiliknya; untuk keamanan maksimal, pin ke **SHA commit**\n- Dependabot bisa memperbarui versi action otomatis (`package-ecosystem: github-actions`)\n- Jangan pernah mencetak secret atau menaruhnya di file yang ikut ter-commit\n- Hindari `pull_request_target` yang menjalankan kode dari fork"
+        },
+        {
+          "question": "Bagian workflow yang membatasi apa saja yang boleh dilakukan `GITHUB_TOKEN` adalah...",
+          "options": [
+            "concurrency",
+            "runs-on",
+            "needs",
+            "permissions"
+          ],
+          "answer": 3,
+          "explanation": "`permissions` mengatur izin token. Mulai dari `contents: read`, lalu tambah izin hanya di job yang membutuhkan.",
+          "remedial": "- Beri izin seminimal mungkin dengan `permissions` (bawaan: `contents: read`)\n- Action pihak ketiga bisa diubah pemiliknya; untuk keamanan maksimal, pin ke **SHA commit**\n- Dependabot bisa memperbarui versi action otomatis (`package-ecosystem: github-actions`)\n- Jangan pernah mencetak secret atau menaruhnya di file yang ikut ter-commit\n- Hindari `pull_request_target` yang menjalankan kode dari fork"
+        },
+        {
+          "question": "Apa fungsi `package-ecosystem: github-actions` di `.github/dependabot.yml`?",
+          "options": [
+            "Dependabot membuka pull request saat ada versi action yang lebih baru",
+            "Menjalankan workflow setiap minggu",
+            "Menghapus action lama dari repo",
+            "Menyimpan secret secara otomatis"
+          ],
+          "answer": 0,
+          "explanation": "Dependabot memeriksa versi action yang dipakai dan mengusulkan pembaruan lewat pull request.",
+          "remedial": "- Beri izin seminimal mungkin dengan `permissions` (bawaan: `contents: read`)\n- Action pihak ketiga bisa diubah pemiliknya; untuk keamanan maksimal, pin ke **SHA commit**\n- Dependabot bisa memperbarui versi action otomatis (`package-ecosystem: github-actions`)\n- Jangan pernah mencetak secret atau menaruhnya di file yang ikut ter-commit\n- Hindari `pull_request_target` yang menjalankan kode dari fork"
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Workflow ini dipicu pull request. Job mana yang bisa menulis ke registry `ghcr.io`?",
+      "code": "permissions:\n  contents: read\n\njobs:\n  tes:\n    runs-on: ubuntu-latest\n    steps: ...\n  build:\n    needs: tes\n    if: github.event_name != 'pull_request'\n    permissions:\n      contents: read\n      packages: write\n    steps: ...",
+      "options": [
+        "tes",
+        "Tidak ada, karena build dilewati untuk pull request dan tes tidak punya izin packages",
+        "build",
+        "Keduanya"
+      ],
+      "answer": 1,
+      "explanation": "Hanya `build` yang punya `packages: write`, dan job itu tidak berjalan untuk pull request. `tes` hanya bisa membaca kode."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Izin bawaan seminimal mungkin untuk seluruh workflow\n___:\n  contents: ___",
+      "answers": [
+        "permissions",
+        "read"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Mulai dari permissions contents: read, tambahkan izin hanya di job yang membutuhkan.",
+        "Action pihak ketiga sebaiknya di-pin ke SHA commit lengkap, dengan versinya di komentar.",
+        "Dependabot dengan package-ecosystem github-actions memperbarui versi action lewat pull request.",
+        "Jangan cetak secret, jangan commit secret, dan jangan berikan secret ke kode yang belum direview.",
+        "Hindari pull_request_target yang menjalankan kode dari fork."
+      ]
+    }
+  ]
+}
