@@ -14,8 +14,8 @@ test.describe('Dashboard & Kelas', () => {
     await page.goto('/');
     await expect(page).toHaveTitle(/BisaNgoding/);
 
-    // Cek ada tulisan KELAS TERSEDIA
-    await expect(page.locator('text=KELAS TERSEDIA')).toBeVisible();
+    // Cek ada tulisan LAPTOP STIKERMU
+    await expect(page.locator('text=LAPTOP STIKERMU')).toBeVisible();
 
     // Kelas soon tidak bisa dibuka
     const btnSoon = page.locator('button:has-text("BELUM TERSEDIA")');
