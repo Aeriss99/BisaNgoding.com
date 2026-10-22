@@ -1,17 +1,20 @@
 import { supabase } from './supabase';
 import type { UserProgress } from '../types/schema';
 import { gabungStreak, lengkapiStreak } from './streak';
+import { apakahModeLokal } from './modeLokal';
 
 const BASE_STORAGE_KEY = 'bisangoding_progress';
 const CURRENT_USER_KEY = 'bisangoding_current_user';
 
 function getStorageKey(userId?: string | null): string {
-  return userId ? `${BASE_STORAGE_KEY}:${userId}` : BASE_STORAGE_KEY;
+  const base = apakahModeLokal() ? 'bisangoding_progress_lokal' : BASE_STORAGE_KEY;
+  return userId ? `${base}:${userId}` : base;
 }
 
 export function getCurrentUserId(): string | null {
   try {
-    return localStorage.getItem(CURRENT_USER_KEY);
+    const key = apakahModeLokal() ? 'bisangoding_current_user_lokal' : CURRENT_USER_KEY;
+    return localStorage.getItem(key);
   } catch (e) {
     return null;
   }
@@ -19,10 +22,11 @@ export function getCurrentUserId(): string | null {
 
 export function setCurrentUserId(userId: string | null) {
   try {
+    const key = apakahModeLokal() ? 'bisangoding_current_user_lokal' : CURRENT_USER_KEY;
     if (userId) {
-      localStorage.setItem(CURRENT_USER_KEY, userId);
+      localStorage.setItem(key, userId);
     } else {
-      localStorage.removeItem(CURRENT_USER_KEY);
+      localStorage.removeItem(key);
     }
   } catch (e) {}
 }
@@ -158,7 +162,7 @@ export type HasilAmbil =
 export async function fetchCloudProgress(
   userId: string
 ): Promise<HasilAmbil> {
-  if (!supabase) return { ok: false };
+  if (apakahModeLokal() || !supabase) return { ok: false };
   try {
     const fetchPromise = supabase
       .from('progres')
@@ -186,7 +190,7 @@ export async function saveCloudProgress(
   userId: string,
   data: UserProgress
 ): Promise<void> {
-  if (!supabase) return;
+  if (apakahModeLokal() || !supabase) return;
   try {
     const savePromise = supabase
       .from('progres')
