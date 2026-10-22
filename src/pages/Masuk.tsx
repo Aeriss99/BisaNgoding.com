@@ -307,7 +307,11 @@ export default function Masuk() {
           </div>
         ) : (
           <div>
-            <div className="flex border-[3px] border-[var(--color-landing-black)] mb-6 bg-white">
+            <div
+              role="tablist"
+              aria-label="Pilih masuk atau daftar"
+              className="flex border-[3px] border-[var(--color-landing-black)] mb-6 bg-white"
+            >
               <button
                 type="button"
                 role="tab"

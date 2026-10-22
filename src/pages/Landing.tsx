@@ -135,7 +135,7 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="bg-[#fbf6ec] text-[#111111] font-space min-h-screen overflow-x-hidden selection:bg-[#2fe6f0]">
+    <div className="bg-[#fbf6ec] text-[#111111] font-space min-h-screen overflow-x-clip selection:bg-[#2fe6f0]">
       {/* 1. Menu atas */}
       <header className="sticky top-0 z-50 bg-[#fbf6ec] border-b-4 border-[#111111]">
         <nav className="max-w-[1280px] mx-auto px-4 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between gap-2 md:gap-3.5">
@@ -638,16 +638,6 @@ export default function Landing() {
               className="no-underline text-[#111111] hover:text-[#2447f5]"
             >
               FAQ
-            </a>
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="no-underline text-[#111111] hover:text-[#2447f5]"
-            >
-              Privasi
             </a>
           </div>
         </div>

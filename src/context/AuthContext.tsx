@@ -122,6 +122,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       },
     });
     if (error) throw error;
+    if (data?.user && data.user.identities?.length === 0) {
+      const err: any = new Error('User already registered');
+      err.code = 'user_already_exists';
+      throw err;
+    }
     return data;
   };
 

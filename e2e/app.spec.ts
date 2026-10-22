@@ -10,23 +10,24 @@ const modulesData = [...javaModules, ...jsModules];
 const readyModules = modulesData.filter((m) => m.status === 'ready');
 
 test.describe('Dashboard & Kelas', () => {
-  test('Landing page menampilkan Kelas Tersedia dan navigasi kelas berfungsi', async ({ page }) => {
+  test('Landing page menampilkan Laptop Stikermu', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/BisaNgoding/);
 
     // Cek ada tulisan LAPTOP STIKERMU
     await expect(page.locator('text=LAPTOP STIKERMU')).toBeVisible();
 
-    // Kelas soon tidak bisa dibuka
-    const btnSoon = page.locator('button:has-text("BELUM TERSEDIA")');
-    const countSoon = await btnSoon.count();
-    if (countSoon > 0) {
-      await expect(btnSoon.first()).toBeDisabled();
+    // Stiker segera hadir ada dan bukan <a>
+    for (const name of ['NODE.JS', 'TAILWIND', 'TYPESCRIPT', 'REACT']) {
+      const stiker = page.locator(`#kelas span:has-text("${name}")`);
+      await expect(stiker).toBeVisible();
+      await expect(page.locator(`#kelas a:has-text("${name}")`)).toHaveCount(0);
     }
 
-    // Navigasi ke halaman kelas Java
-    await page.goto('/#/kelas/java');
-    await expect(page.locator('h1').first()).toContainText('Java');
+    // Stiker JAVA berupa link ke #/masuk
+    const stikerJava = page.locator('#kelas a:text-is("JAVA")');
+    await expect(stikerJava).toBeVisible();
+    await expect(stikerJava).toHaveAttribute('href', '#/masuk');
   });
 });
 
