@@ -7,6 +7,7 @@ import { bersihkanProgresLokal } from '../../lib/cloudProgress';
 import { cari, type HasilCari } from '../../lib/pencarian';
 import { useNotifikasi } from '../../lib/useNotifikasi';
 import type { Notifikasi } from '../../lib/notifikasi';
+import { useKonfirmasi } from '../ui/DialogKonfirmasi';
 
 const NAV = [
   { to: '/', label: 'Beranda' },
@@ -61,13 +62,21 @@ export function Avatar({ ukuran }: { ukuran: number }) {
 export function useKeluar() {
   const { user, keluar } = useAuth();
   const { flushKeCloud } = useProgress();
+  const konfirmasi = useKonfirmasi();
   const navigate = useNavigate();
   return async () => {
     const tersimpan = await flushKeCloud();
     if (tersimpan) {
       bersihkanProgresLokal(user?.id);
-    } else if (!window.confirm('Progres terbaru belum tersimpan ke akun. Tetap keluar?')) {
-      return;
+    } else {
+      const setuju = await konfirmasi({
+        judul: 'Keluar sekarang?',
+        pesan: 'Progres terbaru belum tersimpan ke akun. Kalau keluar sekarang, progres yang belum tersimpan bisa hilang.',
+        teksYa: 'KELUAR',
+        teksBatal: 'BATAL',
+        bahaya: true,
+      });
+      if (!setuju) return;
     }
     await keluar();
     navigate('/', { replace: true });

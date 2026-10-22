@@ -17,6 +17,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProgressProvider } from './context/ProgressContext';
+import { KonfirmasiProvider } from './components/ui/DialogKonfirmasi';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
 import NotifVersiBaru from './components/NotifVersiBaru';
@@ -138,12 +139,14 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <ProgressProvider>
-          <HashRouter>
-            <AppRoutes />
-            <NotifVersiBaru />
-          </HashRouter>
-        </ProgressProvider>
+        <KonfirmasiProvider>
+          <ProgressProvider>
+            <HashRouter>
+              <AppRoutes />
+              <NotifVersiBaru />
+            </HashRouter>
+          </ProgressProvider>
+        </KonfirmasiProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

@@ -969,8 +969,9 @@ export default function Masuk() {
                   </label>
                   <input
                     id="email-lupa"
+                    name="email"
                     type="email"
-                    autoComplete="email"
+                    autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -1143,8 +1144,9 @@ export default function Masuk() {
                     </label>
                     <input
                       id="email"
+                      name="email"
                       type="email"
-                      autoComplete="email"
+                      autoComplete="username"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -1163,6 +1165,7 @@ export default function Masuk() {
                     <div className="relative">
                       <input
                         id="password"
+                        name="password"
                         type={lihatPassword ? 'text' : 'password'}
                         autoComplete="current-password"
                         value={password}
@@ -1222,6 +1225,7 @@ export default function Masuk() {
                     </label>
                     <input
                       id="daftar-email"
+                      name="email"
                       type="email"
                       autoComplete="email"
                       value={email}
@@ -1242,6 +1246,7 @@ export default function Masuk() {
                     <div className="relative">
                       <input
                         id="daftar-password"
+                        name="password"
                         type={lihatPassword ? 'text' : 'password'}
                         autoComplete="new-password"
                         value={password}
