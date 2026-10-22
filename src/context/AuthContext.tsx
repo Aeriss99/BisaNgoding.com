@@ -10,7 +10,10 @@ interface AuthContextType {
   masukGoogle: () => Promise<void>;
   masukEmail: (email: string, password: string) => Promise<any>;
   daftarEmail: (email: string, password: string) => Promise<any>;
+  verifikasiKodeDaftar: (email: string, kode: string) => Promise<any>;
+  kirimUlangKodeDaftar: (email: string) => Promise<any>;
   kirimResetPassword: (email: string) => Promise<any>;
+  verifikasiKodeReset: (email: string, kode: string) => Promise<any>;
   aturPassword: (password: string) => Promise<any>;
   keluar: () => Promise<void>;
   isSupabaseConfigured: boolean;
@@ -24,7 +27,10 @@ const AuthContext = createContext<AuthContextType>({
   masukGoogle: async () => {},
   masukEmail: async () => {},
   daftarEmail: async () => {},
+  verifikasiKodeDaftar: async () => {},
+  kirimUlangKodeDaftar: async () => {},
   kirimResetPassword: async () => {},
+  verifikasiKodeReset: async () => {},
   aturPassword: async () => {},
   keluar: async () => {},
   isSupabaseConfigured: false,
@@ -117,9 +123,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: window.location.origin + import.meta.env.BASE_URL,
-      },
     });
     if (error) throw error;
     if (data?.user && data.user.identities?.length === 0) {
@@ -130,13 +133,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return data;
   };
 
-  const kirimResetPassword = async (email: string) => {
+  const verifikasiKodeDaftar = async (email: string, kode: string) => {
     if (!supabase) throw new Error('Supabase belum dikonfigurasi');
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + import.meta.env.BASE_URL,
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token: kode,
+      type: 'email',
     });
     if (error) throw error;
     return data;
+  };
+
+  const kirimUlangKodeDaftar = async (email: string) => {
+    if (!supabase) throw new Error('Supabase belum dikonfigurasi');
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  const kirimResetPassword = async (email: string) => {
+    if (!supabase) throw new Error('Supabase belum dikonfigurasi');
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) throw error;
+    return data;
+  };
+
+  const verifikasiKodeReset = async (email: string, kode: string) => {
+    if (!supabase) throw new Error('Supabase belum dikonfigurasi');
+    setSedangPulihkanPassword(true);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: kode,
+        type: 'recovery',
+      });
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      setSedangPulihkanPassword(false);
+      throw err;
+    }
   };
 
   const aturPassword = async (password: string) => {
@@ -165,7 +204,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         masukGoogle,
         masukEmail,
         daftarEmail,
+        verifikasiKodeDaftar,
+        kirimUlangKodeDaftar,
         kirimResetPassword,
+        verifikasiKodeReset,
         aturPassword,
         keluar,
         isSupabaseConfigured: !!supabase,

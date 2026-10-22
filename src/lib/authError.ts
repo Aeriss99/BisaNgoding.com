@@ -9,6 +9,8 @@ export function petakanErrorAuth(error: any): string {
       return 'Email sudah terdaftar. Silakan masuk atau pakai Lupa password.';
     case 'weak_password':
       return 'Password terlalu lemah. Pakai minimal 8 karakter.';
+    case 'otp_expired':
+      return 'Kode salah atau sudah kedaluwarsa. Minta kode baru.';
     case 'over_email_send_rate_limit':
       return 'Terlalu sering meminta email. Coba lagi beberapa menit lagi.';
     default: {
@@ -21,6 +23,9 @@ export function petakanErrorAuth(error: any): string {
       }
       if (msg.includes('user already registered') || msg.includes('user already exists')) {
         return 'Email sudah terdaftar. Silakan masuk atau pakai Lupa password.';
+      }
+      if (msg.includes('token has expired') || msg.includes('token is invalid') || msg.includes('otp expired') || msg.includes('invalid token')) {
+        return 'Kode salah atau sudah kedaluwarsa. Minta kode baru.';
       }
       return 'Gagal. Silakan coba lagi.';
     }
