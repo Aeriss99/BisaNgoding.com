@@ -413,29 +413,4 @@ describe('ProgressContext', () => {
       expect.any(String)
     );
   });
-
-  it('peringatan hari reset muncul saat sisa <= 2 hari', () => {
-    mockModeLokal.mockReturnValue(false);
-
-    // 5 hari lalu -> sisa 2 hari (7 - 5 = 2)
-    const fiveDaysAgo = new Date();
-    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-    const dateStr = fiveDaysAgo.toISOString().split('T')[0];
-
-    localStorageMock.setItem(
-      'bisangoding_progress',
-      JSON.stringify({
-        completedLessons: ['dasar-01'],
-        xp: 10,
-        streak: 1,
-        lastActiveDate: dateStr,
-        maxSeenDate: dateStr,
-      })
-    );
-
-    const { result } = renderHook(() => useProgress(), { wrapper });
-
-    expect(result.current.daysUntilReset).toBeLessThanOrEqual(2);
-    expect(result.current.tanggalReset).toBeTruthy();
-  });
 });

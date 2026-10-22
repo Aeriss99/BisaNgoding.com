@@ -10,6 +10,7 @@ const mockSignUp = vi.fn();
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
+    from: vi.fn(),
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
       onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
@@ -488,8 +489,8 @@ describe('Halaman Masuk', () => {
   });
 });
 
-describe('AuthContext - daftarEmail identities', () => {
-  it('melempar error user_already_exists jika identities kosong', async () => {
+describe('AuthContext - verifikasi email & OTP', () => {
+  it('melempar error user_already_exists jika identities kosong saat daftarEmail', async () => {
     vi.restoreAllMocks();
     mockSignUp.mockResolvedValue({
       data: { user: { id: 'user-123', identities: [] } },
@@ -502,5 +503,96 @@ describe('AuthContext - daftarEmail identities', () => {
     ).rejects.toMatchObject({
       code: 'user_already_exists',
     });
+  });
+
+  it('RPC mengembalikan error -> verifikasiKodeDaftar melempar error dan status tidak menjadi true', async () => {
+    vi.restoreAllMocks();
+    const supabaseModule = await import('../lib/supabase');
+    supabaseModule.supabase!.auth.verifyOtp = vi.fn().mockResolvedValue({ data: {}, error: null }) as any;
+    supabaseModule.supabase!.rpc = vi.fn().mockResolvedValue({ error: new Error('Gagal RPC') }) as any;
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+
+    await expect(
+      result.current.verifikasiKodeDaftar('test@test.com', '123456')
+    ).rejects.toThrow('Gagal RPC');
+
+    expect(result.current.sudahVerifikasiEmail).not.toBe(true);
+  });
+
+  it('select verifikasi_email gagal 3 kali -> dianggap true untuk sesi ini', async () => {
+    vi.restoreAllMocks();
+    const mockSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: new Error('Network error') }),
+      }),
+    });
+    const supabaseModule = await import('../lib/supabase');
+    (supabaseModule.supabase!.from as any).mockImplementation((table: string) => {
+      if (table === 'verifikasi_email') return { select: mockSelect };
+      return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) };
+    });
+
+    supabaseModule.supabase!.auth.getSession = vi.fn().mockResolvedValue({
+      data: { session: { user: { id: 'user-net-err' } } },
+    }) as any;
+
+    const spyConsole = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+
+    // Wait for the 3 attempts (each has 1s delay in-between)
+    await waitFor(
+      () => {
+        expect(result.current.sudahVerifikasiEmail).toBe(true);
+      },
+      { timeout: 4000 }
+    );
+
+    expect(spyConsole).toHaveBeenCalledWith(
+      expect.stringContaining('Gagal memeriksa status verifikasi email setelah 3 percobaan')
+    );
+    spyConsole.mockRestore();
+  });
+
+  it('respons select lama yang datang terlambat tidak menimpa true setelah tandaiEmailTerverifikasi', async () => {
+    vi.restoreAllMocks();
+    let resolveSlowSelect: (val: any) => void;
+    const slowPromise = new Promise((resolve) => {
+      resolveSlowSelect = resolve;
+    });
+
+    const mockSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockReturnValue(slowPromise),
+      }),
+    });
+
+    const supabaseModule = await import('../lib/supabase');
+    (supabaseModule.supabase!.from as any).mockImplementation((table: string) => {
+      if (table === 'verifikasi_email') return { select: mockSelect };
+      return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) };
+    });
+
+    supabaseModule.supabase!.auth.getSession = vi.fn().mockResolvedValue({
+      data: { session: { user: { id: 'user-race' } } },
+    }) as any;
+    supabaseModule.supabase!.rpc = vi.fn().mockResolvedValue({ error: null }) as any;
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+
+    // Panggil tandaiEmailTerverifikasi yang sukses
+    await act(async () => {
+      await result.current.tandaiEmailTerverifikasi();
+    });
+    expect(result.current.sudahVerifikasiEmail).toBe(true);
+
+    // Sekarang respons select lama selesai dan mengembalikan data: null (belum verifikasi)
+    await act(async () => {
+      resolveSlowSelect!({ data: null, error: null });
+    });
+
+    // Harus tetap true, tidak tertimpa
+    expect(result.current.sudahVerifikasiEmail).toBe(true);
   });
 });

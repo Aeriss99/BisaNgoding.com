@@ -32,8 +32,6 @@ export interface ProgressContextType {
   /** Streak untuk ditampilkan: 0 kalau sudah lebih dari sehari tidak menyelesaikan materi (atau di mode lokal). */
   streakHariIni: number;
   flushKeCloud: () => Promise<boolean>;
-  daysUntilReset: number | null;
-  tanggalReset: string | null;
   syncStatus:
     | 'Tersimpan'
     | 'Menyimpan...'
@@ -57,48 +55,6 @@ export function makeDefaultProgress(): UserProgress {
     version: 1,
     unlockAll:
       import.meta.env.DEV && import.meta.env.VITE_UNLOCK_ALL === 'true',
-  };
-}
-
-export function hitungResetInfo(
-  lastActiveDate?: string,
-  now: Date = new Date()
-): { daysUntilReset: number | null; tanggalReset: string | null } {
-  if (apakahModeLokal() || !lastActiveDate) {
-    return { daysUntilReset: null, tanggalReset: null };
-  }
-  const [y, m, d] = lastActiveDate.split('-').map(Number);
-  if (!y || !m || !d) return { daysUntilReset: null, tanggalReset: null };
-
-  const lastActive = new Date(Date.UTC(y, m - 1, d));
-  const deadline = new Date(lastActive.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-  const today = new Date(
-    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
-  );
-  const diffDays = Math.ceil(
-    (deadline.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)
-  );
-
-  const bulan = [
-    'Januari',
-    'Februari',
-    'Maret',
-    'April',
-    'Mei',
-    'Juni',
-    'Juli',
-    'Agustus',
-    'September',
-    'Oktober',
-    'November',
-    'Desember',
-  ];
-  const tglStr = `${deadline.getUTCDate()} ${bulan[deadline.getUTCMonth()]} ${deadline.getUTCFullYear()}`;
-
-  return {
-    daysUntilReset: diffDays,
-    tanggalReset: tglStr,
   };
 }
 
@@ -423,7 +379,6 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   };
 
   const activeUnlockAll = isAdmin ? progress.unlockAll : false;
-  const resetInfo = hitungResetInfo(progress.lastActiveDate);
 
   return (
     <ProgressContext.Provider
@@ -440,8 +395,6 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
           ? 0
           : streakTampil(progress.streak, progress.streakDate, tanggalLokal()),
         flushKeCloud,
-        daysUntilReset: resetInfo.daysUntilReset,
-        tanggalReset: resetInfo.tanggalReset,
         syncStatus,
       }}
     >

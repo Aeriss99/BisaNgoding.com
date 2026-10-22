@@ -3,7 +3,6 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import VerifikasiEmail from '../pages/VerifikasiEmail';
 import * as AuthContextModule from '../context/AuthContext';
-import * as SupabaseModule from '../lib/supabase';
 
 const mockSignInWithOtp = vi.fn();
 const mockVerifyOtp = vi.fn();
@@ -25,6 +24,7 @@ describe('Halaman Verifikasi Email', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
   });
 
   const renderVerifikasi = (authOverrides = {}, initialRoute = '/verifikasi-email') => {
@@ -76,6 +76,47 @@ describe('Halaman Verifikasi Email', () => {
       </MemoryRouter>
     );
     expect(mockSignInWithOtp).toHaveBeenCalledTimes(1);
+  });
+
+  it('kode tidak dikirim saat sudahVerifikasiEmail null atau true', () => {
+    mockSignInWithOtp.mockResolvedValue({ error: null });
+
+    // Saat null
+    const { unmount } = renderVerifikasi({ sudahVerifikasiEmail: null });
+    expect(mockSignInWithOtp).not.toHaveBeenCalled();
+    unmount();
+
+    // Saat true
+    renderVerifikasi({ sudahVerifikasiEmail: true });
+    expect(mockSignInWithOtp).not.toHaveBeenCalled();
+  });
+
+  it('muat ulang dalam 60 detik tidak mengirim lagi (memakai sessionStorage bn_otp_terkirim:<userId>)', () => {
+    mockSignInWithOtp.mockResolvedValue({ error: null });
+    // Set 30 detik lalu sudah dikirim
+    sessionStorage.setItem('bn_otp_terkirim:u123', (Date.now() - 30000).toString());
+
+    renderVerifikasi();
+
+    expect(mockSignInWithOtp).not.toHaveBeenCalled();
+    // Tombol hitung mundur menunjukkan sisa waktu sekitar 30 detik
+    const btnKirimUlang = screen.getByRole('button', { name: /kirim ulang kode/i });
+    expect(btnKirimUlang).toBeDisabled();
+    expect(btnKirimUlang).toHaveTextContent(/kirim ulang kode \(\d+s\)/i);
+  });
+
+  it('{ error } dari signInWithOtp tampil sebagai pesan error', async () => {
+    mockSignInWithOtp.mockResolvedValue({
+      error: { code: 'over_email_send_rate_limit' },
+    });
+
+    renderVerifikasi();
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Terlalu sering meminta email. Coba lagi beberapa menit lagi.'
+      );
+    });
   });
 
   it('kode benar -> rpc dipanggil -> ke tujuan', async () => {

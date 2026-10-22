@@ -268,11 +268,11 @@ export default function Masuk() {
   return (
     <div className="min-h-screen bg-[var(--color-landing-bg)] text-[var(--color-landing-black)] font-space flex items-center justify-center p-4 sm:p-6 overflow-x-clip selection:bg-[var(--color-landing-cyan)]">
       {/* Kontainer relatif penampung stiker dan kartu */}
-      <div className="relative w-full max-w-[440px] mt-[100px] xl:mt-0">
+      <div className="relative w-full max-w-[440px] mt-[100px] min-[1100px]:mt-0">
         {/* Stiker HP & Tablet (< 1100px) */}
         <div
           aria-hidden="true"
-          className="xl:hidden pointer-events-none select-none absolute left-0 right-0 -top-[100px] h-[100px] overflow-visible"
+          className="min-[1100px]:hidden pointer-events-none select-none absolute left-0 right-0 -top-[100px] h-[100px] overflow-visible"
         >
           {/* Stiker 1 */}
           <div
@@ -416,7 +416,7 @@ export default function Masuk() {
         {/* Stiker Laptop (≥ 1100px) */}
         <div
           aria-hidden="true"
-          className="hidden xl:block pointer-events-none select-none"
+          className="hidden min-[1100px]:block pointer-events-none select-none"
         >
           {/* Stiker 1 */}
           <div
