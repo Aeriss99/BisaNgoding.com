@@ -1,9 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, renderHook } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Masuk from '../pages/Masuk';
 import { petakanErrorAuth } from '../lib/authError';
 import * as AuthContextModule from '../context/AuthContext';
+import { AuthProvider, useAuth } from '../context/AuthContext';
+
+const mockSignUp = vi.fn();
+
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+      signUp: (...args: any[]) => mockSignUp(...args),
+      signInWithPassword: vi.fn(),
+      signInWithOAuth: vi.fn(),
+      resetPasswordForEmail: vi.fn(),
+      updateUser: vi.fn(),
+      signOut: vi.fn(),
+    },
+    rpc: vi.fn(),
+  },
+}));
 
 describe('petakanErrorAuth', () => {
   it('memetakan kode error Supabase ke pesan bahasa Indonesia', () => {
@@ -232,6 +251,58 @@ describe('Halaman Masuk', () => {
       expect(screen.getByRole('status')).toHaveTextContent(
         'Cek email kamu dan klik link konfirmasi untuk reset password. Buka link-nya di browser ini juga.'
       );
+    });
+  });
+
+  it('memiliki role tablist dan aria-label pada tab masuk dan daftar', () => {
+    renderMasuk();
+    const tablist = screen.getByRole('tablist', { name: /pilih masuk atau daftar/i });
+    expect(tablist).toBeInTheDocument();
+  });
+
+  it('menampilkan error jika email sudah terdaftar saat daftar dan pesan sukses tidak tampil', async () => {
+    const err: any = new Error('User already registered');
+    err.code = 'user_already_exists';
+    mockDaftarEmail.mockRejectedValue(err);
+
+    renderMasuk();
+
+    const tombolTabDaftar = screen.getByRole('tab', { name: /^daftar$/i });
+    fireEvent.click(tombolTabDaftar);
+
+    const inputEmail = screen.getByLabelText(/^email$/i);
+    const inputPassword = screen.getByLabelText(/^password$/i);
+    const inputUlangi = screen.getByLabelText(/ulangi password/i);
+    const tombolDaftar = screen.getByRole('button', { name: /^daftar$/i });
+
+    fireEvent.change(inputEmail, { target: { value: 'terdaftar@test.com' } });
+    fireEvent.change(inputPassword, { target: { value: 'password123' } });
+    fireEvent.change(inputUlangi, { target: { value: 'password123' } });
+    fireEvent.click(tombolDaftar);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Email sudah terdaftar. Silakan masuk atau pakai Lupa password.'
+      );
+    });
+
+    expect(screen.queryByText(/cek email kamu/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('AuthContext - daftarEmail identities', () => {
+  it('melempar error user_already_exists jika identities kosong', async () => {
+    vi.restoreAllMocks();
+    mockSignUp.mockResolvedValue({
+      data: { user: { id: 'user-123', identities: [] } },
+      error: null,
+    });
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await expect(
+      result.current.daftarEmail('googleuser@test.com', 'password123')
+    ).rejects.toMatchObject({
+      code: 'user_already_exists',
     });
   });
 });
