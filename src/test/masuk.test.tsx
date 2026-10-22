@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, renderHook } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, renderHook, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Masuk from '../pages/Masuk';
 import { petakanErrorAuth } from '../lib/authError';
@@ -17,6 +17,8 @@ vi.mock('../lib/supabase', () => ({
       signInWithPassword: vi.fn(),
       signInWithOAuth: vi.fn(),
       resetPasswordForEmail: vi.fn(),
+      verifyOtp: vi.fn(),
+      resend: vi.fn(),
       updateUser: vi.fn(),
       signOut: vi.fn(),
     },
@@ -50,6 +52,13 @@ describe('petakanErrorAuth', () => {
       'Password terlalu lemah. Pakai minimal 8 karakter.'
     );
 
+    expect(petakanErrorAuth('otp_expired')).toBe(
+      'Kode salah atau sudah kedaluwarsa. Minta kode baru.'
+    );
+    expect(petakanErrorAuth({ code: 'otp_expired' })).toBe(
+      'Kode salah atau sudah kedaluwarsa. Minta kode baru.'
+    );
+
     expect(petakanErrorAuth('over_email_send_rate_limit')).toBe(
       'Terlalu sering meminta email. Coba lagi beberapa menit lagi.'
     );
@@ -72,6 +81,9 @@ describe('petakanErrorAuth', () => {
     expect(petakanErrorAuth({ message: 'Email not confirmed' })).toBe(
       'Email belum dikonfirmasi. Cek kotak masuk atau folder spam.'
     );
+    expect(petakanErrorAuth({ message: 'Token has expired or is invalid' })).toBe(
+      'Kode salah atau sudah kedaluwarsa. Minta kode baru.'
+    );
   });
 });
 
@@ -79,7 +91,10 @@ describe('Halaman Masuk', () => {
   const mockMasukGoogle = vi.fn();
   const mockMasukEmail = vi.fn();
   const mockDaftarEmail = vi.fn();
+  const mockVerifikasiKodeDaftar = vi.fn();
+  const mockKirimUlangKodeDaftar = vi.fn();
   const mockKirimResetPassword = vi.fn();
+  const mockVerifikasiKodeReset = vi.fn();
   const mockAturPassword = vi.fn();
 
   beforeEach(() => {
@@ -95,7 +110,10 @@ describe('Halaman Masuk', () => {
       masukGoogle: mockMasukGoogle,
       masukEmail: mockMasukEmail,
       daftarEmail: mockDaftarEmail,
+      verifikasiKodeDaftar: mockVerifikasiKodeDaftar,
+      kirimUlangKodeDaftar: mockKirimUlangKodeDaftar,
       kirimResetPassword: mockKirimResetPassword,
+      verifikasiKodeReset: mockVerifikasiKodeReset,
       aturPassword: mockAturPassword,
       keluar: vi.fn(),
       isSupabaseConfigured: true,
@@ -209,58 +227,37 @@ describe('Halaman Masuk', () => {
     expect(mockMasukGoogle).toHaveBeenCalledTimes(1);
   });
 
-  it('menampilkan form reset password saat sedangPulihkanPassword bernilai true', async () => {
-    mockAturPassword.mockResolvedValue(undefined);
-    renderMasuk({
-      user: { id: 'u1' },
-      sedangPulihkanPassword: true,
-    });
-
-    expect(screen.getByText('Buat password baru')).toBeInTheDocument();
-
-    const inputPasswordBaru = screen.getByLabelText('Password Baru');
-    const inputUlangi = screen.getByLabelText('Ulangi Password');
-    const tombolSimpan = screen.getByRole('button', { name: /simpan password/i });
-
-    fireEvent.change(inputPasswordBaru, { target: { value: 'passbaru123' } });
-    fireEvent.change(inputUlangi, { target: { value: 'passbaru123' } });
-    fireEvent.click(tombolSimpan);
-
-    await waitFor(() => {
-      expect(mockAturPassword).toHaveBeenCalledWith('passbaru123');
-    });
-  });
-
-  it('mengirim link reset password di mode lupa password', async () => {
-    mockKirimResetPassword.mockResolvedValue(undefined);
-    renderMasuk();
-
-    const linkLupa = screen.getByRole('button', { name: /lupa password\?/i });
-    fireEvent.click(linkLupa);
-
-    expect(screen.getByText('Lupa password?')).toBeInTheDocument();
-
-    const inputEmailLupa = screen.getByLabelText(/^email$/i);
-    fireEvent.change(inputEmailLupa, { target: { value: 'reset@test.com' } });
-
-    const tombolKirim = screen.getByRole('button', { name: /kirim link reset/i });
-    fireEvent.click(tombolKirim);
-
-    await waitFor(() => {
-      expect(mockKirimResetPassword).toHaveBeenCalledWith('reset@test.com');
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'Cek email kamu dan klik link konfirmasi untuk reset password. Buka link-nya di browser ini juga.'
-      );
-    });
-  });
-
   it('memiliki role tablist dan aria-label pada tab masuk dan daftar', () => {
     renderMasuk();
     const tablist = screen.getByRole('tablist', { name: /pilih masuk atau daftar/i });
     expect(tablist).toBeInTheDocument();
   });
 
-  it('menampilkan error jika email sudah terdaftar saat daftar dan pesan sukses tidak tampil', async () => {
+  it('daftar berhasil -> form Masukkan kode tampil dengan email pengguna', async () => {
+    mockDaftarEmail.mockResolvedValue({ user: { id: 'u1', identities: [{ id: '1' }] } });
+    renderMasuk();
+
+    const tombolTabDaftar = screen.getByRole('tab', { name: /^daftar$/i });
+    fireEvent.click(tombolTabDaftar);
+
+    const inputEmail = screen.getByLabelText(/^email$/i);
+    const inputPassword = screen.getByLabelText(/^password$/i);
+    const inputUlangi = screen.getByLabelText(/ulangi password/i);
+    const tombolDaftar = screen.getByRole('button', { name: /^daftar$/i });
+
+    fireEvent.change(inputEmail, { target: { value: 'calon@test.com' } });
+    fireEvent.change(inputPassword, { target: { value: 'password123' } });
+    fireEvent.change(inputUlangi, { target: { value: 'password123' } });
+    fireEvent.click(tombolDaftar);
+
+    await waitFor(() => {
+      expect(screen.getByText('Masukkan kode')).toBeInTheDocument();
+      expect(screen.getByText(/Kami mengirim 6 angka ke/i)).toHaveTextContent('calon@test.com');
+      expect(screen.getByLabelText(/kode verifikasi/i)).toBeInTheDocument();
+    });
+  });
+
+  it('daftar dengan user_already_exists -> error tampil dan form kode tidak tampil', async () => {
     const err: any = new Error('User already registered');
     err.code = 'user_already_exists';
     mockDaftarEmail.mockRejectedValue(err);
@@ -286,7 +283,151 @@ describe('Halaman Masuk', () => {
       );
     });
 
-    expect(screen.queryByText(/cek email kamu/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Masukkan kode')).not.toBeInTheDocument();
+  });
+
+  it('kode bukan 6 angka -> Kode harus 6 angka dan Supabase tidak dipanggil', async () => {
+    mockDaftarEmail.mockResolvedValue({});
+    renderMasuk();
+
+    // Masuk ke form kode
+    fireEvent.click(screen.getByRole('tab', { name: /^daftar$/i }));
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: 'user@test.com' } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByLabelText(/ulangi password/i), { target: { value: 'password123' } });
+    fireEvent.click(screen.getByRole('button', { name: /^daftar$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Masukkan kode')).toBeInTheDocument();
+    });
+
+    const inputKode = screen.getByLabelText(/kode verifikasi/i);
+    fireEvent.change(inputKode, { target: { value: '123' } });
+
+    // Submit form langsung
+    fireEvent.submit(inputKode.closest('form')!);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Kode harus 6 angka.');
+    });
+
+    expect(mockVerifikasiKodeDaftar).not.toHaveBeenCalled();
+  });
+
+  it('otp_expired -> pesan kode salah/kedaluwarsa', async () => {
+    mockDaftarEmail.mockResolvedValue({});
+    const err: any = new Error('Token has expired');
+    err.code = 'otp_expired';
+    mockVerifikasiKodeDaftar.mockRejectedValue(err);
+
+    renderMasuk();
+
+    // Masuk ke form kode
+    fireEvent.click(screen.getByRole('tab', { name: /^daftar$/i }));
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: 'user@test.com' } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByLabelText(/ulangi password/i), { target: { value: 'password123' } });
+    fireEvent.click(screen.getByRole('button', { name: /^daftar$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Masukkan kode')).toBeInTheDocument();
+    });
+
+    const inputKode = screen.getByLabelText(/kode verifikasi/i);
+    fireEvent.change(inputKode, { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /^verifikasi$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Kode salah atau sudah kedaluwarsa. Minta kode baru.'
+      );
+    });
+  });
+
+  it('tombol Kirim ulang kode disabled selama 60 detik', async () => {
+    vi.useFakeTimers();
+    mockDaftarEmail.mockResolvedValue({});
+    renderMasuk();
+
+    // Masuk ke form kode
+    fireEvent.click(screen.getByRole('tab', { name: /^daftar$/i }));
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: 'timer@test.com' } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByLabelText(/ulangi password/i), { target: { value: 'password123' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^daftar$/i }));
+    });
+
+    expect(screen.getByText('Masukkan kode')).toBeInTheDocument();
+
+    const tombolKirimUlang = screen.getByRole('button', { name: /kirim ulang kode/i });
+    expect(tombolKirimUlang).toBeDisabled();
+    expect(tombolKirimUlang).toHaveTextContent(/kirim ulang kode \(60s\)/i);
+
+    // Majukan waktu 30 detik
+    act(() => {
+      vi.advanceTimersByTime(30000);
+    });
+    expect(tombolKirimUlang).toBeDisabled();
+    expect(tombolKirimUlang).toHaveTextContent(/kirim ulang kode \(30s\)/i);
+
+    // Majukan waktu 30 detik lagi (total 60s)
+    act(() => {
+      vi.advanceTimersByTime(30000);
+    });
+    expect(tombolKirimUlang).not.toBeDisabled();
+    expect(tombolKirimUlang).toHaveTextContent('Kirim ulang kode');
+
+    vi.useRealTimers();
+  });
+
+  it('lupa password -> kode benar -> form Buat password baru tampil', async () => {
+    vi.restoreAllMocks();
+    mockSignUp.mockClear();
+
+    // Mock supabase calls
+    const mockReset = vi.fn().mockResolvedValue({ data: {}, error: null });
+    const mockOtp = vi.fn().mockResolvedValue({ data: {}, error: null });
+    const supabaseModule = await import('../lib/supabase');
+    supabaseModule.supabase!.auth.resetPasswordForEmail = mockReset as any;
+    supabaseModule.supabase!.auth.verifyOtp = mockOtp as any;
+
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/masuk']}>
+          <Routes>
+            <Route path="/masuk" element={<Masuk />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    );
+
+    // Klik Lupa password?
+    fireEvent.click(screen.getByRole('button', { name: /lupa password\?/i }));
+    expect(screen.getByText('Lupa password?')).toBeInTheDocument();
+
+    // Masukkan email dan kirim kode reset
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: 'reset@test.com' } });
+    fireEvent.click(screen.getByRole('button', { name: /kirim kode reset/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Masukkan kode')).toBeInTheDocument();
+    });
+
+    // Masukkan kode 6 digit
+    const inputKode = screen.getByLabelText(/kode verifikasi/i);
+    fireEvent.change(inputKode, { target: { value: '654321' } });
+    fireEvent.click(screen.getByRole('button', { name: /^verifikasi$/i }));
+
+    await waitFor(() => {
+      expect(mockOtp).toHaveBeenCalledWith({
+        email: 'reset@test.com',
+        token: '654321',
+        type: 'recovery',
+      });
+      expect(screen.getByText('Buat password baru')).toBeInTheDocument();
+    });
   });
 });
 
