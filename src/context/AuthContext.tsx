@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
@@ -49,6 +49,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [sedangPulihkanPassword, setSedangPulihkanPassword] = useState(false);
   const [sudahVerifikasiEmail, setSudahVerifikasiEmail] = useState<boolean | null>(null);
 
+  const checkReqIdRef = useRef(0);
+
   const checkAdmin = async (userId: string | undefined) => {
     if (!supabase || !userId) {
       setIsAdmin(false);
@@ -67,19 +69,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setSudahVerifikasiEmail(null);
       return;
     }
-    try {
-      const { data, error } = await supabase
-        .from('verifikasi_email')
-        .select('user_id')
-        .eq('user_id', userId)
-        .maybeSingle();
-      if (error) {
-        setSudahVerifikasiEmail(false);
-        return;
+    const reqId = ++checkReqIdRef.current;
+    let attempt = 0;
+    while (attempt < 3) {
+      attempt++;
+      try {
+        const { data, error } = await supabase
+          .from('verifikasi_email')
+          .select('user_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (reqId !== checkReqIdRef.current) return;
+
+        if (!error) {
+          setSudahVerifikasiEmail(!!data);
+          return;
+        }
+      } catch (e) {
+        if (reqId !== checkReqIdRef.current) return;
       }
-      setSudahVerifikasiEmail(!!data);
-    } catch (e) {
-      setSudahVerifikasiEmail(false);
+
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 1000));
+        if (reqId !== checkReqIdRef.current) return;
+      }
+    }
+
+    if (reqId === checkReqIdRef.current) {
+      console.error('Gagal memeriksa status verifikasi email setelah 3 percobaan');
+      setSudahVerifikasiEmail(true);
     }
   };
 
@@ -172,12 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       type: 'email',
     });
     if (error) throw error;
-    try {
-      await supabase.rpc('tandai_email_terverifikasi');
-      setSudahVerifikasiEmail(true);
-    } catch (e) {
-      setSudahVerifikasiEmail(true);
-    }
+    await tandaiEmailTerverifikasi();
     return data;
   };
 
@@ -185,6 +199,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!supabase) return;
     const { error } = await supabase.rpc('tandai_email_terverifikasi');
     if (error) throw error;
+    checkReqIdRef.current++;
     setSudahVerifikasiEmail(true);
   };
 
@@ -215,6 +230,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         type: 'recovery',
       });
       if (error) throw error;
+      try {
+        await tandaiEmailTerverifikasi();
+      } catch (e) {
+        console.error('Gagal menandai email terverifikasi setelah reset password:', e);
+      }
       return data;
     } catch (err) {
       setSedangPulihkanPassword(false);

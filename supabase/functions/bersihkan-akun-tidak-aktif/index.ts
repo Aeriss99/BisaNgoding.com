@@ -37,18 +37,26 @@ Deno.serve(async (req) => {
     (adminsData || []).map((a: any) => (a.email || "").toLowerCase().trim())
   );
 
-  // 2. Ambil semua akun dari auth.admin
-  const { data: userData, error: userError } = await supabase.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
+  // 2. Ambil semua akun dari auth.admin dengan paging sampai habis
+  const users: any[] = [];
+  let page = 1;
+  while (true) {
+    const { data: userData, error: userError } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
 
-  if (userError || !userData?.users) {
-    console.error("Gagal mengambil users:", userError);
-    return new Response(JSON.stringify({ error: userError?.message || "User error" }), { status: 500 });
+    if (userError || !userData?.users) {
+      console.error("Gagal mengambil users page", page, ":", userError);
+      return new Response(JSON.stringify({ error: userError?.message || "User error" }), { status: 500 });
+    }
+
+    users.push(...userData.users);
+    if (userData.users.length < 1000) {
+      break;
+    }
+    page++;
   }
-
-  const users = userData.users;
   const userIds = users.map((u) => u.id);
 
   // 3. Ambil data progres
@@ -104,33 +112,47 @@ Deno.serve(async (req) => {
   const durasiBlokirMs = 120 * 60 * 60 * 1000; // 5 hari = 120 jam
   const blokirSampaiISO = new Date(now.getTime() + durasiBlokirMs).toISOString();
 
+  let diproses = 0;
+  let gagal = 0;
+
   for (const akun of terpilih) {
-    try {
-      // a. Reset progres
-      await supabase.from("progres").upsert({
-        user_id: akun.id,
-        data: buatProgresKosong(nowISO),
-        diperbarui: nowISO,
-      });
-
-      // b. Blokir 5 hari (120 jam)
-      await supabase.auth.admin.updateUserById(akun.id, {
-        ban_duration: "120h",
-      });
-
-      // c. Catat di blokir_akun
-      await supabase.from("blokir_akun").insert({
-        user_id: akun.id,
-        mulai: nowISO,
-        sampai: blokirSampaiISO,
-        alasan: "tidak aktif 7 hari",
-      });
-    } catch (err) {
-      console.error(`Gagal memproses blokir/reset akun ${akun.id}:`, err);
+    // a. Reset progres
+    const { error: errProg } = await supabase.from("progres").upsert({
+      user_id: akun.id,
+      data: buatProgresKosong(nowISO),
+      diperbarui: nowISO,
+    });
+    if (errProg) {
+      console.error(`Gagal reset progres akun ${akun.id}:`, errProg);
+      gagal++;
+      continue;
     }
+
+    // b. Blokir 5 hari (120 jam)
+    const { error: errBan } = await supabase.auth.admin.updateUserById(akun.id, {
+      ban_duration: "120h",
+    });
+    if (errBan) {
+      console.error(`Gagal blokir akun ${akun.id}:`, errBan);
+      gagal++;
+      continue;
+    }
+
+    // c. Catat di blokir_akun
+    const { error: errBlokir } = await supabase.from("blokir_akun").insert({
+      user_id: akun.id,
+      mulai: nowISO,
+      sampai: blokirSampaiISO,
+      alasan: "tidak aktif 7 hari",
+    });
+    if (errBlokir) {
+      console.error(`Gagal mencatat blokir akun ${akun.id}:`, errBlokir);
+    }
+
+    diproses++;
   }
 
-  return new Response(JSON.stringify({ diproses: terpilih.length }), {
+  return new Response(JSON.stringify({ diproses, gagal }), {
     headers: { "Content-Type": "application/json" },
     status: 200,
   });

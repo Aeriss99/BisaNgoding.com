@@ -18,24 +18,54 @@ export default function VerifikasiEmail() {
   const [sedangKirimUlang, setSedangKirimUlang] = useState(false);
   const [error, setError] = useState('');
   const [pesanSukses, setPesanSukses] = useState('');
-  const [countdown, setCountdown] = useState(60);
+  const [countdown, setCountdown] = useState(0);
 
   const initialSentRef = useRef(false);
 
-  // Kirim kode otomatis satu kali saat pertama dibuka
+  // Kirim kode otomatis satu kali saat pertama dibuka hanya kalau sudahVerifikasiEmail === false
   useEffect(() => {
-    if (!user?.email || initialSentRef.current) return;
+    if (!user?.email || !user?.id || sudahVerifikasiEmail !== false || initialSentRef.current) return;
     initialSentRef.current = true;
 
-    if (supabase) {
-      supabase.auth.signInWithOtp({
-        email: user.email,
-        options: { shouldCreateUser: false },
-      }).catch((err) => {
-        setError(petakanErrorAuth(err));
-      });
+    const storageKey = `bn_otp_terkirim:${user.id}`;
+    let remaining = 0;
+    try {
+      const raw = sessionStorage.getItem(storageKey);
+      if (raw) {
+        const sentAt = parseInt(raw, 10);
+        const elapsed = Math.floor((Date.now() - sentAt) / 1000);
+        if (elapsed < 60) {
+          remaining = 60 - elapsed;
+        }
+      }
+    } catch {}
+
+    if (remaining > 0) {
+      setCountdown(remaining);
+      return;
     }
-  }, [user]);
+
+    if (supabase) {
+      supabase.auth
+        .signInWithOtp({
+          email: user.email,
+          options: { shouldCreateUser: false },
+        })
+        .then(({ error: errOtp }: any) => {
+          if (errOtp) {
+            setError(petakanErrorAuth(errOtp));
+          } else {
+            try {
+              sessionStorage.setItem(storageKey, Date.now().toString());
+            } catch {}
+            setCountdown(60);
+          }
+        })
+        .catch((err) => {
+          setError(petakanErrorAuth(err));
+        });
+    }
+  }, [user, sudahVerifikasiEmail]);
 
   // Timer hitung mundur kirim ulang
   useEffect(() => {
@@ -104,7 +134,7 @@ export default function VerifikasiEmail() {
   };
 
   const handleKirimUlang = async () => {
-    if (countdown > 0 || !user?.email) return;
+    if (countdown > 0 || !user?.email || !user?.id) return;
     setError('');
     setPesanSukses('');
     setSedangKirimUlang(true);
@@ -114,8 +144,15 @@ export default function VerifikasiEmail() {
           email: user.email,
           options: { shouldCreateUser: false },
         });
-        if (errOtp) throw errOtp;
+        if (errOtp) {
+          setError(petakanErrorAuth(errOtp));
+          return;
+        }
       }
+      const storageKey = `bn_otp_terkirim:${user.id}`;
+      try {
+        sessionStorage.setItem(storageKey, Date.now().toString());
+      } catch {}
       setPesanSukses('Kode baru telah dikirim.');
       setCountdown(60);
     } catch (err) {
