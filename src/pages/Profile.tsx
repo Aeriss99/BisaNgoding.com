@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { bersihkanProgresLokal } from '../lib/cloudProgress';
 import { useNavigate } from 'react-router-dom';
+import { useKonfirmasi } from '../components/ui/DialogKonfirmasi';
 
 export default function Profile() {
   const { progress, importProgress, toggleUnlockAll, syncStatus, flushKeCloud, streakHariIni } =
@@ -24,6 +25,7 @@ export default function Profile() {
   const [tampilDialogBelumTersimpan, setTampilDialogBelumTersimpan] = useState(false);
   const [sedangMasuk, setSedangMasuk] = useState(false);
   const navigate = useNavigate();
+  const konfirmasi = useKonfirmasi();
   const [notifPengingat, setNotifPengingat] = useState(true);
   const [notifModul, setNotifModul] = useState(true);
   const [savingNotif, setSavingNotif] = useState(false);
@@ -76,13 +78,18 @@ export default function Profile() {
     tampilkanPesan('Progres berhasil di-export!');
   };
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (
-      !confirm('Mengimpor data akan menimpa progres Anda saat ini. Lanjutkan?')
-    ) {
+    const setuju = await konfirmasi({
+      judul: 'Impor progres?',
+      pesan: 'Data dari file akan menimpa progresmu saat ini.',
+      teksYa: 'IMPOR',
+      teksBatal: 'BATAL',
+      bahaya: true,
+    });
+    if (!setuju) {
       e.target.value = '';
       return;
     }
@@ -106,9 +113,16 @@ export default function Profile() {
     reader.readAsText(file);
   };
 
-  const handleReset = () => {
-    if (!confirm('Hapus semua progres? Tindakan ini tidak bisa dibatalkan.'))
-      return;
+  const handleReset = async () => {
+    const setuju = await konfirmasi({
+      judul: 'Hapus semua progres?',
+      pesan: 'Semua materi, nilai quiz, XP, dan streak akan dihapus. Tindakan ini tidak bisa dibatalkan.',
+      teksYa: 'HAPUS SEMUA',
+      teksBatal: 'BATAL',
+      bahaya: true,
+    });
+    if (!setuju) return;
+
     const today = new Date().toISOString().split('T')[0];
     importProgress({
       completedLessons: [],
