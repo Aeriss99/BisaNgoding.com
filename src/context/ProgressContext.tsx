@@ -6,11 +6,7 @@ import React, {
   useRef,
 } from 'react';
 import type { UserProgress } from '../types/schema';
-import {
-  checkInactivityReset,
-  isImportTooOld,
-  toISODate,
-} from '../lib/resetLogic';
+import { toISODate } from '../lib/resetLogic';
 import { useAuth } from './AuthContext';
 import { progresSetelahMateri, streakTampil, tanggalLokal } from '../lib/streak';
 import {
@@ -22,8 +18,9 @@ import {
   getCurrentUserId,
   setCurrentUserId,
 } from '../lib/cloudProgress';
+import { apakahModeLokal } from '../lib/modeLokal';
 
-interface ProgressContextType {
+export interface ProgressContextType {
   progress: UserProgress;
   markLessonCompleted: (lessonId: string) => void;
   markCheckPassed: (lessonId: string) => void;
@@ -32,22 +29,19 @@ interface ProgressContextType {
   addXP: (amount: number) => void;
   saveQuizScore: (moduleId: string, score: number, passed: boolean) => void;
   touchActivity: () => void;
-  /** Streak untuk ditampilkan: 0 kalau sudah lebih dari sehari tidak menyelesaikan materi. */
+  /** Streak untuk ditampilkan: 0 kalau sudah lebih dari sehari tidak menyelesaikan materi (atau di mode lokal). */
   streakHariIni: number;
   flushKeCloud: () => Promise<boolean>;
-  inactiveDaysConfig: number;
   daysUntilReset: number | null;
+  tanggalReset: string | null;
   syncStatus:
-    'Tersimpan' | 'Menyimpan...' | 'Offline, tersimpan di perangkat ini';
+    | 'Tersimpan'
+    | 'Menyimpan...'
+    | 'Offline, tersimpan di perangkat ini'
+    | 'Mode lokal: progres tidak disimpan ke akun';
 }
 
 const ProgressContext = createContext<ProgressContextType | null>(null);
-
-function getInactiveDaysConfig(): number {
-  const raw = import.meta.env.VITE_INACTIVE_DAYS;
-  const parsed = raw !== undefined ? parseInt(String(raw), 10) : 0;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
 
 export function makeDefaultProgress(): UserProgress {
   const today = new Date().toISOString().split('T')[0];
@@ -66,13 +60,60 @@ export function makeDefaultProgress(): UserProgress {
   };
 }
 
+export function hitungResetInfo(
+  lastActiveDate?: string,
+  now: Date = new Date()
+): { daysUntilReset: number | null; tanggalReset: string | null } {
+  if (apakahModeLokal() || !lastActiveDate) {
+    return { daysUntilReset: null, tanggalReset: null };
+  }
+  const [y, m, d] = lastActiveDate.split('-').map(Number);
+  if (!y || !m || !d) return { daysUntilReset: null, tanggalReset: null };
+
+  const lastActive = new Date(Date.UTC(y, m - 1, d));
+  const deadline = new Date(lastActive.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const today = new Date(
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  );
+  const diffDays = Math.ceil(
+    (deadline.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)
+  );
+
+  const bulan = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+  const tglStr = `${deadline.getUTCDate()} ${bulan[deadline.getUTCMonth()]} ${deadline.getUTCFullYear()}`;
+
+  return {
+    daysUntilReset: diffDays,
+    tanggalReset: tglStr,
+  };
+}
+
 export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, loading: authLoading } = useAuth();
-  const [daysUntilReset, setDaysUntilReset] = useState<number | null>(null);
-  const inactiveDaysConfig = getInactiveDaysConfig();
   const [syncStatus, setSyncStatus] = useState<
-    'Tersimpan' | 'Menyimpan...' | 'Offline, tersimpan di perangkat ini'
-  >('Offline, tersimpan di perangkat ini');
+    | 'Tersimpan'
+    | 'Menyimpan...'
+    | 'Offline, tersimpan di perangkat ini'
+    | 'Mode lokal: progres tidak disimpan ke akun'
+  >(
+    apakahModeLokal()
+      ? 'Mode lokal: progres tidak disimpan ke akun'
+      : 'Offline, tersimpan di perangkat ini'
+  );
 
   const [progress, setProgress] = useState<UserProgress>(() => {
     try {
@@ -88,19 +129,8 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
           data.lastActiveDate = toISODate(new Date());
         if (!data.maxSeenDate) data.maxSeenDate = data.lastActiveDate;
 
-        const result = checkInactivityReset(
-          data,
-          new Date(),
-          inactiveDaysConfig,
-          makeDefaultProgress
-        );
-        if (result.wasReset) {
-          const resetProgress = { ...result.progress, justReset: true };
-          saveLocalProgress(resetProgress, currentUserId);
-          return resetProgress;
-        }
-        saveLocalProgress(result.progress, currentUserId);
-        return result.progress;
+        saveLocalProgress(data, currentUserId);
+        return data;
       }
     } catch (e) {}
     return makeDefaultProgress();
@@ -113,6 +143,10 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const initializedRef = useRef(false);
 
   const initSync = async () => {
+    if (apakahModeLokal()) {
+      setSyncStatus('Mode lokal: progres tidak disimpan ke akun');
+      return;
+    }
     if (!user) return;
     setSyncStatus('Menyimpan...');
 
@@ -148,6 +182,14 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   // Sync logic on mount or user login
   useEffect(() => {
+    if (apakahModeLokal()) {
+      setSyncStatus('Mode lokal: progres tidak disimpan ke akun');
+      const currentUserId = user?.id || getCurrentUserId();
+      const localProg = getLocalProgress(currentUserId) || makeDefaultProgress();
+      setProgress(localProg);
+      return;
+    }
+
     if (authLoading) return;
     if (!user) {
       setSyncStatus('Offline, tersimpan di perangkat ini');
@@ -160,7 +202,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     }
 
     initSync();
-    
+
     // Auto-retry fetch/sync if failed
     retryIntervalRef.current = setInterval(() => {
       if (!initializedRef.current && user) {
@@ -175,7 +217,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   // Debounce save (1s)
   useEffect(() => {
-    if (!user || !initializedRef.current) return;
+    if (apakahModeLokal() || !user || !initializedRef.current) return;
     if (timerRef.current) clearTimeout(timerRef.current);
 
     setSyncStatus('Menyimpan...');
@@ -193,14 +235,14 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   // Handle visibility & focus
   useEffect(() => {
-    if (!user || !initializedRef.current) return;
+    if (apakahModeLokal() || !user || !initializedRef.current) return;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         saveCloudProgress(user.id, progressRef.current).catch(() => {});
       }
     };
-    
+
     const handleFocus = async () => {
       if (!initializedRef.current) {
         initSync();
@@ -231,21 +273,6 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user]);
 
-  useEffect(() => {
-    if (!inactiveDaysConfig) {
-      setDaysUntilReset(null);
-      return;
-    }
-    const result = checkInactivityReset(
-      progress,
-      new Date(),
-      inactiveDaysConfig,
-      makeDefaultProgress
-    );
-    setDaysUntilReset(result.daysUntilReset);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const saveProgressState = (newProgress: UserProgress) => {
     try {
       setProgress(newProgress);
@@ -255,9 +282,14 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   const markLessonCompleted = (lessonId: string) => {
     setProgress((prev) => {
-      // Streak memakai streakDate (tanggal lokal terakhir menyelesaikan materi), bukan lastActiveDate,
-      // karena lastActiveDate sudah diisi touchActivity() setiap kali pindah kartu.
-      const next = progresSetelahMateri(prev, lessonId);
+      let next = progresSetelahMateri(prev, lessonId);
+      if (apakahModeLokal()) {
+        next = {
+          ...next,
+          streak: prev.streak,
+          streakDate: prev.streakDate,
+        };
+      }
       if (next === prev) return prev;
       saveProgressState(next);
       return next;
@@ -309,17 +341,6 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       data.moduleStatus &&
       typeof data.moduleStatus === 'object'
     ) {
-      if (
-        isImportTooOld(
-          data.lastActiveDate,
-          new Date(),
-          progress.maxSeenDate,
-          inactiveDaysConfig
-        )
-      ) {
-        return false;
-      }
-
       const today = toISODate(new Date());
       saveProgressState({
         completedLessons: data.completedLessons,
@@ -388,6 +409,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   };
 
   const flushKeCloud = async (): Promise<boolean> => {
+    if (apakahModeLokal()) return true;
     if (!user || !initializedRef.current) return false;
     if (timerRef.current) clearTimeout(timerRef.current);
     try {
@@ -401,6 +423,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   };
 
   const activeUnlockAll = isAdmin ? progress.unlockAll : false;
+  const resetInfo = hitungResetInfo(progress.lastActiveDate);
 
   return (
     <ProgressContext.Provider
@@ -413,10 +436,12 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         addXP,
         saveQuizScore,
         touchActivity,
-        streakHariIni: streakTampil(progress.streak, progress.streakDate, tanggalLokal()),
+        streakHariIni: apakahModeLokal()
+          ? 0
+          : streakTampil(progress.streak, progress.streakDate, tanggalLokal()),
         flushKeCloud,
-        inactiveDaysConfig,
-        daysUntilReset,
+        daysUntilReset: resetInfo.daysUntilReset,
+        tanggalReset: resetInfo.tanggalReset,
         syncStatus,
       }}
     >

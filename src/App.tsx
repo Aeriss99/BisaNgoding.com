@@ -12,6 +12,7 @@ import JalurKarier from './pages/JalurKarier';
 import NotifikasiPage from './pages/Notifikasi';
 import ProgresPage from './pages/Progres';
 import Masuk from './pages/Masuk';
+import VerifikasiEmail from './pages/VerifikasiEmail';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -34,11 +35,11 @@ export function LayarMemuat() {
 }
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, sudahVerifikasiEmail } = useAuth();
   const location = useLocation();
   const bypass = import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS === 'true';
 
-  if (loading) return <LayarMemuat />;
+  if (loading || (user && sudahVerifikasiEmail === null && !bypass)) return <LayarMemuat />;
   if (!user && !bypass) {
     const tujuan = location.pathname + location.search;
     if (tujuan !== '/') {
@@ -46,11 +47,21 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
     }
     return <Navigate to="/" replace />;
   }
+
+  // Pengguna login tetapi belum verifikasi email
+  if (user && !bypass && sudahVerifikasiEmail === false) {
+    const tujuan = location.pathname + location.search;
+    if (tujuan !== '/' && tujuan !== '/verifikasi-email') {
+      try { sessionStorage.setItem('bn_tujuan', tujuan); } catch {}
+    }
+    return <Navigate to="/verifikasi-email" replace />;
+  }
+
   return <>{children}</>;
 }
 
 function AppRoutes() {
-  const { user, loading, sedangPulihkanPassword } = useAuth();
+  const { user, loading, sedangPulihkanPassword, sudahVerifikasiEmail } = useAuth();
   const nav = useNavigate();
 
   const isDevBypass = import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS === 'true';
@@ -62,6 +73,9 @@ function AppRoutes() {
       return;
     }
     if (!user) return;
+    if (!isDevBypass && sudahVerifikasiEmail === false) {
+      return;
+    }
     let tujuan: string | null = null;
     try {
       tujuan = sessionStorage.getItem('bn_tujuan');
@@ -70,20 +84,36 @@ function AppRoutes() {
     if (tujuan && tujuan.startsWith('/') && !tujuan.startsWith('//')) {
       nav(tujuan, { replace: true });
     }
-  }, [user, sedangPulihkanPassword, nav]);
+  }, [user, sedangPulihkanPassword, sudahVerifikasiEmail, isDevBypass, nav]);
 
   if (loading && !isDevBypass) {
     return <LayarMemuat />;
   }
 
+  const perluVerifikasi = user && !isDevBypass && sudahVerifikasiEmail === false;
+
   return (
     <Routes>
-      <Route path="/" element={isLoggedIn ? <Layout /> : <Landing />}>
-        {isLoggedIn && <Route index element={<JalurKarier />} />}
+      <Route
+        path="/"
+        element={
+          isLoggedIn ? (
+            perluVerifikasi ? (
+              <Navigate to="/verifikasi-email" replace />
+            ) : (
+              <Layout />
+            )
+          ) : (
+            <Landing />
+          )
+        }
+      >
+        {isLoggedIn && !perluVerifikasi && <Route index element={<JalurKarier />} />}
       </Route>
 
       <Route path="/masuk" element={<Masuk />} />
       <Route path="/atur-password" element={<Masuk />} />
+      <Route path="/verifikasi-email" element={<VerifikasiEmail />} />
 
       {/* Other Layout Routes */}
       <Route element={<RequireAuth><Layout /></RequireAuth>}>

@@ -7,6 +7,7 @@ interface AuthContextType {
   isAdmin: boolean;
   loading: boolean;
   sedangPulihkanPassword: boolean;
+  sudahVerifikasiEmail: boolean | null;
   masukGoogle: () => Promise<void>;
   masukEmail: (email: string, password: string) => Promise<any>;
   daftarEmail: (email: string, password: string) => Promise<any>;
@@ -14,6 +15,7 @@ interface AuthContextType {
   kirimUlangKodeDaftar: (email: string) => Promise<any>;
   kirimResetPassword: (email: string) => Promise<any>;
   verifikasiKodeReset: (email: string, kode: string) => Promise<any>;
+  tandaiEmailTerverifikasi: () => Promise<void>;
   aturPassword: (password: string) => Promise<any>;
   keluar: () => Promise<void>;
   isSupabaseConfigured: boolean;
@@ -24,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   loading: true,
   sedangPulihkanPassword: false,
+  sudahVerifikasiEmail: null,
   masukGoogle: async () => {},
   masukEmail: async () => {},
   daftarEmail: async () => {},
@@ -31,6 +34,7 @@ const AuthContext = createContext<AuthContextType>({
   kirimUlangKodeDaftar: async () => {},
   kirimResetPassword: async () => {},
   verifikasiKodeReset: async () => {},
+  tandaiEmailTerverifikasi: async () => {},
   aturPassword: async () => {},
   keluar: async () => {},
   isSupabaseConfigured: false,
@@ -43,6 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sedangPulihkanPassword, setSedangPulihkanPassword] = useState(false);
+  const [sudahVerifikasiEmail, setSudahVerifikasiEmail] = useState<boolean | null>(null);
 
   const checkAdmin = async (userId: string | undefined) => {
     if (!supabase || !userId) {
@@ -57,6 +62,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const checkVerifikasiEmail = async (userId: string | undefined) => {
+    if (!supabase || !userId) {
+      setSudahVerifikasiEmail(null);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('verifikasi_email')
+        .select('user_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (error) {
+        setSudahVerifikasiEmail(false);
+        return;
+      }
+      setSudahVerifikasiEmail(!!data);
+    } catch (e) {
+      setSudahVerifikasiEmail(false);
+    }
+  };
+
   useEffect(() => {
     if (!supabase) {
       setLoading(false);
@@ -65,7 +91,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if (session?.user) checkAdmin(session.user.id);
+      if (session?.user) {
+        checkAdmin(session.user.id);
+        checkVerifikasiEmail(session.user.id);
+      }
       setLoading(false);
 
       // Clean ?code= from URL without reloading
@@ -86,8 +115,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(session?.user ?? null);
       if (session?.user) {
         checkAdmin(session.user.id);
+        checkVerifikasiEmail(session.user.id);
       } else {
         setIsAdmin(false);
+        setSudahVerifikasiEmail(null);
       }
       if (event === 'PASSWORD_RECOVERY') {
         setSedangPulihkanPassword(true);
@@ -141,7 +172,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       type: 'email',
     });
     if (error) throw error;
+    try {
+      await supabase.rpc('tandai_email_terverifikasi');
+      setSudahVerifikasiEmail(true);
+    } catch (e) {
+      setSudahVerifikasiEmail(true);
+    }
     return data;
+  };
+
+  const tandaiEmailTerverifikasi = async () => {
+    if (!supabase) return;
+    const { error } = await supabase.rpc('tandai_email_terverifikasi');
+    if (error) throw error;
+    setSudahVerifikasiEmail(true);
   };
 
   const kirimUlangKodeDaftar = async (email: string) => {
@@ -191,6 +235,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const keluar = async () => {
     if (!supabase) return;
     setSedangPulihkanPassword(false);
+    setSudahVerifikasiEmail(null);
     await supabase.auth.signOut();
   };
 
@@ -201,6 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         isAdmin,
         loading,
         sedangPulihkanPassword,
+        sudahVerifikasiEmail,
         masukGoogle,
         masukEmail,
         daftarEmail,
@@ -208,6 +254,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         kirimUlangKodeDaftar,
         kirimResetPassword,
         verifikasiKodeReset,
+        tandaiEmailTerverifikasi,
         aturPassword,
         keluar,
         isSupabaseConfigured: !!supabase,

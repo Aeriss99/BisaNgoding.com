@@ -4,6 +4,20 @@ import { Ikon } from '../components/ui/IkonDesain';
 import { BarisStatus, BungkusKartu, KartuKelasJalur, Lencana, warnaKelas } from '../components/kelas/KartuKelas';
 import { WARNA_JALUR, cariJalur, dataJalur, statusKartu } from '../lib/jalur';
 import type { JalurKarier as TipeJalur, TahapJalur } from '../types/schema';
+import { useProgress } from '../context/ProgressContext';
+
+function PeringatanInaktif() {
+  const { daysUntilReset, tanggalReset } = useProgress();
+  if (daysUntilReset === null || daysUntilReset > 2 || !tanggalReset) return null;
+  return (
+    <div
+      role="alert"
+      className="p-4 bg-amber-100 border-[3px] border-amber-600 font-bold text-amber-950 rounded-xl flex items-center gap-3 shadow-[3px_3px_0_#111111]"
+    >
+      <span>Belajar lagi sebelum {tanggalReset} supaya progresmu tidak dihapus.</span>
+    </div>
+  );
+}
 
 /* ───────────────────────── potongan kecil */
 function Atau({ hp = false }: { hp?: boolean }) {
@@ -170,6 +184,7 @@ function Desktop({ jalur, pilih }: { jalur: TipeJalur; pilih: (id: string) => vo
   return (
     <div className="hidden lg:flex flex-col">
       <main className="px-8 xl:px-16 pt-16 flex flex-col gap-12">
+        <PeringatanInaktif />
         <section className="flex flex-col gap-3.5">
           <h1 className="m-0 font-space text-[64px] leading-[68px] font-bold">Mau jadi apa?</h1>
           <p className="m-0 text-[20px] leading-[30px] text-[#3d3d3d] max-w-[820px]">
@@ -212,6 +227,7 @@ function Hp({ jalur, pilih }: { jalur: TipeJalur; pilih: (id: string) => void })
   return (
     <div className="lg:hidden flex flex-col">
       <main className="px-4 pt-7 pb-10 flex flex-col gap-6">
+        <PeringatanInaktif />
         <div className="flex flex-col gap-2">
           <h1 className="m-0 font-space text-[36px] leading-10 font-bold">Mau jadi apa?</h1>
           <p className="m-0 text-[15px] leading-[22px] text-[#3d3d3d]">Pilih jalur karier, lalu ikuti tahapnya dari atas.</p>
