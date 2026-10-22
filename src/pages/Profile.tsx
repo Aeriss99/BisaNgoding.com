@@ -11,21 +11,19 @@ import {
   Unlock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { bersihkanProgresLokal } from '../lib/cloudProgress';
-import { useNavigate } from 'react-router-dom';
 import { useKonfirmasi } from '../components/ui/DialogKonfirmasi';
+import { useKeluar } from '../components/layout/MenuAtas';
 
 export default function Profile() {
-  const { progress, importProgress, toggleUnlockAll, syncStatus, flushKeCloud, streakHariIni } =
+  const { progress, importProgress, toggleUnlockAll, syncStatus, streakHariIni } =
     useProgress();
-  const { user, isAdmin, masukGoogle, keluar, isSupabaseConfigured } =
+  const { user, isAdmin, masukGoogle, isSupabaseConfigured } =
     useAuth();
   const [message, setMessage] = useState('');
   const [sedangKeluar, setSedangKeluar] = useState(false);
-  const [tampilDialogBelumTersimpan, setTampilDialogBelumTersimpan] = useState(false);
   const [sedangMasuk, setSedangMasuk] = useState(false);
-  const navigate = useNavigate();
   const konfirmasi = useKonfirmasi();
+  const aksiKeluar = useKeluar();
   const [notifPengingat, setNotifPengingat] = useState(true);
   const [notifModul, setNotifModul] = useState(true);
   const [savingNotif, setSavingNotif] = useState(false);
@@ -149,22 +147,11 @@ export default function Profile() {
 
   const handleKeluar = async () => {
     setSedangKeluar(true);
-    const tersimpan = await flushKeCloud();
-    if (!tersimpan) {
-      setTampilDialogBelumTersimpan(true);
+    try {
+      await aksiKeluar();
+    } finally {
       setSedangKeluar(false);
-      return;
     }
-    bersihkanProgresLokal(user?.id);
-    await keluar();
-    navigate('/', { replace: true });
-  };
-
-  const handleKeluarSaja = async () => {
-    setTampilDialogBelumTersimpan(false);
-    setSedangKeluar(true);
-    await keluar();
-    navigate('/', { replace: true });
   };
 
   return (
@@ -187,13 +174,13 @@ export default function Profile() {
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 <img
-                  src={user.user_metadata.avatar_url}
+                  src={user.user_metadata?.avatar_url || ''}
                   alt="Avatar"
                   className="w-12 h-12 rounded-full brutal-border"
                 />
                 <div>
                   <div className="font-bold text-lg">
-                    {user.user_metadata.full_name}
+                    {user.user_metadata?.full_name || user.email}
                   </div>
                   <div className="text-gray-500 text-sm">{user.email}</div>
                   <div className="text-xs font-medium text-[var(--color-primary)] mt-1">
@@ -316,34 +303,6 @@ export default function Profile() {
             </>
           )}
         </button>
-      )}
-
-      {/* Dialog belum tersimpan */}
-      {tampilDialogBelumTersimpan && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="brutal-card-big p-6 max-w-sm w-full bg-white flex flex-col gap-4">
-            <h3 className="text-xl font-bold font-space">Progres terbaru belum tersimpan ke akun</h3>
-            <p className="text-gray-700 text-sm">
-              Sepertinya koneksi internet sedang bermasalah. Progres tetap aman di perangkat ini dan akan dikirim otomatis saat kamu masuk lagi di perangkat yang sama.
-            </p>
-            <div className="flex flex-col gap-3 mt-2">
-              <button
-                onClick={handleKeluar}
-                disabled={sedangKeluar}
-                className="brutal-btn bg-[var(--color-primary)] text-white p-3 font-bold disabled:opacity-75 disabled:cursor-wait"
-              >
-                Coba simpan lagi
-              </button>
-              <button
-                onClick={handleKeluarSaja}
-                disabled={sedangKeluar}
-                className="brutal-btn bg-white border-2 border-gray-300 text-gray-700 p-3 font-bold hover:bg-gray-50 disabled:opacity-75 disabled:cursor-wait"
-              >
-                Keluar saja
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

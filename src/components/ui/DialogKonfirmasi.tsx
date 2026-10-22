@@ -17,11 +17,9 @@ export interface OpsiKonfirmasi {
 
 export type FungsiKonfirmasi = (opsi: OpsiKonfirmasi) => Promise<boolean>;
 
-const defaultKonfirmasi: FungsiKonfirmasi = async (opsi) => {
-  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-    return window.confirm(opsi.pesan);
-  }
-  return true;
+const defaultKonfirmasi: FungsiKonfirmasi = async () => {
+  console.error('KonfirmasiProvider belum dipasang');
+  return false;
 };
 
 const KonfirmasiContext = createContext<FungsiKonfirmasi>(defaultKonfirmasi);

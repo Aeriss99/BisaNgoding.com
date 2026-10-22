@@ -65,19 +65,26 @@ export function useKeluar() {
   const konfirmasi = useKonfirmasi();
   const navigate = useNavigate();
   return async () => {
-    const tersimpan = await flushKeCloud();
-    if (tersimpan) {
-      bersihkanProgresLokal(user?.id);
-    } else {
-      const setuju = await konfirmasi({
-        judul: 'Keluar sekarang?',
-        pesan: 'Progres terbaru belum tersimpan ke akun. Kalau keluar sekarang, progres yang belum tersimpan bisa hilang.',
-        teksYa: 'KELUAR',
-        teksBatal: 'BATAL',
+    let tersimpan = await flushKeCloud();
+    if (!tersimpan) {
+      const keluarSaja = await konfirmasi({
+        judul: 'Progres belum tersimpan',
+        pesan: 'Koneksi sedang bermasalah. Progres tetap aman di perangkat ini dan dikirim otomatis saat kamu masuk lagi di perangkat yang sama.',
+        teksYa: 'KELUAR SAJA',
+        teksBatal: 'COBA LAGI',
         bahaya: true,
       });
-      if (!setuju) return;
+      if (keluarSaja) {
+        await keluar();
+        navigate('/', { replace: true });
+        return;
+      }
+      tersimpan = await flushKeCloud();
+      if (!tersimpan) {
+        return;
+      }
     }
+    bersihkanProgresLokal(user?.id);
     await keluar();
     navigate('/', { replace: true });
   };
