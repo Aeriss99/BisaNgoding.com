@@ -61,6 +61,10 @@ const FAQ_LIST = [
     q: 'Kenapa harus login?',
     a: 'Supaya progres, streak, dan nilai quiz tersimpan dan bisa dilanjutkan di perangkat lain.',
   },
+  {
+    q: 'Kenapa progres bisa dihapus?',
+    a: 'Kalau 7 hari tidak membuka BisaNgoding, progres akunmu dihapus dan akun dibekukan 5 hari. Buka minimal sekali seminggu supaya progresmu aman.',
+  },
 ];
 
 export default function Landing() {

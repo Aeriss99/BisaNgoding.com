@@ -3,6 +3,10 @@ import { mergeProgress, saveLocalProgress, getLocalProgress, bersihkanProgresLok
 import type { UserProgress } from '../types/schema';
 import * as supabaseModule from '../lib/supabase';
 
+vi.mock('../lib/modeLokal', () => ({
+  apakahModeLokal: () => false,
+}));
+
 vi.mock('../lib/supabase', () => ({
   supabase: {
     from: vi.fn(),

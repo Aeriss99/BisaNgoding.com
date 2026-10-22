@@ -28,8 +28,19 @@ vi.mock('../lib/supabase', () => ({
 
 describe('petakanErrorAuth', () => {
   it('memetakan kode error Supabase ke pesan bahasa Indonesia', () => {
-    expect(petakanErrorAuth('invalid_credentials')).toBe('Email atau password salah.');
-    expect(petakanErrorAuth({ code: 'invalid_credentials' })).toBe('Email atau password salah.');
+    expect(petakanErrorAuth('invalid_credentials')).toBe(
+      'Email atau password salah. Kalau biasanya masuk dengan Google, pakai tombol Masuk dengan Google, atau buat password lewat Lupa password?'
+    );
+    expect(petakanErrorAuth({ code: 'invalid_credentials' })).toBe(
+      'Email atau password salah. Kalau biasanya masuk dengan Google, pakai tombol Masuk dengan Google, atau buat password lewat Lupa password?'
+    );
+
+    expect(petakanErrorAuth('user_banned')).toBe(
+      'Akunmu dibekukan 5 hari karena tidak membuka BisaNgoding selama 7 hari, dan progresnya sudah dihapus. Silakan masuk lagi setelah masa blokir selesai.'
+    );
+    expect(petakanErrorAuth({ code: 'user_banned' })).toBe(
+      'Akunmu dibekukan 5 hari karena tidak membuka BisaNgoding selama 7 hari, dan progresnya sudah dihapus. Silakan masuk lagi setelah masa blokir selesai.'
+    );
 
     expect(petakanErrorAuth('email_not_confirmed')).toBe(
       'Email belum dikonfirmasi. Cek kotak masuk atau folder spam.'
@@ -73,7 +84,10 @@ describe('petakanErrorAuth', () => {
 
   it('memetakan error dari pesan jika code tidak ada', () => {
     expect(petakanErrorAuth({ message: 'Invalid login credentials' })).toBe(
-      'Email atau password salah.'
+      'Email atau password salah. Kalau biasanya masuk dengan Google, pakai tombol Masuk dengan Google, atau buat password lewat Lupa password?'
+    );
+    expect(petakanErrorAuth({ message: 'User is banned' })).toBe(
+      'Akunmu dibekukan 5 hari karena tidak membuka BisaNgoding selama 7 hari, dan progresnya sudah dihapus. Silakan masuk lagi setelah masa blokir selesai.'
     );
     expect(petakanErrorAuth({ message: 'User already registered' })).toBe(
       'Email sudah terdaftar. Silakan masuk atau pakai Lupa password.'
@@ -200,7 +214,7 @@ describe('Halaman Masuk', () => {
     expect(mockMasukEmail).not.toHaveBeenCalled();
   });
 
-  it('menampilkan pesan error dari Supabase jika login gagal', async () => {
+  it('invalid_credentials -> pesan baru yang menyebut Google dan Lupa password; klik tautannya membuka form lupa password dengan email terisi', async () => {
     mockMasukEmail.mockRejectedValue({ code: 'invalid_credentials' });
     renderMasuk();
 
@@ -213,7 +227,50 @@ describe('Halaman Masuk', () => {
     fireEvent.click(tombolMasuk);
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Email atau password salah.');
+      expect(screen.getByRole('alert')).toHaveTextContent(/Email atau password salah/i);
+      expect(screen.getByRole('alert')).toHaveTextContent(/Masuk dengan Google/i);
+    });
+
+    const linkLupaInAlert = screen.getByRole('alert').querySelector('button');
+    expect(linkLupaInAlert).toHaveTextContent('Lupa password?');
+    fireEvent.click(linkLupaInAlert!);
+
+    expect(screen.getByText('Lupa password?')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^email$/i)).toHaveValue('user@test.com');
+  });
+
+  it('email_not_confirmed -> tombol Kirim kode verifikasi -> form kode', async () => {
+    mockMasukEmail.mockRejectedValue({ code: 'email_not_confirmed' });
+    mockKirimUlangKodeDaftar.mockResolvedValue({});
+    renderMasuk();
+
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: 'unconfirmed@test.com' } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'password123' } });
+    fireEvent.click(screen.getByRole('button', { name: /^masuk$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Email belum dikonfirmasi.');
+    });
+
+    const btnKirimKode = screen.getByRole('button', { name: /kirim kode verifikasi/i });
+    fireEvent.click(btnKirimKode);
+
+    await waitFor(() => {
+      expect(mockKirimUlangKodeDaftar).toHaveBeenCalledWith('unconfirmed@test.com');
+      expect(screen.getByText('Masukkan kode')).toBeInTheDocument();
+    });
+  });
+
+  it('user_banned -> pesan akun dibekukan 5 hari', async () => {
+    mockMasukEmail.mockRejectedValue({ code: 'user_banned' });
+    renderMasuk();
+
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: 'banned@test.com' } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'password123' } });
+    fireEvent.click(screen.getByRole('button', { name: /^masuk$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/Akunmu dibekukan 5 hari/i);
     });
   });
 

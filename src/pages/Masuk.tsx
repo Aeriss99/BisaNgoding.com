@@ -47,6 +47,24 @@ export default function Masuk() {
   }, [user, sedangPulihkanPassword, navigate]);
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(
+      window.location.hash.startsWith('#')
+        ? window.location.hash.substring(1).replace(/^\/?/, '')
+        : window.location.hash
+    );
+
+    const errorCode = searchParams.get('error_code') || hashParams.get('error_code');
+    const errorDesc = searchParams.get('error_description') || hashParams.get('error_description');
+
+    if (errorCode === 'user_banned' || (errorDesc && errorDesc.toLowerCase().includes('banned'))) {
+      setError(petakanErrorAuth({ code: 'user_banned' }));
+    } else if (errorCode) {
+      setError(petakanErrorAuth({ code: errorCode, message: errorDesc }));
+    }
+  }, []);
+
+  useEffect(() => {
     let timer: any;
     if (countdown > 0) {
       timer = setInterval(() => {
@@ -839,8 +857,8 @@ export default function Masuk() {
                 Kami mengirim 6 angka ke{' '}
                 <strong className="text-[var(--color-landing-black)] font-bold">
                   {email}
-                </strong>
-                . Cek juga folder spam.
+                </strong>{' '}
+                dari bisangoding.notif@gmail.com. Cek juga folder spam.
               </p>
 
               {error && (
@@ -1074,7 +1092,25 @@ export default function Masuk() {
                   role="alert"
                   className="mb-4 p-3 bg-red-100 border-[2px] border-red-500 text-red-700 text-sm font-medium"
                 >
-                  <p>{error}</p>
+                  {error.includes('Lupa password?') ? (
+                    <p>
+                      Email atau password salah. Kalau biasanya masuk dengan Google, pakai tombol{' '}
+                      <strong className="font-bold">Masuk dengan Google</strong>, atau buat password lewat{' '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('lupa-password');
+                          setError('');
+                          setPesanSukses('');
+                        }}
+                        className="underline font-bold text-[var(--color-accent)] hover:text-blue-900 cursor-pointer inline"
+                      >
+                        Lupa password?
+                      </button>
+                    </p>
+                  ) : (
+                    <p>{error}</p>
+                  )}
                   {error.includes('Email belum dikonfirmasi') && (
                     <button
                       type="button"
