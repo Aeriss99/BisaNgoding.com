@@ -19,6 +19,11 @@ const localStorageMock = (() => {
 })();
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
+const mockModeLokal = vi.fn(() => false);
+vi.mock('../lib/modeLokal', () => ({
+  apakahModeLokal: () => mockModeLokal(),
+}));
+
 // Mock supabase rpc for testing
 vi.mock('../lib/supabase', () => ({
   supabase: {
@@ -251,106 +256,161 @@ describe('ProgressContext', () => {
     expect(result.current.progress.unlockAll).toBe(true);
   });
 
-  it('resets progress automatically on app open if inactive >= VITE_INACTIVE_DAYS', () => {
-    vi.stubEnv('VITE_INACTIVE_DAYS', '7');
-    const eightDaysAgo = new Date();
-    eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
-    const oldDateStr = eightDaysAgo.toISOString().split('T')[0];
+  it('skenario bug 22 Okt: data lama lokal tidak menimpa cloud progres, streak tetap dan tidak ada resetAt baru', async () => {
+    mockModeLokal.mockReturnValue(false);
 
-    localStorageMock.setItem(
-      'bisangoding_progress',
-      JSON.stringify({
-        completedLessons: ['dasar-01', 'dasar-02'],
-        xp: 500,
-        streak: 10,
-        lastActiveDate: oldDateStr,
-        maxSeenDate: oldDateStr,
-        version: 1,
-        moduleStatus: { dasar: 'unlocked' },
-        quizScores: {},
-      })
-    );
-
-    const { result } = renderHook(() => useProgress(), { wrapper });
-
-    expect(result.current.progress.xp).toBe(0);
-    expect(result.current.progress.completedLessons).toEqual([]);
-    expect(result.current.progress.streak).toBe(0);
-    expect(result.current.progress.justReset).toBe(true);
-    vi.unstubAllEnvs();
-  });
-
-  it('does not reset progress if inactive < VITE_INACTIVE_DAYS', () => {
-    vi.stubEnv('VITE_INACTIVE_DAYS', '7');
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    const recentDateStr = threeDaysAgo.toISOString().split('T')[0];
-
-    localStorageMock.setItem(
-      'bisangoding_progress',
-      JSON.stringify({
-        completedLessons: ['dasar-01'],
-        xp: 200,
-        streak: 3,
-        lastActiveDate: recentDateStr,
-        maxSeenDate: recentDateStr,
-        version: 1,
-        moduleStatus: { dasar: 'unlocked' },
-        quizScores: {},
-      })
-    );
-
-    const { result } = renderHook(() => useProgress(), { wrapper });
-
-    expect(result.current.progress.xp).toBe(200);
-    expect(result.current.progress.completedLessons).toEqual(['dasar-01']);
-    vi.unstubAllEnvs();
-  });
-
-  it('reset feature is off when VITE_INACTIVE_DAYS is 0', () => {
-    vi.stubEnv('VITE_INACTIVE_DAYS', '0');
-    const veryOld = '2000-01-01';
-
-    localStorageMock.setItem(
-      'bisangoding_progress',
-      JSON.stringify({
-        completedLessons: ['dasar-01'],
-        xp: 999,
-        streak: 5,
-        lastActiveDate: veryOld,
-        maxSeenDate: veryOld,
-        version: 1,
-        moduleStatus: { dasar: 'unlocked' },
-        quizScores: {},
-      })
-    );
-
-    const { result } = renderHook(() => useProgress(), { wrapper });
-
-    expect(result.current.progress.xp).toBe(999);
-    vi.unstubAllEnvs();
-  });
-
-  it('rejects import if lastActiveDate in the file is too old (past inactivity threshold)', () => {
-    vi.stubEnv('VITE_INACTIVE_DAYS', '7');
-    const { result } = renderHook(() => useProgress(), { wrapper });
-
+    // 10 days ago
     const tenDaysAgo = new Date();
     tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
     const oldDateStr = tenDaysAgo.toISOString().split('T')[0];
 
-    let success = true;
-    act(() => {
-      success = result.current.importProgress({
-        completedLessons: ['dasar-01'],
-        xp: 999,
-        streak: 5,
+    // Yesterday
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    localStorageMock.setItem(
+      'bisangoding_progress:user-1',
+      JSON.stringify({
+        completedLessons: ['materi-1'],
+        xp: 10,
+        streak: 1,
         lastActiveDate: oldDateStr,
-        moduleStatus: { dasar: 'unlocked' },
-      });
+        maxSeenDate: oldDateStr,
+      })
+    );
+
+    const thirtyLessons = Array.from({ length: 30 }, (_, i) => `materi-${i + 1}`);
+    const cloudProgressData = {
+      completedLessons: thirtyLessons,
+      xp: 300,
+      streak: 5,
+      streakDate: yesterdayStr,
+      lastActiveDate: yesterdayStr,
+      maxSeenDate: yesterdayStr,
+      moduleStatus: { dasar: 'unlocked' },
+      quizScores: {},
+    };
+
+    const mockMaybeSingle = vi.fn().mockResolvedValue({
+      error: null,
+      data: { data: cloudProgressData },
+    });
+    const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+    const mockUpsert = vi.fn().mockResolvedValue({ error: null });
+    (supabase!.from as any).mockImplementation((table: string) => {
+      if (table === 'progres') {
+        return { select: mockSelect, upsert: mockUpsert };
+      }
+      return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) };
     });
 
-    expect(success).toBe(false);
-    vi.unstubAllEnvs();
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-1' } } },
+    } as any);
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 150));
+    });
+
+    expect(result.current.progress.completedLessons.length).toBe(30);
+    expect(result.current.progress.streak).toBe(5);
+    expect(result.current.progress.resetAt).toBeFalsy();
+  });
+
+  it('cloud punya resetAt lebih baru dari data lokal (reset server) -> hasil kosong sesuai cloud', async () => {
+    mockModeLokal.mockReturnValue(false);
+
+    const oldDateStr = '2026-10-10';
+    localStorageMock.setItem(
+      'bisangoding_progress:user-2',
+      JSON.stringify({
+        completedLessons: ['materi-1', 'materi-2'],
+        xp: 100,
+        streak: 3,
+        lastActiveDate: oldDateStr,
+        maxSeenDate: oldDateStr,
+      })
+    );
+
+    const serverResetProgress = {
+      completedLessons: [],
+      xp: 0,
+      streak: 0,
+      lastActiveDate: '2026-10-22',
+      maxSeenDate: '2026-10-22',
+      resetAt: '2026-10-22T01:00:00.000Z',
+    };
+
+    const mockMaybeSingle = vi.fn().mockResolvedValue({
+      error: null,
+      data: { data: serverResetProgress },
+    });
+    const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+    (supabase!.from as any).mockImplementation((table: string) => {
+      if (table === 'progres') return { select: mockSelect, upsert: vi.fn() };
+      return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) };
+    });
+
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-2' } } },
+    } as any);
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 150));
+    });
+
+    expect(result.current.progress.completedLessons).toEqual([]);
+    expect(result.current.progress.xp).toBe(0);
+    expect(result.current.progress.resetAt).toBe('2026-10-22T01:00:00.000Z');
+  });
+
+  it('mode lokal: saveCloudProgress dan fetchCloudProgress tidak pernah dipanggil, streakHariIni = 0, kunci lokal', async () => {
+    mockModeLokal.mockReturnValue(true);
+
+    const mockSelect = vi.fn();
+    const mockUpsert = vi.fn();
+    (supabase!.from as any).mockImplementation((table: string) => {
+      if (table === 'progres') return { select: mockSelect, upsert: mockUpsert };
+      return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) };
+    });
+
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-lokal' } } },
+    } as any);
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 150));
+    });
+
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(result.current.syncStatus).toBe('Mode lokal: progres tidak disimpan ke akun');
+    expect(result.current.streakHariIni).toBe(0);
+
+    // Menyelesaikan materi tidak mengubah streak di mode lokal
+    act(() => {
+      result.current.markLessonCompleted('dasar-01');
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1100)); // wait debounce
+    });
+
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(result.current.progress.streak).toBe(0);
+
+    // Kunci localStorage memakai bisangoding_progress_lokal:user-lokal
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      'bisangoding_progress_lokal:user-lokal',
+      expect.any(String)
+    );
   });
 });
