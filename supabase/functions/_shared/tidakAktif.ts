@@ -75,3 +75,12 @@ export function saringAkunTidakAktif(
 ): AkunEvaluasi[] {
   return semuaAkun.filter((akun) => apakahPerluDiblokir(akun, daftarAdmin, now));
 }
+
+/**
+ * Pengaman: jika jumlah akun terpilih lebih dari 50% dari semua akun (dan semua akun > 4),
+ * dianggap tidak aman untuk diproses otomatis.
+ */
+export function amanUntukDiproses(jumlahTerpilih: number, jumlahSemua: number): boolean {
+  if (jumlahSemua <= 4) return true;
+  return jumlahTerpilih <= jumlahSemua * 0.5;
+}

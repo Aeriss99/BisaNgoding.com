@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   apakahPerluDiblokir,
   saringAkunTidakAktif,
+  amanUntukDiproses,
   type AkunEvaluasi,
 } from '../../supabase/functions/_shared/tidakAktif';
 import { petakanErrorAuth } from '../lib/authError';
@@ -93,5 +94,11 @@ describe('tidakAktif logic (_shared/tidakAktif.ts)', () => {
     expect(pesan).toBe(
       'Akunmu dibekukan 5 hari karena tidak membuka BisaNgoding selama 7 hari, dan progresnya sudah dihapus. Silakan masuk lagi setelah masa blokir selesai.'
     );
+  });
+
+  it('amanUntukDiproses mengembalikan true jika jumlah akun terpilih <= 50% atau total akun <= 4', () => {
+    expect(amanUntukDiproses(1, 10)).toBe(true);
+    expect(amanUntukDiproses(6, 10)).toBe(false);
+    expect(amanUntukDiproses(3, 4)).toBe(true);
   });
 });

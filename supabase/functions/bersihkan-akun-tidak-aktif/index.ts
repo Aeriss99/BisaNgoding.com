@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { saringAkunTidakAktif, type AkunEvaluasi } from "../_shared/tidakAktif.ts";
+import { saringAkunTidakAktif, amanUntukDiproses, type AkunEvaluasi } from "../_shared/tidakAktif.ts";
 
 function buatProgresKosong(resetAt: string) {
   const today = resetAt.split('T')[0];
@@ -30,11 +30,20 @@ Deno.serve(async (req) => {
   const nowISO = now.toISOString();
 
   // 1. Ambil daftar admin
-  const { data: adminsData } = await supabase
+  const { data: adminsData, error: adminError } = await supabase
     .from("admins")
     .select("email");
+
+  if (adminError || !adminsData) {
+    console.error("Gagal mengambil admins:", adminError);
+    return new Response(
+      JSON.stringify({ error: "Data tidak lengkap, tidak ada akun yang diproses" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   const daftarAdmin = new Set<string>(
-    (adminsData || []).map((a: any) => (a.email || "").toLowerCase().trim())
+    adminsData.map((a: any) => (a.email || "").toLowerCase().trim())
   );
 
   // 2. Ambil semua akun dari auth.admin dengan paging sampai habis
@@ -63,14 +72,21 @@ Deno.serve(async (req) => {
   const progresMap = new Map<string, { diperbarui?: string }>();
   for (let i = 0; i < userIds.length; i += 200) {
     const chunk = userIds.slice(i, i + 200);
-    const { data: progList } = await supabase
+    const { data: progList, error: progError } = await supabase
       .from("progres")
       .select("user_id, diperbarui")
       .in("user_id", chunk);
-    if (progList) {
-      for (const p of progList) {
-        progresMap.set(p.user_id, p);
-      }
+
+    if (progError || !progList) {
+      console.error("Gagal mengambil progres:", progError);
+      return new Response(
+        JSON.stringify({ error: "Data tidak lengkap, tidak ada akun yang diproses" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    for (const p of progList) {
+      progresMap.set(p.user_id, p);
     }
   }
 
@@ -78,16 +94,23 @@ Deno.serve(async (req) => {
   const blokirMap = new Map<string, string>();
   for (let i = 0; i < userIds.length; i += 200) {
     const chunk = userIds.slice(i, i + 200);
-    const { data: blokirList } = await supabase
+    const { data: blokirList, error: blokirError } = await supabase
       .from("blokir_akun")
       .select("user_id, sampai")
       .in("user_id", chunk)
       .order("sampai", { ascending: false });
-    if (blokirList) {
-      for (const b of blokirList) {
-        if (!blokirMap.has(b.user_id)) {
-          blokirMap.set(b.user_id, b.sampai);
-        }
+
+    if (blokirError || !blokirList) {
+      console.error("Gagal mengambil blokir_akun:", blokirError);
+      return new Response(
+        JSON.stringify({ error: "Data tidak lengkap, tidak ada akun yang diproses" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    for (const b of blokirList) {
+      if (!blokirMap.has(b.user_id)) {
+        blokirMap.set(b.user_id, b.sampai);
       }
     }
   }
@@ -108,6 +131,21 @@ Deno.serve(async (req) => {
 
   // 6. Saring akun tidak aktif > 7 hari
   const terpilih = saringAkunTidakAktif(evalList, daftarAdmin, now);
+
+  // 7. Pengaman: jika jumlah akun terpilih lebih dari 50% dari semua akun (dan semua akun > 4), batalkan
+  if (!amanUntukDiproses(terpilih.length, users.length)) {
+    console.error("Terlalu banyak akun terpilih:", terpilih.length, "dari", users.length);
+    return new Response(
+      JSON.stringify({
+        error: "Terlalu banyak akun terpilih, dihentikan untuk keamanan",
+        terpilih: terpilih.length,
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
 
   const durasiBlokirMs = 120 * 60 * 60 * 1000; // 5 hari = 120 jam
   const blokirSampaiISO = new Date(now.getTime() + durasiBlokirMs).toISOString();
