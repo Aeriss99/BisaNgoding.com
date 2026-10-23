@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
-import type { Lesson, Card, FillBlankCard, PredictOutputCard, TheoryCard } from '../types/schema';
+import type { Lesson, Card, FillBlankCard, PredictOutputCard, TheoryCard, PraktikTerminalCard } from '../types/schema';
 
 describe('Git Content Integrity', () => {
   const contentDir = path.resolve(__dirname, '../../content/git');
@@ -76,6 +76,20 @@ describe('Git Content Integrity', () => {
                   const content = match[1].trim();
                   expect(content.startsWith('gitGraph') || content.startsWith('flowchart')).toBe(true);
                 }
+              });
+            } else if (card.type === 'praktik_terminal') {
+              it('praktik terminal: ada langkah, setiap langkah punya pola, keluaran, dan petunjuk', () => {
+                const pt = card as PraktikTerminalCard;
+                expect(pt.judul).toMatch(/^Proyek Todolist \d+: /);
+                expect(pt.langkah.length).toBeGreaterThan(0);
+                for (const l of pt.langkah) {
+                  expect(l.terima.length).toBeGreaterThan(0);
+                  expect(typeof l.keluaran).toBe('string');
+                  expect(l.arahan.length).toBeGreaterThan(0);
+                  if (!l.otomatis) expect(l.petunjuk.length).toBeGreaterThan(0);
+                }
+                // Kartu praktik selalu tepat sebelum ringkasan
+                expect(lesson.cards[index + 1]?.type).toBe('summary');
               });
             } else if (card.type === 'understanding_check' || card.type === 'summary') {
               it('exists', () => {
