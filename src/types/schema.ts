@@ -151,7 +151,45 @@ export type Card =
   | MatchPairsCard
   | TypeTranslationCard
   | HtmlCssPreviewCard
-  | HtmlPreviewCard;
+  | HtmlPreviewCard
+  | PraktikTerminalCard;
+
+/** Satu langkah di terminal tiruan. Isian {{nama}} lihat src/lib/praktikTerminal.ts. */
+export interface LangkahTerminal {
+  /** Kata-kata Lingga sebelum langkah ini. Boleh memakai `kode` dan **tebal**. */
+  arahan: string;
+  /** Pola perintah yang diterima. */
+  terima: string[];
+  /** Keluaran asli dari git/terminal. Kosong kalau perintahnya tidak menampilkan apa-apa. */
+  keluaran: string;
+  /** Lingga yang mengetik; pengguna cukup menekan Jalankan. */
+  otomatis?: boolean;
+  /** Folder yang tampil di prompt setelah perintah ini (misalnya setelah cd). */
+  folderBaru?: string;
+  /** Reaksi Lingga setelah perintah benar. */
+  benar?: string;
+  /** Petunjuk Lingga kalau ketikan pengguna salah. */
+  petunjuk: string;
+  /**
+   * Kesalahan yang sering terjadi. `keluaran` = keluaran asli git untuk perintah salah itu;
+   * kosongkan (tidak diisi) kalau perintahnya tidak boleh dijalankan, cukup reaksi Lingga.
+   */
+  salah?: { terima: string[]; keluaran?: string; reaksi: string }[];
+}
+
+export interface PraktikTerminalCard {
+  type: 'praktik_terminal';
+  judul: string;
+  /** Folder awal di prompt, misalnya "~/todolist". */
+  folder: string;
+  pembuka: string;
+  langkah: LangkahTerminal[];
+  penutup: string;
+  /** Nilai isian kalau pengguna belum pernah mengisinya (misalnya pesan commit contoh). */
+  bawaan?: Record<string, string>;
+  /** Tantangan opsional di terminal laptop sendiri: pengguna menempel hasilnya, lalu dicek. */
+  tantangan?: { tugas: string; perintah: string; pola: string[]; berhasil: string };
+}
 
 export interface HtmlPreviewCard {
   type: 'html_preview';

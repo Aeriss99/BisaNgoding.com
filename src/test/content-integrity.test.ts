@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import { modulesData, getVisibleLessons, getQuizQuestions } from '../lib/content';
 
 /**
@@ -73,5 +75,28 @@ describe('Integritas konten', () => {
       else terpakai.set(sidik, m.id);
     });
     expect(tertukar).toEqual([]);
+  });
+
+  it('setiap quiz.json dipakai oleh modul di folder yang sama, walaupun nama foldernya sama dengan kelas lain', () => {
+    // Dulu git/modul-01-dasar dan rest-api/modul-01-dasar bertabrakan: quiz Git Dasar tidak muncul
+    // dan REST API modul 1 menampilkan quiz Git.
+    const akar = path.resolve(__dirname, '../../content');
+    const salah: string[] = [];
+    for (const kelas of fs.readdirSync(akar)) {
+      const dirKelas = path.join(akar, kelas);
+      if (!fs.statSync(dirKelas).isDirectory()) continue;
+      for (const folder of fs.readdirSync(dirKelas)) {
+        const dir = path.join(dirKelas, folder);
+        const fileQuiz = path.join(dir, 'quiz.json');
+        if (!fs.existsSync(fileQuiz)) continue;
+        const pelajaran = fs.readdirSync(dir).find((f) => f.startsWith('lesson-') && f.endsWith('.json'));
+        if (!pelajaran) continue;
+        const moduleId = JSON.parse(fs.readFileSync(path.join(dir, pelajaran), 'utf8')).moduleId;
+        const isi = JSON.parse(fs.readFileSync(fileQuiz, 'utf8'));
+        const dimuat = getQuizQuestions(moduleId);
+        if (!dimuat || dimuat[0]?.id !== isi[0]?.id) salah.push(`${kelas}/${folder} (${moduleId})`);
+      }
+    }
+    expect(salah).toEqual([]);
   });
 });

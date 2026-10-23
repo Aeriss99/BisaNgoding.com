@@ -50,7 +50,19 @@ const lessonFiles = import.meta.glob('../../content/**/*.json', {
   eager: true,
 });
 const lessonsCache: Record<string, Lesson> = {};
+/**
+ * Folder materi (path lengkap, misalnya "../../content/git/modul-01-dasar") -> moduleId.
+ * Kuncinya path LENGKAP, bukan nama folder saja: nama folder boleh sama di kelas berbeda
+ * (contoh: git/modul-01-dasar dan rest-api/modul-01-dasar). Dulu kuncinya nama folder saja,
+ * akibatnya quiz Git Dasar tidak muncul dan REST API modul 1 menampilkan quiz Git.
+ */
 const folderToModuleId: Record<string, string> = {};
+
+/** Path folder dari path file, misalnya "../../content/git/modul-01-dasar/quiz.json" -> "../../content/git/modul-01-dasar". */
+export function folderDari(path: string): string {
+  const i = path.lastIndexOf('/');
+  return i < 0 ? '' : path.slice(0, i);
+}
 
 Object.keys(lessonFiles).forEach((path) => {
   if (
@@ -77,7 +89,7 @@ Object.keys(lessonFiles).forEach((path) => {
   // Urutan pilihan jawaban diacak sekali setiap halaman dimuat, supaya kunci tidak selalu di posisi yang sama.
   lessonsCache[data.id] = acakPilihanPelajaran(data as Lesson);
 
-  const folder = path.split('/').slice(-2)[0];
+  const folder = folderDari(path);
   if (folder && data.moduleId) {
     folderToModuleId[folder] = data.moduleId;
   }
@@ -166,7 +178,7 @@ export function getQuizQuestions(idOrAlias: string): QuizQuestion[] | null {
   if (!target) return null;
 
   for (const path of Object.keys(quizFiles)) {
-    const folder = path.split('/').slice(-2)[0] || '';
+    const folder = folderDari(path);
     // Folder quiz dikenali HANYA lewat moduleId pelajaran di folder yang sama.
     const folderModuleId = folderToModuleId[folder];
     if (!folderModuleId) continue;
