@@ -125,7 +125,7 @@ describe('PraktikTerminalCardComponent', () => {
       expect(screen.queryByText(/Untracked files:/)).not.toBeInTheDocument();
       expect(screen.queryByLabelText(/Ketik perintah/)).not.toBeInTheDocument();
       act(() => {
-        vi.advanceTimersByTime(600 + 45 * 3);
+        vi.advanceTimersByTime(600 + 45 * 4); // 5 huruf: "git s"
       });
       expect(screen.getByText(/git s$/)).toBeInTheDocument();
       act(() => {
