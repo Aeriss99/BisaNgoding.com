@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { Lesson, Card, FillBlankCard, PredictOutputCard, TheoryCard, PraktikTerminalCard } from '../types/schema';
+import { contohPerintah } from '../lib/praktikTerminal';
 
 describe('Git Content Integrity', () => {
   const contentDir = path.resolve(__dirname, '../../content/git');
@@ -87,6 +88,22 @@ describe('Git Content Integrity', () => {
                   expect(typeof l.keluaran).toBe('string');
                   expect(l.arahan.length).toBeGreaterThan(0);
                   if (!l.otomatis) expect(l.petunjuk.length).toBeGreaterThan(0);
+                }
+                // Lingga mencontohkan 1 perintah dulu, lalu pengguna mengerjakan minimal 2 tugas
+                expect(pt.langkah[0].otomatis).toBe(true);
+                expect(pt.langkah.slice(1).some((l) => l.otomatis)).toBe(false);
+                expect(pt.langkah.filter((l) => !l.otomatis).length).toBeGreaterThanOrEqual(2);
+                // Setiap tugas menyebut perintahnya dengan jelas, tidak ditebak-tebak
+                for (const l of pt.langkah.slice(1)) {
+                  expect(l.arahan).toContain('`' + contohPerintah(l.terima[0], {}, pt.bawaan) + '`');
+                }
+                // Git Dasar belum mengajarkan branch dan HEAD
+                if (moduleDir === 'modul-01-dasar') {
+                  const kataLingga = [pt.pembuka, pt.penutup, ...pt.langkah.flatMap((l) => [l.arahan, l.benar ?? ''])]
+                    .join('\n')
+                    .replace(/defaultBranch/g, '');
+                  expect(kataLingga).not.toMatch(/HEAD|branch/i);
+                  expect(pt.langkah.map((l) => l.keluaran).join('\n')).not.toContain('HEAD');
                 }
                 // Kartu praktik ada di akhir materi: setelah teori terakhir, sebelum soal
                 expect(lesson.cards[index - 1]?.type).toBe('theory');
