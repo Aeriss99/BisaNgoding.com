@@ -12,8 +12,19 @@ import {
 } from '../../lib/praktikTerminal';
 
 type Entri =
-  | { jenis: 'lingga'; teks: string }
+  | { jenis: 'lingga'; teks: string; label?: string }
   | { jenis: 'terminal'; folder: string; perintah: string; keluaran: string };
+
+/** Jeda animasi contoh Lingga (milidetik). */
+const JEDA_MULAI = 600;
+const JEDA_HURUF = 45;
+const JEDA_KELUARAN = 450;
+
+/** Animasi mengetik hanya kalau pengguna tidak meminta gerakan dikurangi. */
+function bolehAnimasi(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
 function Teks({ teks }: { teks: string }) {
   return (
@@ -36,7 +47,7 @@ function Teks({ teks }: { teks: string }) {
   );
 }
 
-function GelembungLingga({ teks }: { teks: string }) {
+function GelembungLingga({ teks, label }: { teks: string; label?: string }) {
   return (
     <div className="flex items-start gap-2.5">
       <div
@@ -46,6 +57,11 @@ function GelembungLingga({ teks }: { teks: string }) {
         L
       </div>
       <div className="min-w-0 flex-1 bg-white border-2 border-[var(--color-text-main)] rounded-xl rounded-tl-sm px-3.5 py-2.5 shadow-[3px_3px_0_var(--color-text-main)] text-[15px] leading-[1.55] whitespace-pre-line">
+        {label && (
+          <span className="block mb-1 font-mono text-[12px] font-bold tracking-[0.5px] uppercase text-[#5a5a5a]">
+            {label}
+          </span>
+        )}
         <span className="sr-only">Lingga: </span>
         <Teks teks={teks} />
       </div>
@@ -53,90 +69,148 @@ function GelembungLingga({ teks }: { teks: string }) {
   );
 }
 
-function BlokTerminal({ folder, perintah, keluaran }: { folder: string; perintah: string; keluaran: string }) {
+function BlokTerminal({
+  folder,
+  perintah,
+  keluaran,
+  kursor,
+}: {
+  folder: string;
+  perintah: string;
+  keluaran: string;
+  kursor?: boolean;
+}) {
   return (
     <pre className="m-0 px-4 py-3 bg-[#1d1d1b] text-[#f5f1e6] rounded-[10px] font-mono text-[13px] leading-[20px] whitespace-pre-wrap [overflow-wrap:anywhere]">
       <span className="text-[#7ee2a8]">{folder} $</span> {perintah}
+      {kursor && (
+        <span aria-hidden="true" className="inline-block w-[0.6em] h-[1.1em] align-text-bottom bg-[#f5f1e6] ml-[1px]" />
+      )}
       {keluaran ? `\n${keluaran}` : ''}
     </pre>
   );
 }
 
-export function PraktikTerminalCardComponent({
-  card,
-  onSuccess,
-}: {
+/** Label "Contoh dari Lingga" atau "Tugas 2 dari 3" untuk arahan langkah ke-i. */
+function labelLangkah(card: PraktikTerminalCard, i: number): string {
+  const l = card.langkah[i];
+  if (!l) return '';
+  if (l.otomatis) return 'Contoh dari Lingga';
+  const tugas = card.langkah.filter((x) => !x.otomatis);
+  const ke = card.langkah.slice(0, i + 1).filter((x) => !x.otomatis).length;
+  return `Tugas ${ke} dari ${tugas.length}`;
+}
+
+export function PraktikTerminalCardComponent(props: {
   card: PraktikTerminalCard;
   onSuccess: (attempts: number) => void;
 }) {
+  // Kartu baru = komponen baru, jadi semua keadaan mulai dari awal.
+  return <Praktik key={`${props.card.judul}|${props.card.langkah.length}`} {...props} />;
+}
+
+function Praktik({ card, onSuccess }: { card: PraktikTerminalCard; onSuccess: (attempts: number) => void }) {
   const bawaan = card.bawaan ?? {};
+  const [nilai, setNilai] = useState<Record<string, string>>(() => bacaVariabel());
   const [langkahKe, setLangkahKe] = useState(0);
-  const [entri, setEntri] = useState<Entri[]>([]);
+  const [entri, setEntri] = useState<Entri[]>(() => {
+    const awal: Entri[] = [{ jenis: 'lingga', teks: isiTemplate(card.pembuka, nilai, card.bawaan) }];
+    if (card.langkah[0]) {
+      awal.push({
+        jenis: 'lingga',
+        teks: isiTemplate(card.langkah[0].arahan, nilai, card.bawaan),
+        label: labelLangkah(card, 0),
+      });
+    }
+    return awal;
+  });
   const [ketikan, setKetikan] = useState('');
   const [folder, setFolder] = useState(card.folder);
   const [salahDiLangkah, setSalahDiLangkah] = useState(0);
   const [salahTotal, setSalahTotal] = useState(0);
   const [selesai, setSelesai] = useState(false);
-  const [nilai, setNilai] = useState<Record<string, string>>({});
   const [tempelan, setTempelan] = useState('');
   const [hasilTantangan, setHasilTantangan] = useState<'belum' | 'benar' | 'salah'>('belum');
+  /** Jumlah huruf contoh Lingga yang sudah tampil; null = Lingga tidak sedang mengetik. */
+  const [hurufContoh, setHurufContoh] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const akhirRef = useRef<HTMLDivElement>(null);
   const sudahBerinteraksi = useRef(false);
 
-  // Kartu baru = mulai dari awal.
-  useEffect(() => {
-    const v = bacaVariabel();
-    setNilai(v);
-    setLangkahKe(0);
-    setFolder(card.folder);
-    setSalahDiLangkah(0);
-    setSalahTotal(0);
-    setSelesai(false);
-    setTempelan('');
-    setHasilTantangan('belum');
-    sudahBerinteraksi.current = false;
-    const awal: Entri[] = [{ jenis: 'lingga', teks: isiTemplate(card.pembuka, v, card.bawaan) }];
-    if (card.langkah[0]) awal.push({ jenis: 'lingga', teks: isiTemplate(card.langkah[0].arahan, v, card.bawaan) });
-    setEntri(awal);
-    const pertama = card.langkah[0];
-    setKetikan(pertama?.otomatis ? contohPerintah(pertama.terima[0] ?? '', v, card.bawaan) : '');
-  }, [card]);
+  const langkah = card.langkah[langkahKe];
+  const perintahContoh = langkah?.otomatis ? contohPerintah(langkah.terima[0] ?? '', nilai, bawaan) : '';
 
   useEffect(() => {
     if (sudahBerinteraksi.current) akhirRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [entri]);
+  }, [entri, hurufContoh]);
 
-  const langkah = card.langkah[langkahKe];
+  /** Perintah langkah sekarang berhasil: tampilkan keluaran, reaksi Lingga, lalu lanjut. */
+  const berhasil = (teks: string, isian: Record<string, string>) => {
+    if (!langkah) return;
+    const v = Object.keys(isian).length > 0 ? simpanVariabel(isian) : nilai;
+    if (v !== nilai) setNilai(v);
+    const baru: Entri[] = [{ jenis: 'terminal', folder, perintah: teks, keluaran: isiTemplate(langkah.keluaran, v, bawaan) }];
+    if (langkah.benar) baru.push({ jenis: 'lingga', teks: isiTemplate(langkah.benar, v, bawaan) });
+    if (langkah.folderBaru) setFolder(langkah.folderBaru);
+    const berikut = card.langkah[langkahKe + 1];
+    if (berikut) {
+      baru.push({ jenis: 'lingga', teks: isiTemplate(berikut.arahan, v, bawaan), label: labelLangkah(card, langkahKe + 1) });
+      setLangkahKe(langkahKe + 1);
+      setSalahDiLangkah(0);
+    } else {
+      baru.push({ jenis: 'lingga', teks: isiTemplate(card.penutup, v, bawaan) });
+      setSelesai(true);
+      onSuccess(salahTotal === 0 ? 1 : salahTotal + 1);
+    }
+    setKetikan('');
+    setEntri((e) => [...e, ...baru]);
+  };
+  /** Langkah contoh yang sudah dijalankan, supaya tidak dijalankan dua kali. */
+  const contohSudah = useRef(-1);
+  const jalankanContoh = () => {
+    if (!langkah?.otomatis || contohSudah.current === langkahKe) return;
+    contohSudah.current = langkahKe;
+    setHurufContoh(null);
+    berhasil(perintahContoh, {});
+  };
+  const jalankanContohRef = useRef(jalankanContoh);
+  jalankanContohRef.current = jalankanContoh;
+
+  // Contoh dari Lingga: diketik huruf demi huruf, lalu dijalankan. Effect ini hanya bergantung
+  // pada langkah yang sedang aktif; fungsi terbarunya dibaca lewat ref.
+  useEffect(() => {
+    if (selesai || !card.langkah[langkahKe]?.otomatis) return;
+    if (!bolehAnimasi()) {
+      jalankanContohRef.current();
+      return;
+    }
+    const panjang = contohPerintah(card.langkah[langkahKe].terima[0] ?? '', bacaVariabel(), card.bawaan).length;
+    let n = 0;
+    let t: ReturnType<typeof setTimeout>;
+    const ketik = () => {
+      n += 1;
+      setHurufContoh(n);
+      t = n < panjang ? setTimeout(ketik, JEDA_HURUF) : setTimeout(() => jalankanContohRef.current(), JEDA_KELUARAN);
+    };
+    setHurufContoh(0);
+    t = setTimeout(ketik, JEDA_MULAI);
+    return () => clearTimeout(t);
+  }, [card, langkahKe, selesai]);
+
+  const lewatiContoh = () => {
+    sudahBerinteraksi.current = true;
+    jalankanContoh();
+  };
 
   const jalankan = () => {
-    if (selesai || !langkah) return;
+    if (selesai || !langkah || langkah.otomatis) return;
     const teks = ketikan.trim();
     if (!teks) return;
     sudahBerinteraksi.current = true;
 
-    const hasil: HasilCocok = langkah.otomatis ? { cocok: true, isian: {} } : cocokkanSalahSatu(langkah.terima, teks);
+    const hasil: HasilCocok = cocokkanSalahSatu(langkah.terima, teks);
     if (hasil.cocok) {
-      const v = Object.keys(hasil.isian).length > 0 ? simpanVariabel(hasil.isian) : nilai;
-      if (v !== nilai) setNilai(v);
-      const baru: Entri[] = [
-        { jenis: 'terminal', folder, perintah: teks, keluaran: isiTemplate(langkah.keluaran, v, bawaan) },
-      ];
-      if (langkah.benar) baru.push({ jenis: 'lingga', teks: isiTemplate(langkah.benar, v, bawaan) });
-      if (langkah.folderBaru) setFolder(langkah.folderBaru);
-      const berikut = card.langkah[langkahKe + 1];
-      if (berikut) {
-        baru.push({ jenis: 'lingga', teks: isiTemplate(berikut.arahan, v, bawaan) });
-        setLangkahKe(langkahKe + 1);
-        setSalahDiLangkah(0);
-        setKetikan(berikut.otomatis ? contohPerintah(berikut.terima[0] ?? '', v, bawaan) : '');
-      } else {
-        baru.push({ jenis: 'lingga', teks: isiTemplate(card.penutup, v, bawaan) });
-        setSelesai(true);
-        setKetikan('');
-        onSuccess(salahTotal === 0 ? 1 : salahTotal + 1);
-      }
-      setEntri((e) => [...e, ...baru]);
+      berhasil(teks, hasil.isian);
       return;
     }
 
@@ -161,7 +235,7 @@ export function PraktikTerminalCardComponent({
         ...e,
         {
           jenis: 'lingga',
-          teks: `Hmm, \`${teks}\` belum yang kita perlukan di langkah ini. ${isiTemplate(langkah.petunjuk, nilai, bawaan)}${tambahan}`,
+          teks: `Hmm, \`${teks}\` belum yang kita perlukan di tugas ini. ${isiTemplate(langkah.petunjuk, nilai, bawaan)}${tambahan}`,
         },
       ]);
     }
@@ -187,7 +261,7 @@ export function PraktikTerminalCardComponent({
       <div role="log" aria-live="polite" aria-label="Percakapan dengan Lingga dan isi terminal" className="space-y-3">
         {entri.map((e, i) =>
           e.jenis === 'lingga' ? (
-            <GelembungLingga key={i} teks={e.teks} />
+            <GelembungLingga key={i} teks={e.teks} label={e.label} />
           ) : (
             <BlokTerminal key={i} folder={e.folder} perintah={e.perintah} keluaran={e.keluaran} />
           )
@@ -195,7 +269,27 @@ export function PraktikTerminalCardComponent({
         <div ref={akhirRef} />
       </div>
 
-      {!selesai && langkah && (
+      {!selesai && langkah?.otomatis && (
+        <div className="space-y-2">
+          {hurufContoh !== null && (
+            <div aria-hidden="true">
+              <BlokTerminal folder={folder} perintah={perintahContoh.slice(0, hurufContoh)} keluaran="" kursor />
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <p className="m-0 text-[13px] text-[#5a5a5a]">Lingga sedang mengetik. Perhatikan dulu ya.</p>
+            <button
+              type="button"
+              onClick={lewatiContoh}
+              className="shrink-0 text-[14px] font-bold underline bg-transparent border-none p-0 cursor-pointer"
+            >
+              Lewati
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!selesai && langkah && !langkah.otomatis && (
         <div className="space-y-2">
           <form
             onSubmit={(ev) => {
@@ -213,13 +307,12 @@ export function PraktikTerminalCardComponent({
               type="text"
               value={ketikan}
               onChange={(ev) => setKetikan(ev.target.value)}
-              readOnly={langkah.otomatis}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
               enterKeyHint="send"
-              placeholder={langkah.otomatis ? '' : 'ketik di sini'}
+              placeholder="ketik di sini"
               className="min-w-0 flex-1 bg-transparent text-[#f5f1e6] font-mono text-[14px] leading-6 py-1.5 outline-none placeholder:text-[#8f8a7e]"
             />
             <button
@@ -229,9 +322,7 @@ export function PraktikTerminalCardComponent({
               Jalankan
             </button>
           </form>
-          {langkah.otomatis ? (
-            <p className="m-0 text-[13px] text-[#5a5a5a]">Lingga sudah mengetik perintahnya. Tekan Jalankan.</p>
-          ) : salahDiLangkah >= 2 ? (
+          {salahDiLangkah >= 2 && (
             <button
               type="button"
               onClick={lihatJawaban}
@@ -239,7 +330,7 @@ export function PraktikTerminalCardComponent({
             >
               Lihat jawabannya
             </button>
-          ) : null}
+          )}
         </div>
       )}
 

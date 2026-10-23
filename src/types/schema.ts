@@ -162,7 +162,10 @@ export interface LangkahTerminal {
   terima: string[];
   /** Keluaran asli dari git/terminal. Kosong kalau perintahnya tidak menampilkan apa-apa. */
   keluaran: string;
-  /** Lingga yang mengetik; pengguna cukup menekan Jalankan. */
+  /**
+   * Contoh dari Lingga: perintahnya diketik sendiri oleh Lingga (huruf demi huruf), lalu keluarannya
+   * tampil. Hanya langkah pertama yang boleh otomatis; langkah lain adalah tugas pengguna (minimal 2).
+   */
   otomatis?: boolean;
   /** Folder yang tampil di prompt setelah perintah ini (misalnya setelah cd). */
   folderBaru?: string;
