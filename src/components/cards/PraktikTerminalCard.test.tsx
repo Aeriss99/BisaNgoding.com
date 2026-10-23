@@ -111,6 +111,33 @@ describe('PraktikTerminalCardComponent', () => {
     expect(onSuccess).toHaveBeenCalledWith(2);
   });
 
+  it('tantangan diberi label, dan cara lain yang benar diterima dengan keluarannya sendiri', () => {
+    const tantang: PraktikTerminalCard = {
+      ...kartu,
+      judul: 'Proyek Todolist: tantangan',
+      langkah: [
+        kartu.langkah[0],
+        {
+          arahan: 'Lihat riwayat versi ringkas.',
+          terima: ['git log --oneline'],
+          keluaran: '1a2b3c4 Mulai',
+          tantangan: true,
+          alternatif: [{ terima: ['git log'], keluaran: 'commit 1a2b3c4d5e6f\nAuthor: Budi' }],
+          petunjuk: 'Ingat perintah riwayat.',
+        },
+        { arahan: 'Ketik `git status`.', terima: ['git status'], keluaran: 'On branch main', petunjuk: 'Ketik git status.' },
+      ],
+    };
+    const onSuccess = vi.fn();
+    render(<PraktikTerminalCardComponent card={tantang} onSuccess={onSuccess} />);
+    expect(screen.getByText('Tantangan · Tugas 1 dari 2')).toBeInTheDocument();
+    ketik('git log');
+    expect(screen.getByText(/Author: Budi/)).toBeInTheDocument();
+    expect(screen.getByText('Tugas 2 dari 2')).toBeInTheDocument();
+    ketik('git status');
+    expect(onSuccess).toHaveBeenCalledWith(1);
+  });
+
   describe('dengan animasi', () => {
     beforeEach(() => {
       vi.useFakeTimers();
