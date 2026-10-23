@@ -167,6 +167,13 @@ export interface LangkahTerminal {
    * tampil. Hanya langkah pertama yang boleh otomatis; langkah lain adalah tugas pengguna (minimal 2).
    */
   otomatis?: boolean;
+  /**
+   * Tantangan: arahan hanya menyebut tujuan, tidak menyebut perintahnya. Dipakai untuk perintah yang
+   * sudah pernah diketik sebelumnya. `petunjuk` mengingatkan tanpa membocorkan perintah lengkap.
+   */
+  tantangan?: boolean;
+  /** Cara lain yang juga benar tapi keluarannya berbeda (misalnya `git log` untuk `git log --oneline`). */
+  alternatif?: { terima: string[]; keluaran: string }[];
   /** Folder yang tampil di prompt setelah perintah ini (misalnya setelah cd). */
   folderBaru?: string;
   /** Reaksi Lingga setelah perintah benar. */

@@ -12,7 +12,7 @@ import {
 } from '../../lib/praktikTerminal';
 
 type Entri =
-  | { jenis: 'lingga'; teks: string; label?: string }
+  | { jenis: 'lingga'; teks: string; label?: string; tantangan?: boolean }
   | { jenis: 'terminal'; folder: string; perintah: string; keluaran: string };
 
 /** Jeda animasi contoh Lingga (milidetik). */
@@ -47,7 +47,7 @@ function Teks({ teks }: { teks: string }) {
   );
 }
 
-function GelembungLingga({ teks, label }: { teks: string; label?: string }) {
+function GelembungLingga({ teks, label, tantangan }: { teks: string; label?: string; tantangan?: boolean }) {
   return (
     <div className="flex items-start gap-2.5">
       <div
@@ -56,9 +56,11 @@ function GelembungLingga({ teks, label }: { teks: string; label?: string }) {
       >
         L
       </div>
-      <div className="min-w-0 flex-1 bg-white border-2 border-[var(--color-text-main)] rounded-xl rounded-tl-sm px-3.5 py-2.5 shadow-[3px_3px_0_var(--color-text-main)] text-[15px] leading-[1.55] whitespace-pre-line">
+      <div className={`min-w-0 flex-1 ${tantangan ? 'bg-[#fff7d6]' : 'bg-white'} border-2 border-[var(--color-text-main)] rounded-xl rounded-tl-sm px-3.5 py-2.5 shadow-[3px_3px_0_var(--color-text-main)] text-[15px] leading-[1.55] whitespace-pre-line`}>
         {label && (
-          <span className="block mb-1 font-mono text-[12px] font-bold tracking-[0.5px] uppercase text-[#5a5a5a]">
+          <span
+            className={`block mb-1 font-mono text-[12px] font-bold tracking-[0.5px] uppercase ${tantangan ? 'text-[#a3127f]' : 'text-[#5a5a5a]'}`}
+          >
             {label}
           </span>
         )}
@@ -91,14 +93,14 @@ function BlokTerminal({
   );
 }
 
-/** Label "Contoh dari Lingga" atau "Tugas 2 dari 3" untuk arahan langkah ke-i. */
+/** Label "Contoh dari Lingga", "Tugas 2 dari 3", atau "Tantangan · Tugas 2 dari 3" untuk arahan langkah ke-i. */
 function labelLangkah(card: PraktikTerminalCard, i: number): string {
   const l = card.langkah[i];
   if (!l) return '';
   if (l.otomatis) return 'Contoh dari Lingga';
   const tugas = card.langkah.filter((x) => !x.otomatis);
   const ke = card.langkah.slice(0, i + 1).filter((x) => !x.otomatis).length;
-  return `Tugas ${ke} dari ${tugas.length}`;
+  return `${l.tantangan ? 'Tantangan · ' : ''}Tugas ${ke} dari ${tugas.length}`;
 }
 
 export function PraktikTerminalCardComponent(props: {
@@ -120,6 +122,7 @@ function Praktik({ card, onSuccess }: { card: PraktikTerminalCard; onSuccess: (a
         jenis: 'lingga',
         teks: isiTemplate(card.langkah[0].arahan, nilai, card.bawaan),
         label: labelLangkah(card, 0),
+        tantangan: card.langkah[0].tantangan,
       });
     }
     return awal;
@@ -145,16 +148,21 @@ function Praktik({ card, onSuccess }: { card: PraktikTerminalCard; onSuccess: (a
   }, [entri, hurufContoh]);
 
   /** Perintah langkah sekarang berhasil: tampilkan keluaran, reaksi Lingga, lalu lanjut. */
-  const berhasil = (teks: string, isian: Record<string, string>) => {
+  const berhasil = (teks: string, isian: Record<string, string>, keluaran = langkah?.keluaran ?? '') => {
     if (!langkah) return;
     const v = Object.keys(isian).length > 0 ? simpanVariabel(isian) : nilai;
     if (v !== nilai) setNilai(v);
-    const baru: Entri[] = [{ jenis: 'terminal', folder, perintah: teks, keluaran: isiTemplate(langkah.keluaran, v, bawaan) }];
+    const baru: Entri[] = [{ jenis: 'terminal', folder, perintah: teks, keluaran: isiTemplate(keluaran, v, bawaan) }];
     if (langkah.benar) baru.push({ jenis: 'lingga', teks: isiTemplate(langkah.benar, v, bawaan) });
     if (langkah.folderBaru) setFolder(langkah.folderBaru);
     const berikut = card.langkah[langkahKe + 1];
     if (berikut) {
-      baru.push({ jenis: 'lingga', teks: isiTemplate(berikut.arahan, v, bawaan), label: labelLangkah(card, langkahKe + 1) });
+      baru.push({
+        jenis: 'lingga',
+        teks: isiTemplate(berikut.arahan, v, bawaan),
+        label: labelLangkah(card, langkahKe + 1),
+        tantangan: berikut.tantangan,
+      });
       setLangkahKe(langkahKe + 1);
       setSalahDiLangkah(0);
     } else {
@@ -213,6 +221,14 @@ function Praktik({ card, onSuccess }: { card: PraktikTerminalCard; onSuccess: (a
       berhasil(teks, hasil.isian);
       return;
     }
+    // Cara lain yang juga benar, dengan keluarannya sendiri.
+    for (const alt of langkah.alternatif ?? []) {
+      const h = cocokkanSalahSatu(alt.terima, teks);
+      if (h.cocok) {
+        berhasil(teks, h.isian, alt.keluaran);
+        return;
+      }
+    }
 
     const jumlahSalah = salahDiLangkah + 1;
     setSalahDiLangkah(jumlahSalah);
@@ -261,7 +277,7 @@ function Praktik({ card, onSuccess }: { card: PraktikTerminalCard; onSuccess: (a
       <div role="log" aria-live="polite" aria-label="Percakapan dengan Lingga dan isi terminal" className="space-y-3">
         {entri.map((e, i) =>
           e.jenis === 'lingga' ? (
-            <GelembungLingga key={i} teks={e.teks} label={e.label} />
+            <GelembungLingga key={i} teks={e.teks} label={e.label} tantangan={e.tantangan} />
           ) : (
             <BlokTerminal key={i} folder={e.folder} perintah={e.perintah} keluaran={e.keluaran} />
           )

@@ -93,9 +93,16 @@ describe('Git Content Integrity', () => {
                 expect(pt.langkah[0].otomatis).toBe(true);
                 expect(pt.langkah.slice(1).some((l) => l.otomatis)).toBe(false);
                 expect(pt.langkah.filter((l) => !l.otomatis).length).toBeGreaterThanOrEqual(2);
-                // Setiap tugas menyebut perintahnya dengan jelas, tidak ditebak-tebak
+                // Tugas biasa menyebut perintahnya dengan jelas. Tantangan hanya menyebut tujuannya
+                // (perintahnya sudah pernah diketik), jadi tidak boleh membocorkan perintah itu.
                 for (const l of pt.langkah.slice(1)) {
-                  expect(l.arahan).toContain('`' + contohPerintah(l.terima[0], {}, pt.bawaan) + '`');
+                  const perintah = '`' + contohPerintah(l.terima[0], {}, pt.bawaan) + '`';
+                  if (l.tantangan) {
+                    expect(l.arahan).not.toContain(perintah);
+                    expect(l.petunjuk).not.toContain(perintah);
+                  } else {
+                    expect(l.arahan).toContain(perintah);
+                  }
                 }
                 // Git Dasar belum mengajarkan branch dan HEAD
                 if (moduleDir === 'modul-01-dasar') {
