@@ -88,8 +88,12 @@ describe('Git Content Integrity', () => {
                   expect(l.arahan.length).toBeGreaterThan(0);
                   if (!l.otomatis) expect(l.petunjuk.length).toBeGreaterThan(0);
                 }
-                // Kartu praktik selalu tepat sebelum ringkasan
-                expect(lesson.cards[index + 1]?.type).toBe('summary');
+                // Kartu praktik ada di akhir materi: setelah teori terakhir, sebelum soal
+                expect(lesson.cards[index - 1]?.type).toBe('theory');
+                expect(lesson.cards[index + 1]?.type).toBe('understanding_check');
+                // dan menggantikan daftar perintah panjang "Coba di komputermu"
+                const teori = lesson.cards.filter((c): c is TheoryCard => c.type === 'theory');
+                expect(teori.some((t) => t.content.includes('Coba di komputermu'))).toBe(false);
               });
             } else if (card.type === 'understanding_check' || card.type === 'summary') {
               it('exists', () => {
