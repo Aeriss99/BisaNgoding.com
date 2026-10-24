@@ -12,6 +12,7 @@ import {
   simpanCadanganQuiz,
   ambilCadanganQuiz,
   periksaPembaruanSaatPindahMateri,
+  periksaPembaruanSaatPindahQuiz,
   hardRefresh,
   formatTanggalBuild,
   _resetStatePembaruan,
@@ -333,6 +334,72 @@ describe('pembaruan versi aplikasi', () => {
     // Hard refresh ditahan oleh pengaman 10 menit
     expect(j.win.location.reload).not.toHaveBeenCalled();
     expect(j.win.location.replace).not.toHaveBeenCalled();
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBeUndefined();
+  });
+
+  it('pengaman menolak hard refresh -> sessionStorage tidak berisi KUNCI_MUAT_ULANG, dan membuka materi/quiz mulai dari awal', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ versi: 'v-ditolak' }),
+      })
+    );
+    const j = jendelaPalsu('#/lesson/java-dasar-01', true, fetchMock);
+
+    pasangPembaruanOtomatis(j.win as unknown as Window);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // 31 menit berlalu di materi
+    await vi.advanceTimersByTimeAsync(31 * 60 * 1000);
+
+    // Pengaman 10 menit: versi v-ditolak baru saja di-hard-refresh 2 menit yang lalu (< 10 menit)
+    j.storageMap[KUNCI_HARD_REFRESH] = JSON.stringify({
+      versi: 'v-ditolak',
+      waktu: Date.now() - 2 * 60 * 1000,
+    });
+
+    // Pindah kartu: ditolak oleh pengaman 10 menit
+    const okMateri = periksaPembaruanSaatPindahMateri(
+      'java-dasar-01',
+      3,
+      { 0: 1 },
+      j.win as unknown as Window
+    );
+    expect(okMateri).toBe(false);
+
+    // Tidak ada reload atau replace
+    expect(j.win.location.reload).not.toHaveBeenCalled();
+    expect(j.win.location.replace).not.toHaveBeenCalled();
+
+    // sessionStorage TIDAK boleh berisi KUNCI_MUAT_ULANG
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBeUndefined();
+
+    // Membuka materi mulai dari awal (cadangan diabaikan karena tidak ada penanda muat ulang)
+    const cadanganMateri = ambilCadanganMateri(
+      'java-dasar-01',
+      j.win.localStorage as unknown as Storage,
+      j.win.sessionStorage as unknown as Storage
+    );
+    expect(cadanganMateri).toBeNull();
+
+    // Pengujian di quiz saat pengaman menolak
+    const okQuiz = periksaPembaruanSaatPindahQuiz(
+      'modul-01',
+      4,
+      { 0: 1 },
+      [],
+      j.win as unknown as Window
+    );
+    expect(okQuiz).toBe(false);
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBeUndefined();
+    const cadanganQuiz = ambilCadanganQuiz(
+      'modul-01',
+      j.win.localStorage as unknown as Storage,
+      j.win.sessionStorage as unknown as Storage
+    );
+    expect(cadanganQuiz).toBeNull();
   });
 
   it('5. Offline (fetch gagal): tidak terjadi apa-apa', async () => {
