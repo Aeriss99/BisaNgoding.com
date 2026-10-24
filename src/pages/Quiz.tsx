@@ -14,6 +14,12 @@ import {
 import CodeMirror from '@uiw/react-codemirror';
 import { EditorView } from '@codemirror/view';
 import { ekstensiBahasa } from '../lib/editorBahasa';
+import {
+  ambilCadanganQuiz,
+  simpanCadanganQuiz,
+  hapusCadanganQuiz,
+  periksaPembaruanSaatPindahQuiz,
+} from '../lib/pembaruanAplikasi';
 
 export default function QuizPage() {
   const { moduleId } = useParams();
@@ -30,6 +36,21 @@ export default function QuizPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [isFinished, setIsFinished] = useState(false);
+
+  useEffect(() => {
+    const cadangan = ambilCadanganQuiz(moduleId || '');
+    if (cadangan) {
+      setCurrentIndex(cadangan.index);
+      if (cadangan.answers) {
+        setAnswers(cadangan.answers);
+      }
+    }
+  }, [moduleId]);
+
+  useEffect(() => {
+    if (!moduleId || isFinished) return;
+    simpanCadanganQuiz(moduleId, currentIndex, answers);
+  }, [moduleId, currentIndex, answers, isFinished]);
 
   useEffect(() => {
     // Load quiz from content
@@ -61,6 +82,10 @@ export default function QuizPage() {
   };
 
   const handleNext = () => {
+    const nextIdx = currentIndex + 1;
+    if (periksaPembaruanSaatPindahQuiz(moduleId || '', nextIdx, answers)) {
+      return;
+    }
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
@@ -69,6 +94,7 @@ export default function QuizPage() {
   };
 
   const finishQuiz = () => {
+    hapusCadanganQuiz();
     setIsFinished(true);
     const score = calculateScore(questions, answers);
     const passed = isPassingScore(score);

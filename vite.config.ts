@@ -3,15 +3,33 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const versi = process.env.GITHUB_SHA ? process.env.GITHUB_SHA.slice(0, 7) : 'lokal';
+const waktuBuild = new Date().toISOString();
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    __VERSI_APP__: JSON.stringify(versi),
+    __WAKTU_BUILD__: JSON.stringify(waktuBuild),
+  },
   plugins: [
     react(),
     tailwindcss(),
+    {
+      name: 'version-file',
+      generateBundle() {
+        this.emitFile({
+          type: 'asset',
+          fileName: 'version.json',
+          source: JSON.stringify({ versi, dibuat: waktuBuild }, null, 2),
+        });
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],
       workbox: {
+        globIgnores: ['**/version.json'],
         skipWaiting: true,
         clientsClaim: true,
         maximumFileSizeToCacheInBytes: 8000000,
