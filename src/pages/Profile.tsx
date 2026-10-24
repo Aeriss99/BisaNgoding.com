@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useKonfirmasi } from '../components/ui/DialogKonfirmasi';
 import { useKeluar } from '../components/layout/MenuAtas';
+import { formatTanggalBuild } from '../lib/pembaruanAplikasi';
 
 export default function Profile() {
   const { progress, importProgress, toggleUnlockAll, syncStatus, streakHariIni } =
@@ -304,6 +305,10 @@ export default function Profile() {
           )}
         </button>
       )}
+
+      <p className="text-center text-xs text-gray-500 mt-8 font-mono">
+        Versi aplikasi: {typeof __VERSI_APP__ !== 'undefined' ? __VERSI_APP__ : 'lokal'} · {formatTanggalBuild(typeof __WAKTU_BUILD__ !== 'undefined' ? __WAKTU_BUILD__ : new Date().toISOString())}
+      </p>
     </div>
   );
 }

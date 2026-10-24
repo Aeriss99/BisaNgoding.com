@@ -15,7 +15,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useProgress } from '../context/ProgressContext';
 import { initCheerpJ } from '../lib/javaRunner';
-import { versiLamaTerdeteksi, KUNCI_MUAT_ULANG } from '../lib/pembaruanAplikasi';
+import {
+  versiLamaTerdeteksi,
+  ambilCadanganMateri,
+  simpanCadanganMateri,
+  hapusCadanganMateri,
+  periksaPembaruanSaatPindahMateri,
+} from '../lib/pembaruanAplikasi';
 import {
   RunnableCardComponent,
   CodeChallengeCardComponent,
@@ -65,21 +71,6 @@ function CodeBlockWithCopy({ children, className, ...props }: any) {
   );
 }
 
-const KUNCI_POSISI = 'bn_posisi_materi';
-
-/** Kartu yang dibuka setelah halaman dimuat ulang karena versi baru; selain itu kartu pertama. */
-function posisiSetelahMuatUlang(lessonId: string | undefined, jumlahKartu: number): number {
-  try {
-    if (sessionStorage.getItem(KUNCI_MUAT_ULANG) !== '1') return 0;
-    sessionStorage.removeItem(KUNCI_MUAT_ULANG);
-    const simpan = JSON.parse(sessionStorage.getItem(KUNCI_POSISI) || 'null');
-    if (!simpan || simpan.lessonId !== lessonId || typeof simpan.index !== 'number') return 0;
-    return Math.max(0, Math.min(simpan.index, jumlahKartu - 1));
-  } catch {
-    return 0;
-  }
-}
-
 export default function LessonPage() {
   const { lessonId } = useParams();
   const lesson = getLesson(lessonId || '');
@@ -105,23 +96,25 @@ export default function LessonPage() {
   >({});
 
   useEffect(() => {
-    setCurrentCardIndex(posisiSetelahMuatUlang(lessonId, lesson?.cards.length ?? 0));
+    const cadangan = ambilCadanganMateri(lessonId || '');
+    if (cadangan && lesson) {
+      setCurrentCardIndex(Math.max(0, Math.min(cadangan.index, lesson.cards.length - 1)));
+      setAttemptsPerCard(cadangan.attemptsPerCard || {});
+    } else {
+      setCurrentCardIndex(0);
+      setAttemptsPerCard({});
+    }
     setShowExplanation(false);
     setIsAnswerCorrect(null);
     setChallengePassed(false);
     setIsLessonFinished(false);
-    setAttemptsPerCard({});
   }, [lessonId]);
 
-  // Simpan posisi kartu supaya bisa dipulihkan kalau halaman dimuat ulang karena versi baru.
+  // Simpan posisi kartu dan attempts sebagai cadangan jika dimuat ulang karena versi baru.
   useEffect(() => {
-    if (!lessonId) return;
-    try {
-      sessionStorage.setItem(KUNCI_POSISI, JSON.stringify({ lessonId, index: currentCardIndex }));
-    } catch {
-      // penyimpanan diblokir: posisi tidak dipulihkan
-    }
-  }, [lessonId, currentCardIndex]);
+    if (!lessonId || isLessonFinished) return;
+    simpanCadanganMateri(lessonId, currentCardIndex, attemptsPerCard);
+  }, [lessonId, currentCardIndex, attemptsPerCard, isLessonFinished]);
 
   if (!lesson) {
     return (
@@ -149,9 +142,14 @@ export default function LessonPage() {
     setIsAnswerCorrect(null);
     setChallengePassed(false);
     touchActivity();
+    const nextIdx = currentCardIndex + 1;
+    if (periksaPembaruanSaatPindahMateri(lesson.id, nextIdx, attemptsPerCard)) {
+      return;
+    }
     if (currentCardIndex < lesson.cards.length - 1) {
       setCurrentCardIndex((prev) => prev + 1);
     } else {
+      hapusCadanganMateri();
       markLessonCompleted(lesson.id);
       setIsLessonFinished(true);
     }
@@ -548,6 +546,7 @@ export default function LessonPage() {
 
             <button
               onClick={() => {
+                hapusCadanganMateri();
                 setIsLessonFinished(false);
                 setCurrentCardIndex(0);
                 setChallengePassed(false);
