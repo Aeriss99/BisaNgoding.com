@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { ProgressProvider, useProgress } from './ProgressContext';
 import { AuthProvider } from './AuthContext';
+import * as cloudProgress from '../lib/cloudProgress';
+import type { UserProgress } from '../types/schema';
 import React from 'react';
 
 // Setup localStorage mock
@@ -500,5 +502,142 @@ describe('ProgressContext', () => {
         tanggal_baru: '2026-10-25',
       })
     );
+  });
+
+  it('satu kali simpan lalu diam (tidak loop berulang), dan simpan lagi saat ada perubahan baru', async () => {
+    vi.useFakeTimers();
+    mockModeLokal.mockReturnValue(false);
+
+    let saveCount = 0;
+    const spySave = vi
+      .spyOn(cloudProgress, 'saveCloudProgress')
+      .mockImplementation(async (userId, data) => {
+        saveCount++;
+        return { ...data }; // return new object reference every time
+      });
+
+    vi.spyOn(cloudProgress, 'fetchCloudProgress').mockResolvedValue({
+      ok: true,
+      data: {
+        completedLessons: [],
+        xp: 0,
+        streak: 0,
+        lastActiveDate: '2026-10-25',
+        maxSeenDate: '2026-10-25',
+      } as unknown as UserProgress,
+    });
+
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-loop-test' } } },
+    } as any);
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    // Allow initSync to run
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    // Reset count after initSync
+    saveCount = 0;
+
+    // Trigger user change
+    act(() => {
+      result.current.markLessonCompleted('dasar-01');
+    });
+
+    // Advance 1s for debounce
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(saveCount).toBe(1);
+
+    // Advance 10s without changes -> saveCloudProgress should NOT be called again
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    expect(saveCount).toBe(1);
+
+    // User finishes another lesson
+    act(() => {
+      result.current.markLessonCompleted('dasar-02');
+    });
+
+    // Advance 1s for debounce
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(saveCount).toBe(2);
+
+    // Advance 10s without changes -> saveCloudProgress remains 2
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    expect(saveCount).toBe(2);
+
+    spySave.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('event storage dengan isi yang sama dengan state sekarang tidak memicu simpan', async () => {
+    vi.useFakeTimers();
+    mockModeLokal.mockReturnValue(false);
+
+    let saveCount = 0;
+    const spySave = vi
+      .spyOn(cloudProgress, 'saveCloudProgress')
+      .mockImplementation(async (userId, data) => {
+        saveCount++;
+        return { ...data };
+      });
+
+    vi.spyOn(cloudProgress, 'fetchCloudProgress').mockResolvedValue({
+      ok: true,
+      data: {
+        completedLessons: ['dasar-01'],
+        xp: 10,
+        streak: 1,
+        lastActiveDate: '2026-10-25',
+        maxSeenDate: '2026-10-25',
+      } as unknown as UserProgress,
+    });
+
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-storage-test' } } },
+    } as any);
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    saveCount = 0;
+
+    // Dispatch storage event with identical content
+    const currentProgressClone = JSON.parse(JSON.stringify(result.current.progress));
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'bisangoding_progress:user-storage-test',
+          newValue: JSON.stringify(currentProgressClone),
+        })
+      );
+    });
+
+    // Advance 10s -> save should NOT be triggered
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    expect(saveCount).toBe(0);
+
+    spySave.mockRestore();
+    vi.useRealTimers();
   });
 });

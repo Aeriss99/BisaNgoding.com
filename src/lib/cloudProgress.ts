@@ -64,6 +64,16 @@ export function bersihkanProgresLokal(userId?: string | null) {
   } catch (e) {}
 }
 
+export function samaIsi(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
 export function mergeProgress(
   local: UserProgress,
   cloud: UserProgress
