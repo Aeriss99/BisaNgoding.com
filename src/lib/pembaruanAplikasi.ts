@@ -295,14 +295,12 @@ export function periksaPembaruanSaatPindahMateri(
     const locStorage = win.localStorage || (typeof localStorage !== 'undefined' ? localStorage : ({} as any));
     const sessStorage = win.sessionStorage || (typeof sessionStorage !== 'undefined' ? sessionStorage : ({} as any));
 
-    try {
-      sessStorage.setItem?.(KUNCI_MUAT_ULANG, '1');
-    } catch {}
-
-    simpanCadanganMateri(lessonId, nextIndex, attemptsPerCard, locStorage);
-
     // Kalau service worker baru sudah aktif (controllerchange sudah terjadi), cukup muat ulang biasa
     if (swSiapMuatUlang) {
+      try {
+        sessStorage.setItem?.(KUNCI_MUAT_ULANG, '1');
+      } catch {}
+      simpanCadanganMateri(lessonId, nextIndex, attemptsPerCard, locStorage);
       win.location?.reload();
       return true;
     }
@@ -311,6 +309,7 @@ export function periksaPembaruanSaatPindahMateri(
       return false;
     }
 
+    simpanCadanganMateri(lessonId, nextIndex, attemptsPerCard, locStorage);
     hardRefresh(targetVersiBaru || undefined, win);
     return true;
   }
@@ -328,14 +327,12 @@ export function periksaPembaruanSaatPindahQuiz(
     const locStorage = win.localStorage || (typeof localStorage !== 'undefined' ? localStorage : ({} as any));
     const sessStorage = win.sessionStorage || (typeof sessionStorage !== 'undefined' ? sessionStorage : ({} as any));
 
-    try {
-      sessStorage.setItem?.(KUNCI_MUAT_ULANG, '1');
-    } catch {}
-
-    simpanCadanganQuiz(moduleId, nextIndex, answers, questions, locStorage);
-
     // Kalau service worker baru sudah aktif (controllerchange sudah terjadi), cukup muat ulang biasa
     if (swSiapMuatUlang) {
+      try {
+        sessStorage.setItem?.(KUNCI_MUAT_ULANG, '1');
+      } catch {}
+      simpanCadanganQuiz(moduleId, nextIndex, answers, questions, locStorage);
       win.location?.reload();
       return true;
     }
@@ -344,6 +341,7 @@ export function periksaPembaruanSaatPindahQuiz(
       return false;
     }
 
+    simpanCadanganQuiz(moduleId, nextIndex, answers, questions, locStorage);
     hardRefresh(targetVersiBaru || undefined, win);
     return true;
   }
@@ -399,9 +397,6 @@ export function pasangPembaruanOtomatis(win: Window = window): void {
 
   muatUlangSekarangFn = () => {
     if ((swSiapMuatUlang || siapHardRefresh) && !sudahMuatUlang) {
-      try {
-        win.sessionStorage?.setItem(KUNCI_MUAT_ULANG, '1');
-      } catch {}
       if (siapHardRefresh && !swSiapMuatUlang) {
         hardRefresh(targetVersiBaru || undefined, win);
       } else {
