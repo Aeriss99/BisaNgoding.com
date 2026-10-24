@@ -6,7 +6,7 @@ import { apakahModeLokal } from './modeLokal';
 const BASE_STORAGE_KEY = 'bisangoding_progress';
 const CURRENT_USER_KEY = 'bisangoding_current_user';
 
-function getStorageKey(userId?: string | null): string {
+export function getStorageKey(userId?: string | null): string {
   const base = apakahModeLokal() ? 'bisangoding_progress_lokal' : BASE_STORAGE_KEY;
   return userId ? `${base}:${userId}` : base;
 }
@@ -62,6 +62,16 @@ export function bersihkanProgresLokal(userId?: string | null) {
       localStorage.removeItem(BASE_STORAGE_KEY);
     }
   } catch (e) {}
+}
+
+export function samaIsi(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
 }
 
 export function mergeProgress(
@@ -189,16 +199,103 @@ export async function fetchCloudProgress(
 export async function saveCloudProgress(
   userId: string,
   data: UserProgress
-): Promise<void> {
-  if (apakahModeLokal() || !supabase) return;
+): Promise<UserProgress> {
+  if (apakahModeLokal() || !supabase) return data;
+  const client = supabase;
+
+  const doSave = async (): Promise<UserProgress> => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      // 1. Ambil data cloud sekarang beserta kolom diperbarui
+      const fetchRes = (await client
+        .from('progres')
+        .select('data, diperbarui')
+        .eq('user_id', userId)
+        .maybeSingle()) as any;
+
+      if (fetchRes?.error) {
+        console.error('Save cloud progress - fetch error', fetchRes.error);
+        throw fetchRes.error;
+      }
+
+      const row = fetchRes?.data;
+      const cloudData = (row?.data as UserProgress) || null;
+      const diperbaruiLama = row?.diperbarui;
+
+      // 2. Gabungkan dengan mergeProgress(data, cloud) yang sudah ada
+      const finalData = cloudData ? mergeProgress(data, cloudData) : data;
+
+      // 3. Simpan hanya kalau diperbarui di cloud belum berubah
+      if (row && diperbaruiLama) {
+        const updateRes = (await client
+          .from('progres')
+          .update({ data: finalData })
+          .eq('user_id', userId)
+          .eq('diperbarui', diperbaruiLama)
+          .select('user_id')) as any;
+
+        if (updateRes?.error) {
+          console.error('Save cloud progress - update error', updateRes.error);
+          throw updateRes.error;
+        }
+
+        // Kalau ada yang menyimpan duluan (0 baris ter-update), ulangi dari langkah 1
+        if (!updateRes?.data || updateRes.data.length === 0) {
+          continue;
+        }
+
+        return finalData;
+      } else {
+        const insertRes = (await client
+          .from('progres')
+          .insert({ user_id: userId, data: finalData })) as any;
+
+        if (insertRes?.error) {
+          console.warn('Save cloud progress - insert conflict, retrying', insertRes.error);
+          continue;
+        }
+
+        return finalData;
+      }
+    }
+
+    throw new Error('Gagal menyimpan ke cloud setelah 3 percobaan bentrok');
+  };
+
   try {
-    const savePromise = supabase
-      .from('progres')
-      .upsert({ user_id: userId, data });
-    const result = (await Promise.race([savePromise, timeoutPromise(8000)])) as any;
-    if (result?.error) throw result.error;
+    const result = (await Promise.race([doSave(), timeoutPromise(8000)])) as UserProgress;
+    return result;
   } catch (e) {
     console.error('Save cloud progress error', e);
     throw e;
   }
+}
+
+export function catatRiwayatStreak(
+  userId: string | undefined | null,
+  streakLama: number | undefined,
+  tanggalLama: string | undefined,
+  streakBaru: number | undefined,
+  tanggalBaru: string | undefined,
+  sebab: string
+): void {
+  if (apakahModeLokal() || !supabase || !userId) return;
+  const client = supabase;
+  const versiApp = typeof __VERSI_APP__ !== 'undefined' ? __VERSI_APP__ : 'lokal';
+  try {
+    const res = client.from('riwayat_streak');
+    if (res && typeof (res as any).insert === 'function') {
+      const p = (res as any).insert({
+        user_id: userId,
+        streak_lama: streakLama ?? null,
+        tanggal_lama: tanggalLama ?? null,
+        streak_baru: streakBaru ?? null,
+        tanggal_baru: tanggalBaru ?? null,
+        sebab,
+        versi_app: versiApp,
+      });
+      if (p) {
+        Promise.resolve(p).catch(() => {});
+      }
+    }
+  } catch {}
 }

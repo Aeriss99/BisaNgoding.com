@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { ProgressProvider, useProgress } from './ProgressContext';
 import { AuthProvider } from './AuthContext';
+import * as cloudProgress from '../lib/cloudProgress';
+import type { UserProgress } from '../types/schema';
 import React from 'react';
 
 // Setup localStorage mock
@@ -412,5 +414,230 @@ describe('ProgressContext', () => {
       'bisangoding_progress_lokal:user-lokal',
       expect.any(String)
     );
+  });
+
+  it('4. Event storage dari tab lain digabung dengan mergeProgress, tidak menimpa data lokal', async () => {
+    mockModeLokal.mockReturnValue(false);
+
+    // Initial state tab ini
+    localStorageMock.setItem(
+      'bisangoding_progress:user-tab',
+      JSON.stringify({
+        completedLessons: ['materi-tab1'],
+        xp: 10,
+        streak: 1,
+        streakDate: '2026-10-24',
+        lastActiveDate: '2026-10-24',
+      })
+    );
+
+    const mockSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: {
+            diperbarui: '2026-10-24T00:00:00Z',
+            data: { completedLessons: ['materi-tab1'], xp: 10, streak: 1 },
+          },
+          error: null,
+        }),
+      }),
+    });
+    const mockUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          select: vi.fn().mockResolvedValue({ data: [{ user_id: 'user-tab' }], error: null }),
+        }),
+      }),
+    });
+    const mockInsert = vi.fn().mockResolvedValue({ data: null, error: null });
+
+    (supabase!.from as any).mockImplementation((table: string) => {
+      if (table === 'progres') return { select: mockSelect, update: mockUpdate };
+      if (table === 'riwayat_streak') return { insert: mockInsert };
+      return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) };
+    });
+
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-tab' } } },
+    } as any);
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 150));
+    });
+
+    expect(result.current.progress.completedLessons).toEqual(['materi-tab1']);
+
+    // Tab lain menyelesaikan materi-tab2 dan menaikkan streak
+    const tabLainData = {
+      completedLessons: ['materi-tab2'],
+      xp: 20,
+      streak: 2,
+      streakDate: '2026-10-25',
+      lastActiveDate: '2026-10-25',
+    };
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'bisangoding_progress:user-tab',
+          newValue: JSON.stringify(tabLainData),
+        })
+      );
+    });
+
+    // Hasil harus digabung: kedua materi ada, xp dan streak tertinggi
+    expect(result.current.progress.completedLessons).toContain('materi-tab1');
+    expect(result.current.progress.completedLessons).toContain('materi-tab2');
+    expect(result.current.progress.streak).toBe(2);
+    expect(result.current.progress.streakDate).toBe('2026-10-25');
+
+    // Riwayat streak terkirim dengan sebab gabung-tab
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-tab',
+        sebab: 'gabung-tab',
+        streak_baru: 2,
+        tanggal_baru: '2026-10-25',
+      })
+    );
+  });
+
+  it('satu kali simpan lalu diam (tidak loop berulang), dan simpan lagi saat ada perubahan baru', async () => {
+    vi.useFakeTimers();
+    mockModeLokal.mockReturnValue(false);
+
+    let saveCount = 0;
+    const spySave = vi
+      .spyOn(cloudProgress, 'saveCloudProgress')
+      .mockImplementation(async (userId, data) => {
+        saveCount++;
+        return { ...data }; // return new object reference every time
+      });
+
+    vi.spyOn(cloudProgress, 'fetchCloudProgress').mockResolvedValue({
+      ok: true,
+      data: {
+        completedLessons: [],
+        xp: 0,
+        streak: 0,
+        lastActiveDate: '2026-10-25',
+        maxSeenDate: '2026-10-25',
+      } as unknown as UserProgress,
+    });
+
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-loop-test' } } },
+    } as any);
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    // Allow initSync to run
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    // Reset count after initSync
+    saveCount = 0;
+
+    // Trigger user change
+    act(() => {
+      result.current.markLessonCompleted('dasar-01');
+    });
+
+    // Advance 1s for debounce
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(saveCount).toBe(1);
+
+    // Advance 10s without changes -> saveCloudProgress should NOT be called again
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    expect(saveCount).toBe(1);
+
+    // User finishes another lesson
+    act(() => {
+      result.current.markLessonCompleted('dasar-02');
+    });
+
+    // Advance 1s for debounce
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(saveCount).toBe(2);
+
+    // Advance 10s without changes -> saveCloudProgress remains 2
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    expect(saveCount).toBe(2);
+
+    spySave.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('event storage dengan isi yang sama dengan state sekarang tidak memicu simpan', async () => {
+    vi.useFakeTimers();
+    mockModeLokal.mockReturnValue(false);
+
+    let saveCount = 0;
+    const spySave = vi
+      .spyOn(cloudProgress, 'saveCloudProgress')
+      .mockImplementation(async (userId, data) => {
+        saveCount++;
+        return { ...data };
+      });
+
+    vi.spyOn(cloudProgress, 'fetchCloudProgress').mockResolvedValue({
+      ok: true,
+      data: {
+        completedLessons: ['dasar-01'],
+        xp: 10,
+        streak: 1,
+        lastActiveDate: '2026-10-25',
+        maxSeenDate: '2026-10-25',
+      } as unknown as UserProgress,
+    });
+
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-storage-test' } } },
+    } as any);
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    saveCount = 0;
+
+    // Dispatch storage event with identical content
+    const currentProgressClone = JSON.parse(JSON.stringify(result.current.progress));
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'bisangoding_progress:user-storage-test',
+          newValue: JSON.stringify(currentProgressClone),
+        })
+      );
+    });
+
+    // Advance 10s -> save should NOT be triggered
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    expect(saveCount).toBe(0);
+
+    spySave.mockRestore();
+    vi.useRealTimers();
   });
 });
