@@ -14,6 +14,12 @@ import {
 import CodeMirror from '@uiw/react-codemirror';
 import { EditorView } from '@codemirror/view';
 import { ekstensiBahasa } from '../lib/editorBahasa';
+import {
+  ambilCadanganQuiz,
+  simpanCadanganQuiz,
+  hapusCadanganQuiz,
+  periksaPembaruanSaatPindahQuiz,
+} from '../lib/pembaruanAplikasi';
 
 export default function QuizPage() {
   const { moduleId } = useParams();
@@ -46,7 +52,16 @@ export default function QuizPage() {
           return;
         }
 
-        setQuestions(prepareQuiz(quizData, 20));
+        const cadangan = ambilCadanganQuiz(moduleId || '');
+        if (cadangan && cadangan.questions && cadangan.questions.length > 0) {
+          setQuestions(cadangan.questions);
+          setCurrentIndex(cadangan.index);
+          setAnswers(cadangan.answers || {});
+        } else {
+          setQuestions(prepareQuiz(quizData, 20));
+          setCurrentIndex(0);
+          setAnswers({});
+        }
       } catch {
         setError('Quiz belum tersedia.');
       }
@@ -56,11 +71,20 @@ export default function QuizPage() {
     loadQuiz();
   }, [moduleId]);
 
+  useEffect(() => {
+    if (!moduleId || isFinished || questions.length === 0) return;
+    simpanCadanganQuiz(moduleId, currentIndex, answers, questions);
+  }, [moduleId, currentIndex, answers, questions, isFinished]);
+
   const handleSelect = (optionIndex: number) => {
     setAnswers((prev) => ({ ...prev, [currentIndex]: optionIndex }));
   };
 
   const handleNext = () => {
+    const nextIdx = currentIndex + 1;
+    if (periksaPembaruanSaatPindahQuiz(moduleId || '', nextIdx, answers, questions)) {
+      return;
+    }
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
@@ -69,6 +93,7 @@ export default function QuizPage() {
   };
 
   const finishQuiz = () => {
+    hapusCadanganQuiz();
     setIsFinished(true);
     const score = calculateScore(questions, answers);
     const passed = isPassingScore(score);
