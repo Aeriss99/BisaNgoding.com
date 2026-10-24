@@ -38,21 +38,6 @@ export default function QuizPage() {
   const [isFinished, setIsFinished] = useState(false);
 
   useEffect(() => {
-    const cadangan = ambilCadanganQuiz(moduleId || '');
-    if (cadangan) {
-      setCurrentIndex(cadangan.index);
-      if (cadangan.answers) {
-        setAnswers(cadangan.answers);
-      }
-    }
-  }, [moduleId]);
-
-  useEffect(() => {
-    if (!moduleId || isFinished) return;
-    simpanCadanganQuiz(moduleId, currentIndex, answers);
-  }, [moduleId, currentIndex, answers, isFinished]);
-
-  useEffect(() => {
     // Load quiz from content
     const loadQuiz = async () => {
       try {
@@ -67,7 +52,16 @@ export default function QuizPage() {
           return;
         }
 
-        setQuestions(prepareQuiz(quizData, 20));
+        const cadangan = ambilCadanganQuiz(moduleId || '');
+        if (cadangan && cadangan.questions && cadangan.questions.length > 0) {
+          setQuestions(cadangan.questions);
+          setCurrentIndex(cadangan.index);
+          setAnswers(cadangan.answers || {});
+        } else {
+          setQuestions(prepareQuiz(quizData, 20));
+          setCurrentIndex(0);
+          setAnswers({});
+        }
       } catch {
         setError('Quiz belum tersedia.');
       }
@@ -77,13 +71,18 @@ export default function QuizPage() {
     loadQuiz();
   }, [moduleId]);
 
+  useEffect(() => {
+    if (!moduleId || isFinished || questions.length === 0) return;
+    simpanCadanganQuiz(moduleId, currentIndex, answers, questions);
+  }, [moduleId, currentIndex, answers, questions, isFinished]);
+
   const handleSelect = (optionIndex: number) => {
     setAnswers((prev) => ({ ...prev, [currentIndex]: optionIndex }));
   };
 
   const handleNext = () => {
     const nextIdx = currentIndex + 1;
-    if (periksaPembaruanSaatPindahQuiz(moduleId || '', nextIdx, answers)) {
+    if (periksaPembaruanSaatPindahQuiz(moduleId || '', nextIdx, answers, questions)) {
       return;
     }
     if (currentIndex < questions.length - 1) {

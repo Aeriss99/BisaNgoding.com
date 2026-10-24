@@ -15,7 +15,8 @@
  *   - Di luar materi dan quiz: langsung hard refresh.
  *   - Di materi atau quiz: tunggu. Tapi kalau sudah 30 menit terdeteksi, paksa update saat pindah kartu/soal.
  * - Cadangan sebelum dimuat ulang disimpan di localStorage (materi: lessonId, index, attemptsPerCard, waktu;
- *   quiz: moduleId, index, answers, waktu). Setelah dimuat ulang dipulihkan lalu dihapus. Cadangan > 2 jam diabaikan.
+ *   quiz: moduleId, index, answers, questions, waktu). Setelah dimuat ulang dipulihkan hanya bila ada penanda KUNCI_MUAT_ULANG.
+ *   Cadangan > 2 jam diabaikan.
  * - Pengaman: versi tujuan yang sama maksimal 1 kali hard refresh per 10 menit.
  */
 
@@ -42,6 +43,7 @@ let versiBaruMenunggu = false;
 let targetVersiBaru: string | null = null;
 let waktuDeteksiVersiBaru: number | null = null;
 let siapHardRefresh = false;
+let swSiapMuatUlang = false;
 let timerHardRefresh: any = null;
 
 let paksaPembaruan: (() => void) | null = null;
@@ -53,6 +55,7 @@ export function _resetStatePembaruan(): void {
   targetVersiBaru = null;
   waktuDeteksiVersiBaru = null;
   siapHardRefresh = false;
+  swSiapMuatUlang = false;
   if (timerHardRefresh) {
     clearTimeout(timerHardRefresh);
     timerHardRefresh = null;
@@ -93,7 +96,7 @@ export function formatTanggalBuild(isoString: string): string {
   }
 }
 
-/* ───────────────────────── Cadangan Materi & Quiz */
+/* ───────────────────────── Cadangan Materi & Quiz ───────────────────────── */
 
 export function simpanCadanganMateri(
   lessonId: string,
@@ -111,9 +114,14 @@ export function simpanCadanganMateri(
 
 export function ambilCadanganMateri(
   lessonId: string,
-  locStorage: Storage = typeof localStorage !== 'undefined' ? localStorage : ({} as any)
+  locStorage: Storage = typeof localStorage !== 'undefined' ? localStorage : ({} as any),
+  sessStorage: Storage = typeof sessionStorage !== 'undefined' ? sessionStorage : ({} as any)
 ): { index: number; attemptsPerCard: Record<number, number> } | null {
   try {
+    const penanda = sessStorage.getItem?.(KUNCI_MUAT_ULANG);
+    if (penanda !== '1') return null;
+    sessStorage.removeItem?.(KUNCI_MUAT_ULANG);
+
     const raw = locStorage.getItem?.(KUNCI_CADANGAN_MATERI);
     if (!raw) return null;
     locStorage.removeItem?.(KUNCI_CADANGAN_MATERI);
@@ -142,21 +150,27 @@ export function simpanCadanganQuiz(
   moduleId: string,
   index: number,
   answers: Record<number, number> = {},
+  questions: any[] = [],
   locStorage: Storage = typeof localStorage !== 'undefined' ? localStorage : ({} as any)
 ): void {
   try {
     locStorage.setItem?.(
       KUNCI_CADANGAN_QUIZ,
-      JSON.stringify({ moduleId, index, answers, waktu: Date.now() })
+      JSON.stringify({ moduleId, index, answers, questions, waktu: Date.now() })
     );
   } catch {}
 }
 
 export function ambilCadanganQuiz(
   moduleId: string,
-  locStorage: Storage = typeof localStorage !== 'undefined' ? localStorage : ({} as any)
-): { index: number; answers: Record<number, number> } | null {
+  locStorage: Storage = typeof localStorage !== 'undefined' ? localStorage : ({} as any),
+  sessStorage: Storage = typeof sessionStorage !== 'undefined' ? sessionStorage : ({} as any)
+): { index: number; answers: Record<number, number>; questions?: any[] } | null {
   try {
+    const penanda = sessStorage.getItem?.(KUNCI_MUAT_ULANG);
+    if (penanda !== '1') return null;
+    sessStorage.removeItem?.(KUNCI_MUAT_ULANG);
+
     const raw = locStorage.getItem?.(KUNCI_CADANGAN_QUIZ);
     if (!raw) return null;
     locStorage.removeItem?.(KUNCI_CADANGAN_QUIZ);
@@ -167,7 +181,11 @@ export function ambilCadanganQuiz(
       typeof data.index === 'number' &&
       Date.now() - data.waktu <= KEDALUWARSA_CADANGAN_MS
     ) {
-      return { index: data.index, answers: data.answers || {} };
+      return {
+        index: data.index,
+        answers: data.answers || {},
+        questions: Array.isArray(data.questions) ? data.questions : undefined,
+      };
     }
   } catch {}
   return null;
@@ -181,7 +199,7 @@ export function hapusCadanganQuiz(
   } catch {}
 }
 
-/* ───────────────────────── Hard Refresh */
+/* ───────────────────────── Hard Refresh ───────────────────────── */
 
 export function apakahBisaHardRefresh(
   versiTujuan?: string,
@@ -218,6 +236,11 @@ export async function hardRefresh(
     } catch {}
   }
 
+  // Pasang penanda muat ulang versi baru
+  try {
+    win.sessionStorage?.setItem(KUNCI_MUAT_ULANG, '1');
+  } catch {}
+
   // 1. Simpan cadangan pekerjaan (sudah disimpan di localStorage oleh Lesson/Quiz)
   // 2. Hapus semua cache di caches.keys(), kecuali suara-en
   try {
@@ -246,12 +269,21 @@ export async function hardRefresh(
     }
   } catch {}
 
-  // 4. location.reload()
-  win.location?.reload();
+  // 4. location.replace(pathname + '?v=' + versiTujuan + hash)
+  const v = versiTujuan || Date.now();
+  const pathname = win.location?.pathname || '/';
+  const hash = win.location?.hash || '';
+  const targetUrl = `${pathname}?v=${v}${hash}`;
+
+  if (win.location?.replace) {
+    win.location.replace(targetUrl);
+  } else if (win.location) {
+    win.location.href = targetUrl;
+  }
   return true;
 }
 
-/* ───────────────────────── Cek Saat Pindah Kartu / Soal */
+/* ───────────────────────── Cek Saat Pindah Kartu / Soal ───────────────────────── */
 
 export function periksaPembaruanSaatPindahMateri(
   lessonId: string,
@@ -261,10 +293,24 @@ export function periksaPembaruanSaatPindahMateri(
 ): boolean {
   if (waktuDeteksiVersiBaru && Date.now() - waktuDeteksiVersiBaru >= BATAS_DI_MATERI_MS) {
     const locStorage = win.localStorage || (typeof localStorage !== 'undefined' ? localStorage : ({} as any));
+    const sessStorage = win.sessionStorage || (typeof sessionStorage !== 'undefined' ? sessionStorage : ({} as any));
+
+    try {
+      sessStorage.setItem?.(KUNCI_MUAT_ULANG, '1');
+    } catch {}
+
+    simpanCadanganMateri(lessonId, nextIndex, attemptsPerCard, locStorage);
+
+    // Kalau service worker baru sudah aktif (controllerchange sudah terjadi), cukup muat ulang biasa
+    if (swSiapMuatUlang) {
+      win.location?.reload();
+      return true;
+    }
+
     if (!apakahBisaHardRefresh(targetVersiBaru || undefined, locStorage)) {
       return false;
     }
-    simpanCadanganMateri(lessonId, nextIndex, attemptsPerCard, locStorage);
+
     hardRefresh(targetVersiBaru || undefined, win);
     return true;
   }
@@ -275,21 +321,36 @@ export function periksaPembaruanSaatPindahQuiz(
   moduleId: string,
   nextIndex: number,
   answers: Record<number, number> = {},
+  questions: any[] = [],
   win: Window = windowAktif || (typeof window !== 'undefined' ? window : ({} as any))
 ): boolean {
   if (waktuDeteksiVersiBaru && Date.now() - waktuDeteksiVersiBaru >= BATAS_DI_MATERI_MS) {
     const locStorage = win.localStorage || (typeof localStorage !== 'undefined' ? localStorage : ({} as any));
+    const sessStorage = win.sessionStorage || (typeof sessionStorage !== 'undefined' ? sessionStorage : ({} as any));
+
+    try {
+      sessStorage.setItem?.(KUNCI_MUAT_ULANG, '1');
+    } catch {}
+
+    simpanCadanganQuiz(moduleId, nextIndex, answers, questions, locStorage);
+
+    // Kalau service worker baru sudah aktif (controllerchange sudah terjadi), cukup muat ulang biasa
+    if (swSiapMuatUlang) {
+      win.location?.reload();
+      return true;
+    }
+
     if (!apakahBisaHardRefresh(targetVersiBaru || undefined, locStorage)) {
       return false;
     }
-    simpanCadanganQuiz(moduleId, nextIndex, answers, locStorage);
+
     hardRefresh(targetVersiBaru || undefined, win);
     return true;
   }
   return false;
 }
 
-/* ───────────────────────── Pemasangan Pembaruan Otomatis */
+/* ───────────────────────── Pemasangan Pembaruan Otomatis ───────────────────────── */
 
 export function pasangPembaruanOtomatis(win: Window = window): void {
   windowAktif = win;
@@ -299,17 +360,19 @@ export function pasangPembaruanOtomatis(win: Window = window): void {
   _resetStatePembaruan();
 
   const adaVersiLama = !!sw.controller;
-  let siapMuatUlang = false;
   let sudahMuatUlang = false;
   let paksa = false;
 
   const muatUlang = () => {
     sudahMuatUlang = true;
+    try {
+      win.sessionStorage?.setItem(KUNCI_MUAT_ULANG, '1');
+    } catch {}
     win.location?.reload();
   };
 
   const cobaMuatUlang = () => {
-    if (!siapMuatUlang || sudahMuatUlang || (!paksa && sedangBelajar(win.location?.hash || ''))) return;
+    if (!swSiapMuatUlang || sudahMuatUlang || (!paksa && sedangBelajar(win.location?.hash || ''))) return;
     muatUlang();
   };
 
@@ -326,7 +389,7 @@ export function pasangPembaruanOtomatis(win: Window = window): void {
     if (!waktuDeteksiVersiBaru) {
       waktuDeteksiVersiBaru = Date.now();
     }
-    siapMuatUlang = true;
+    swSiapMuatUlang = true;
     cobaMuatUlang();
     if (!sudahMuatUlang) {
       versiBaruMenunggu = true;
@@ -335,8 +398,11 @@ export function pasangPembaruanOtomatis(win: Window = window): void {
   });
 
   muatUlangSekarangFn = () => {
-    if ((siapMuatUlang || siapHardRefresh) && !sudahMuatUlang) {
-      if (siapHardRefresh) {
+    if ((swSiapMuatUlang || siapHardRefresh) && !sudahMuatUlang) {
+      try {
+        win.sessionStorage?.setItem(KUNCI_MUAT_ULANG, '1');
+      } catch {}
+      if (siapHardRefresh && !swSiapMuatUlang) {
         hardRefresh(targetVersiBaru || undefined, win);
       } else {
         muatUlang();
