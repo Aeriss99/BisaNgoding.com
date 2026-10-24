@@ -19,8 +19,11 @@ import {
   setCurrentUserId,
   getStorageKey,
   catatRiwayatStreak,
+  samaIsi,
 } from '../lib/cloudProgress';
 import { apakahModeLokal } from '../lib/modeLokal';
+
+export { samaIsi };
 
 export interface ProgressContextType {
   progress: UserProgress;
@@ -99,6 +102,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const timerRef = useRef<any>(null);
   const retryIntervalRef = useRef<any>(null);
   const initializedRef = useRef(false);
+  const terakhirDisimpanRef = useRef<string | null>(null);
 
   const initSync = async () => {
     if (apakahModeLokal()) {
@@ -122,19 +126,24 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     }
 
     setCurrentUserId(user.id);
-    setProgress(newProgress);
-    saveLocalProgress(newProgress, user.id);
+    if (!samaIsi(newProgress, progressRef.current)) {
+      setProgress(newProgress);
+      saveLocalProgress(newProgress, user.id);
+    }
 
     try {
       const streakSebelum = newProgress.streak;
       const tanggalSebelum = newProgress.streakDate;
       const saved = await saveCloudProgress(user.id, newProgress);
       if (saved) {
-        newProgress = saved;
-        setProgress(newProgress);
-        saveLocalProgress(newProgress, user.id);
-        if (saved.streak !== streakSebelum || saved.streakDate !== tanggalSebelum) {
-          catatRiwayatStreak(user.id, streakSebelum, tanggalSebelum, saved.streak, saved.streakDate, 'gabung-cloud');
+        terakhirDisimpanRef.current = JSON.stringify(saved);
+        if (!samaIsi(saved, progressRef.current)) {
+          newProgress = saved;
+          setProgress(newProgress);
+          saveLocalProgress(newProgress, user.id);
+          if (saved.streak !== streakSebelum || saved.streakDate !== tanggalSebelum) {
+            catatRiwayatStreak(user.id, streakSebelum, tanggalSebelum, saved.streak, saved.streakDate, 'gabung-cloud');
+          }
         }
       }
       setSyncStatus('Tersimpan');
@@ -163,6 +172,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       setSyncStatus('Offline, tersimpan di perangkat ini');
       setProgress(makeDefaultProgress());
       initializedRef.current = false;
+      terakhirDisimpanRef.current = null;
       setCurrentUserId(null);
       if (timerRef.current) clearTimeout(timerRef.current);
       if (retryIntervalRef.current) clearInterval(retryIntervalRef.current);
@@ -188,6 +198,11 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     if (apakahModeLokal() || !user || !initializedRef.current) return;
     if (timerRef.current) clearTimeout(timerRef.current);
 
+    const progressStr = JSON.stringify(progress);
+    if (terakhirDisimpanRef.current === progressStr) {
+      return;
+    }
+
     setSyncStatus('Menyimpan...');
     timerRef.current = setTimeout(async () => {
       try {
@@ -195,10 +210,13 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         const tanggalSebelum = progressRef.current.streakDate;
         const saved = await saveCloudProgress(user.id, progressRef.current);
         if (saved) {
-          setProgress(saved);
-          saveLocalProgress(saved, user.id);
-          if (saved.streak !== streakSebelum || saved.streakDate !== tanggalSebelum) {
-            catatRiwayatStreak(user.id, streakSebelum, tanggalSebelum, saved.streak, saved.streakDate, 'gabung-cloud');
+          terakhirDisimpanRef.current = JSON.stringify(saved);
+          if (!samaIsi(saved, progressRef.current)) {
+            setProgress(saved);
+            saveLocalProgress(saved, user.id);
+            if (saved.streak !== streakSebelum || saved.streakDate !== tanggalSebelum) {
+              catatRiwayatStreak(user.id, streakSebelum, tanggalSebelum, saved.streak, saved.streakDate, 'gabung-cloud');
+            }
           }
         }
         setSyncStatus('Tersimpan');
@@ -216,15 +234,21 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
+        const progressStr = JSON.stringify(progressRef.current);
+        if (terakhirDisimpanRef.current === progressStr) return;
+
         const streakSebelum = progressRef.current.streak;
         const tanggalSebelum = progressRef.current.streakDate;
         saveCloudProgress(user.id, progressRef.current)
           .then((saved) => {
             if (saved) {
-              setProgress(saved);
-              saveLocalProgress(saved, user.id);
-              if (saved.streak !== streakSebelum || saved.streakDate !== tanggalSebelum) {
-                catatRiwayatStreak(user.id, streakSebelum, tanggalSebelum, saved.streak, saved.streakDate, 'gabung-cloud');
+              terakhirDisimpanRef.current = JSON.stringify(saved);
+              if (!samaIsi(saved, progressRef.current)) {
+                setProgress(saved);
+                saveLocalProgress(saved, user.id);
+                if (saved.streak !== streakSebelum || saved.streakDate !== tanggalSebelum) {
+                  catatRiwayatStreak(user.id, streakSebelum, tanggalSebelum, saved.streak, saved.streakDate, 'gabung-cloud');
+                }
               }
             }
           })
@@ -243,10 +267,12 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
           const streakSebelum = progressRef.current.streak;
           const tanggalSebelum = progressRef.current.streakDate;
           const merged = mergeProgress(progressRef.current, cloudFetch.data);
-          setProgress(merged);
-          saveLocalProgress(merged, user.id);
-          if (merged.streak !== streakSebelum || merged.streakDate !== tanggalSebelum) {
-            catatRiwayatStreak(user.id, streakSebelum, tanggalSebelum, merged.streak, merged.streakDate, 'gabung-cloud');
+          if (!samaIsi(merged, progressRef.current)) {
+            setProgress(merged);
+            saveLocalProgress(merged, user.id);
+            if (merged.streak !== streakSebelum || merged.streakDate !== tanggalSebelum) {
+              catatRiwayatStreak(user.id, streakSebelum, tanggalSebelum, merged.streak, merged.streakDate, 'gabung-cloud');
+            }
           }
         }
       } catch (e) {}
@@ -275,15 +301,20 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       if (e.key === targetKey && e.newValue) {
         try {
           const remoteProgress: UserProgress = JSON.parse(e.newValue);
+          if (samaIsi(remoteProgress, progressRef.current)) {
+            return;
+          }
           const streakSebelum = progressRef.current.streak;
           const tanggalSebelum = progressRef.current.streakDate;
           const merged = mergeProgress(progressRef.current, remoteProgress);
-          setProgress(merged);
-          if (JSON.stringify(merged) !== e.newValue) {
-            saveLocalProgress(merged, currentUserId);
-          }
-          if (merged.streak !== streakSebelum || merged.streakDate !== tanggalSebelum) {
-            catatRiwayatStreak(user?.id, streakSebelum, tanggalSebelum, merged.streak, merged.streakDate, 'gabung-tab');
+          if (!samaIsi(merged, progressRef.current)) {
+            setProgress(merged);
+            if (JSON.stringify(merged) !== e.newValue) {
+              saveLocalProgress(merged, currentUserId);
+            }
+            if (merged.streak !== streakSebelum || merged.streakDate !== tanggalSebelum) {
+              catatRiwayatStreak(user?.id, streakSebelum, tanggalSebelum, merged.streak, merged.streakDate, 'gabung-tab');
+            }
           }
         } catch {}
       }
@@ -297,8 +328,10 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   const saveProgressState = (newProgress: UserProgress) => {
     try {
-      setProgress(newProgress);
-      saveLocalProgress(newProgress, user?.id);
+      if (!samaIsi(newProgress, progressRef.current)) {
+        setProgress(newProgress);
+        saveLocalProgress(newProgress, user?.id);
+      }
     } catch (e) {}
   };
 
@@ -444,10 +477,13 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       const tanggalSebelum = progressRef.current.streakDate;
       const saved = await saveCloudProgress(user.id, progressRef.current);
       if (saved) {
-        setProgress(saved);
-        saveLocalProgress(saved, user.id);
-        if (saved.streak !== streakSebelum || saved.streakDate !== tanggalSebelum) {
-          catatRiwayatStreak(user.id, streakSebelum, tanggalSebelum, saved.streak, saved.streakDate, 'gabung-cloud');
+        terakhirDisimpanRef.current = JSON.stringify(saved);
+        if (!samaIsi(saved, progressRef.current)) {
+          setProgress(saved);
+          saveLocalProgress(saved, user.id);
+          if (saved.streak !== streakSebelum || saved.streakDate !== tanggalSebelum) {
+            catatRiwayatStreak(user.id, streakSebelum, tanggalSebelum, saved.streak, saved.streakDate, 'gabung-cloud');
+          }
         }
       }
       setSyncStatus('Tersimpan');
