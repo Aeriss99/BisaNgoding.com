@@ -12,9 +12,11 @@ import {
   simpanCadanganQuiz,
   ambilCadanganQuiz,
   periksaPembaruanSaatPindahMateri,
+  hardRefresh,
   formatTanggalBuild,
   _resetStatePembaruan,
 } from '../lib/pembaruanAplikasi';
+import { calculateScore } from '../lib/quizLogic';
 
 function jendelaPalsu(hash: string, adaController = true, fetchResult?: any) {
   const dengar: Record<string, (() => void)[]> = {};
@@ -23,6 +25,7 @@ function jendelaPalsu(hash: string, adaController = true, fetchResult?: any) {
   const update = vi.fn(() => Promise.resolve());
   const unregister = vi.fn(() => Promise.resolve(true));
   const storageMap: Record<string, string> = {};
+  const sessionStorageMap: Record<string, string> = {};
   const deletedCaches: string[] = [];
 
   const registrationMock = { update, unregister };
@@ -43,11 +46,15 @@ function jendelaPalsu(hash: string, adaController = true, fetchResult?: any) {
     });
 
   const win = {
-    location: { hash, reload: vi.fn() },
+    location: { hash, pathname: '/', reload: vi.fn(), replace: vi.fn() },
     sessionStorage: {
-      setItem: vi.fn(),
-      getItem: vi.fn(),
-      removeItem: vi.fn(),
+      setItem: vi.fn((k: string, v: string) => {
+        sessionStorageMap[k] = v;
+      }),
+      getItem: vi.fn((k: string) => sessionStorageMap[k] || null),
+      removeItem: vi.fn((k: string) => {
+        delete sessionStorageMap[k];
+      }),
     },
     localStorage: {
       getItem: vi.fn((k: string) => storageMap[k] || null),
@@ -87,6 +94,7 @@ function jendelaPalsu(hash: string, adaController = true, fetchResult?: any) {
     caches,
     deletedCaches,
     storageMap,
+    sessionStorageMap,
     sw: (n: string) => picu(swDengar, n),
     jendela: (n: string) => picu(dengar, n),
     dok: (n: string) => picu(docDengar, n),
@@ -114,6 +122,7 @@ describe('pembaruan versi aplikasi', () => {
     pasangPembaruanOtomatis(j.win as unknown as Window);
     j.sw('controllerchange');
     expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBe('1');
   });
 
   it('sedang mengerjakan materi: ditunda sampai pindah halaman', () => {
@@ -124,6 +133,7 @@ describe('pembaruan versi aplikasi', () => {
     j.win.location.hash = '#/kelas/java';
     j.jendela('hashchange');
     expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBe('1');
   });
 
   it('gambar materi gagal dimuat: cari versi baru dan muat ulang walaupun sedang di materi', async () => {
@@ -157,6 +167,7 @@ describe('pembaruan versi aplikasi', () => {
     expect(j.win.location.reload).not.toHaveBeenCalled();
     muatUlangSekarang();
     expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBe('1');
     berhenti();
   });
 
@@ -166,6 +177,7 @@ describe('pembaruan versi aplikasi', () => {
     j.sw('controllerchange');
     muatUlangSekarang();
     expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBe('1');
   });
 
   it('kunjungan pertama (belum ada service worker) tidak memuat ulang', () => {
@@ -201,9 +213,10 @@ describe('pembaruan versi aplikasi', () => {
 
     expect(fetchMock).toHaveBeenCalled();
     expect(j.win.location.reload).not.toHaveBeenCalled();
+    expect(j.win.location.replace).not.toHaveBeenCalled();
   });
 
-  it('2. Versi server beda di luar materi: setelah 60 detik terjadi hard refresh (cache dihapus kecuali suara-en, service worker di-unregister, lalu reload)', async () => {
+  it('2. Versi server beda di luar materi: setelah 60 detik terjadi hard refresh (cache dihapus kecuali suara-en, service worker di-unregister, lalu location.replace)', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn(() =>
       Promise.resolve({
@@ -220,6 +233,7 @@ describe('pembaruan versi aplikasi', () => {
 
     expect(j.update).toHaveBeenCalled();
     expect(j.win.location.reload).not.toHaveBeenCalled();
+    expect(j.win.location.replace).not.toHaveBeenCalled();
 
     // Majukan 60 detik
     await vi.advanceTimersByTimeAsync(60_000);
@@ -228,7 +242,10 @@ describe('pembaruan versi aplikasi', () => {
     expect(j.deletedCaches).toContain('other-cache');
     expect(j.deletedCaches).not.toContain('suara-en');
     expect(j.unregister).toHaveBeenCalled();
-    expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+    expect(j.win.location.replace).toHaveBeenCalledWith(
+      '/?v=v-baru-123#/progres'
+    );
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBe('1');
   });
 
   it('3. Versi server beda di halaman materi: tidak reload sebelum 30 menit. Setelah 30 menit, reload terjadi saat pindah kartu, dan cadangan tersimpan', async () => {
@@ -248,6 +265,7 @@ describe('pembaruan versi aplikasi', () => {
     // 60 detik berlalu (1 menit): masih di materi, tidak boleh reload
     await vi.advanceTimersByTimeAsync(60_000);
     expect(j.win.location.reload).not.toHaveBeenCalled();
+    expect(j.win.location.replace).not.toHaveBeenCalled();
 
     // 27 menit berlalu (total 28 menit): pindah kartu belum memicu reload (< 30 menit)
     await vi.advanceTimersByTimeAsync(27 * 60 * 1000);
@@ -259,8 +277,9 @@ describe('pembaruan versi aplikasi', () => {
     );
     expect(pindahAwal).toBe(false);
     expect(j.win.location.reload).not.toHaveBeenCalled();
+    expect(j.win.location.replace).not.toHaveBeenCalled();
 
-    // 3 menit lagi (total 31 menit): pindah kartu memicu reload dan menyimpan cadangan (>= 30 menit)
+    // 3 menit lagi (total 31 menit): pindah kartu memicu update dan menyimpan cadangan (>= 30 menit)
     await vi.advanceTimersByTimeAsync(3 * 60 * 1000);
     const pindahSetelah30Menit = periksaPembaruanSaatPindahMateri(
       'java-dasar-01',
@@ -271,12 +290,16 @@ describe('pembaruan versi aplikasi', () => {
     expect(pindahSetelah30Menit).toBe(true);
 
     await vi.advanceTimersByTimeAsync(10);
-    expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+    expect(j.win.location.replace).toHaveBeenCalledWith(
+      '/?v=v-baru-materi#/lesson/java-dasar-01'
+    );
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBe('1');
 
-    // Cadangan tersimpan dengan index kartu berikutnya (3)
+    // Cadangan tersimpan dengan index kartu berikutnya (3) dan dipulihkan bila ada penanda
     const cadangan = ambilCadanganMateri(
       'java-dasar-01',
-      j.win.localStorage as unknown as Storage
+      j.win.localStorage as unknown as Storage,
+      j.win.sessionStorage as unknown as Storage
     );
     expect(cadangan).toEqual({
       index: 3,
@@ -309,17 +332,21 @@ describe('pembaruan versi aplikasi', () => {
 
     // Hard refresh ditahan oleh pengaman 10 menit
     expect(j.win.location.reload).not.toHaveBeenCalled();
+    expect(j.win.location.replace).not.toHaveBeenCalled();
   });
 
   it('5. Offline (fetch gagal): tidak terjadi apa-apa', async () => {
     const fetchMock = vi.fn(() => Promise.reject(new Error('Network offline')));
     const j = jendelaPalsu('#/progres', true, fetchMock);
 
-    expect(() => pasangPembaruanOtomatis(j.win as unknown as Window)).not.toThrow();
+    expect(() =>
+      pasangPembaruanOtomatis(j.win as unknown as Window)
+    ).not.toThrow();
     await Promise.resolve();
     await Promise.resolve();
 
     expect(j.win.location.reload).not.toHaveBeenCalled();
+    expect(j.win.location.replace).not.toHaveBeenCalled();
   });
 
   it('6. Cadangan materi dan quiz dipulihkan setelah reload, dan yang lebih tua dari 2 jam diabaikan', () => {
@@ -334,14 +361,34 @@ describe('pembaruan versi aplikasi', () => {
       },
     } as unknown as Storage;
 
-    // Materi: simpan dan pulihkan
+    const sessionStorage: Record<string, string> = {
+      [KUNCI_MUAT_ULANG]: '1',
+    };
+    const mockSessionStorage = {
+      getItem: (k: string) => sessionStorage[k] || null,
+      setItem: (k: string, v: string) => {
+        sessionStorage[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete sessionStorage[k];
+      },
+    } as unknown as Storage;
+
+    // Materi: simpan dan pulihkan dengan penanda muat ulang
     simpanCadanganMateri('js-dasar-05', 4, { 2: 1 }, mockStorage);
-    const pulihMateri = ambilCadanganMateri('js-dasar-05', mockStorage);
+    const pulihMateri = ambilCadanganMateri(
+      'js-dasar-05',
+      mockStorage,
+      mockSessionStorage
+    );
     expect(pulihMateri).toEqual({ index: 4, attemptsPerCard: { 2: 1 } });
-    // Setelah dipulihkan, cadangan harus dihapus
-    expect(ambilCadanganMateri('js-dasar-05', mockStorage)).toBeNull();
+    // Setelah dipulihkan, cadangan dan penanda harus dihapus
+    expect(
+      ambilCadanganMateri('js-dasar-05', mockStorage, mockSessionStorage)
+    ).toBeNull();
 
     // Materi: cadangan lebih tua dari 2 jam diabaikan
+    mockSessionStorage.setItem(KUNCI_MUAT_ULANG, '1');
     mockStorage.setItem(
       'bn_cadangan_materi',
       JSON.stringify({
@@ -351,15 +398,25 @@ describe('pembaruan versi aplikasi', () => {
         waktu: Date.now() - 2 * 60 * 60 * 1000 - 1000,
       })
     );
-    expect(ambilCadanganMateri('js-dasar-05', mockStorage)).toBeNull();
+    expect(
+      ambilCadanganMateri('js-dasar-05', mockStorage, mockSessionStorage)
+    ).toBeNull();
 
     // Quiz: simpan dan pulihkan
-    simpanCadanganQuiz('java-dasar', 5, { 0: 1, 1: 3 }, mockStorage);
-    const pulihQuiz = ambilCadanganQuiz('java-dasar', mockStorage);
-    expect(pulihQuiz).toEqual({ index: 5, answers: { 0: 1, 1: 3 } });
-    expect(ambilCadanganQuiz('java-dasar', mockStorage)).toBeNull();
+    mockSessionStorage.setItem(KUNCI_MUAT_ULANG, '1');
+    simpanCadanganQuiz('java-dasar', 5, { 0: 1, 1: 3 }, [], mockStorage);
+    const pulihQuiz = ambilCadanganQuiz(
+      'java-dasar',
+      mockStorage,
+      mockSessionStorage
+    );
+    expect(pulihQuiz).toEqual({ index: 5, answers: { 0: 1, 1: 3 }, questions: [] });
+    expect(
+      ambilCadanganQuiz('java-dasar', mockStorage, mockSessionStorage)
+    ).toBeNull();
 
     // Quiz: cadangan lebih tua dari 2 jam diabaikan
+    mockSessionStorage.setItem(KUNCI_MUAT_ULANG, '1');
     mockStorage.setItem(
       'bn_cadangan_quiz',
       JSON.stringify({
@@ -369,7 +426,164 @@ describe('pembaruan versi aplikasi', () => {
         waktu: Date.now() - 2 * 60 * 60 * 1000 - 1000,
       })
     );
-    expect(ambilCadanganQuiz('java-dasar', mockStorage)).toBeNull();
+    expect(
+      ambilCadanganQuiz('java-dasar', mockStorage, mockSessionStorage)
+    ).toBeNull();
+  });
+
+  /* ───────────────────────── Tes Spesifik Tambahan ───────────────────────── */
+
+  it('Quiz: setelah dipulihkan, soal, urutan pilihan, dan jawaban sama persis dengan sebelum dimuat ulang, dan nilai yang dihitung sama', () => {
+    const storage: Record<string, string> = {};
+    const mockStorage = {
+      getItem: (k: string) => storage[k] || null,
+      setItem: (k: string, v: string) => {
+        storage[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete storage[k];
+      },
+    } as unknown as Storage;
+
+    const sessionStorage: Record<string, string> = {};
+    const mockSessionStorage = {
+      getItem: (k: string) => sessionStorage[k] || null,
+      setItem: (k: string, v: string) => {
+        sessionStorage[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete sessionStorage[k];
+      },
+    } as unknown as Storage;
+
+    const dummyQuestions = [
+      {
+        id: 'q1',
+        question: 'Soal 1',
+        options: ['Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D'],
+        answer: 1,
+        explanation: 'Exp 1',
+      },
+      {
+        id: 'q2',
+        question: 'Soal 2',
+        options: ['Pilihan X', 'Pilihan Y', 'Pilihan Z', 'Pilihan W'],
+        answer: 0,
+        explanation: 'Exp 2',
+      },
+    ];
+    const userAnswers = { 0: 1, 1: 2 }; // Soal 0 benar (1 == 1), soal 1 salah (2 != 0)
+    const initialScore = calculateScore(dummyQuestions as any, userAnswers); // 50%
+
+    // Simpan cadangan dengan questions
+    simpanCadanganQuiz(
+      'modul-test',
+      1,
+      userAnswers,
+      dummyQuestions as any,
+      mockStorage
+    );
+
+    // Halaman dimuat ulang karena versi baru (ada penanda)
+    mockSessionStorage.setItem(KUNCI_MUAT_ULANG, '1');
+
+    // Pulihkan
+    const cadangan = ambilCadanganQuiz(
+      'modul-test',
+      mockStorage,
+      mockSessionStorage
+    );
+    expect(cadangan).not.toBeNull();
+    expect(cadangan?.questions).toEqual(dummyQuestions);
+    expect(cadangan?.answers).toEqual(userAnswers);
+    expect(cadangan?.index).toBe(1);
+
+    // Nilai yang dihitung dari cadangan harus sama persis
+    const scorePulih = calculateScore(
+      cadangan!.questions as any,
+      cadangan!.answers
+    );
+    expect(scorePulih).toBe(initialScore);
+  });
+
+  it('Materi dan quiz yang dibuka biasa (tanpa penanda muat ulang): mulai dari kartu/soal pertama, dan cadangan lama diabaikan', () => {
+    const storage: Record<string, string> = {};
+    const mockStorage = {
+      getItem: (k: string) => storage[k] || null,
+      setItem: (k: string, v: string) => {
+        storage[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete storage[k];
+      },
+    } as unknown as Storage;
+
+    const sessionStorage: Record<string, string> = {};
+    const mockSessionStorage = {
+      getItem: (k: string) => sessionStorage[k] || null,
+      setItem: (k: string, v: string) => {
+        sessionStorage[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete sessionStorage[k];
+      },
+    } as unknown as Storage;
+
+    // Ada cadangan tersimpan
+    simpanCadanganMateri('lesson-1', 4, { 0: 1 }, mockStorage);
+    simpanCadanganQuiz('modul-1', 5, { 0: 2 }, [], mockStorage);
+
+    // Buka biasa (sessionStorage TIDAK berisi KUNCI_MUAT_ULANG = '1')
+    expect(
+      ambilCadanganMateri('lesson-1', mockStorage, mockSessionStorage)
+    ).toBeNull();
+    expect(
+      ambilCadanganQuiz('modul-1', mockStorage, mockSessionStorage)
+    ).toBeNull();
+  });
+
+  it('hardRefresh: memanggil location.replace dengan ?v= dan hash yang sama', async () => {
+    const j = jendelaPalsu('#/kelas/java');
+    const result = await hardRefresh(
+      'v-testing-99',
+      j.win as unknown as Window
+    );
+    expect(result).toBe(true);
+    expect(j.win.location.replace).toHaveBeenCalledWith(
+      '/?v=v-testing-99#/kelas/java'
+    );
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBe('1');
+    expect(j.deletedCaches).toContain('workbox-precache-v1');
+    expect(j.deletedCaches).not.toContain('suara-en');
+    expect(j.unregister).toHaveBeenCalled();
+  });
+
+  it('Setelah controllerchange + 30 menit di materi: yang terjadi muat ulang biasa, bukan hard refresh', async () => {
+    vi.useFakeTimers();
+    const j = jendelaPalsu('#/lesson/spring-dasar-03');
+    pasangPembaruanOtomatis(j.win as unknown as Window);
+
+    // controllerchange terjadi
+    j.sw('controllerchange');
+
+    // 30 menit berlalu di materi
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
+
+    // Pindah kartu
+    const ok = periksaPembaruanSaatPindahMateri(
+      'spring-dasar-03',
+      2,
+      {},
+      j.win as unknown as Window
+    );
+    expect(ok).toBe(true);
+
+    // Muat ulang biasa (reload dipanggil, BUKAN replace/hard refresh)
+    expect(j.win.location.reload).toHaveBeenCalledTimes(1);
+    expect(j.win.location.replace).not.toHaveBeenCalled();
+    expect(j.caches.delete).not.toHaveBeenCalled();
+    expect(j.unregister).not.toHaveBeenCalled();
+    expect(j.sessionStorageMap[KUNCI_MUAT_ULANG]).toBe('1');
   });
 
   it('formatTanggalBuild memformat ISO tanggal ke format Indonesia', () => {
