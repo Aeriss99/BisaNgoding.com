@@ -413,4 +413,92 @@ describe('ProgressContext', () => {
       expect.any(String)
     );
   });
+
+  it('4. Event storage dari tab lain digabung dengan mergeProgress, tidak menimpa data lokal', async () => {
+    mockModeLokal.mockReturnValue(false);
+
+    // Initial state tab ini
+    localStorageMock.setItem(
+      'bisangoding_progress:user-tab',
+      JSON.stringify({
+        completedLessons: ['materi-tab1'],
+        xp: 10,
+        streak: 1,
+        streakDate: '2026-10-24',
+        lastActiveDate: '2026-10-24',
+      })
+    );
+
+    const mockSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: {
+            diperbarui: '2026-10-24T00:00:00Z',
+            data: { completedLessons: ['materi-tab1'], xp: 10, streak: 1 },
+          },
+          error: null,
+        }),
+      }),
+    });
+    const mockUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          select: vi.fn().mockResolvedValue({ data: [{ user_id: 'user-tab' }], error: null }),
+        }),
+      }),
+    });
+    const mockInsert = vi.fn().mockResolvedValue({ data: null, error: null });
+
+    (supabase!.from as any).mockImplementation((table: string) => {
+      if (table === 'progres') return { select: mockSelect, update: mockUpdate };
+      if (table === 'riwayat_streak') return { insert: mockInsert };
+      return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) };
+    });
+
+    vi.mocked(supabase!.auth.getSession).mockResolvedValueOnce({
+      data: { session: { user: { id: 'user-tab' } } },
+    } as any);
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 150));
+    });
+
+    expect(result.current.progress.completedLessons).toEqual(['materi-tab1']);
+
+    // Tab lain menyelesaikan materi-tab2 dan menaikkan streak
+    const tabLainData = {
+      completedLessons: ['materi-tab2'],
+      xp: 20,
+      streak: 2,
+      streakDate: '2026-10-25',
+      lastActiveDate: '2026-10-25',
+    };
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'bisangoding_progress:user-tab',
+          newValue: JSON.stringify(tabLainData),
+        })
+      );
+    });
+
+    // Hasil harus digabung: kedua materi ada, xp dan streak tertinggi
+    expect(result.current.progress.completedLessons).toContain('materi-tab1');
+    expect(result.current.progress.completedLessons).toContain('materi-tab2');
+    expect(result.current.progress.streak).toBe(2);
+    expect(result.current.progress.streakDate).toBe('2026-10-25');
+
+    // Riwayat streak terkirim dengan sebab gabung-tab
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-tab',
+        sebab: 'gabung-tab',
+        streak_baru: 2,
+        tanggal_baru: '2026-10-25',
+      })
+    );
+  });
 });
