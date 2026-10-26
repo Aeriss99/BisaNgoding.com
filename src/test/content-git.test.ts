@@ -83,6 +83,21 @@ describe('Git Content Integrity', () => {
               it('praktik terminal: ada langkah, setiap langkah punya pola, keluaran, dan petunjuk', () => {
                 const pt = card as PraktikTerminalCard;
                 expect(pt.judul).toMatch(/^Proyek Todolist \d+: /);
+
+                const ghOffsets: Record<string, number> = {
+                  'modul-04-github-dasar': 36,
+                  'modul-05-github-kolaborasi': 41,
+                  'modul-06-github-proyek': 46,
+                  'modul-07-github-keamanan': 50,
+                  'modul-08-github-otomatisasi': 54,
+                  'modul-09-github-ekosistem': 59,
+                };
+                if (ghOffsets[moduleDir] !== undefined) {
+                  const noDiharapkan = ghOffsets[moduleDir] + (lesson.order - 1);
+                  const noNyata = parseInt(pt.judul.match(/^Proyek Todolist (\d+):/)?.[1] || '0', 10);
+                  expect(noNyata).toBe(noDiharapkan);
+                }
+
                 expect(pt.langkah.length).toBeGreaterThan(0);
                 for (const l of pt.langkah) {
                   expect(l.terima.length).toBeGreaterThan(0);
@@ -115,7 +130,10 @@ describe('Git Content Integrity', () => {
                 }
                 // Kartu praktik ada di akhir materi: setelah teori terakhir, sebelum soal
                 expect(lesson.cards[index - 1]?.type).toBe('theory');
-                expect(lesson.cards[index + 1]?.type).toBe('understanding_check');
+                expect(['understanding_check', 'praktik_github']).toContain(lesson.cards[index + 1]?.type);
+                if (lesson.cards[index + 1]?.type === 'praktik_github') {
+                  expect(pt.judul).toMatch(/\(terminal\)$/);
+                }
                 // dan menggantikan daftar perintah panjang "Coba di komputermu"
                 const teori = lesson.cards.filter((c): c is TheoryCard => c.type === 'theory');
                 expect(teori.some((t) => t.content.includes('Coba di komputermu'))).toBe(false);
@@ -124,6 +142,21 @@ describe('Git Content Integrity', () => {
               it('praktik github: ada langkah, setiap target ada di layarnya, dan arahan menyebut tombol', () => {
                 const pg = card as PraktikGitHubCard;
                 expect(pg.judul).toMatch(/^Proyek Todolist \d+: /);
+
+                const ghOffsets: Record<string, number> = {
+                  'modul-04-github-dasar': 36,
+                  'modul-05-github-kolaborasi': 41,
+                  'modul-06-github-proyek': 46,
+                  'modul-07-github-keamanan': 50,
+                  'modul-08-github-otomatisasi': 54,
+                  'modul-09-github-ekosistem': 59,
+                };
+                if (ghOffsets[moduleDir] !== undefined) {
+                  const noDiharapkan = ghOffsets[moduleDir] + (lesson.order - 1);
+                  const noNyata = parseInt(pg.judul.match(/^Proyek Todolist (\d+):/)?.[1] || '0', 10);
+                  expect(noNyata).toBe(noDiharapkan);
+                }
+
                 expect(pg.langkah.length).toBeGreaterThan(0);
                 expect(pg.langkah[0].otomatis).toBe(true);
                 expect(pg.langkah.slice(1).some((l) => l.otomatis)).toBe(false);
@@ -148,8 +181,11 @@ describe('Git Content Integrity', () => {
                   }
                 }
 
-                expect(lesson.cards[index - 1]?.type).toBe('theory');
+                expect(['theory', 'praktik_terminal']).toContain(lesson.cards[index - 1]?.type);
                 expect(lesson.cards[index + 1]?.type).toBe('understanding_check');
+                if (lesson.cards[index - 1]?.type === 'praktik_terminal') {
+                  expect(pg.judul).toMatch(/\(GitHub\)$/);
+                }
               });
             } else if (card.type === 'understanding_check' || card.type === 'summary') {
               it('exists', () => {

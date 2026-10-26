@@ -224,6 +224,8 @@ export interface LayarGitHub {
     | 'pull_request'
     | 'form_pr'
     | 'pengaturan'
+    | 'projects'
+    | 'form_gist'
     | 'form_umum'
     | string;
   repo?: string;
@@ -234,6 +236,8 @@ export interface LayarGitHub {
   menuAktif?: string;
   bannerCompare?: boolean;
   tombolTeks?: string;
+  issueCount?: number;
+  prCount?: number;
   items?: Array<{ id: string; nomor?: number; judul: string; status?: string; waktu?: string; label?: string }>;
   elemen?: Record<string, string>;
   [key: string]: unknown;
