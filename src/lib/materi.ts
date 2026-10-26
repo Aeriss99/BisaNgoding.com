@@ -20,6 +20,7 @@ const LABEL_KARTU: Record<Card['type'], string> = {
   html_css_preview: 'PREVIEW HTML & CSS',
   html_preview: 'CONTOH KODE',
   praktik_terminal: 'PRAKTIK DI TERMINAL',
+  praktik_github: 'PRAKTIK DI GITHUB',
 };
 
 export function labelKartu(type: Card['type']): string {

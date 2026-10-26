@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
-import type { Lesson, Card, FillBlankCard, PredictOutputCard, TheoryCard, PraktikTerminalCard } from '../types/schema';
+import type { Lesson, Card, FillBlankCard, PredictOutputCard, TheoryCard, PraktikTerminalCard, PraktikGitHubCard } from '../types/schema';
 import { contohPerintah } from '../lib/praktikTerminal';
+import { ambilElemenLayar } from '../lib/praktikGithub';
 
 describe('Git Content Integrity', () => {
   const contentDir = path.resolve(__dirname, '../../content/git');
@@ -118,6 +119,37 @@ describe('Git Content Integrity', () => {
                 // dan menggantikan daftar perintah panjang "Coba di komputermu"
                 const teori = lesson.cards.filter((c): c is TheoryCard => c.type === 'theory');
                 expect(teori.some((t) => t.content.includes('Coba di komputermu'))).toBe(false);
+              });
+            } else if (card.type === 'praktik_github') {
+              it('praktik github: ada langkah, setiap target ada di layarnya, dan arahan menyebut tombol', () => {
+                const pg = card as PraktikGitHubCard;
+                expect(pg.judul).toMatch(/^Proyek Todolist \d+: /);
+                expect(pg.langkah.length).toBeGreaterThan(0);
+                expect(pg.langkah[0].otomatis).toBe(true);
+                expect(pg.langkah.slice(1).some((l) => l.otomatis)).toBe(false);
+                expect(pg.langkah.filter((l) => !l.otomatis).length).toBeGreaterThanOrEqual(2);
+
+                for (const l of pg.langkah) {
+                  expect(pg.layar[l.layar]).toBeDefined();
+                  const elemen = ambilElemenLayar(pg.layar[l.layar]);
+                  expect(elemen).toHaveProperty(l.target);
+                  expect(l.arahan.length).toBeGreaterThan(0);
+                  if (!l.otomatis) expect(l.petunjuk.length).toBeGreaterThan(0);
+                }
+
+                for (const l of pg.langkah.slice(1)) {
+                  const elemen = ambilElemenLayar(pg.layar[l.layar]);
+                  const namaTombol = elemen[l.target];
+                  if (l.tantangan) {
+                    expect(l.arahan).not.toContain(namaTombol);
+                    expect(l.petunjuk).not.toContain(namaTombol);
+                  } else {
+                    expect(l.arahan).toContain(namaTombol);
+                  }
+                }
+
+                expect(lesson.cards[index - 1]?.type).toBe('theory');
+                expect(lesson.cards[index + 1]?.type).toBe('understanding_check');
               });
             } else if (card.type === 'understanding_check' || card.type === 'summary') {
               it('exists', () => {
