@@ -50,6 +50,7 @@ export function ambilElemenLayar(layar: LayarGitHub): Record<string, string> {
     case 'repo':
       hasil['btn-code'] = '<> Code';
       hasil['banner-compare'] = 'Compare & pull request';
+      hasil['btn-new-discussion'] = 'New discussion';
       break;
 
     case 'daftar_issue':
@@ -68,13 +69,23 @@ export function ambilElemenLayar(layar: LayarGitHub): Record<string, string> {
       hasil['btn-cancel'] = 'Cancel';
       break;
 
+    case 'daftar_pr':
+      hasil['btn-new-pr'] = 'New pull request';
+      break;
+
     case 'pull_request':
       hasil['tab-conversation'] = 'Conversation';
       hasil['tab-files'] = 'Files changed';
+      hasil['btn-resolve-conflicts'] = 'Resolve conflicts';
+      hasil['btn-hapus-marker'] = 'Hapus marker';
+      hasil['btn-mark-resolved'] = 'Mark as resolved';
+      hasil['btn-commit-merge'] = 'Commit merge';
+      hasil['btn-submit-review'] = 'Submit review';
+      hasil['opt-approve'] = 'Approve';
+      hasil['btn-approve'] = 'Approve';
+      hasil['btn-confirm-review'] = 'Submit review';
       hasil['btn-merge'] = 'Merge pull request';
       hasil['btn-confirm-merge'] = 'Confirm merge';
-      hasil['btn-submit-review'] = 'Submit review';
-      hasil['btn-approve'] = 'Approve';
       break;
 
     case 'form_pr':
@@ -88,17 +99,26 @@ export function ambilElemenLayar(layar: LayarGitHub): Record<string, string> {
       hasil['menu-collaborators'] = 'Collaborators';
       hasil['menu-pages'] = 'Pages';
       hasil['menu-copilot'] = 'Copilot';
+      hasil['check-discussions'] = 'Discussions';
       hasil['btn-setup-discussions'] = 'Set up discussions';
       hasil['btn-add-people'] = 'Add people';
+      hasil['input-collaborator'] = 'Username';
+      hasil['btn-submit-invite'] = 'Add';
+      hasil['btn-select-deploy-branch'] = 'Deploy from a branch';
+      hasil['btn-select-branch-main'] = 'main';
       hasil['btn-save-pages'] = 'Save';
+      hasil['btn-visit-site'] = 'Visit site';
       hasil['btn-source-actions'] = 'GitHub Actions';
       hasil['btn-save-copilot'] = 'Save';
       break;
 
     case 'projects':
+      hasil['tab-projects'] = 'Projects';
       hasil['btn-new-project'] = 'New project';
       hasil['btn-board'] = 'Board';
       hasil['btn-table'] = 'Table';
+      hasil['input-title'] = 'Title';
+      hasil['btn-create-project'] = 'Create';
       break;
 
     case 'form_gist':
@@ -106,6 +126,7 @@ export function ambilElemenLayar(layar: LayarGitHub): Record<string, string> {
       hasil['input-filename'] = 'Filename';
       hasil['btn-create-secret'] = 'Create secret gist';
       hasil['btn-create-public'] = 'Create public gist';
+      hasil['btn-new-gist'] = 'New gist';
       break;
 
     case 'form_umum':
