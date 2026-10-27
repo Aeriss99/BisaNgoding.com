@@ -131,9 +131,11 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
   }, [entri]);
 
   const contohSudah = useRef(-1);
+  const langkahSelesaiRef = useRef<number>(-1);
 
   const berhasil = (isianData?: Record<string, string>) => {
     if (!langkah) return;
+    langkahSelesaiRef.current = langkahKe;
     let vBaru = nilai;
     if (isianData && Object.keys(isianData).length > 0) {
       vBaru = simpanVariabelGitHub(isianData);
@@ -208,6 +210,9 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
 
   const handleClickElement = (targetId: string) => {
     if (selesai || !langkah || langkah.otomatis) return;
+    if (langkahSelesaiRef.current === langkahKe) {
+      return;
+    }
     sudahBerinteraksi.current = true;
 
     if (targetId === langkah.target) {
@@ -868,23 +873,36 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                       <div className="border-2 border-[#0969da] rounded-lg p-3 bg-white shadow-md space-y-2 text-xs">
                         <span className="font-semibold block text-sm">Finish your review</span>
                         <div className="space-y-1">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="review-type" disabled />
+                          <div className="flex items-center gap-2 p-1.5 opacity-50">
+                            <input type="radio" name="review-type" disabled tabIndex={-1} className="pointer-events-none" />
                             <span>Comment</span>
-                          </label>
-                          <label
+                          </div>
+                          <div
                             id="opt-approve"
                             data-target-id="opt-approve"
-                            onClick={() => handleClickElement('opt-approve')}
+                            role="radio"
+                            aria-checked={layarAktif.modeReview === 'approve'}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleClickElement('opt-approve');
+                            }}
                             className={`flex items-center gap-2 p-1.5 rounded cursor-pointer ${getSorotStyle('opt-approve')}`}
                           >
-                            <input type="radio" name="review-type" defaultChecked={layarAktif.modeReview === 'approve'} />
+                            <input
+                              type="radio"
+                              name="review-type"
+                              checked={layarAktif.modeReview === 'approve'}
+                              readOnly
+                              tabIndex={-1}
+                              className="pointer-events-none cursor-pointer"
+                            />
                             <span className="font-semibold text-[#1a7f37]">Approve</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="review-type" disabled />
+                          </div>
+                          <div className="flex items-center gap-2 p-1.5 opacity-50">
+                            <input type="radio" name="review-type" disabled tabIndex={-1} className="pointer-events-none" />
                             <span>Request changes</span>
-                          </label>
+                          </div>
                         </div>
                         <div className="flex justify-end pt-2">
                           <button
@@ -1065,20 +1083,27 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                     <div className="pt-2 space-y-3">
                       <div className="border border-[#d0d7de] rounded-md p-3 bg-white space-y-2">
                         <span className="font-semibold text-xs block text-[#24292f]">Features</span>
-                        <label
+                        <div
                           id="check-discussions"
                           data-target-id="check-discussions"
-                          onClick={() => handleClickElement('check-discussions')}
+                          role="checkbox"
+                          aria-checked={Boolean(layarAktif.featuresDiscussionsChecked)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleClickElement('check-discussions');
+                          }}
                           className={`flex items-center gap-2 cursor-pointer p-1 rounded ${getSorotStyle('check-discussions')}`}
                         >
                           <input
                             type="checkbox"
                             checked={Boolean(layarAktif.featuresDiscussionsChecked)}
-                            onChange={() => {}}
-                            className="cursor-pointer"
+                            readOnly
+                            tabIndex={-1}
+                            className="cursor-pointer pointer-events-none"
                           />
                           <span className="font-medium text-xs">Discussions (collaborative forums)</span>
-                        </label>
+                        </div>
                       </div>
                       {Boolean(layarAktif.featuresDiscussionsChecked) && (
                         <div className="flex justify-end">
@@ -1169,34 +1194,41 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                               Visit site
                             </button>
                           </div>
-                        ) : layarAktif.stagePages === 'actions' || layarAktif.stagePages === 'actions_set' ? (
-                          <div className="space-y-2">
-                            <span className="text-[#57606a] text-xs block">Source:</span>
-                            <button
-                              type="button"
-                              id="btn-source-actions"
-                              data-target-id="btn-source-actions"
-                              onClick={() => handleClickElement('btn-source-actions')}
-                              className={`px-3 py-1.5 border border-[#d0d7de] bg-white rounded-md text-xs font-medium hover:bg-[#f6f8fa] cursor-pointer ${getSorotStyle('btn-source-actions')}`}
-                            >
-                              GitHub Actions
-                            </button>
-                            {layarAktif.stagePages === 'actions_set' && (
-                              <p className="text-xs text-[#1a7f37] font-semibold m-0">✓ Source set to GitHub Actions</p>
-                            )}
-                          </div>
                         ) : (
                           <div className="space-y-2">
                             <span className="text-[#57606a] text-xs block">Source:</span>
-                            <button
-                              type="button"
-                              id="btn-select-deploy-branch"
-                              data-target-id="btn-select-deploy-branch"
-                              onClick={() => handleClickElement('btn-select-deploy-branch')}
-                              className={`px-3 py-1.5 border border-[#d0d7de] bg-white rounded-md text-xs font-medium hover:bg-[#f6f8fa] cursor-pointer ${getSorotStyle('btn-select-deploy-branch')}`}
-                            >
-                              Deploy from a branch
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                id="btn-select-deploy-branch"
+                                data-target-id="btn-select-deploy-branch"
+                                onClick={() => handleClickElement('btn-select-deploy-branch')}
+                                className={`px-3 py-1.5 border border-[#d0d7de] rounded-md text-xs font-medium cursor-pointer ${
+                                  layarAktif.stagePages === 'actions' || layarAktif.stagePages === 'actions_set'
+                                    ? 'bg-[#f6f8fa] text-[#57606a]'
+                                    : 'bg-white text-[#24292f] font-semibold'
+                                } ${getSorotStyle('btn-select-deploy-branch')}`}
+                              >
+                                Deploy from a branch
+                              </button>
+                              <button
+                                type="button"
+                                id="btn-source-actions"
+                                data-target-id="btn-source-actions"
+                                onClick={() => handleClickElement('btn-source-actions')}
+                                className={`px-3 py-1.5 border border-[#d0d7de] rounded-md text-xs font-medium cursor-pointer ${
+                                  layarAktif.stagePages === 'actions' || layarAktif.stagePages === 'actions_set'
+                                    ? 'bg-white text-[#24292f] font-semibold'
+                                    : 'bg-[#f6f8fa] text-[#57606a]'
+                                } ${getSorotStyle('btn-source-actions')}`}
+                              >
+                                GitHub Actions
+                              </button>
+                            </div>
+
+                            {layarAktif.stagePages === 'actions_set' && (
+                              <p className="text-xs text-[#1a7f37] font-semibold m-0 pt-1">✓ Source set to GitHub Actions</p>
+                            )}
 
                             {layarAktif.stagePages === 'branch_select' && (
                               <div className="pt-2 flex items-center gap-2">
@@ -1410,7 +1442,7 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                   <div className="space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-[#d0d7de]">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm">{layarAktif.deskripsi || 'Fungsi pembantu todolist'}</span>
+                        <span className="font-semibold text-sm">{isiTemplate(layarAktif.deskripsi || 'Fungsi pembantu todolist', nilai, bawaan)}</span>
                         <span className="px-2 py-0.5 bg-[#f6f8fa] border border-[#d0d7de] rounded-full text-[11px] text-[#57606a]">Secret</span>
                       </div>
                       <button
@@ -1425,7 +1457,7 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                     </div>
                     <div className="border border-[#d0d7de] rounded-md overflow-hidden bg-white">
                       <div className="bg-[#f6f8fa] p-2 border-b border-[#d0d7de] font-mono text-xs">
-                        {layarAktif.judul || 'todo-helper.js'}
+                        {isiTemplate(layarAktif.judul || 'todo-helper.js', nilai, bawaan)}
                       </div>
                       <pre className="p-3 font-mono text-xs text-[#24292f] m-0">
                         function hitungSisa(items) &#123; return items.filter(x =&gt; !x.done).length; &#125;

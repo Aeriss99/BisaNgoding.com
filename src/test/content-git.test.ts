@@ -163,6 +163,7 @@ describe('Git Content Integrity', () => {
                 expect(pg.langkah.filter((l) => !l.otomatis).length).toBeGreaterThanOrEqual(2);
 
                 for (const l of pg.langkah) {
+                  expect(l.target).not.toMatch(/^input-|^textarea-/i);
                   expect(pg.layar[l.layar]).toBeDefined();
                   const elemen = ambilElemenLayar(pg.layar[l.layar]);
                   expect(elemen).toHaveProperty(l.target);
