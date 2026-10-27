@@ -118,7 +118,7 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
 
   const langkah = card.langkah[langkahKe];
   const layarAktif: LayarGitHub =
-    (selesai && (card.layar['selesai'] || card.layar['daftar_issue_terisi'])) ||
+    (selesai && (card.layar['selesai'] || card.layar['daftar_issue_terisi'] || card.layar['pr_merged'])) ||
     (langkah && card.layar[langkah.layar]) || {
       templat: 'repo',
       repo: 'kamu/todolist',
@@ -260,7 +260,7 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
     if (!langkah) return;
     setSorotJawaban(true);
     if (langkah.isian) {
-      const defaultVal = bawaan[langkah.isian] || 'Tombol checkout tidak bisa diklik di HP';
+      const defaultVal = bawaan[langkah.isian] || 'hapusTodo menghapus nomor yang salah';
       setIsianNilai((prev) => ({ ...prev, [langkah.isian!]: defaultVal }));
     }
   };
@@ -276,6 +276,7 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
 
   const repoNama = layarAktif.repo || 'kamu/todolist';
   const tabAktif = layarAktif.tabAktif || 'code';
+  const isProfileProjects = layarAktif.templat === 'projects' && (layarAktif.stageProjects === 'profil' || layarAktif.stageProjects === 'daftar');
 
   return (
     <div className="space-y-4">
@@ -317,7 +318,7 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
       <div className="space-y-1">
         <div className="flex items-center justify-between text-[11px] font-mono text-[#57606a] px-1">
           <span>Tampilan GitHub tiruan untuk latihan</span>
-          <span>{repoNama}</span>
+          <span>{isProfileProjects ? '@kamu' : repoNama}</span>
         </div>
 
         <div
@@ -342,7 +343,47 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
             </div>
           )}
 
-          {layarAktif.templat !== 'form_umum' && (
+          {isProfileProjects ? (
+            <div className="border-b border-[#d0d7de] bg-[#f6f8fa] px-3 pt-3">
+              <div className="flex items-center gap-2 pb-2 text-[13px]">
+                <div className="w-6 h-6 rounded-full bg-[var(--color-primary)] border border-[var(--color-text-main)] flex items-center justify-center font-bold text-xs text-[var(--color-text-main)]">
+                  K
+                </div>
+                <span className="font-semibold text-[#24292f]">kamu (Your profile)</span>
+              </div>
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar text-xs">
+                <button
+                  type="button"
+                  id="tab-overview"
+                  data-target-id="tab-overview"
+                  className="px-2.5 py-2 border-b-2 border-transparent text-[#57606a]"
+                >
+                  Overview
+                </button>
+                <button
+                  type="button"
+                  id="tab-repositories"
+                  data-target-id="tab-repositories"
+                  className="px-2.5 py-2 border-b-2 border-transparent text-[#57606a]"
+                >
+                  Repositories
+                </button>
+                <button
+                  type="button"
+                  id="tab-projects"
+                  data-target-id="tab-projects"
+                  onClick={() => handleClickElement('tab-projects')}
+                  className={`flex items-center gap-1.5 px-2.5 py-2 border-b-2 whitespace-nowrap cursor-pointer transition-colors ${
+                    tabAktif === 'projects'
+                      ? 'border-[#fd8c73] font-semibold text-[#24292f]'
+                      : 'border-transparent text-[#57606a] hover:text-[#24292f]'
+                  } ${getSorotStyle('tab-projects')}`}
+                >
+                  <span>Projects</span>
+                </button>
+              </div>
+            </div>
+          ) : layarAktif.templat !== 'form_umum' && layarAktif.templat !== 'form_gist' ? (
             <div className="border-b border-[#d0d7de] bg-[#f6f8fa] px-3 pt-3">
               <div className="flex items-center justify-between pb-2 text-[13px]">
                 <div className="flex items-center gap-1.5 font-semibold text-[#0969da] truncate">
@@ -461,14 +502,14 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
 
           <div className="p-3 sm:p-4 bg-white">
             {layarAktif.templat === 'repo' && (
               <div className="space-y-3">
                 {Boolean(layarAktif.bannerCompare) && (
                   <div className="flex items-center justify-between gap-2 p-2.5 bg-[#fff8c5] border border-[#d4a72c] rounded-md text-xs">
-                    <span className="text-[#57606a] truncate">Recent commits ready to compare</span>
+                    <span className="text-[#57606a] truncate">fitur-profil had recent pushes 1 minute ago</span>
                     <button
                       type="button"
                       id="banner-compare"
@@ -481,29 +522,69 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                   </div>
                 )}
 
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1 border border-[#d0d7de] rounded-md px-2 py-1 bg-[#f6f8fa] text-xs font-semibold">
-                    <span>main</span>
+                {tabAktif === 'discussions' ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#d0d7de]">
+                      <span className="font-semibold text-sm">Discussions</span>
+                      <button
+                        type="button"
+                        id="btn-new-discussion"
+                        data-target-id="btn-new-discussion"
+                        onClick={() => handleClickElement('btn-new-discussion')}
+                        className={`px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-new-discussion')}`}
+                      >
+                        New discussion
+                      </button>
+                    </div>
+                    <div className="p-4 bg-[#f6f8fa] border border-[#d0d7de] rounded-md text-xs text-[#57606a] text-center">
+                      Welcome to Discussions! Ask questions, share ideas, and connect with the community.
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    id="btn-code"
-                    data-target-id="btn-code"
-                    onClick={() => handleClickElement('btn-code')}
-                    className={`px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-code')}`}
-                  >
-                    &lt;&gt; Code
-                  </button>
-                </div>
+                ) : tabAktif === 'actions' ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-[#d0d7de] text-xs">
+                      <span className="font-semibold text-sm">All workflows</span>
+                    </div>
+                    <div className="border border-[#d0d7de] rounded-md divide-y divide-[#d0d7de] text-xs">
+                      <div className="p-3 flex items-center justify-between bg-white">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#1a7f37] font-bold">✓</span>
+                          <div>
+                            <span className="font-semibold text-[#0969da] block">Deploy ke Pages</span>
+                            <span className="text-[#57606a] text-[11px]">push: main by kamu</span>
+                          </div>
+                        </div>
+                        <span className="text-[#57606a] text-[11px]">now</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 border border-[#d0d7de] rounded-md px-2 py-1 bg-[#f6f8fa] text-xs font-semibold">
+                        <span>main</span>
+                      </div>
+                      <button
+                        type="button"
+                        id="btn-code"
+                        data-target-id="btn-code"
+                        onClick={() => handleClickElement('btn-code')}
+                        className={`px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-code')}`}
+                      >
+                        &lt;&gt; Code
+                      </button>
+                    </div>
 
-                <div className="border border-[#d0d7de] rounded-md overflow-hidden text-xs divide-y divide-[#d0d7de]">
-                  <div className="p-2 bg-[#f6f8fa] font-mono text-[#57606a]">README.md</div>
-                  <div className="p-3 font-mono text-[13px] text-[#24292f]">
-                    # Todolist
-                    <br />
-                    Aplikasi pencatat tugas sederhana.
-                  </div>
-                </div>
+                    <div className="border border-[#d0d7de] rounded-md overflow-hidden text-xs divide-y divide-[#d0d7de]">
+                      <div className="p-2 bg-[#f6f8fa] font-mono text-[#57606a]">README.md</div>
+                      <div className="p-3 font-mono text-[13px] text-[#24292f]">
+                        # Todolist
+                        <br />
+                        Aplikasi pencatat tugas sederhana.
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -636,6 +717,85 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
               </div>
             )}
 
+            {layarAktif.templat === 'daftar_pr' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 max-w-[240px]">
+                    <input
+                      type="text"
+                      readOnly
+                      placeholder="is:pr is:open"
+                      className="w-full px-2.5 py-1 text-xs border border-[#d0d7de] rounded-md bg-[#f6f8fa] text-[#57606a]"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    id="btn-new-pr"
+                    data-target-id="btn-new-pr"
+                    className="px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold"
+                  >
+                    New pull request
+                  </button>
+                </div>
+
+                <div className="border border-[#d0d7de] rounded-md overflow-hidden text-xs divide-y divide-[#d0d7de]">
+                  <div className="p-2.5 bg-[#f6f8fa] flex items-center justify-between text-[#57606a]">
+                    <span className="font-semibold text-[#24292f]">1 Open</span>
+                    <span>Sort by: Newest</span>
+                  </div>
+                  <div className="p-3 flex items-start gap-2 bg-white">
+                    <span className="w-2 h-2 rounded-full bg-[#1f883d] mt-1 shrink-0" />
+                    <div>
+                      <span className="font-semibold text-[#24292f] block">{layarAktif.judul || 'Tambah fungsi filter'}</span>
+                      <span className="text-[11px] text-[#57606a]">#1 opened just now by kamu</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {layarAktif.templat === 'form_pr' && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 p-2 bg-[#f6f8fa] border border-[#d0d7de] rounded-md text-xs">
+                  <span className="font-semibold">base: main</span>
+                  <span>←</span>
+                  <span className="font-semibold">compare: fitur-profil</span>
+                  <span className="text-[#1a7f37] font-semibold ml-auto">✓ Able to merge</span>
+                </div>
+
+                <div>
+                  <label htmlFor="pr-title" className="block text-xs font-semibold mb-1 text-[#24292f]">
+                    Title
+                  </label>
+                  <input
+                    id="pr-title"
+                    data-target-id="input-title"
+                    type="text"
+                    value={isianNilai[langkah?.isian || 'judul'] ?? layarAktif.judul ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const k = langkah?.isian || 'judul';
+                      setIsianNilai((prev) => ({ ...prev, [k]: val }));
+                    }}
+                    placeholder="Title"
+                    className={`w-full px-2.5 py-1.5 text-xs border border-[#d0d7de] rounded-md bg-white ${getSorotStyle('input-title')}`}
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    id="btn-create-pr"
+                    data-target-id="btn-create-pr"
+                    onClick={() => handleClickElement('btn-create-pr')}
+                    className={`px-3.5 py-1.5 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-create-pr')}`}
+                  >
+                    Create pull request
+                  </button>
+                </div>
+              </div>
+            )}
+
             {layarAktif.templat === 'pull_request' && (
               <div className="space-y-3">
                 <div className="border-b border-[#d0d7de] pb-2">
@@ -644,9 +804,15 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                     <span className="text-xs text-[#57606a]">#{layarAktif.nomor || 1}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="bg-[#1f883d] text-white text-[11px] font-semibold rounded-full px-2 py-0.5">
-                      Open
-                    </span>
+                    {layarAktif.stageConflict === 'merged' ? (
+                      <span className="bg-[#8250df] text-white text-[11px] font-semibold rounded-full px-2 py-0.5">
+                        Merged
+                      </span>
+                    ) : (
+                      <span className="bg-[#1f883d] text-white text-[11px] font-semibold rounded-full px-2 py-0.5">
+                        Open
+                      </span>
+                    )}
                     <span className="text-xs text-[#57606a]">wants to merge into main</span>
                   </div>
                 </div>
@@ -684,95 +850,170 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2 p-2 bg-[#f6f8fa] border border-[#d0d7de] rounded-md text-xs">
                       <span className="font-mono text-[#24292f]">todo.js</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          id="btn-submit-review"
-                          data-target-id="btn-submit-review"
-                          onClick={() => handleClickElement('btn-submit-review')}
-                          className={`px-3 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-submit-review')}`}
-                        >
-                          Submit review
-                        </button>
-                        <button
-                          type="button"
-                          id="btn-approve"
-                          data-target-id="btn-approve"
-                          onClick={() => handleClickElement('btn-approve')}
-                          className={`px-3 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-approve')}`}
-                        >
-                          Approve
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        id="btn-submit-review"
+                        data-target-id="btn-submit-review"
+                        onClick={() => handleClickElement('btn-submit-review')}
+                        className={`px-3 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-submit-review')}`}
+                      >
+                        Submit review
+                      </button>
                     </div>
                     <pre className="p-3 bg-[#f6f8fa] border border-[#d0d7de] rounded-md font-mono text-xs text-[#24292f]">
                       + function formatTanggal(t) &#123; return t.toISOString(); &#125;
                     </pre>
+
+                    {layarAktif.stageReview === 'panel' && (
+                      <div className="border-2 border-[#0969da] rounded-lg p-3 bg-white shadow-md space-y-2 text-xs">
+                        <span className="font-semibold block text-sm">Finish your review</span>
+                        <div className="space-y-1">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="review-type" disabled />
+                            <span>Comment</span>
+                          </label>
+                          <label
+                            id="opt-approve"
+                            data-target-id="opt-approve"
+                            onClick={() => handleClickElement('opt-approve')}
+                            className={`flex items-center gap-2 p-1.5 rounded cursor-pointer ${getSorotStyle('opt-approve')}`}
+                          >
+                            <input type="radio" name="review-type" defaultChecked={layarAktif.modeReview === 'approve'} />
+                            <span className="font-semibold text-[#1a7f37]">Approve</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="review-type" disabled />
+                            <span>Request changes</span>
+                          </label>
+                        </div>
+                        <div className="flex justify-end pt-2">
+                          <button
+                            type="button"
+                            id="btn-confirm-review"
+                            data-target-id="btn-confirm-review"
+                            onClick={() => handleClickElement('btn-confirm-review')}
+                            className={`px-3.5 py-1.5 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-confirm-review')}`}
+                          >
+                            Submit review
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : layarAktif.stageConflict === 'editor' ? (
+                  <div className="border border-[#d0d7de] rounded-md p-3 space-y-3 bg-white text-xs">
+                    <span className="font-semibold block text-sm">Resolve merge conflicts in README.md</span>
+                    <pre className="p-3 bg-[#f6f8fa] border border-[#cf222e] rounded-md font-mono text-xs text-[#24292f]">
+                      &lt;&lt;&lt;&lt;&lt;&lt;&lt; fitur-baru{'\n'}
+                      # Aplikasi Todolist Lengkap{'\n'}
+                      ======={'\n'}
+                      # Aplikasi Todolist Sederhana{'\n'}
+                      &gt;&gt;&gt;&gt;&gt;&gt;&gt; main
+                    </pre>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        id="btn-hapus-marker"
+                        data-target-id="btn-hapus-marker"
+                        onClick={() => handleClickElement('btn-hapus-marker')}
+                        className={`px-3 py-1.5 bg-[#0969da] text-white rounded-md font-semibold hover:bg-[#0860ca] cursor-pointer ${getSorotStyle('btn-hapus-marker')}`}
+                      >
+                        Hapus marker
+                      </button>
+                    </div>
+                  </div>
+                ) : layarAktif.stageConflict === 'bersih' ? (
+                  <div className="border border-[#d0d7de] rounded-md p-3 space-y-3 bg-white text-xs">
+                    <span className="font-semibold block text-sm">Resolved: README.md</span>
+                    <pre className="p-3 bg-[#f6f8fa] border border-[#1a7f37] rounded-md font-mono text-xs text-[#24292f]">
+                      # Aplikasi Todolist Lengkap
+                    </pre>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        id="btn-mark-resolved"
+                        data-target-id="btn-mark-resolved"
+                        onClick={() => handleClickElement('btn-mark-resolved')}
+                        className={`px-3.5 py-1.5 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-mark-resolved')}`}
+                      >
+                        Mark as resolved
+                      </button>
+                    </div>
+                  </div>
+                ) : layarAktif.stageConflict === 'siap_commit' ? (
+                  <div className="border border-[#d0d7de] rounded-md p-3 space-y-3 bg-white text-xs">
+                    <div className="text-xs font-semibold text-[#1a7f37]">
+                      ✓ All conflicts have been resolved
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        id="btn-commit-merge"
+                        data-target-id="btn-commit-merge"
+                        onClick={() => handleClickElement('btn-commit-merge')}
+                        className={`px-3.5 py-1.5 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-commit-merge')}`}
+                      >
+                        Commit merge
+                      </button>
+                    </div>
+                  </div>
+                ) : layarAktif.stageConflict === 'conflict' ? (
+                  <div className="border border-[#d0d7de] rounded-md p-3 space-y-2 bg-[#f6f8fa]">
+                    <div className="text-xs font-semibold text-[#cf222e]">
+                      ✕ This branch has conflicts that must be resolved
+                    </div>
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        id="btn-resolve-conflicts"
+                        data-target-id="btn-resolve-conflicts"
+                        onClick={() => handleClickElement('btn-resolve-conflicts')}
+                        className={`px-3 py-1.5 bg-[#57606a] text-white rounded-md text-xs font-semibold hover:bg-[#424a53] cursor-pointer ${getSorotStyle('btn-resolve-conflicts')}`}
+                      >
+                        Resolve conflicts
+                      </button>
+                    </div>
+                  </div>
+                ) : layarAktif.stageConflict === 'confirm' ? (
+                  <div className="border border-[#d0d7de] rounded-md p-3 space-y-2 bg-[#f6f8fa]">
+                    <div className="text-xs font-semibold text-[#1a7f37]">
+                      ✓ No conflicts with base branch
+                    </div>
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        id="btn-confirm-merge"
+                        data-target-id="btn-confirm-merge"
+                        onClick={() => handleClickElement('btn-confirm-merge')}
+                        className={`px-3.5 py-1.5 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-confirm-merge')}`}
+                      >
+                        Confirm merge
+                      </button>
+                    </div>
+                  </div>
+                ) : layarAktif.stageConflict === 'merged' ? (
+                  <div className="border border-[#d0d7de] rounded-md p-4 bg-[#f6f8fa] text-center text-xs">
+                    <span className="font-semibold text-[#8250df] block mb-1">Pull request successfully merged and closed</span>
+                    <span className="text-[#57606a]">You are all set — the branch can now be safely deleted.</span>
                   </div>
                 ) : (
                   <div className="border border-[#d0d7de] rounded-md p-3 space-y-2 bg-[#f6f8fa]">
                     <div className="text-xs font-semibold text-[#1a7f37]">
                       ✓ No conflicts with base branch
                     </div>
-                    <div className="flex items-center gap-2 pt-2">
+                    <div className="pt-2">
                       <button
                         type="button"
                         id="btn-merge"
                         data-target-id="btn-merge"
                         onClick={() => handleClickElement('btn-merge')}
-                        className={`px-3 py-1.5 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-merge')}`}
+                        className={`px-3.5 py-1.5 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-merge')}`}
                       >
                         Merge pull request
-                      </button>
-                      <button
-                        type="button"
-                        id="btn-confirm-merge"
-                        data-target-id="btn-confirm-merge"
-                        onClick={() => handleClickElement('btn-confirm-merge')}
-                        className={`px-3 py-1.5 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-confirm-merge')}`}
-                      >
-                        Confirm merge
                       </button>
                     </div>
                   </div>
                 )}
-              </div>
-            )}
-
-            {layarAktif.templat === 'form_pr' && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 p-2 bg-[#f6f8fa] border border-[#d0d7de] rounded-md text-xs">
-                  <span className="font-semibold">base: main</span>
-                  <span>←</span>
-                  <span className="font-semibold">compare: fitur-baru</span>
-                  <span className="text-[#1a7f37] font-semibold ml-auto">✓ Able to merge</span>
-                </div>
-
-                <div>
-                  <label htmlFor="pr-title" className="block text-xs font-semibold mb-1 text-[#24292f]">
-                    Title
-                  </label>
-                  <input
-                    id="pr-title"
-                    data-target-id="input-title"
-                    type="text"
-                    readOnly
-                    value={layarAktif.judul || 'Tambah fitur baru'}
-                    className={`w-full px-2.5 py-1.5 text-xs border border-[#d0d7de] rounded-md bg-white ${getSorotStyle('input-title')}`}
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    id="btn-create-pr"
-                    data-target-id="btn-create-pr"
-                    onClick={() => handleClickElement('btn-create-pr')}
-                    className={`px-3.5 py-1.5 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-create-pr')}`}
-                  >
-                    Create pull request
-                  </button>
-                </div>
               </div>
             )}
 
@@ -816,60 +1057,184 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                     Copilot
                   </button>
                 </div>
+
                 <div className="sm:col-span-3 p-3 bg-[#f6f8fa] rounded-md border border-[#d0d7de] space-y-2">
                   <p className="font-semibold text-[#24292f] m-0">Settings: {layarAktif.menuAktif || 'General'}</p>
+
                   {(!layarAktif.menuAktif || layarAktif.menuAktif === 'general') && (
-                    <div className="pt-2">
-                      <p className="text-[11px] text-[#57606a] mb-2">Features: Discussions</p>
-                      <button
-                        type="button"
-                        id="btn-setup-discussions"
-                        data-target-id="btn-setup-discussions"
-                        onClick={() => handleClickElement('btn-setup-discussions')}
-                        className={`px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-setup-discussions')}`}
-                      >
-                        Set up discussions
-                      </button>
+                    <div className="pt-2 space-y-3">
+                      <div className="border border-[#d0d7de] rounded-md p-3 bg-white space-y-2">
+                        <span className="font-semibold text-xs block text-[#24292f]">Features</span>
+                        <label
+                          id="check-discussions"
+                          data-target-id="check-discussions"
+                          onClick={() => handleClickElement('check-discussions')}
+                          className={`flex items-center gap-2 cursor-pointer p-1 rounded ${getSorotStyle('check-discussions')}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Boolean(layarAktif.featuresDiscussionsChecked)}
+                            onChange={() => {}}
+                            className="cursor-pointer"
+                          />
+                          <span className="font-medium text-xs">Discussions (collaborative forums)</span>
+                        </label>
+                      </div>
+                      {Boolean(layarAktif.featuresDiscussionsChecked) && (
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            id="btn-setup-discussions"
+                            data-target-id="btn-setup-discussions"
+                            onClick={() => handleClickElement('btn-setup-discussions')}
+                            className={`px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-setup-discussions')}`}
+                          >
+                            Set up discussions
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
+
                   {layarAktif.menuAktif === 'collaborators' && (
-                    <div className="pt-2">
-                      <p className="text-[11px] text-[#57606a] mb-2">Manage access to this repository</p>
-                      <button
-                        type="button"
-                        id="btn-add-people"
-                        data-target-id="btn-add-people"
-                        onClick={() => handleClickElement('btn-add-people')}
-                        className={`px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-add-people')}`}
-                      >
-                        Add people
-                      </button>
+                    <div className="pt-2 space-y-3">
+                      {layarAktif.showAddPeopleModal ? (
+                        <div className="border-2 border-[#0969da] rounded-md p-3 bg-white space-y-2">
+                          <span className="font-semibold block text-xs">Invite a collaborator</span>
+                          <input
+                            type="text"
+                            id="input-collaborator"
+                            data-target-id="input-collaborator"
+                            value={isianNilai[langkah?.isian || 'rekanTim'] ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const k = langkah?.isian || 'rekanTim';
+                              setIsianNilai((prev) => ({ ...prev, [k]: val }));
+                            }}
+                            placeholder="Enter username or email"
+                            className="w-full px-2.5 py-1.5 text-xs border border-[#d0d7de] rounded-md bg-white"
+                          />
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              id="btn-submit-invite"
+                              data-target-id="btn-submit-invite"
+                              onClick={() => handleClickElement('btn-submit-invite')}
+                              className={`px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-submit-invite')}`}
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border border-[#d0d7de] rounded-md p-3 bg-white space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold">Manage access</span>
+                            <button
+                              type="button"
+                              id="btn-add-people"
+                              data-target-id="btn-add-people"
+                              onClick={() => handleClickElement('btn-add-people')}
+                              className={`px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-add-people')}`}
+                            >
+                              Add people
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-[#57606a] m-0">
+                            {layarAktif.items && layarAktif.items.length > 0
+                              ? `1 pending invite: ${layarAktif.items[0].judul}`
+                              : '0 collaborators have access to this repository.'}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
+
                   {layarAktif.menuAktif === 'pages' && (
-                    <div className="pt-2 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          id="btn-source-actions"
-                          data-target-id="btn-source-actions"
-                          onClick={() => handleClickElement('btn-source-actions')}
-                          className={`px-3 py-1 border border-[#d0d7de] bg-white rounded-md text-xs font-medium hover:bg-[#f3f4f6] cursor-pointer ${getSorotStyle('btn-source-actions')}`}
-                        >
-                          GitHub Actions
-                        </button>
-                        <button
-                          type="button"
-                          id="btn-save-pages"
-                          data-target-id="btn-save-pages"
-                          onClick={() => handleClickElement('btn-save-pages')}
-                          className={`px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-save-pages')}`}
-                        >
-                          Save
-                        </button>
+                    <div className="pt-2 space-y-3">
+                      <div className="border border-[#d0d7de] rounded-md p-3 bg-white space-y-3">
+                        <span className="font-semibold block text-xs">Build and deployment</span>
+
+                        {layarAktif.stagePages === 'published' ? (
+                          <div className="p-3 bg-[#dafbe1] border border-[#1a7f37] rounded-md space-y-2">
+                            <span className="font-semibold text-xs text-[#1a7f37] block">Your site is live!</span>
+                            <span className="text-[11px] text-[#57606a] block">https://kamu.github.io/todolist/</span>
+                            <button
+                              type="button"
+                              id="btn-visit-site"
+                              data-target-id="btn-visit-site"
+                              onClick={() => handleClickElement('btn-visit-site')}
+                              className={`px-3 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-visit-site')}`}
+                            >
+                              Visit site
+                            </button>
+                          </div>
+                        ) : layarAktif.stagePages === 'actions' || layarAktif.stagePages === 'actions_set' ? (
+                          <div className="space-y-2">
+                            <span className="text-[#57606a] text-xs block">Source:</span>
+                            <button
+                              type="button"
+                              id="btn-source-actions"
+                              data-target-id="btn-source-actions"
+                              onClick={() => handleClickElement('btn-source-actions')}
+                              className={`px-3 py-1.5 border border-[#d0d7de] bg-white rounded-md text-xs font-medium hover:bg-[#f6f8fa] cursor-pointer ${getSorotStyle('btn-source-actions')}`}
+                            >
+                              GitHub Actions
+                            </button>
+                            {layarAktif.stagePages === 'actions_set' && (
+                              <p className="text-xs text-[#1a7f37] font-semibold m-0">✓ Source set to GitHub Actions</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <span className="text-[#57606a] text-xs block">Source:</span>
+                            <button
+                              type="button"
+                              id="btn-select-deploy-branch"
+                              data-target-id="btn-select-deploy-branch"
+                              onClick={() => handleClickElement('btn-select-deploy-branch')}
+                              className={`px-3 py-1.5 border border-[#d0d7de] bg-white rounded-md text-xs font-medium hover:bg-[#f6f8fa] cursor-pointer ${getSorotStyle('btn-select-deploy-branch')}`}
+                            >
+                              Deploy from a branch
+                            </button>
+
+                            {layarAktif.stagePages === 'branch_select' && (
+                              <div className="pt-2 flex items-center gap-2">
+                                <span className="text-xs text-[#57606a]">Branch:</span>
+                                <button
+                                  type="button"
+                                  id="btn-select-branch-main"
+                                  data-target-id="btn-select-branch-main"
+                                  onClick={() => handleClickElement('btn-select-branch-main')}
+                                  className={`px-3 py-1 bg-[#f6f8fa] border border-[#d0d7de] rounded-md text-xs font-semibold cursor-pointer ${getSorotStyle('btn-select-branch-main')}`}
+                                >
+                                  main
+                                </button>
+                              </div>
+                            )}
+
+                            {layarAktif.stagePages === 'folder_select' && (
+                              <div className="pt-2 space-y-2">
+                                <div className="text-xs text-[#57606a]">
+                                  Branch: <span className="font-semibold text-[#24292f]">main</span>, Folder: <span className="font-semibold text-[#24292f]">/ (root)</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  id="btn-save-pages"
+                                  data-target-id="btn-save-pages"
+                                  onClick={() => handleClickElement('btn-save-pages')}
+                                  className={`px-3.5 py-1 bg-[#1f883d] text-white rounded-md text-xs font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-save-pages')}`}
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
+
                   {layarAktif.menuAktif === 'copilot' && (
                     <div className="pt-2">
                       <p className="text-[11px] text-[#57606a] mb-2">Enable GitHub Copilot suggestions</p>
@@ -888,107 +1253,245 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
               </div>
             )}
 
+            {layarAktif.templat === 'layar_live_site' && (
+              <div className="border border-[#d0d7de] rounded-md overflow-hidden text-xs">
+                <div className="bg-[#f6f8fa] p-2 border-b border-[#d0d7de] flex items-center gap-2 font-mono text-[#57606a]">
+                  <span className="text-[#1a7f37]">🔒</span>
+                  <span>https://kamu.github.io/todolist/</span>
+                </div>
+                <div className="p-4 space-y-3 bg-white">
+                  <h4 className="text-lg font-bold text-[#24292f] m-0">Aplikasi Todolist</h4>
+                  <ul className="list-disc pl-5 space-y-1 text-sm text-[#57606a]">
+                    <li>Belajar Git Dasar</li>
+                    <li>Membuat Pull Request</li>
+                    <li>Deploy otomatis ke Pages</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
             {layarAktif.templat === 'projects' && (
               <div className="space-y-3 text-xs">
-                <div className="flex items-center justify-between pb-2 border-b border-[#d0d7de]">
-                  <span className="font-semibold text-sm">Projects</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      id="btn-board"
-                      data-target-id="btn-board"
-                      onClick={() => handleClickElement('btn-board')}
-                      className={`px-2.5 py-1 border border-[#d0d7de] rounded-md font-medium hover:bg-[#f6f8fa] cursor-pointer ${getSorotStyle('btn-board')}`}
-                    >
-                      Board
-                    </button>
-                    <button
-                      type="button"
-                      id="btn-table"
-                      data-target-id="btn-table"
-                      onClick={() => handleClickElement('btn-table')}
-                      className={`px-2.5 py-1 border border-[#d0d7de] rounded-md font-medium hover:bg-[#f6f8fa] cursor-pointer ${getSorotStyle('btn-table')}`}
-                    >
-                      Table
-                    </button>
-                    <button
-                      type="button"
-                      id="btn-new-project"
-                      data-target-id="btn-new-project"
-                      onClick={() => handleClickElement('btn-new-project')}
-                      className={`px-3 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-new-project')}`}
-                    >
-                      New project
-                    </button>
+                {layarAktif.stageProjects === 'daftar' ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-[#d0d7de]">
+                      <span className="font-semibold text-sm">Projects</span>
+                      <button
+                        type="button"
+                        id="btn-new-project"
+                        data-target-id="btn-new-project"
+                        onClick={() => handleClickElement('btn-new-project')}
+                        className={`px-3 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-new-project')}`}
+                      >
+                        New project
+                      </button>
+                    </div>
+                    <p className="text-[#57606a] text-center p-6 bg-[#f6f8fa] rounded-md">
+                      You don’t have any projects yet. Create one to organize tasks.
+                    </p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-[#f6f8fa] border border-[#d0d7de] rounded-md p-2">
-                    <span className="font-semibold text-[11px] text-[#57606a] block mb-2">Todo</span>
-                    <div className="bg-white border border-[#d0d7de] rounded p-1.5 shadow-xs">
-                      <span>#1 Tambah fitur</span>
+                ) : layarAktif.stageProjects === 'pilih_layout' ? (
+                  <div className="space-y-3 p-3 bg-[#f6f8fa] rounded-md border border-[#d0d7de]">
+                    <span className="font-semibold text-sm block">Select a layout</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        id="btn-board"
+                        data-target-id="btn-board"
+                        onClick={() => handleClickElement('btn-board')}
+                        className={`p-3 bg-white border border-[#d0d7de] rounded-md font-semibold text-center hover:border-[#0969da] cursor-pointer ${getSorotStyle('btn-board')}`}
+                      >
+                        Board (kanban)
+                      </button>
+                      <button
+                        type="button"
+                        id="btn-table"
+                        data-target-id="btn-table"
+                        onClick={() => handleClickElement('btn-table')}
+                        className={`p-3 bg-white border border-[#d0d7de] rounded-md font-semibold text-center hover:border-[#0969da] cursor-pointer ${getSorotStyle('btn-table')}`}
+                      >
+                        Table
+                      </button>
                     </div>
                   </div>
-                  <div className="bg-[#f6f8fa] border border-[#d0d7de] rounded-md p-2">
-                    <span className="font-semibold text-[11px] text-[#57606a] block mb-2">In Progress</span>
+                ) : layarAktif.stageProjects === 'nama_project' ? (
+                  <div className="space-y-3 p-3 bg-white border border-[#d0d7de] rounded-md">
+                    <span className="font-semibold text-sm block">Project details</span>
+                    <div>
+                      <label htmlFor="proj-title" className="block text-xs font-semibold mb-1 text-[#24292f]">
+                        Title
+                      </label>
+                      <input
+                        id="proj-title"
+                        data-target-id="input-title"
+                        type="text"
+                        value={isianNilai[langkah?.isian || 'namaProject'] ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const k = langkah?.isian || 'namaProject';
+                          setIsianNilai((prev) => ({ ...prev, [k]: val }));
+                        }}
+                        placeholder="Project name"
+                        className="w-full px-2.5 py-1.5 border border-[#d0d7de] rounded-md bg-white text-xs"
+                      />
+                    </div>
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="button"
+                        id="btn-create-project"
+                        data-target-id="btn-create-project"
+                        onClick={() => handleClickElement('btn-create-project')}
+                        className={`px-3.5 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-create-project')}`}
+                      >
+                        Create
+                      </button>
+                    </div>
                   </div>
-                  <div className="bg-[#f6f8fa] border border-[#d0d7de] rounded-md p-2">
-                    <span className="font-semibold text-[11px] text-[#57606a] block mb-2">Done</span>
+                ) : layarAktif.stageProjects === 'table' ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-[#d0d7de]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{layarAktif.judul || 'Proyek Todolist Tim'}</span>
+                        <span className="px-2 py-0.5 bg-[#f6f8fa] border border-[#d0d7de] rounded text-[11px] font-semibold">Table</span>
+                      </div>
+                    </div>
+                    <div className="border border-[#d0d7de] rounded-md overflow-hidden text-xs divide-y divide-[#d0d7de]">
+                      <div className="p-2 bg-[#f6f8fa] font-semibold grid grid-cols-3">
+                        <span>Title</span>
+                        <span>Status</span>
+                        <span>Assignee</span>
+                      </div>
+                      <div className="p-2 grid grid-cols-3 bg-white">
+                        <span>#1 Buat filter selesai</span>
+                        <span className="text-[#0969da]">In Progress</span>
+                        <span>kamu</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-[#d0d7de]">
+                      <span className="font-semibold text-sm">{layarAktif.judul || 'Proyek Todolist Tim'}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          id="btn-table"
+                          data-target-id="btn-table"
+                          onClick={() => handleClickElement('btn-table')}
+                          className={`px-2.5 py-1 border border-[#d0d7de] rounded-md font-medium hover:bg-[#f6f8fa] cursor-pointer ${getSorotStyle('btn-table')}`}
+                        >
+                          Table
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-[#f6f8fa] border border-[#d0d7de] rounded-md p-2">
+                        <span className="font-semibold text-[11px] text-[#57606a] block mb-2">Todo</span>
+                        <div className="bg-white border border-[#d0d7de] rounded p-1.5 shadow-xs">
+                          <span>#1 Filter todolist</span>
+                        </div>
+                      </div>
+                      <div className="bg-[#f6f8fa] border border-[#d0d7de] rounded-md p-2">
+                        <span className="font-semibold text-[11px] text-[#57606a] block mb-2">In Progress</span>
+                      </div>
+                      <div className="bg-[#f6f8fa] border border-[#d0d7de] rounded-md p-2">
+                        <span className="font-semibold text-[11px] text-[#57606a] block mb-2">Done</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {layarAktif.templat === 'form_gist' && (
               <div className="space-y-3 text-xs">
-                <div>
-                  <input
-                    type="text"
-                    id="input-desc"
-                    data-target-id="input-desc"
-                    placeholder="Gist description..."
-                    className={`w-full px-2.5 py-1.5 border border-[#d0d7de] rounded-md outline-none bg-white ${getSorotStyle('input-desc')}`}
-                  />
-                </div>
-                <div className="border border-[#d0d7de] rounded-md overflow-hidden bg-white">
-                  <div className="bg-[#f6f8fa] p-2 border-b border-[#d0d7de]">
-                    <input
-                      type="text"
-                      id="input-filename"
-                      data-target-id="input-filename"
-                      placeholder="Filename including extension..."
-                      className={`w-full max-w-[240px] px-2 py-1 text-xs border border-[#d0d7de] rounded bg-white ${getSorotStyle('input-filename')}`}
-                    />
+                {layarAktif.stageGist === 'selesai' ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-[#d0d7de]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{layarAktif.deskripsi || 'Fungsi pembantu todolist'}</span>
+                        <span className="px-2 py-0.5 bg-[#f6f8fa] border border-[#d0d7de] rounded-full text-[11px] text-[#57606a]">Secret</span>
+                      </div>
+                      <button
+                        type="button"
+                        id="btn-new-gist"
+                        data-target-id="btn-new-gist"
+                        onClick={() => handleClickElement('btn-new-gist')}
+                        className={`px-3 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-new-gist')}`}
+                      >
+                        New gist
+                      </button>
+                    </div>
+                    <div className="border border-[#d0d7de] rounded-md overflow-hidden bg-white">
+                      <div className="bg-[#f6f8fa] p-2 border-b border-[#d0d7de] font-mono text-xs">
+                        {layarAktif.judul || 'todo-helper.js'}
+                      </div>
+                      <pre className="p-3 font-mono text-xs text-[#24292f] m-0">
+                        function hitungSisa(items) &#123; return items.filter(x =&gt; !x.done).length; &#125;
+                      </pre>
+                    </div>
                   </div>
-                  <textarea
-                    id="input-code"
-                    data-target-id="input-code"
-                    rows={4}
-                    placeholder="Paste code here..."
-                    className="w-full p-2.5 font-mono text-xs outline-none resize-none bg-transparent"
-                  />
-                </div>
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#d0d7de]">
-                  <button
-                    type="button"
-                    id="btn-create-secret"
-                    data-target-id="btn-create-secret"
-                    onClick={() => handleClickElement('btn-create-secret')}
-                    className={`px-3 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-create-secret')}`}
-                  >
-                    Create secret gist
-                  </button>
-                  <button
-                    type="button"
-                    id="btn-create-public"
-                    data-target-id="btn-create-public"
-                    onClick={() => handleClickElement('btn-create-public')}
-                    className={`px-3 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-create-public')}`}
-                  >
-                    Create public gist
-                  </button>
-                </div>
+                ) : (
+                  <>
+                    <div>
+                      <input
+                        type="text"
+                        id="input-desc"
+                        data-target-id="input-desc"
+                        placeholder="Gist description..."
+                        value={isianNilai['deskripsi'] ?? 'Fungsi pembantu todolist'}
+                        onChange={(e) => setIsianNilai((prev) => ({ ...prev, deskripsi: e.target.value }))}
+                        className={`w-full px-2.5 py-1.5 border border-[#d0d7de] rounded-md outline-none bg-white ${getSorotStyle('input-desc')}`}
+                      />
+                    </div>
+                    <div className="border border-[#d0d7de] rounded-md overflow-hidden bg-white">
+                      <div className="bg-[#f6f8fa] p-2 border-b border-[#d0d7de]">
+                        <input
+                          type="text"
+                          id="input-filename"
+                          data-target-id="input-filename"
+                          value={isianNilai[langkah?.isian || 'namaFile'] ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const k = langkah?.isian || 'namaFile';
+                            setIsianNilai((prev) => ({ ...prev, [k]: val }));
+                          }}
+                          placeholder="Filename including extension..."
+                          className={`w-full max-w-[240px] px-2 py-1 text-xs border border-[#d0d7de] rounded bg-white ${getSorotStyle('input-filename')}`}
+                        />
+                      </div>
+                      <textarea
+                        id="input-code"
+                        data-target-id="input-code"
+                        rows={4}
+                        readOnly
+                        value="function hitungSisa(items) { return items.filter(x => !x.done).length; }"
+                        className="w-full p-2.5 font-mono text-xs outline-none resize-none bg-transparent"
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#d0d7de]">
+                      <button
+                        type="button"
+                        id="btn-create-secret"
+                        data-target-id="btn-create-secret"
+                        onClick={() => handleClickElement('btn-create-secret')}
+                        className={`px-3 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-create-secret')}`}
+                      >
+                        Create secret gist
+                      </button>
+                      <button
+                        type="button"
+                        id="btn-create-public"
+                        data-target-id="btn-create-public"
+                        onClick={() => handleClickElement('btn-create-public')}
+                        className={`px-3 py-1 bg-[#1f883d] text-white rounded-md font-semibold hover:bg-[#1a7f37] cursor-pointer ${getSorotStyle('btn-create-public')}`}
+                      >
+                        Create public gist
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

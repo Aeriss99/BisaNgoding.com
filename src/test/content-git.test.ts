@@ -174,10 +174,22 @@ describe('Git Content Integrity', () => {
                   const elemen = ambilElemenLayar(pg.layar[l.layar]);
                   const namaTombol = elemen[l.target];
                   if (l.tantangan) {
+                    expect(l.target).not.toBe('tab-code');
                     expect(l.arahan).not.toContain(namaTombol);
                     expect(l.petunjuk).not.toContain(namaTombol);
                   } else {
                     expect(l.arahan).toContain(namaTombol);
+                  }
+                }
+
+                for (let stepIdx = 0; stepIdx < pg.langkah.length - 1; stepIdx++) {
+                  const currentStep = pg.langkah[stepIdx];
+                  const nextStep = pg.langkah[stepIdx + 1];
+                  const isActionBtn =
+                    /create|save|submit|merge|resolve|add|setup|btn-board|btn-table/i.test(currentStep.target) ||
+                    /buat|simpan|create|save|submit|merge/i.test(currentStep.arahan);
+                  if (isActionBtn && !currentStep.target.startsWith('input-')) {
+                    expect(nextStep.layar).not.toBe(currentStep.layar);
                   }
                 }
 

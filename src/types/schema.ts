@@ -221,6 +221,7 @@ export interface LayarGitHub {
     | 'repo'
     | 'daftar_issue'
     | 'form_issue'
+    | 'daftar_pr'
     | 'pull_request'
     | 'form_pr'
     | 'pengaturan'
