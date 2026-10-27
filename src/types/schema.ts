@@ -152,7 +152,8 @@ export type Card =
   | TypeTranslationCard
   | HtmlCssPreviewCard
   | HtmlPreviewCard
-  | PraktikTerminalCard;
+  | PraktikTerminalCard
+  | PraktikGitHubCard;
 
 /** Satu langkah di terminal tiruan. Isian {{nama}} lihat src/lib/praktikTerminal.ts. */
 export interface LangkahTerminal {
@@ -190,15 +191,67 @@ export interface LangkahTerminal {
 export interface PraktikTerminalCard {
   type: 'praktik_terminal';
   judul: string;
-  /** Folder awal di prompt, misalnya "~/todolist". */
   folder: string;
   pembuka: string;
   langkah: LangkahTerminal[];
   penutup: string;
-  /** Nilai isian kalau pengguna belum pernah mengisinya (misalnya pesan commit contoh). */
   bawaan?: Record<string, string>;
-  /** Tantangan opsional di terminal laptop sendiri: pengguna menempel hasilnya, lalu dicek. */
   tantangan?: { tugas: string; perintah: string; pola: string[]; berhasil: string };
+}
+
+export interface SalahGitHub {
+  target: string;
+  reaksi: string;
+}
+
+export interface LangkahGitHub {
+  arahan: string;
+  layar: string;
+  target: string;
+  isian?: string;
+  otomatis?: boolean;
+  tantangan?: boolean;
+  benar?: string;
+  petunjuk: string;
+  salah?: SalahGitHub[];
+}
+
+export interface LayarGitHub {
+  templat:
+    | 'repo'
+    | 'daftar_issue'
+    | 'form_issue'
+    | 'daftar_pr'
+    | 'pull_request'
+    | 'form_pr'
+    | 'pengaturan'
+    | 'projects'
+    | 'form_gist'
+    | 'form_umum'
+    | string;
+  repo?: string;
+  tabAktif?: string;
+  judul?: string;
+  deskripsi?: string;
+  nomor?: number;
+  menuAktif?: string;
+  bannerCompare?: boolean;
+  tombolTeks?: string;
+  issueCount?: number;
+  prCount?: number;
+  items?: Array<{ id: string; nomor?: number; judul: string; status?: string; waktu?: string; label?: string }>;
+  elemen?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface PraktikGitHubCard {
+  type: 'praktik_github';
+  judul: string;
+  pembuka: string;
+  penutup: string;
+  bawaan?: Record<string, string>;
+  langkah: LangkahGitHub[];
+  layar: Record<string, LayarGitHub>;
 }
 
 export interface HtmlPreviewCard {

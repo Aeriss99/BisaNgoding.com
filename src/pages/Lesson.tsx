@@ -35,6 +35,7 @@ import {
 import { HtmlPreviewCardComponent } from '../components/cards/HtmlPreviewCard';
 import { HtmlCssPreviewCardComponent } from '../components/cards/HtmlCssPreviewCard';
 import { PraktikTerminalCardComponent } from '../components/cards/PraktikTerminalCard';
+import { PraktikGitHubCardComponent } from '../components/cards/PraktikGitHubCard';
 
 const Mermaid = lazy(() =>
   import('../components/ui/Mermaid').then((m) => ({ default: m.Mermaid }))
@@ -426,6 +427,11 @@ export default function LessonPage() {
           <PraktikTerminalCardComponent card={c} onSuccess={handleChallengeSuccess} />
         );
 
+      case 'praktik_github':
+        return (
+          <PraktikGitHubCardComponent card={c} onSuccess={handleChallengeSuccess} />
+        );
+
       case 'code_challenge': {
         const hasCheck = lesson.cards.some(
           (c) => c.type === 'understanding_check'
@@ -571,7 +577,8 @@ export default function LessonPage() {
     card.type === 'predict_output' ||
     card.type === 'reorder' ||
     card.type === 'understanding_check' ||
-    card.type === 'praktik_terminal';
+    card.type === 'praktik_terminal' ||
+    card.type === 'praktik_github';
 
   // Multiple choice shows its own 'next' button when correct, but code challenge / fill blank can use the footer one if passed
   const showFooterNextButton = !isQuizCard || challengePassed;
