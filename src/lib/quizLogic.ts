@@ -50,6 +50,34 @@ export function acakPilihanPelajaran<L extends { cards: any[] }>(lesson: L, rng:
 }
 
 /**
+ * Satu putaran soal cek pemahaman: urutan soal diacak secara adil dan pilihan jawaban setiap soal
+ * diacak ulang. Soal yang baru saja tampil (`terakhir`) tidak dipasang paling depan, supaya soal yang
+ * sama tidak muncul dua kali berturut-turut saat putaran baru dimulai.
+ */
+export function susunPutaran<Q extends { question: string; code?: string; options: string[]; answer: number }>(
+  questions: readonly Q[],
+  terakhir?: { question: string; code?: string } | null,
+  rng: () => number = Math.random
+): Q[] {
+  const urut = acak(questions, rng).map((q) => acakOpsi(q, rng));
+  const sama = (q: { question: string; code?: string }) =>
+    !!terakhir && q.question === terakhir.question && (q.code ?? '') === (terakhir.code ?? '');
+  if (urut.length > 1 && sama(urut[0])) {
+    const [pertama] = urut.splice(0, 1);
+    urut.push(pertama);
+  }
+  return urut;
+}
+
+/** Salinan kartu dengan pilihan jawaban diacak ulang (pilihan ganda dan tebak output). Kartu lain dikembalikan apa adanya. */
+export function acakKartu<C extends { type: string }>(card: C, rng: () => number = Math.random): C {
+  const c = card as unknown as { type: string; options?: string[]; answer?: number };
+  if ((c.type === 'multiple_choice' || c.type === 'predict_output') && Array.isArray(c.options) && typeof c.answer === 'number')
+    return acakOpsi(card as unknown as { options: string[]; answer: number }, rng) as unknown as C;
+  return card;
+}
+
+/**
  * Mengacak urutan opsi jawaban sebuah soal, sekaligus menyesuaikan index
  * jawaban benar (`answer`) agar tetap menunjuk ke opsi yang sama.
  */

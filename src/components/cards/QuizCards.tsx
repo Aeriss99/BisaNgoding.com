@@ -10,6 +10,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { EditorView } from '@codemirror/view';
 import { rapikanKetikan } from '../../lib/ketikan';
 import { ekstensiBahasa } from '../../lib/editorBahasa';
+import { acakOpsi, susunPutaran } from '../../lib/quizLogic';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -31,11 +32,9 @@ export function UnderstandingCheckCardComponent({
   const [showResult, setShowResult] = useState(false);
   const [isPassed, setIsPassed] = useState(false);
 
-  // Shuffle logic
-  const shuffleQuestions = () => {
-    const arr = [...card.questions];
-    arr.sort(() => Math.random() - 0.5);
-    setQuestions(arr);
+  // Setiap putaran: urutan soal dan pilihan jawaban diacak ulang (lihat susunPutaran).
+  const shuffleQuestions = (terakhir?: { question: string; code?: string } | null) => {
+    setQuestions(susunPutaran(card.questions, terakhir));
     setCurrentIdx(0);
   };
 
@@ -67,7 +66,7 @@ export function UnderstandingCheckCardComponent({
     if (currentIdx < questions.length - 1) {
       setCurrentIdx(currentIdx + 1);
     } else {
-      shuffleQuestions();
+      shuffleQuestions(q);
     }
   };
 
@@ -336,13 +335,18 @@ export function PredictOutputCardComponent({
   const [isSuccess, setIsSuccess] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  // Pilihan jawaban diacak setiap kartu dibuka dan setiap Coba Lagi.
+  const [kartu, setKartu] = useState(() => acakOpsi(card));
+  useEffect(() => {
+    setKartu(acakOpsi(card));
+  }, [card]);
 
   const handleSelect = (idx: number) => {
     const newAttempts = attempts + 1;
     setAttempts(newAttempts);
     setSelected(idx);
     setShowExplanation(true);
-    if (idx === card.answer) {
+    if (idx === kartu.answer) {
       setIsSuccess(true);
       onSuccess(newAttempts);
     }
@@ -362,9 +366,9 @@ export function PredictOutputCardComponent({
       </div>
 
       <div className="space-y-2 mt-4">
-        {card.options.map((opt, i) => {
+        {kartu.options.map((opt, i) => {
           const isSelected = selected === i;
-          const isCorrectOption = i === card.answer;
+          const isCorrectOption = i === kartu.answer;
           let btnClass = 'border-gray-200 hover:border-blue-300';
 
           if (showExplanation) {
@@ -405,6 +409,7 @@ export function PredictOutputCardComponent({
               onClick={() => {
                 setSelected(null);
                 setShowExplanation(false);
+                setKartu(acakOpsi(card));
               }}
               className="mt-3 bg-white px-4 py-2 rounded-xl text-[var(--color-text-main)] text-sm font-extrabold w-full brutal-btn"
             >
