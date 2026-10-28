@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useParams, Navigate, Link } from 'react-router-dom';
 import {
   getLesson,
@@ -10,6 +10,7 @@ import type { Card } from '../types/schema';
 import { Check, Lock, X } from 'lucide-react';
 import { Ikon } from '../components/ui/IkonDesain';
 import { infoMateri, labelKartu, langkahBerikutnya } from '../lib/materi';
+import { acakKartu } from '../lib/quizLogic';
 import MenuRamping from '../components/layout/MenuRamping';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -96,6 +97,13 @@ export default function LessonPage() {
   const [attemptsPerCard, setAttemptsPerCard] = useState<
     Record<number, number>
   >({});
+  // Pilihan ganda: pilihan jawaban diacak ulang setiap kartu dibuka dan setiap Coba Lagi.
+  const [putaranAcak, setPutaranAcak] = useState(0);
+  const kartuAcak = useMemo(
+    () => (lesson?.cards[currentCardIndex] ? acakKartu(lesson.cards[currentCardIndex]) : undefined),
+    // putaranAcak sengaja ikut supaya Coba Lagi mengacak ulang
+    [lesson, currentCardIndex, putaranAcak]
+  );
 
   useEffect(() => {
     const cadangan = ambilCadanganMateri(lessonId || '');
@@ -393,7 +401,10 @@ export default function LessonPage() {
                 )}
                 {!isAnswerCorrect && (
                   <button
-                    onClick={() => setShowExplanation(false)}
+                    onClick={() => {
+                      setShowExplanation(false);
+                      setPutaranAcak((n) => n + 1);
+                    }}
                     className="mt-3 bg-white px-4 py-2 rounded shadow-sm text-sm font-bold w-full"
                   >
                     Coba Lagi
@@ -610,7 +621,7 @@ export default function LessonPage() {
           <div className="font-mono text-[13px] font-bold tracking-[1px] text-[#5a5a5a]">{labelKartu(card.type)}</div>
           <h2 className="m-0 font-space font-bold text-[24px] leading-[30px] lg:text-[30px] lg:leading-9">{lesson.title}</h2>
           <div key={currentCardIndex} className="motion-safe:animate-in fade-in slide-in-from-bottom-4 duration-300 w-full">
-            <ErrorBoundary>{renderCardContent(card)}</ErrorBoundary>
+            <ErrorBoundary>{renderCardContent(card.type === 'multiple_choice' && kartuAcak ? kartuAcak : card)}</ErrorBoundary>
           </div>
         </article>
       </main>
