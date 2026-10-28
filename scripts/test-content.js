@@ -90,6 +90,28 @@ const CardSchema = z.union([
     html: z.string(),
   }),
   z.object({
+    type: z.literal('praktik_java'),
+    judul: z.string(),
+    pembuka: z.string(),
+    penutup: z.string(),
+    langkah: z
+      .array(
+        z.object({
+          arahan: z.string(),
+          kodeAwal: z.string().optional(),
+          jawaban: z.string(),
+          keluaran: z.string(),
+          input: z.string().optional(),
+          wajib: z.array(z.object({ pola: z.string(), pesan: z.string() })).optional(),
+          otomatis: z.boolean().optional(),
+          tantangan: z.boolean().optional(),
+          benar: z.string().optional(),
+          petunjuk: z.string(),
+        }).strict()
+      )
+      .min(3),
+  }).strict(),
+  z.object({
     type: z.literal('html_css_preview'),
     prompt: z.string().optional(),
     html: z.string(),
