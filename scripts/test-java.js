@@ -27,7 +27,7 @@ let errors = 0;
 let report =
   '# Laporan Test Java\n\n| File | Kartu | Pesan Error |\n|---|---|---|\n';
 
-function runJava(code, stdin, javaVersion) {
+function runJava(code, stdin, javaVersion, java8 = false) {
   const is21 = javaVersion === 21;
   const javacCmd = is21 ? JDK21_JAVAC : JDK17_JAVAC;
   const javaCmd = is21 ? JDK21_JAVA : JDK17_JAVA;
@@ -47,7 +47,8 @@ function runJava(code, stdin, javaVersion) {
   fs.writeFileSync(file, code);
 
   try {
-    execSync(`${javacCmd} ${file}`, { stdio: 'pipe' });
+    // Kartu praktik_java dijalankan di browser dengan compiler Java 8, jadi diperiksa dengan --release 8.
+    execSync(`${javacCmd} ${java8 ? '--release 8 -nowarn ' : ''}${file}`, { stdio: 'pipe' });
   } catch (e) {
     return { success: false, error: e.stderr?.toString() || e.message };
   }
@@ -103,6 +104,21 @@ function processLesson(lessonFile) {
           report += `| ${data.id} | ${index} (challenge) | Test ${i + 1} output beda. Harapan: ${t.expectedOutput.trim()} Aktual: ${res.output.trim()} |\n`;
         }
       }
+    }
+
+    // praktik_java: setiap jawaban harus jalan di Java 8 dan keluarannya sama persis dengan yang tertulis
+    if (c.type === 'praktik_java') {
+      const rapikan = (t) => t.replace(/\r\n?/g, '\n').split('\n').map((b) => b.replace(/\s+$/, '')).join('\n').replace(/\n+$/, '');
+      c.langkah.forEach((l, li) => {
+        const res = runJava(l.jawaban, l.input || '', v, true);
+        if (!res.success) {
+          errors++;
+          report += `| ${data.id} | ${index} (praktik langkah ${li + 1}) | Jawaban gagal: ${res.error.replace(/\n/g, '<br>')} |\n`;
+        } else if (rapikan(res.output) !== rapikan(l.keluaran)) {
+          errors++;
+          report += `| ${data.id} | ${index} (praktik langkah ${li + 1}) | Keluaran beda. Tertulis: ${l.keluaran} Aktual: ${res.output.trim()} |\n`;
+        }
+      });
     }
 
     // predict_output

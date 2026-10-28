@@ -153,7 +153,8 @@ export type Card =
   | HtmlCssPreviewCard
   | HtmlPreviewCard
   | PraktikTerminalCard
-  | PraktikGitHubCard;
+  | PraktikGitHubCard
+  | PraktikJavaCard;
 
 /** Satu langkah di terminal tiruan. Isian {{nama}} lihat src/lib/praktikTerminal.ts. */
 export interface LangkahTerminal {
@@ -197,6 +198,38 @@ export interface PraktikTerminalCard {
   penutup: string;
   bawaan?: Record<string, string>;
   tantangan?: { tugas: string; perintah: string; pola: string[]; berhasil: string };
+}
+
+/** Satu langkah praktik Java bersama Lingga. Lihat src/lib/praktikJava.ts. */
+export interface LangkahJava {
+  /** Kata-kata Lingga sebelum langkah ini. Boleh memakai `kode` dan **tebal**. */
+  arahan: string;
+  /** Kode di editor saat langkah dimulai. Kalau kosong, lanjut dari jawaban langkah sebelumnya. */
+  kodeAwal?: string;
+  /** Kode yang benar (seluruh class Main). Contoh Lingga mengetik kode ini; tugas memakainya untuk "Lihat jawabannya". */
+  jawaban: string;
+  /** Keluaran asli dari menjalankan `jawaban` (dicek tes dengan Java 8). Kode pengguna benar kalau keluarannya sama. */
+  keluaran: string;
+  /** Input keyboard (System.in) saat dijalankan, untuk materi Scanner. */
+  input?: string;
+  /** Pola (regex) yang wajib ada di kode, supaya tugas tidak diselesaikan dengan mencetak teks jadi. */
+  wajib?: { pola: string; pesan: string }[];
+  /** Contoh dari Lingga: hanya langkah pertama, kodenya diketik Lingga lalu dijalankan. */
+  otomatis?: boolean;
+  /** Tantangan: arahan hanya menyebut tujuan karena kodenya sudah pernah ditulis di materi sebelumnya. */
+  tantangan?: boolean;
+  /** Reaksi Lingga setelah benar. */
+  benar?: string;
+  /** Petunjuk Lingga kalau keluarannya belum sama. */
+  petunjuk: string;
+}
+
+export interface PraktikJavaCard {
+  type: 'praktik_java';
+  judul: string;
+  pembuka: string;
+  langkah: LangkahJava[];
+  penutup: string;
 }
 
 export interface SalahGitHub {
