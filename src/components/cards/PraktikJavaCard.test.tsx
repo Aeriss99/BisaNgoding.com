@@ -86,9 +86,9 @@ describe('Kartu praktik Java bersama Lingga', () => {
     render(<PraktikJavaCardComponent card={kartu} onSuccess={() => {}} />);
     await jalankan(KODE1, { stdout: 'Warung Kita\n' });
     expect(screen.getByText(/hasilnya belum sama/)).toBeInTheDocument();
-    expect(screen.queryByText('Lihat jawabannya')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Lihat jawabannya' })).toBeNull();
     await jalankan(KODE1, { stdout: 'Warung Kita\n' });
-    fireEvent.click(screen.getByText('Lihat jawabannya'));
+    fireEvent.click(screen.getByRole('button', { name: 'Lihat jawabannya' }));
     expect((screen.getByLabelText('kode') as HTMLTextAreaElement).value).toBe(KODE2);
   });
 
