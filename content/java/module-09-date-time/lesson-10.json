@@ -1,0 +1,190 @@
+{
+  "id": "java-date-time-10",
+  "moduleId": "date-time",
+  "order": 10,
+  "title": "Zona Waktu: ZoneId dan ZonedDateTime",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Toko Budi di Jakarta mengirim barang ke pembeli di Makassar dan Jayapura. Budi mengumumkan \"promo mulai jam 19:00\", tapi jam 19:00 WIB di Jakarta sudah jam 20:00 di Makassar (WITA) dan jam 21:00 di Jayapura (WIT). Saat waktu harus berlaku untuk banyak daerah, zona waktu ikut penting.\n\nJava menyimpan zona waktu dengan **`ZoneId`**, dan tanggal-jam lengkap dengan zonanya dengan **`ZonedDateTime`**.\n\nIbaratnya seperti jam dinding di lobi hotel internasional: ada beberapa jam berjajar bertuliskan Jakarta, Makassar, Jayapura. Detiknya sama, hanya angka jamnya yang berbeda."
+    },
+    {
+      "type": "theory",
+      "content": "Zona waktu ditulis dengan nama resmi berbentuk `Benua/Kota`:\n\n| Daerah | ZoneId | Selisih dari UTC |\n|---|---|---|\n| WIB | `Asia/Jakarta` | +07:00 |\n| WITA | `Asia/Makassar` | +08:00 |\n| WIT | `Asia/Jayapura` | +09:00 |\n\n```java\nZoneId jakarta = ZoneId.of(\"Asia/Jakarta\");\nZonedDateTime promo = ZonedDateTime.of(LocalDateTime.of(2026, 11, 11, 19, 0), jakarta);\nZonedDateTime diMakassar = promo.withZoneSameInstant(ZoneId.of(\"Asia/Makassar\"));\n```\n\n`withZoneSameInstant` berarti \"saat yang sama, dilihat dari zona lain\". Jamnya berubah, detik kejadiannya tetap sama. Saat dicetak, `ZonedDateTime` menampilkan selisih UTC dan nama zonanya, misalnya `2026-11-11T19:00+07:00[Asia/Jakarta]`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi ingin pengumuman promo menampilkan jam mulai di tiga zona waktu Indonesia.\n\n```java run\nimport java.time.*;\nimport java.time.format.DateTimeFormatter;\n\npublic class Main {\n    public static void main(String[] args) {\n        ZonedDateTime promo = ZonedDateTime.of(\n                LocalDateTime.of(2026, 11, 11, 19, 0), ZoneId.of(\"Asia/Jakarta\"));\n        DateTimeFormatter jam = DateTimeFormatter.ofPattern(\"HH:mm\");\n\n        String[] zona = {\"Asia/Jakarta\", \"Asia/Makassar\", \"Asia/Jayapura\"};\n        String[] nama = {\"WIB\", \"WITA\", \"WIT\"};\n        for (int i = 0; i < zona.length; i++) {\n            ZonedDateTime z = promo.withZoneSameInstant(ZoneId.of(zona[i]));\n            System.out.println(z.format(jam) + \" \" + nama[i]);\n        }\n    }\n}\n```\n\n- Promo mulai jam 19:00 WIB, sama dengan 20:00 WITA dan 21:00 WIT.\n- Kita tidak menambah jam sendiri; Java yang menghitung dari aturan zonanya.\n- Indonesia tidak memakai jam musim panas, jadi selisihnya selalu tetap."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.time.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ZonedDateTime kirim = ZonedDateTime.of(\n                LocalDateTime.of(2026, 8, 17, 22, 30), ZoneId.of(\"Asia/Jakarta\"));\n        ZonedDateTime diJayapura = kirim.withZoneSameInstant(ZoneId.of(\"Asia/Jayapura\"));\n        ZonedDateTime salah = kirim.withZoneSameLocal(ZoneId.of(\"Asia/Jayapura\"));\n\n        System.out.println(kirim);\n        System.out.println(diJayapura);\n        System.out.println(diJayapura.toLocalDate());\n        System.out.println(salah);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak oleh println(diJayapura.toLocalDate())?",
+        "options": [
+          "2026-08-17",
+          "2026-08-16",
+          "00:30",
+          "2026-08-18"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Jam 22:30 WIB."
+        },
+        {
+          "line": 7,
+          "note": "Saat yang sama dilihat dari Jayapura: 2 jam lebih maju."
+        },
+        {
+          "line": 8,
+          "note": "Jamnya tetap 22:30, tapi sekarang dianggap jam Jayapura: saatnya berbeda!"
+        }
+      ],
+      "explanation": "Jam 22:30 WIB sama dengan jam 00:30 WIT, karena Jayapura 2 jam lebih maju. Saat itu sudah lewat tengah malam di Jayapura, jadi tanggalnya **18 Agustus**: `diJayapura` dicetak `2026-08-18T00:30+09:00[Asia/Jayapura]`.\n\n`withZoneSameLocal` berbeda: jamnya tetap 22:30, hanya label zonanya yang diganti. Hasilnya `2026-08-17T22:30+09:00[Asia/Jayapura]`, yang sebenarnya 2 jam **lebih awal** dari waktu kirim aslinya. Untuk mengonversi jam antar zona, selalu pakai `withZoneSameInstant`.",
+      "tryThis": [
+        {
+          "task": "Ganti Asia/Jayapura menjadi Asia/Makassar. Apakah tanggalnya masih berganti?",
+          "hint": null
+        },
+        {
+          "task": "Cetak kirim.getOffset(). Apa hasilnya?",
+          "hint": "getOffset menampilkan selisih dari UTC."
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis singkatan zona**\n\nSalah:\n\n```java\nZoneId z = ZoneId.of(\"WIB\");\n```\n\nBenar:\n\n```java\nZoneId z = ZoneId.of(\"Asia/Jakarta\");\n```\n\n`ZoneId.of` hanya mengenal nama resmi seperti `Asia/Jakarta`. Singkatan seperti `WIB` membuat program berhenti dengan `ZoneRulesException`.\n\n**2. Memakai withZoneSameLocal untuk konversi jam**\n\nSalah:\n\n```java\nZonedDateTime diMakassar = promo.withZoneSameLocal(ZoneId.of(\"Asia/Makassar\"));   // tetap 19:00\n```\n\nBenar:\n\n```java\nZonedDateTime diMakassar = promo.withZoneSameInstant(ZoneId.of(\"Asia/Makassar\"));  // 20:00\n```\n\n`withZoneSameLocal` hanya mengganti label zona tanpa menghitung ulang jam, sehingga menunjuk saat yang berbeda.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "ZonedDateTime z = ZonedDateTime.of(LocalDateTime.of(2026, 8, 17, 10, 0), ZoneId.of(\"Asia/Jakarta\"));\nSystem.out.println(z.withZoneSameInstant(ZoneId.of(\"Asia/Makassar\")).getHour());",
+          "options": [
+            "9",
+            "10",
+            "12",
+            "11"
+          ],
+          "answer": 3,
+          "explanation": "WITA satu jam lebih maju dari WIB.",
+          "remedial": "Makassar (WITA, +08:00) satu jam lebih maju dari Jakarta (WIB, +07:00). Jam 10:00 WIB adalah jam **11:00** WITA. `withZoneSameInstant` menghitung konversinya sendiri."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "ZonedDateTime z = ZonedDateTime.of(LocalDateTime.of(2026, 1, 1, 9, 0), ZoneId.of(\"Asia/Jakarta\"));\nSystem.out.println(z);",
+          "options": [
+            "2026-01-01T09:00+07:00[Asia/Jakarta]",
+            "2026-01-01T09:00 WIB",
+            "2026-01-01T09:00",
+            "2026-01-01T02:00Z"
+          ],
+          "answer": 0,
+          "explanation": "ZonedDateTime mencetak selisih UTC dan nama zona.",
+          "remedial": "Saat dicetak, `ZonedDateTime` menampilkan tanggal dan jam, lalu **selisih dari UTC** (`+07:00` untuk WIB), lalu nama zona di dalam kurung siku: `2026-01-01T09:00+07:00[Asia/Jakarta]`."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini dijalankan?",
+          "code": "ZoneId z = ZoneId.of(\"WITA\");",
+          "options": [
+            "Berhasil menjadi zona +08:00",
+            "Error, karena ZoneId butuh nama resmi seperti Asia/Makassar",
+            "Berhasil menjadi zona Asia/Makassar",
+            "Hasilnya null"
+          ],
+          "answer": 1,
+          "explanation": "Singkatan zona tidak dikenali.",
+          "remedial": "`ZoneId.of` hanya mengenal nama resmi berbentuk `Benua/Kota` (atau selisih seperti `+08:00`). Singkatan `WITA` tidak dikenali, jadi program berhenti dengan `ZoneRulesException`."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "ZonedDateTime z = ZonedDateTime.of(LocalDateTime.of(2026, 5, 1, 20, 0), ZoneId.of(\"Asia/Jakarta\"));\nSystem.out.println(z.withZoneSameLocal(ZoneId.of(\"Asia/Jayapura\")).getHour());",
+          "options": [
+            "21",
+            "18",
+            "20",
+            "22"
+          ],
+          "answer": 2,
+          "explanation": "withZoneSameLocal tidak mengubah angka jam.",
+          "remedial": "`withZoneSameLocal` mempertahankan **angka jam** apa adanya (20:00) dan hanya mengganti label zonanya. Karena itu hasilnya tetap 20, walaupun saat kejadiannya kini berbeda. Untuk konversi yang benar, pakai `withZoneSameInstant`."
+        },
+        {
+          "question": "Zona waktu Asia/Jayapura (WIT) berselisih berapa jam dari UTC?",
+          "options": [
+            "+9 jam",
+            "+8 jam",
+            "+7 jam",
+            "+10 jam"
+          ],
+          "answer": 0,
+          "explanation": "WIT = UTC+09:00.",
+          "remedial": "Indonesia punya tiga zona: WIB (`Asia/Jakarta`, UTC+7), WITA (`Asia/Makassar`, UTC+8), dan WIT (`Asia/Jayapura`, UTC+9). Jadi WIT dua jam lebih maju dari WIB."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "ZonedDateTime z = ZonedDateTime.of(LocalDateTime.of(2026, 12, 31, 23, 0), ZoneId.of(\"Asia/Jakarta\"));\nSystem.out.println(z.withZoneSameInstant(ZoneId.of(\"Asia/Jayapura\")).getYear());",
+          "options": [
+            "2027",
+            "2026",
+            "2025",
+            "23"
+          ],
+          "answer": 0,
+          "explanation": "Di Jayapura sudah lewat tengah malam tahun baru.",
+          "remedial": "Jam 23:00 WIB tanggal 31 Desember sama dengan jam 01:00 WIT tanggal **1 Januari 2027**. Di Jayapura tahun barunya sudah datang, jadi `getYear()` menghasilkan 2027."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Promo diumumkan jam 19:00 WIB. Method apa yang tepat untuk mencari jam yang sama di zona WITA?",
+      "options": [
+        "plusHours(1) pada LocalTime",
+        "withZoneSameInstant",
+        "ZoneId.of(\"WITA\")",
+        "withZoneSameLocal"
+      ],
+      "answer": 1,
+      "explanation": "withZoneSameInstant menghitung jam di zona lain untuk saat yang sama."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Live streaming toko Budi mulai **30 Oktober 2026 jam 20:00 WIB**. Cetak jam mulainya untuk penonton di **Asia/Makassar** dan **Asia/Jayapura** dengan pola `HH:mm`, masing-masing di baris sendiri.\n\nOutput yang diharapkan:\n```\n21:00\n22:00\n```",
+      "starterCode": "import java.time.*;\nimport java.time.format.DateTimeFormatter;\n\npublic class Main {\n    public static void main(String[] args) {\n        ZonedDateTime live = ZonedDateTime.of(\n                LocalDateTime.of(2026, 10, 30, 20, 0), ZoneId.of(\"Asia/Jakarta\"));\n        DateTimeFormatter jam = DateTimeFormatter.ofPattern(\"HH:mm\");\n        // Tulis kode kamu di sini\n    }\n}",
+      "solution": "import java.time.*;\nimport java.time.format.DateTimeFormatter;\n\npublic class Main {\n    public static void main(String[] args) {\n        ZonedDateTime live = ZonedDateTime.of(\n                LocalDateTime.of(2026, 10, 30, 20, 0), ZoneId.of(\"Asia/Jakarta\"));\n        DateTimeFormatter jam = DateTimeFormatter.ofPattern(\"HH:mm\");\n        System.out.println(live.withZoneSameInstant(ZoneId.of(\"Asia/Makassar\")).format(jam));\n        System.out.println(live.withZoneSameInstant(ZoneId.of(\"Asia/Jayapura\")).format(jam));\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "21:00\n22:00\n"
+        }
+      ],
+      "hints": [
+        "Konversi zona: live.withZoneSameInstant(ZoneId.of(\"Asia/Makassar\")).",
+        "Format jamnya dengan .format(jam)."
+      ],
+      "steps": [
+        "Konversi live ke Asia/Makassar dengan withZoneSameInstant, lalu format dengan jam.",
+        "Lakukan hal yang sama untuk Asia/Jayapura.",
+        "Cetak keduanya di baris sendiri."
+      ],
+      "skeleton": "import java.time.*;\nimport java.time.format.DateTimeFormatter;\n\npublic class Main {\n    public static void main(String[] args) {\n        ZonedDateTime live = ZonedDateTime.of(\n                LocalDateTime.of(2026, 10, 30, 20, 0), ZoneId.of(\"Asia/Jakarta\"));\n        DateTimeFormatter jam = DateTimeFormatter.ofPattern(\"HH:mm\");\n        System.out.println(live.___(ZoneId.of(\"Asia/Makassar\")).format(jam));\n        System.out.println(live.___(ZoneId.of(\"___\")).format(jam));\n    }\n}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "ZoneId menyimpan zona waktu dengan nama resmi seperti Asia/Jakarta.",
+        "ZonedDateTime = tanggal, jam, dan zona waktu sekaligus.",
+        "withZoneSameInstant mengonversi jam ke zona lain untuk saat yang sama.",
+        "WIB = Asia/Jakarta (+07:00), WITA = Asia/Makassar (+08:00), WIT = Asia/Jayapura (+09:00)."
+      ]
+    }
+  ]
+}
