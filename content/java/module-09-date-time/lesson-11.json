@@ -1,0 +1,193 @@
+{
+  "id": "java-date-time-11",
+  "moduleId": "date-time",
+  "order": 11,
+  "title": "Instant: Cap Waktu untuk Server",
+  "estimatedMinutes": 10,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Server toko Budi mencatat setiap transaksi. Server itu bisa berada di Singapura, sedangkan pembelinya di Jakarta dan Jayapura. Kalau waktu transaksi disimpan sebagai \"jam 19:00\" saja, tidak jelas jam 19:00 di zona mana.\n\nUntuk itu dipakai **`Instant`**: satu titik di garis waktu dunia, selalu dihitung dalam **UTC** (zona patokan dunia, ditandai huruf `Z`). Instant yang sama berarti kejadian yang sama, di mana pun orangnya berada.\n\nIbaratnya seperti nomor antrean di bank. Nomornya tidak peduli kamu datang dari kota mana; yang penting siapa yang lebih dulu. Instant adalah nomor antrean untuk setiap kejadian di dunia."
+    },
+    {
+      "type": "theory",
+      "content": "Cara membuat dan memakai `Instant`:\n\n```java\nInstant sekarang = Instant.now();                          // saat ini\nInstant awal = Instant.ofEpochSecond(0);                   // 1970-01-01T00:00:00Z\nInstant t = Instant.parse(\"2026-08-17T02:30:00Z\");         // dari teks ISO\n```\n\n| Kode | Gunanya |\n|---|---|\n| `t.getEpochSecond()` | jumlah detik sejak 1 Januari 1970 UTC (disebut **epoch**) |\n| `t.toEpochMilli()` | jumlah milidetik sejak epoch |\n| `t.plusSeconds(60)` | satu menit kemudian |\n| `t.isBefore(t2)` | membandingkan dua kejadian |\n| `t.atZone(ZoneId.of(\"Asia/Jakarta\"))` | menampilkan instant sebagai jam WIB |\n\nAngka epoch inilah yang sering disimpan di database dan dikirim antar server, karena berupa satu angka yang sama di seluruh dunia."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTransaksi tercatat di server sebagai instant `2026-08-17T12:15:00Z`. Budi ingin menampilkannya sebagai jam WIB, dan mengecek berapa detik selisihnya dengan transaksi berikutnya.\n\n```java run\nimport java.time.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Instant t1 = Instant.parse(\"2026-08-17T12:15:00Z\");\n        Instant t2 = t1.plusSeconds(90);\n\n        System.out.println(t1.atZone(ZoneId.of(\"Asia/Jakarta\")).toLocalDateTime());\n        System.out.println(t1.isBefore(t2));\n        System.out.println(Duration.between(t1, t2).getSeconds() + \" detik\");\n    }\n}\n```\n\n- 12:15 UTC sama dengan 19:15 WIB, karena WIB 7 jam lebih maju dari UTC.\n- `t1` terjadi sebelum `t2`.\n- `Duration.between` juga bekerja untuk `Instant`: selisihnya 90 detik."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.time.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Instant awal = Instant.ofEpochSecond(0);\n        Instant t = Instant.ofEpochSecond(86400);\n\n        System.out.println(awal);\n        System.out.println(t);\n        System.out.println(t.toEpochMilli());\n        System.out.println(t.atZone(ZoneId.of(\"Asia/Jakarta\")).getHour());\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak oleh println(t)?",
+        "options": [
+          "1970-01-02T00:00:00Z",
+          "1970-01-01T00:00:00Z",
+          "86400",
+          "1970-01-02T07:00:00Z"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 5,
+          "note": "Detik ke-0: awal hitungan epoch, 1 Januari 1970 UTC."
+        },
+        {
+          "line": 6,
+          "note": "86.400 detik = tepat satu hari."
+        },
+        {
+          "line": 10,
+          "note": "Detik dikali 1000."
+        },
+        {
+          "line": 11,
+          "note": "Jam di Jakarta untuk instant yang sama."
+        }
+      ],
+      "explanation": "`ofEpochSecond(0)` adalah awal hitungan epoch: `1970-01-01T00:00:00Z`. Satu hari punya 86.400 detik, jadi `ofEpochSecond(86400)` tepat satu hari kemudian: `1970-01-02T00:00:00Z`. Instant selalu dicetak dalam UTC dengan huruf `Z`.\n\n`toEpochMilli()` menghasilkan 86.400.000. Di Jakarta, saat yang sama adalah jam 07:00, jadi baris terakhir mencetak `7`.",
+      "tryThis": [
+        {
+          "task": "Cetak Instant.now(). Jalankan dua kali; apakah hasilnya sama?",
+          "hint": null
+        },
+        {
+          "task": "Ganti 86400 menjadi 3600. Instant apa yang dicetak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan waktu server sebagai LocalDateTime**\n\nSalah:\n\n```java\nLocalDateTime waktuTransaksi = LocalDateTime.now();   // jam lokal server, tanpa zona\n```\n\nBenar:\n\n```java\nInstant waktuTransaksi = Instant.now();   // satu titik waktu yang sama di seluruh dunia\n```\n\n`LocalDateTime` tidak tahu zonanya. Kalau server pindah ke negara lain, jam yang tercatat ikut berubah artinya. `Instant` selalu UTC.\n\n**2. Mengira Instant dicetak dalam jam WIB**\n\nSalah:\n\n```java\nSystem.out.println(Instant.parse(\"2026-08-17T12:15:00Z\"));   // dikira jam 12:15 WIB\n```\n\nBenar:\n\n```java\nSystem.out.println(Instant.parse(\"2026-08-17T12:15:00Z\").atZone(ZoneId.of(\"Asia/Jakarta\")));\n```\n\nInstant selalu ditampilkan dalam UTC (huruf `Z`). Untuk jam WIB, ubah dulu dengan `atZone`.\n"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "Instant t = Instant.ofEpochSecond(60);\nSystem.out.println(t);",
+          "options": [
+            "1970-01-01T00:00:60Z",
+            "60",
+            "1970-01-01T00:01:00Z",
+            "1970-01-01T07:01:00Z"
+          ],
+          "answer": 2,
+          "explanation": "60 detik setelah awal epoch.",
+          "remedial": "Epoch dimulai dari `1970-01-01T00:00:00Z`. 60 detik kemudian adalah satu menit: `1970-01-01T00:01:00Z`. Instant selalu dicetak dalam UTC dengan huruf `Z`."
+        },
+        {
+          "question": "Apa arti huruf **Z** di akhir `2026-08-17T02:30:00Z`?",
+          "options": [
+            "Zona waktu Jakarta",
+            "Akhir hari",
+            "Detik ke-0",
+            "Waktunya dalam UTC"
+          ],
+          "answer": 3,
+          "explanation": "Z = UTC.",
+          "remedial": "Huruf **Z** menandai waktu dalam **UTC**, zona patokan dunia dengan selisih +00:00. `Instant` selalu dicetak dalam UTC, jadi selalu diakhiri `Z`."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "Instant t = Instant.parse(\"2026-08-17T02:30:00Z\");\nSystem.out.println(t.atZone(ZoneId.of(\"Asia/Jakarta\")).getHour());",
+          "options": [
+            "2",
+            "9",
+            "7",
+            "19"
+          ],
+          "answer": 1,
+          "explanation": "WIB = UTC + 7 jam.",
+          "remedial": "Jakarta (WIB) 7 jam lebih maju dari UTC. Jam 02:30 UTC sama dengan jam 09:30 WIB, jadi `getHour()` menghasilkan **9**."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "Instant a = Instant.ofEpochSecond(1000);\nInstant b = a.plusSeconds(500);\nSystem.out.println(b.getEpochSecond());",
+          "options": [
+            "500",
+            "1500",
+            "1000500",
+            "1000"
+          ],
+          "answer": 1,
+          "explanation": "plusSeconds menambah detik ke epoch.",
+          "remedial": "`getEpochSecond()` adalah jumlah detik sejak epoch. `a` di detik ke-1000, ditambah 500 detik menjadi detik ke-**1500**."
+        },
+        {
+          "question": "Kenapa server sebaiknya menyimpan waktu transaksi sebagai `Instant`, bukan `LocalDateTime`?",
+          "options": [
+            "LocalDateTime tidak bisa menyimpan detik",
+            "Instant otomatis berbahasa Indonesia",
+            "Instant menunjuk satu saat yang sama di seluruh dunia, tidak bergantung zona server",
+            "Instant lebih mudah dibaca manusia"
+          ],
+          "answer": 2,
+          "explanation": "LocalDateTime tidak punya zona.",
+          "remedial": "`LocalDateTime` hanya \"jam di dinding\" tanpa zona, sehingga artinya bergantung di mana server berada. `Instant` selalu UTC, jadi satu nilai berarti satu kejadian yang sama di seluruh dunia."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "Instant t = Instant.ofEpochSecond(2);\nSystem.out.println(t.toEpochMilli());",
+          "options": [
+            "2",
+            "200",
+            "2000",
+            "0.002"
+          ],
+          "answer": 2,
+          "explanation": "1 detik = 1000 milidetik.",
+          "remedial": "`toEpochMilli()` menghitung dalam **milidetik**. 2 detik sama dengan 2 × 1000 = 2000 milidetik."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "`Instant.ofEpochSecond(0)` menunjuk waktu apa?",
+      "options": [
+        "1 Januari 1970 jam 00:00 UTC",
+        "Saat program dijalankan",
+        "1 Januari 2000 jam 00:00 UTC",
+        "Tahun 0 Masehi"
+      ],
+      "answer": 0,
+      "explanation": "Epoch adalah titik nol hitungan waktu komputer: 1 Januari 1970 UTC."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Server mencatat pembayaran pada instant `2026-10-30T15:20:00Z`. Barang dikirim **2 jam** kemudian. Cetak waktu kirim sebagai jam **WIB** (`Asia/Jakarta`) dalam bentuk `LocalDateTime`, lalu selisih detiknya.\n\nOutput yang diharapkan:\n```\n2026-10-31T00:20\n7200\n```",
+      "starterCode": "import java.time.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Instant bayar = Instant.parse(\"2026-10-30T15:20:00Z\");\n        // Tulis kode kamu di sini\n    }\n}",
+      "solution": "import java.time.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Instant bayar = Instant.parse(\"2026-10-30T15:20:00Z\");\n        Instant kirim = bayar.plusSeconds(2 * 60 * 60);\n        System.out.println(kirim.atZone(ZoneId.of(\"Asia/Jakarta\")).toLocalDateTime());\n        System.out.println(Duration.between(bayar, kirim).getSeconds());\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "2026-10-31T00:20\n7200\n"
+        }
+      ],
+      "hints": [
+        "2 jam = 2 * 60 * 60 detik.",
+        "Jam WIB: kirim.atZone(ZoneId.of(\"Asia/Jakarta\")).toLocalDateTime()."
+      ],
+      "steps": [
+        "Hitung kirim = bayar.plusSeconds(2 * 60 * 60).",
+        "Cetak kirim.atZone(ZoneId.of(\"Asia/Jakarta\")).toLocalDateTime().",
+        "Cetak Duration.between(bayar, kirim).getSeconds()."
+      ],
+      "skeleton": "import java.time.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Instant bayar = Instant.parse(\"2026-10-30T15:20:00Z\");\n        Instant kirim = bayar.___(2 * 60 * 60);\n        System.out.println(kirim.___(ZoneId.of(\"Asia/Jakarta\")).toLocalDateTime());\n        System.out.println(Duration.between(bayar, kirim).___());\n    }\n}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Instant adalah satu titik di garis waktu dunia, selalu dalam UTC (huruf Z).",
+        "Epoch adalah 1 Januari 1970 UTC; getEpochSecond dan toEpochMilli menghitung dari sana.",
+        "atZone menampilkan instant sebagai jam di zona tertentu.",
+        "Server sebaiknya menyimpan waktu kejadian sebagai Instant."
+      ]
+    }
+  ]
+}
