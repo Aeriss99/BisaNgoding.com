@@ -91,6 +91,9 @@ describe('Git Content Integrity', () => {
                   'modul-07-github-keamanan': 50,
                   'modul-08-github-otomatisasi': 54,
                   'modul-09-github-ekosistem': 59,
+                  'modul-11-profesional': 63,
+                  'modul-12-lanjutan': 66,
+                  'modul-13-tim': 74,
                 };
                 if (ghOffsets[moduleDir] !== undefined) {
                   const noDiharapkan = ghOffsets[moduleDir] + (lesson.order - 1);
@@ -150,6 +153,9 @@ describe('Git Content Integrity', () => {
                   'modul-07-github-keamanan': 50,
                   'modul-08-github-otomatisasi': 54,
                   'modul-09-github-ekosistem': 59,
+                  'modul-11-profesional': 63,
+                  'modul-12-lanjutan': 66,
+                  'modul-13-tim': 74,
                 };
                 if (ghOffsets[moduleDir] !== undefined) {
                   const noDiharapkan = ghOffsets[moduleDir] + (lesson.order - 1);
