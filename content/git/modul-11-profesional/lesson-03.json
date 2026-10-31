@@ -1,0 +1,182 @@
+{
+  "id": "git-profesional-03",
+  "moduleId": "git-profesional",
+  "order": 3,
+  "title": "Workflow Aman: Pin Action ke SHA dan Izin Token",
+  "estimatedMinutes": 13,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Otomatisasi kita menulis `uses: actions/checkout@v7`. Itu memakai **tag** `v7`. Masalahnya, tag bisa dipindahkan pemilik repo action ke commit lain kapan saja. Kalau akun pemilik action dibobol, penyerang bisa memindahkan tag ke kode jahat, dan workflow-mu ikut menjalankannya tanpa kamu sadari.\n\nIni pernah terjadi sungguhan. Maret 2025, tag action populer `tj-actions/changed-files` dipindahkan penyerang ke kode yang mencetak secret ke log, dan ribuan repo terdampak.\n\nSolusinya: tulis **SHA commit lengkap** (40 karakter), bukan tag. SHA menunjuk satu isi yang pasti dan tidak bisa diganti diam-diam. Seperti membeli obat: tag itu \"obat merek X\", isinya bisa diganti pabrik; SHA itu nomor batch tertentu yang isinya sudah tercatat."
+    },
+    {
+      "type": "theory",
+      "content": "**Cara menulis action yang dipin ke SHA**\n\n```yaml\nsteps:\n  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n```\n\nKomentar `# v7.0.1` penting supaya manusia tahu versinya. SHA bisa dilihat di halaman Releases action itu, atau dengan `git ls-remote https://github.com/actions/checkout v7.0.1`.\n\nSupaya tidak ketinggalan versi baru, aktifkan **Dependabot** untuk action. Dependabot membuka pull request yang memperbarui SHA sekaligus komentarnya:\n\n```yaml\n# .github/dependabot.yml\nversion: 2\nupdates:\n  - package-ecosystem: \"github-actions\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n```\n\n**Batasi izin token**\n\nSetiap workflow mendapat token `GITHUB_TOKEN`. Berikan izin sekecil mungkin dengan blok `permissions`:\n\n```yaml\npermissions:\n  contents: read\n```\n\nBegitu kamu menulis `permissions`, izin yang **tidak disebut otomatis menjadi `none`**. Job yang hanya menjalankan tes cukup `contents: read`. Job yang perlu menulis komentar di PR misalnya butuh `pull-requests: write`, dan bisa ditulis di level job saja supaya job lain tidak ikut mendapatkannya.\n\nAdmin repo atau organisasi juga bisa mewajibkan semua action dipin ke SHA lewat pengaturan **Actions > General**."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai SHA pendek**\n\nSalah:\n\n```yaml\n- uses: actions/checkout@3d3c42e # v7.0.1\n```\n\nBenar:\n\n```yaml\n- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n```\n\nGitHub Actions hanya menerima SHA **lengkap 40 karakter** sebagai pin yang aman. SHA pendek ditolak, karena bisa saja cocok dengan lebih dari satu commit.\n\n**2. Memberi izin tulis ke semua job**\n\nSalah:\n\n```yaml\npermissions: write-all\njobs:\n  tes:\n    runs-on: ubuntu-latest\n```\n\nBenar:\n\n```yaml\npermissions:\n  contents: read\njobs:\n  tes:\n    runs-on: ubuntu-latest\n```\n\nKalau ada langkah yang dibobol, token dengan izin tulis bisa dipakai untuk mengubah kode atau rilis. Mulai dari izin baca saja, tambahkan izin lain hanya di job yang benar-benar butuh.\n"
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Proyek Todolist 65: Kunci Action ke SHA",
+      "folder": "~/todolist",
+      "pembuka": "PR CODEOWNERS sudah di-merge.\n\nSekarang workflow CI kita amankan: action dikunci ke **SHA commit** yang pasti, dan izin token dibatasi hanya membaca isi repo. Aku sudah mengubah `.github/workflows/ci.yml` di editor.\n\nDi latihan ini GitHub disimulasikan, jadi semua keluaran asli dari Git. Di GitHub sungguhan akan ada beberapa baris tambahan seperti `Enumerating objects`; itu hanya laporan kemajuan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Aku buat branch baru.",
+          "terima": [
+            "git switch -c amankan-ci"
+          ],
+          "keluaran": "Switched to a new branch 'amankan-ci'",
+          "petunjuk": "",
+          "otomatis": true,
+          "benar": "`ci.yml` sudah kuubah.\n\nSekarang giliranmu."
+        },
+        {
+          "arahan": "Lihat perubahan yang belum di-commit.",
+          "terima": [
+            "git diff"
+          ],
+          "keluaran": "diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml\nindex aa1a12a..b7a9f49 100644\n--- a/.github/workflows/ci.yml\n+++ b/.github/workflows/ci.yml\n@@ -1,11 +1,13 @@\n name: CI\n on: [push, pull_request]\n+permissions:\n+  contents: read\n jobs:\n   tes:\n     runs-on: ubuntu-latest\n     steps:\n-      - uses: actions/checkout@v7\n-      - uses: actions/setup-node@v7\n+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0\n         with:\n           node-version: 24\n       - run: npm ci",
+          "petunjuk": "Perintah dari Git Dasar untuk melihat perubahan baris per baris.",
+          "tantangan": true,
+          "benar": "`@v7` diganti SHA 40 karakter, versinya dicatat di komentar `# v7.0.1`. Ada juga blok `permissions` baru."
+        },
+        {
+          "arahan": "Simpan jadi commit berformat Conventional Commits dengan tipe `ci`.",
+          "terima": [
+            "git commit -am {{pesanAman}}",
+            "git commit -a -m {{pesanAman}}"
+          ],
+          "keluaran": "[amankan-ci a4be672] {{pesanAman}}\n 1 file changed, 4 insertions(+), 2 deletions(-)",
+          "petunjuk": "Lihat lagi caranya di modul Git Dasar: `-a` dan `-m` digabung, lalu pesanmu dalam tanda kutip.",
+          "tantangan": true
+        },
+        {
+          "arahan": "Kirim branch `amankan-ci` ke GitHub sekaligus sambungkan dengan branch di sana.",
+          "terima": [
+            "git push -u origin amankan-ci",
+            "git push --set-upstream origin amankan-ci"
+          ],
+          "keluaran": "To https://github.com/kamu/todolist.git\n * [new branch]      amankan-ci -> amankan-ci\nbranch 'amankan-ci' set up to track 'origin/amankan-ci'.",
+          "petunjuk": "Ingat modul Remote: push dengan `-u`, lalu nama remote dan nama branch-nya.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "SHA tidak bisa digeser diam-diam seperti tag. Supaya tidak ketinggalan versi baru, Dependabot dengan `package-ecosystem: \"github-actions\"` akan membuka PR yang memperbarui SHA sekaligus komentarnya.",
+      "bawaan": {
+        "pesanAman": "ci: kunci action ke SHA dan batasi izin token"
+      }
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa `uses: actions/checkout@v7` kurang aman dibanding SHA?",
+          "options": [
+            "Tag membuat workflow lebih lambat",
+            "Tag tidak didukung GitHub Actions",
+            "Tag hanya bisa dipakai di repo publik",
+            "Tag bisa dipindahkan ke commit lain tanpa sepengetahuanmu"
+          ],
+          "answer": 3,
+          "explanation": "Tag bisa digeser, SHA tidak.",
+          "remedial": "Tag seperti `v7` bisa **dipindahkan** pemilik action (atau penyerang yang membobol akunnya) ke kode lain. SHA lengkap selalu menunjuk isi yang sama."
+        },
+        {
+          "question": "Penulisan pin mana yang benar?",
+          "options": [
+            "actions/checkout@3d3c42e # v7.0.1",
+            "actions/checkout@latest",
+            "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+            "actions/checkout@v7 # 3d3c42e5aac5ba805825da76410c181273ba90b1"
+          ],
+          "answer": 2,
+          "explanation": "SHA lengkap 40 karakter, versi di komentar.",
+          "remedial": "Pin yang benar memakai **SHA lengkap 40 karakter** setelah `@`, dan versinya ditulis di **komentar**, misalnya `# v7.0.1`."
+        },
+        {
+          "question": "Workflow menulis blok di bawah. Apa izin `contents` token-nya?",
+          "code": "permissions:\n  issues: write",
+          "options": [
+            "read",
+            "none",
+            "write",
+            "Sama seperti pengaturan repo"
+          ],
+          "answer": 1,
+          "explanation": "Izin yang tidak disebut menjadi none.",
+          "remedial": "Begitu blok `permissions` ditulis, semua izin yang **tidak disebut otomatis `none`**. Di sini hanya `issues` yang diberi izin."
+        },
+        {
+          "question": "Job hanya menjalankan `npm test`. Izin token yang paling tepat adalah...",
+          "options": [
+            "contents: read",
+            "write-all",
+            "contents: write",
+            "packages: write"
+          ],
+          "answer": 0,
+          "explanation": "Tes cukup membaca kode.",
+          "remedial": "Prinsipnya **izin sekecil mungkin**. Menjalankan tes hanya perlu membaca kode, jadi cukup `contents: read`."
+        },
+        {
+          "question": "Siapa yang bisa membantu memperbarui SHA action ke versi baru secara otomatis?",
+          "options": [
+            "CODEOWNERS",
+            "git reflog",
+            "GitHub Pages",
+            "Dependabot dengan package-ecosystem github-actions"
+          ],
+          "answer": 3,
+          "explanation": "Dependabot membuka PR pembaruan.",
+          "remedial": "**Dependabot** dengan `package-ecosystem: \"github-actions\"` membuka pull request yang memperbarui SHA beserta komentar versinya."
+        },
+        {
+          "question": "Apa yang terjadi pada `tj-actions/changed-files` di bulan Maret 2025?",
+          "options": [
+            "Tag-nya dipindahkan penyerang ke kode yang membocorkan secret ke log",
+            "Action itu berhenti mendukung Linux",
+            "Action itu diganti namanya menjadi actions/checkout",
+            "Repo-nya dihapus GitHub karena melanggar lisensi"
+          ],
+          "answer": 0,
+          "explanation": "Contoh nyata bahaya tag.",
+          "remedial": "Penyerang memindahkan **tag** action itu ke kode jahat yang mencetak secret ke log. Repo yang memin action ke SHA lama tidak ikut menjalankan kode jahat itu."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Workflow ini mencoba `git push` dari dalam job. Apa hasilnya?",
+      "code": "permissions:\n  contents: read\njobs:\n  rilis:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n      - run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"github-actions[bot]@users.noreply.github.com\"\n          git commit --allow-empty -m \"chore: tandai rilis\"\n          git push",
+      "options": [
+        "Commit otomatis menjadi pull request",
+        "Push ditolak karena token hanya punya izin baca",
+        "Push berhasil karena token selalu bisa menulis",
+        "Workflow tidak jalan karena SHA tidak boleh dipakai"
+      ],
+      "answer": 1,
+      "explanation": "`contents: read` hanya mengizinkan membaca isi repo. Untuk push, job itu butuh `contents: write`, dan sebaiknya diberikan di level job yang butuh saja."
+    },
+    {
+      "type": "fill_blank",
+      "code": "jobs:\n  tes:\n    runs-on: ubuntu-latest\n    # Izin sekecil mungkin: hanya membaca isi repo\n    permissions:\n      contents: ___",
+      "answers": [
+        "read"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tag seperti @v7 bisa dipindahkan; SHA lengkap 40 karakter tidak.",
+        "Tulis versi di komentar: `@<sha> # v7.0.1`, dan biarkan Dependabot memperbaruinya.",
+        "Blok `permissions` membatasi GITHUB_TOKEN; izin yang tidak disebut menjadi none.",
+        "Mulai dari `contents: read`, tambah izin tulis hanya di job yang butuh."
+      ]
+    }
+  ]
+}

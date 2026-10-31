@@ -29,10 +29,10 @@ function semuaMateri(): { file: string; lesson: Lesson }[] {
 describe('Soal pendek Java Dasar dan Git & GitHub', () => {
   const materi = semuaMateri();
 
-  it('mencakup 32 materi Java Dasar dan 62 materi Git & GitHub', () => {
+  it('mencakup 32 materi Java Dasar dan 79 materi Git & GitHub', () => {
     const cek = materi.filter(({ lesson }) => lesson.cards.some((c) => c.type === 'understanding_check'));
     expect(cek.filter(({ lesson }) => lesson.id.startsWith('java-dasar-')).length).toBe(32);
-    expect(cek.filter(({ lesson }) => !lesson.id.startsWith('java-dasar-')).length).toBe(62);
+    expect(cek.filter(({ lesson }) => !lesson.id.startsWith('java-dasar-')).length).toBe(79);
   });
 
   for (const { file, lesson } of materi) {

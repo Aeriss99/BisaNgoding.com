@@ -1,0 +1,205 @@
+{
+  "id": "git-tim-03",
+  "moduleId": "git-tim",
+  "order": 3,
+  "title": "Mencari Penyebab Bug: Blame dan Bisect",
+  "estimatedMinutes": 13,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ada laporan bug: `hitungTodo()` selalu kurang satu. Pertanyaan detektifnya: **siapa yang terakhir mengubah baris ini, dan commit mana yang pertama kali merusaknya?** Git punya dua alat untuk itu.\n\n**`git blame`** menampilkan, untuk setiap baris file, commit dan penulis yang **terakhir mengubah** baris itu. Namanya memang \"blame\" (menyalahkan), tapi tujuannya mencari konteks: kenapa baris ini ditulis begini, dan siapa yang bisa ditanya.\n\n**`git bisect`** mencari **commit pertama yang rusak** dengan pencarian biner. Kamu cukup bilang commit mana yang masih benar dan mana yang sudah rusak; Git melompat ke tengah-tengah, kamu menjawab \"baik\" atau \"rusak\", dan seterusnya.\n\nSeperti tebak angka 1 sampai 100. Tebak 50, dijawab \"terlalu besar\", tebak 25, dan seterusnya. Dalam paling banyak 7 tebakan angkanya ketemu. Bisect bekerja dengan cara yang sama pada daftar commit."
+    },
+    {
+      "type": "theory",
+      "content": "**Blame**\n\n```bash\ngit blame -L 9,9 todo.js\n# dd4476e7 (Budi 2026-10-22 11:10:00 +0700 9) function hitungTodo() { return todos.length - 1; }\n```\n\n`-L 9,9` membatasi ke baris 9 saja; tanpa `-L` semua baris ditampilkan. Di GitHub, buka file lalu klik **Blame** untuk tampilan yang sama.\n\n**Bisect**\n\n```bash\ngit bisect start\ngit bisect bad              # commit sekarang rusak\ngit bisect good main        # main masih benar\n# Bisecting: 1 revision left to test after this (roughly 1 step)\n# ...uji aplikasinya, lalu jawab:\ngit bisect bad              # atau: git bisect good\n# ...ulangi sampai Git menulis:\n# dd4476e is the first bad commit\ngit bisect reset            # kembali ke branch semula\n```\n\nSetiap jawaban membagi dua sisa commit. Dari **1.000 commit**, penyebabnya ketemu dalam sekitar **10 langkah**.\n\n**Bisect otomatis**: kalau ada perintah tes yang keluar dengan kode 0 saat benar dan bukan 0 saat rusak, Git bisa menjawab sendiri:\n\n```bash\ngit bisect run npm test\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `git bisect reset` setelah selesai**\n\nSalah:\n\n```bash\n# ...dd4476e is the first bad commit\ngit switch -c fix-hitung\n```\n\nBenar:\n\n```bash\n# ...dd4476e is the first bad commit\ngit bisect reset\ngit switch -c fix-hitung\n```\n\nSelama bisect, HEAD berada di commit lama (detached HEAD). Tanpa `reset`, kamu bisa membuat branch dari commit yang salah. `git bisect reset` mengembalikanmu ke branch semula.\n\n**2. Menjawab good/bad tanpa benar-benar menguji**\n\nSalah:\n\n```bash\ngit bisect good   # \"sepertinya benar\"\n```\n\nBenar:\n\n```bash\nnpm test          # atau coba aplikasinya sungguhan\ngit bisect good   # baru jawab setelah yakin\n```\n\nSatu jawaban salah membuat bisect menunjuk commit yang keliru. Uji setiap commit sebelum menjawab, atau pakai `git bisect run` supaya tes yang menjawab.\n"
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Proyek Todolist 76: Cari Penyebab Bug dengan Blame dan Bisect",
+      "folder": "~/todolist",
+      "pembuka": "Ada laporan bug: `hitungTodo()` selalu kurang satu. Di branch `cari-bug` ada empat commit baru sejak `main`. Commit mana yang merusaknya? Kita pakai dua alat detektif: **blame** dan **bisect**.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Aku cek siapa yang terakhir mengubah baris `hitungTodo` dengan `git blame -L 9,9 todo.js`.",
+          "terima": [
+            "git blame -L 9,9 todo.js"
+          ],
+          "keluaran": "dd4476e7 ({{nama}} 2026-10-22 11:10:00 +0700 9) function hitungTodo() { return todos.length - 1; }",
+          "petunjuk": "",
+          "otomatis": true,
+          "benar": "Baris itu terakhir diubah di commit `refactor: ringkas fungsi hitung`. Tapi di proyek besar, baris yang rusak sering tidak langsung ketahuan. Untuk itu ada bisect.\n\nSekarang giliranmu."
+        },
+        {
+          "arahan": "Mulai pencarian. Ketik `git bisect start`.",
+          "terima": [
+            "git bisect start"
+          ],
+          "keluaran": "status: waiting for both good and bad commits",
+          "petunjuk": "Ketik `git bisect start`."
+        },
+        {
+          "arahan": "Tandai commit sekarang sebagai rusak. Ketik `git bisect bad`.",
+          "terima": [
+            "git bisect bad"
+          ],
+          "keluaran": "status: waiting for good commit(s), bad commit known",
+          "petunjuk": "Ketik `git bisect bad`."
+        },
+        {
+          "arahan": "`main` masih benar. Tandai sebagai baik. Ketik `git bisect good main`.",
+          "terima": [
+            "git bisect good main"
+          ],
+          "keluaran": "Bisecting: 1 revision left to test after this (roughly 1 step)\n[dd4476e79624fbdc5e827efd8ba19704f9c203b1] refactor: ringkas fungsi hitung",
+          "petunjuk": "Ketik `git bisect good main`.",
+          "benar": "Git melompat ke commit di tengah-tengah dan menunggu jawabanmu."
+        },
+        {
+          "arahan": "Aku sudah mencoba `hitungTodo()` di commit ini: hasilnya **kurang satu**. Tandai commit ini sebagai rusak.",
+          "terima": [
+            "git bisect bad"
+          ],
+          "keluaran": "Bisecting: 0 revisions left to test after this (roughly 0 steps)\n[95f593aac1985ce673bf869ef2e19515b4831c4c] docs: jelaskan tandaiSelesai",
+          "petunjuk": "Perintah bisect yang sama seperti tadi untuk commit yang rusak.",
+          "tantangan": true,
+          "benar": "Tinggal satu commit lagi yang perlu dicek."
+        },
+        {
+          "arahan": "Aku cek lagi: di commit ini `hitungTodo()` **masih benar**. Ketik `git bisect good`.",
+          "terima": [
+            "git bisect good"
+          ],
+          "keluaran": "dd4476e79624fbdc5e827efd8ba19704f9c203b1 is the first bad commit\ncommit dd4476e79624fbdc5e827efd8ba19704f9c203b1\nAuthor: {{nama}} <{{email}}>\nDate:   Thu Oct 22 11:10:00 2026 +0700\n\n    refactor: ringkas fungsi hitung\n\n todo.js | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)",
+          "petunjuk": "Ketik `git bisect good`.",
+          "benar": "Ketemu! Git menunjuk commit pertama yang rusak."
+        },
+        {
+          "arahan": "Selesai mencari. Kembali ke posisi semula. Ketik `git bisect reset`.",
+          "terima": [
+            "git bisect reset"
+          ],
+          "keluaran": "Previous HEAD position was 95f593a docs: jelaskan tandaiSelesai\nSwitched to branch 'cari-bug'",
+          "petunjuk": "Ketik `git bisect reset`."
+        }
+      ],
+      "penutup": "Bisect membagi dua daftar commit setiap kali kamu menjawab. Dari 1.000 commit, penyebabnya ketemu dalam kira-kira 10 langkah. Perbaikannya nanti dibuat di branch `fix-hitung`, lewat pull request seperti biasa.",
+      "bawaan": {
+        "email": "budi@contoh.com",
+        "nama": "Budi Santoso"
+      }
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang ditampilkan `git blame todo.js`?",
+          "options": [
+            "Daftar bug di todo.js",
+            "Semua commit di repo",
+            "Perbedaan todo.js dengan commit sebelumnya",
+            "Untuk setiap baris: commit, penulis, dan tanggal perubahan terakhirnya"
+          ],
+          "answer": 3,
+          "explanation": "Blame menunjukkan asal setiap baris.",
+          "remedial": "`git blame` menampilkan **commit, penulis, dan tanggal terakhir** setiap baris diubah, sehingga kamu tahu konteks dan siapa yang bisa ditanya."
+        },
+        {
+          "question": "Apa fungsi `-L 9,9` di perintah ini?",
+          "code": "git blame -L 9,9 todo.js",
+          "options": [
+            "Hanya menampilkan baris 9",
+            "Mencari kata \"9\"",
+            "Membatasi ke 9 penulis",
+            "Menampilkan 9 commit terakhir"
+          ],
+          "answer": 0,
+          "explanation": "-L memilih rentang baris.",
+          "remedial": "**`-L awal,akhir`** membatasi blame ke rentang baris tertentu. `-L 9,9` artinya **baris 9 saja**."
+        },
+        {
+          "question": "Apa yang dicari `git bisect`?",
+          "options": [
+            "Penulis yang paling banyak commit",
+            "Commit pertama yang membuat bug muncul",
+            "Semua baris yang berisi bug",
+            "Branch yang belum di-merge"
+          ],
+          "answer": 1,
+          "explanation": "Bisect mencari commit penyebab.",
+          "remedial": "`git bisect` memakai pencarian biner untuk menemukan **commit pertama yang rusak** di antara commit yang baik dan yang rusak."
+        },
+        {
+          "question": "Urutan awal bisect yang benar adalah...",
+          "options": [
+            "git bisect reset, git bisect start",
+            "git bisect good, git bisect start, git bisect reset",
+            "git bisect bad, git bisect reset, git bisect start",
+            "git bisect start, git bisect bad, git bisect good <commit yang masih benar>"
+          ],
+          "answer": 3,
+          "explanation": "Mulai, tandai rusak, tandai baik.",
+          "remedial": "Mulai dengan **`git bisect start`**, tandai commit sekarang **`git bisect bad`**, lalu tandai commit yang masih benar dengan **`git bisect good <commit>`**."
+        },
+        {
+          "question": "Ada 1.000 commit di antara commit baik dan commit rusak. Kira-kira berapa langkah bisect?",
+          "options": [
+            "Tepat 1.000",
+            "Sekitar 10",
+            "Sekitar 500",
+            "Sekitar 100"
+          ],
+          "answer": 1,
+          "explanation": "Setiap jawaban membagi dua.",
+          "remedial": "Setiap jawaban membagi dua sisa commit: 1.000 → 500 → 250 → ... Jadi sekitar **10 langkah** (2 pangkat 10 = 1.024)."
+        },
+        {
+          "question": "Bisect sudah menemukan commit penyebab bug. Perintah apa sebelum lanjut bekerja?",
+          "options": [
+            "git bisect start",
+            "git bisect reset",
+            "git reset --hard",
+            "git bisect good"
+          ],
+          "answer": 1,
+          "explanation": "Kembali ke branch semula.",
+          "remedial": "**`git bisect reset`** mengakhiri bisect dan mengembalikan HEAD ke branch semula. Tanpa itu kamu masih di commit lama (detached HEAD)."
+        }
+      ]
+    },
+    {
+      "type": "predict_output",
+      "question": "Ada 16 commit sejak commit yang masih benar. Kira-kira berapa langkah lagi yang ditulis Git?",
+      "code": "git bisect start\ngit bisect bad\ngit bisect good HEAD~16",
+      "options": [
+        "roughly 8 steps",
+        "roughly 1 step",
+        "roughly 16 steps",
+        "roughly 3 steps"
+      ],
+      "answer": 3,
+      "explanation": "Git langsung melompat ke tengah. Sisa 7 commit yang perlu diuji setelah ini bisa diselesaikan dalam sekitar 3 langkah, karena setiap jawaban membagi dua."
+    },
+    {
+      "type": "fill_blank",
+      "code": "# Mulai mencari commit penyebab bug\ngit bisect start\ngit bisect bad\n# main masih benar\ngit bisect ___ main",
+      "answers": [
+        "good"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "`git blame file` menampilkan commit dan penulis terakhir setiap baris; `-L a,b` membatasi barisnya.",
+        "`git bisect` mencari commit pertama yang rusak dengan membagi dua daftar commit.",
+        "Alurnya: start, bad, good <commit benar>, jawab good/bad sampai ketemu, lalu reset.",
+        "`git bisect run <perintah tes>` membuat tes yang menjawab secara otomatis."
+      ]
+    }
+  ]
+}
