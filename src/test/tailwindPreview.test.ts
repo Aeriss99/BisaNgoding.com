@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import { buildTailwindDocument, kandidatKelas, pisahkanTailwind } from '../lib/tailwindPreview';
+
+// Vitest tidak memproses file CSS (isinya kosong di tes), padahal di build Vite `?raw` berisi teks
+// file aslinya. Tes memakai isi index.css yang sebenarnya.
+vi.mock('tailwindcss/index.css?raw', () => ({
+  default: fs.readFileSync(path.resolve(__dirname, '../../node_modules/tailwindcss/index.css'), 'utf8'),
+}));
 
 describe('pratinjau Tailwind', () => {
   it('memisahkan <style type="text/tailwindcss"> dari HTML', () => {

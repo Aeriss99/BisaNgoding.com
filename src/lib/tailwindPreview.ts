@@ -47,6 +47,7 @@ function kompiler(cssTambahan: string): Promise<Kompiler> {
       import('tailwindcss'),
       import('tailwindcss/index.css?raw'),
     ]);
+    if (indexCss.length < 1000) throw new Error('file tailwindcss/index.css tidak termuat');
     return compile(`@import "tailwindcss";\n${cssTambahan}`, {
       base: '/',
       loadStylesheet: async (_id: string, base: string) => ({ path: 'tailwindcss/index.css', base, content: indexCss }),
