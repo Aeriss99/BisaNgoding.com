@@ -222,6 +222,12 @@ describe('Git Content Integrity', () => {
               it('exists', () => {
                 expect(card).toBeDefined();
               });
+            } else if (card.type === 'cek_github') {
+              it('hanya di Proyek Akhir sungguhan, tahap sesuai urutan materi', () => {
+                expect(lesson.moduleId).toBe('git-proyek-akhir');
+                expect(card.tahap).toBe(lesson.order);
+                expect(card.judul).toMatch(new RegExp(`^Periksa tahap ${lesson.order}: `));
+              });
             }
           });
         });
