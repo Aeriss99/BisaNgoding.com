@@ -157,7 +157,17 @@ export type Card =
   | HtmlPreviewCard
   | PraktikTerminalCard
   | PraktikGitHubCard
-  | PraktikJavaCard;
+  | PraktikJavaCard
+  | CekGitHubCard;
+
+/** Proyek Akhir sungguhan: memeriksa satu tahap di repo GitHub pengguna lewat API publik (src/lib/cekGithub.ts). */
+export interface CekGitHubCard {
+  type: 'cek_github';
+  tahap: number;
+  judul: string;
+  /** Isian tambahan berupa tautan bukti, misalnya alamat papan Projects atau pull request. */
+  bukti?: { label: string; contoh: string };
+}
 
 /** Satu langkah di terminal tiruan. Isian {{nama}} lihat src/lib/praktikTerminal.ts. */
 export interface LangkahTerminal {

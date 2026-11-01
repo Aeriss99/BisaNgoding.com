@@ -36,6 +36,7 @@ import {
 import { HtmlPreviewCardComponent } from '../components/cards/HtmlPreviewCard';
 import { HtmlCssPreviewCardComponent } from '../components/cards/HtmlCssPreviewCard';
 import { PratinjauTailwind } from '../lib/tailwindPreview';
+import { CekGitHubCardComponent } from '../components/cards/CekGitHubCard';
 import { PraktikTerminalCardComponent } from '../components/cards/PraktikTerminalCard';
 import { PraktikGitHubCardComponent } from '../components/cards/PraktikGitHubCard';
 import { PraktikJavaCardComponent } from '../components/cards/PraktikJavaCard';
@@ -440,6 +441,9 @@ export default function LessonPage() {
           <PraktikTerminalCardComponent card={c} onSuccess={handleChallengeSuccess} />
         );
 
+      case 'cek_github':
+        return <CekGitHubCardComponent card={c} onSuccess={handleChallengeSuccess} />;
+
       case 'praktik_github':
         return (
           <PraktikGitHubCardComponent card={c} onSuccess={handleChallengeSuccess} />
@@ -597,7 +601,8 @@ export default function LessonPage() {
     card.type === 'understanding_check' ||
     card.type === 'praktik_terminal' ||
     card.type === 'praktik_github' ||
-    card.type === 'praktik_java';
+    card.type === 'praktik_java' ||
+    card.type === 'cek_github';
 
   // Multiple choice shows its own 'next' button when correct, but code challenge / fill blank can use the footer one if passed
   const showFooterNextButton = !isQuizCard || challengePassed;

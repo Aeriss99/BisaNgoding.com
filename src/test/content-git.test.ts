@@ -83,7 +83,7 @@ describe('Git Content Integrity', () => {
               it('praktik terminal: ada langkah, setiap langkah punya pola, keluaran, dan petunjuk', () => {
                 const pt = card as PraktikTerminalCard;
                 const akhir = moduleDir === 'modul-14-proyek-akhir';
-                expect(pt.judul).toMatch(akhir ? new RegExp(`^Proyek Akhir ${lesson.order}: `) : /^Proyek Todolist \d+: /);
+                expect(pt.judul).toMatch(akhir ? new RegExp(`^Latihan Akhir ${lesson.order}: `) : /^Proyek Todolist \d+: /);
 
                 const ghOffsets: Record<string, number> = {
                   'modul-04-github-dasar': 36,
@@ -152,7 +152,7 @@ describe('Git Content Integrity', () => {
               it('praktik github: ada langkah, setiap target ada di layarnya, dan arahan menyebut tombol', () => {
                 const pg = card as PraktikGitHubCard;
                 const akhir = moduleDir === 'modul-14-proyek-akhir';
-                expect(pg.judul).toMatch(akhir ? new RegExp(`^Proyek Akhir ${lesson.order}: `) : /^Proyek Todolist \d+: /);
+                expect(pg.judul).toMatch(akhir ? new RegExp(`^Latihan Akhir ${lesson.order}: `) : /^Proyek Todolist \d+: /);
 
                 const ghOffsets: Record<string, number> = {
                   'modul-04-github-dasar': 36,
