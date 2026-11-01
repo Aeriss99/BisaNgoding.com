@@ -3,7 +3,7 @@ import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom';
 import { Ikon } from '../components/ui/IkonDesain';
 import { useProgress } from '../context/ProgressContext';
 import { WARNA_KELAS } from './SemuaKelas';
-import { ringkasanKelas, jalurKelas, formatDurasi } from '../lib/kelas';
+import { ringkasanKelas, jalurKelas, formatDurasi, lulusProyekAkhir } from '../lib/kelas';
 import type { StatusModul } from '../lib/kelas';
 
 export default function CourseDetail() {
@@ -78,6 +78,7 @@ export default function CourseDetail() {
   }
 
   const { course, modul, totalMateri, totalSelesai, persen, totalMenit, lanjut } = summary;
+  const lulus = lulusProyekAkhir(summary);
   const paths = courseId ? jalurKelas(courseId) : [];
 
   let jenisKelas = 'Praktik di komputer sendiri';
@@ -124,6 +125,7 @@ export default function CourseDetail() {
             </div>
 
             <section className="flex flex-col gap-4">
+              {lulus && <BannerLulus nama={lulus} />}
               <div className="flex items-baseline justify-between pb-2.5 border-b-[3px]">
                 <h2 className="m-0 font-space text-[28px] font-bold">Daftar modul</h2>
                 <span className="text-[15px] text-[#5a5a5a]">Klik modul untuk membuka materinya</span>
@@ -234,6 +236,7 @@ export default function CourseDetail() {
           <div className="text-[13px]">{totalSelesai} dari {totalMateri} materi selesai</div>
         </div>
 
+        {lulus && <BannerLulus nama={lulus} />}
         <div className="flex items-baseline justify-between">
           <h2 className="m-0 font-space text-[20px] font-bold">Daftar modul</h2>
           <span className="text-[13px] text-[#5a5a5a]">Ketuk untuk membuka</span>
@@ -280,6 +283,18 @@ export default function CourseDetail() {
           </div>
           <Ikon nama="arrow" ukuran={24} warna="#ffffff" tebal={2.5} />
         </Link>
+      </div>
+    </div>
+  );
+}
+
+function BannerLulus({ nama }: { nama: string }) {
+  return (
+    <div role="status" className="flex items-center gap-3 p-4 border-2 rounded-xl bg-[#d7f5dd] shadow-[3px_3px_0_var(--color-text-main)]">
+      <span aria-hidden="true" className="text-[28px] leading-none">🎓</span>
+      <div className="flex flex-col gap-0.5">
+        <b className="font-space text-[18px]">{nama}</b>
+        <span className="text-[13px] text-[#3d3d3d]">Semua tahap Proyek Akhir selesai. Selamat!</span>
       </div>
     </div>
   );
@@ -513,6 +528,9 @@ function MobileModuleCard({ mod, isExpanded, onToggle }: { mod: any, isExpanded:
         <div className="flex-1 flex flex-col gap-0.5">
           <div className="font-space text-[16px] font-bold">{mod.nomor}. {mod.mod.title}</div>
           <div className="text-[12px]">{mod.jumlahMateri} materi &middot; terkunci</div>
+          {mod.mod.syaratAkhir && mod.syaratJudul && (
+            <div className="text-[12px]">Selesaikan <b>{mod.syaratJudul}</b> dulu</div>
+          )}
         </div>
       </div>
     );

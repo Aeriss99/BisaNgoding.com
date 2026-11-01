@@ -129,6 +129,12 @@ export function ambilElemenLayar(layar: LayarGitHub): Record<string, string> {
       hasil['btn-new-gist'] = 'New gist';
       break;
 
+    case 'halaman_umum':
+      if (Array.isArray(layar.tombol)) {
+        for (const b of layar.tombol as { id: string; teks: string }[]) hasil[b.id] = b.teks;
+      }
+      break;
+
     case 'form_umum':
       hasil['input-judul'] = 'Judul';
       hasil['input-isi'] = 'Isi';

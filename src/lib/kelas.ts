@@ -1,5 +1,5 @@
 import type { Course, Lesson, Module, UserProgress } from '../types/schema';
-import { coursesData, modulesData, getVisibleLessons, getQuizQuestions, checkModuleUnlocked } from './content';
+import { coursesData, modulesData, getVisibleLessons, getQuizQuestions, checkModuleUnlocked, syaratAkhir } from './content';
 import { pemakaianKelas } from './jalur';
 
 export type StatusModul = 'selesai' | 'sedang' | 'terbuka' | 'terkunci';
@@ -9,6 +9,21 @@ export interface MateriKelas { lesson: Lesson; nomor: string; status: StatusMate
 export interface ModulKelas { mod: Module; nomor: number; status: StatusModul; materi: MateriKelas[]; jumlahMateri: number; jumlahSelesai: number; menit: number; quiz: StatusQuiz; skorQuiz?: number; syaratJudul?: string }
 export interface LanjutKelas { keterangan: string; url: string }
 export interface RingkasanKelas { course: Course; modul: ModulKelas[]; totalMateri: number; totalSelesai: number; persen: number; totalMenit: number; lanjut: LanjutKelas | null }
+
+function teksSyaratAkhir(mod: Module, progress: UserProgress): string {
+  const s = syaratAkhir(mod, progress);
+  const min = mod.syaratAkhir?.rataQuizMinimal ?? 0;
+  const bagian = [];
+  if (s.modulBelum > 0) bagian.push(`${s.modulBelum} modul lain`);
+  if (s.rataQuiz < min) bagian.push(`rata-rata quiz minimal ${min} (sekarang ${s.rataQuiz})`);
+  return bagian.join(' dan ') || 'semua modul lain';
+}
+
+/** Nama kelulusan kalau modul Proyek Akhir kelas ini sudah selesai, misalnya "Lulus Proyek Git & GitHub". */
+export function lulusProyekAkhir(ringkasan: RingkasanKelas): string | null {
+  const m = ringkasan.modul.find((x) => x.mod.syaratAkhir);
+  return m && m.status === 'selesai' ? m.mod.syaratAkhir!.namaLulus : null;
+}
 
 export function formatDurasi(menit: number): string {
   return menit < 90 ? `± ${menit} menit` : `± ${Math.round(menit / 60)} jam`;
@@ -49,7 +64,7 @@ export function ringkasanKelas(courseId: string, progress: UserProgress): Ringka
     return {
       mod, nomor: i + 1, status, materi, jumlahMateri: lessons.length, jumlahSelesai,
       menit: lessons.reduce((t, l) => t + (l.estimatedMinutes || 5), 0), quiz, skorQuiz: skor?.score,
-      syaratJudul: status === 'terkunci' ? mods.find((m) => m.id === syaratId)?.title : undefined,
+      syaratJudul: status !== 'terkunci' ? undefined : mod.syaratAkhir ? teksSyaratAkhir(mod, progress) : mods.find((m) => m.id === syaratId)?.title,
     };
   });
   // Modul "sedang" = modul terbuka yang belum selesai dan SUDAH dimulai (ada materi selesai atau quiz pernah gagal).

@@ -74,6 +74,9 @@ export interface Module {
   lessonCount: number;
   status?: 'ready' | 'draft';
   requires?: string;
+  /** Modul penutup kelas (Proyek Akhir): terbuka kalau semua modul lain di kelasnya selesai
+   *  dan rata-rata nilai quiz kelas itu minimal rataQuizMinimal. */
+  syaratAkhir?: { rataQuizMinimal: number; namaLulus: string };
   estimatedHours?: number;
   language?: 'java' | 'javascript' | 'html' | 'css';
 }
@@ -261,6 +264,7 @@ export interface LayarGitHub {
     | 'projects'
     | 'form_gist'
     | 'form_umum'
+    | 'halaman_umum'
     | string;
   repo?: string;
   tabAktif?: string;
@@ -274,6 +278,12 @@ export interface LayarGitHub {
   prCount?: number;
   items?: Array<{ id: string; nomor?: number; judul: string; status?: string; waktu?: string; label?: string }>;
   elemen?: Record<string, string>;
+  /** halaman_umum: tombol yang bisa diklik, isian yang sudah terisi, dan daftar baris teks. */
+  tombol?: { id: string; teks: string; utama?: boolean }[];
+  isian?: { label: string; nilai: string }[];
+  daftar?: string[];
+  /** Label di samping nama repo, bawaan "Public". */
+  labelRepo?: string;
   [key: string]: unknown;
 }
 

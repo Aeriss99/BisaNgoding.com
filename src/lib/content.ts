@@ -111,8 +111,27 @@ Object.keys(lessonFiles).forEach((path) => {
   }
 }
 
+/** Syarat modul Proyek Akhir: semua modul lain di kelasnya selesai (materi + quiz lulus) dan rata-rata quiz cukup. */
+export function syaratAkhir(mod: Module, progress: any): { terpenuhi: boolean; modulBelum: number; rataQuiz: number } {
+  const lain = modulesData.filter((m) => (m.courseId || 'java') === (mod.courseId || 'java') && m.status !== 'draft' && m.id !== mod.id);
+  let modulBelum = 0;
+  const skor: number[] = [];
+  for (const m of lain) {
+    const lessons = getVisibleLessons(m.id);
+    const materiSelesai = lessons.length > 0 && lessons.every((l) => (progress.completedLessons ?? []).includes(l.id));
+    const quiz = getQuizQuestions(m.id);
+    const nilai = progress.quizScores?.[m.id];
+    if (quiz && quiz.length) skor.push(nilai?.score ?? 0);
+    if (!materiSelesai || (quiz && quiz.length && !nilai?.passed)) modulBelum++;
+  }
+  const rataQuiz = skor.length ? Math.round(skor.reduce((a, b) => a + b, 0) / skor.length) : 0;
+  const minimal = mod.syaratAkhir?.rataQuizMinimal ?? 0;
+  return { terpenuhi: modulBelum === 0 && rataQuiz >= minimal, modulBelum, rataQuiz };
+}
+
 export function checkModuleUnlocked(mod: Module, progress: any): boolean {
   if (progress.unlockAll) return true;
+  if (mod.syaratAkhir) return syaratAkhir(mod, progress).terpenuhi;
   const courseModules = modulesData
     .filter((m) => (m.courseId || 'java') === (mod.courseId || 'java') && m.status !== 'draft')
     .sort((a, b) => a.order - b.order);

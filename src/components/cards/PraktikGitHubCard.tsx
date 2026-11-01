@@ -69,6 +69,49 @@ function GelembungLingga({ teks, label, tantangan }: { teks: string; label?: str
   );
 }
 
+type TombolUmum = { id: string; teks: string; utama?: boolean };
+type IsianUmum = { label: string; nilai: string };
+
+/** Halaman GitHub tiruan serbaguna: judul, keterangan, isian yang sudah terisi, daftar, dan tombol. */
+function HalamanUmum({ layar, klik, sorot, isi }: { layar: LayarGitHub; klik: (id: string) => void; sorot: (id: string) => string; isi: (s: string) => string }) {
+  const tombol = (Array.isArray(layar.tombol) ? layar.tombol : []) as TombolUmum[];
+  const isian = (Array.isArray(layar.isian) ? layar.isian : []) as IsianUmum[];
+  const daftar = (Array.isArray(layar.daftar) ? layar.daftar : []) as string[];
+  return (
+    <div className="space-y-3 text-xs">
+      {layar.judul && <p className="m-0 font-semibold text-sm text-[#24292f]">{isi(String(layar.judul))}</p>}
+      {layar.deskripsi && <p className="m-0 text-[#57606a] whitespace-pre-line">{isi(String(layar.deskripsi))}</p>}
+      {isian.map((f) => (
+        <div key={f.label}>
+          <span className="block text-xs font-semibold mb-1 text-[#24292f]">{f.label}</span>
+          <div className="w-full px-2.5 py-1.5 text-xs border border-[#d0d7de] rounded-md bg-[#f6f8fa] font-mono break-words whitespace-pre-line">{isi(f.nilai)}</div>
+        </div>
+      ))}
+      {daftar.length > 0 && (
+        <ul className="m-0 p-0 list-none border border-[#d0d7de] rounded-md divide-y divide-[#d0d7de]">
+          {daftar.map((d) => <li key={d} className="px-3 py-2 text-[#24292f]">{isi(d)}</li>)}
+        </ul>
+      )}
+      {tombol.length > 0 && (
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
+          {tombol.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              id={b.id}
+              data-target-id={b.id}
+              onClick={() => klik(b.id)}
+              className={`px-3 py-1 rounded-md text-xs font-semibold cursor-pointer ${b.utama ? 'bg-[#1f883d] text-white hover:bg-[#1a7f37]' : 'bg-[#f6f8fa] text-[#24292f] border border-[#d0d7de] hover:bg-[#eaeef2]'} ${sorot(b.id)}`}
+            >
+              {b.teks}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function labelLangkah(card: PraktikGitHubCard, i: number): string {
   const l = card.langkah[i];
   if (!l) return '';
@@ -280,6 +323,8 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
   };
 
   const repoNama = layarAktif.repo || 'kamu/todolist';
+  const [pemilikRepo, namaRepoSaja] = repoNama.split('/');
+  const alamatPages = `https://${pemilikRepo}.github.io/${namaRepoSaja ?? ''}/`;
   const tabAktif = layarAktif.tabAktif || 'code';
   const isProfileProjects = layarAktif.templat === 'projects' && (layarAktif.stageProjects === 'profil' || layarAktif.stageProjects === 'daftar');
 
@@ -395,7 +440,7 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                   <span className="text-[#57606a]">repo:</span>
                   <span>{repoNama}</span>
                   <span className="text-[10px] font-normal text-[#57606a] border border-[#d0d7de] rounded-full px-1.5 py-[1px] bg-white">
-                    Public
+                    {String(layarAktif.labelRepo || 'Public')}
                   </span>
                 </div>
               </div>
@@ -1183,7 +1228,7 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                         {layarAktif.stagePages === 'published' ? (
                           <div className="p-3 bg-[#dafbe1] border border-[#1a7f37] rounded-md space-y-2">
                             <span className="font-semibold text-xs text-[#1a7f37] block">Your site is live!</span>
-                            <span className="text-[11px] text-[#57606a] block">https://kamu.github.io/todolist/</span>
+                            <span className="text-[11px] text-[#57606a] block">{alamatPages}</span>
                             <button
                               type="button"
                               id="btn-visit-site"
@@ -1289,7 +1334,7 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
               <div className="border border-[#d0d7de] rounded-md overflow-hidden text-xs">
                 <div className="bg-[#f6f8fa] p-2 border-b border-[#d0d7de] flex items-center gap-2 font-mono text-[#57606a]">
                   <span className="text-[#1a7f37]">🔒</span>
-                  <span>https://kamu.github.io/todolist/</span>
+                  <span>{alamatPages}</span>
                 </div>
                 <div className="p-4 space-y-3 bg-white">
                   <h4 className="text-lg font-bold text-[#24292f] m-0">Aplikasi Todolist</h4>
@@ -1525,6 +1570,10 @@ function Praktik({ card, onSuccess }: { card: PraktikGitHubCard; onSuccess: (att
                   </>
                 )}
               </div>
+            )}
+
+            {layarAktif.templat === 'halaman_umum' && (
+              <HalamanUmum layar={layarAktif} klik={handleClickElement} sorot={getSorotStyle} isi={(s) => isiTemplate(s, nilai, bawaan)} />
             )}
 
             {layarAktif.templat === 'form_umum' && (

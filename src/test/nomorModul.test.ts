@@ -3,9 +3,10 @@ import { nomorModul, getModule, modulesData } from '../lib/content';
 
 describe('nomorModul', () => {
   it('harus memberikan nomor modul 1..N tanpa loncat untuk kelas git', () => {
-    expect(nomorModul('git-dasar')).toEqual({ nomor: 1, total: 13 });
-    expect(nomorModul('gh-ekosistem')).toEqual({ nomor: 10, total: 13 });
-    expect(nomorModul('git-tim')).toEqual({ nomor: 13, total: 13 });
+    expect(nomorModul('git-dasar')).toEqual({ nomor: 1, total: 14 });
+    expect(nomorModul('gh-ekosistem')).toEqual({ nomor: 10, total: 14 });
+    expect(nomorModul('git-tim')).toEqual({ nomor: 13, total: 14 });
+    expect(nomorModul('git-akhir')).toEqual({ nomor: 14, total: 14 });
   });
 
   it('harus memberikan nomor untuk kelas english', () => {
