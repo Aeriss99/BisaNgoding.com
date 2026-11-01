@@ -35,6 +35,7 @@ import {
 } from '../components/cards/QuizCards';
 import { HtmlPreviewCardComponent } from '../components/cards/HtmlPreviewCard';
 import { HtmlCssPreviewCardComponent } from '../components/cards/HtmlCssPreviewCard';
+import { PratinjauTailwind } from '../lib/tailwindPreview';
 import { PraktikTerminalCardComponent } from '../components/cards/PraktikTerminalCard';
 import { PraktikGitHubCardComponent } from '../components/cards/PraktikGitHubCard';
 import { PraktikJavaCardComponent } from '../components/cards/PraktikJavaCard';
@@ -621,7 +622,7 @@ export default function LessonPage() {
           <div className="font-mono text-[13px] font-bold tracking-[1px] text-[#5a5a5a]">{labelKartu(card.type)}</div>
           <h2 className="m-0 font-space font-bold text-[24px] leading-[30px] lg:text-[30px] lg:leading-9">{lesson.title}</h2>
           <div key={currentCardIndex} className="motion-safe:animate-in fade-in slide-in-from-bottom-4 duration-300 w-full">
-            <ErrorBoundary>{renderCardContent(card.type === 'multiple_choice' && kartuAcak ? kartuAcak : card)}</ErrorBoundary>
+            <ErrorBoundary><PratinjauTailwind.Provider value={course?.id === 'tailwind'}>{renderCardContent(card.type === 'multiple_choice' && kartuAcak ? kartuAcak : card)}</PratinjauTailwind.Provider></ErrorBoundary>
           </div>
         </article>
       </main>

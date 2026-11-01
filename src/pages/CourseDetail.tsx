@@ -83,7 +83,7 @@ export default function CourseDetail() {
   let jenisKelas = 'Praktik di komputer sendiri';
   if (course.id === 'spring-boot' || course.language === 'devops') {
     jenisKelas = 'Teori + praktik di komputer sendiri';
-  } else if (course.language === 'java' || course.language === 'javascript') {
+  } else if (course.language === 'java' || course.language === 'javascript' || course.id === 'tailwind') {
     jenisKelas = 'Latihan jalan di browser';
   } else if (course.language === 'english') {
     jenisKelas = '5 menit sehari';

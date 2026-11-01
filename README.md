@@ -9,6 +9,7 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 | **Java** | Java Dasar, Proyek Todolist, OOP, Collection, Record & Sealed Class, Standard Classes, Generics, Lambda, Stream, Date & Time |
 | **JavaScript** | JavaScript Dasar, Proyek Todolist, JavaScript OOP, JavaScript DOM, Standard Library, Async, dan Modules |
 | **Git & GitHub** | Git di laptop sampai GitHub: tag dan versi rilis, pull request, code review, manajemen proyek, keamanan, CI/CD, memperbaiki riwayat (amend, revert, reset, rebase), dan alur kerja tim |
+| **Tailwind CSS** | Tailwind v4: warna, spacing, flexbox, grid, responsif mobile-first, state, group/peer, dark mode, nilai bebas, tema dengan @theme, @apply, dan proyek tampilan Todolist (pratinjau jalan di browser) |
 | **Linux & Terminal** | Mengenal Linux, terminal dan navigasi, file dan folder, membaca dan mencari teks, permission, menginstal program, proses dan service, jaringan dan SSH, bash scripting, cron, mengamankan server, web server Nginx |
 | **RESTful API** | HTTP, prinsip REST, curl dan fetch, desain API, OpenAPI, keamanan (OWASP API Top 10), proyek API toko online |
 | **Spring Boot** | Spring Dasar: IoC, bean, dependency injection, component scan, scope dan siklus hidup bean (teori + praktik di komputer sendiri) |
@@ -64,7 +65,7 @@ content/              materi, satu folder per kelas
   courses.json        daftar kelas
   jalur-karier.json   jalur karier di beranda
   roadmap.json        rencana belajar per peran
-  <kelas>/            java, javascript, git, mysql, linux, html-css, rest-api, english
+  <kelas>/            java, javascript, git, mysql, linux, html-css, tailwind, rest-api, english
     modules.json      daftar modul kelas itu
     <modul>/          lesson-XX.json + quiz.json
 public/               gambar, ilustrasi, audio English, ikon PWA, dan tools.jar untuk CheerpJ
