@@ -19,7 +19,7 @@ const LABEL_KARTU: Record<Card['type'], string> = {
   type_translation: 'LATIHAN',
   html_css_preview: 'PREVIEW HTML & CSS',
   html_preview: 'CONTOH KODE',
-  react_preview: 'CONTOH KODE',
+  react_preview: 'PRAKTIK',
   praktik_terminal: 'PRAKTIK DI TERMINAL',
   praktik_github: 'PRAKTIK DI GITHUB',
   praktik_java: 'PRAKTIK BERSAMA LINGGA',

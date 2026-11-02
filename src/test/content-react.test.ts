@@ -5,7 +5,7 @@ import { transform } from 'sucrase';
 
 /**
  * Kelas React (7 modul, 50 materi). Formatnya seperti kelas Tailwind, tanpa kartu praktik dan tanpa
- * tantangan kode: setiap materi punya satu kartu react_preview yang menjalankan React sungguhan.
+ * tantangan kode: setiap materi diakhiri satu kartu Praktik (react_preview) yang menjalankan React sungguhan.
  * Pembuat materi sudah menjalankan setiap contoh (dan setiap soal "apa yang tampil") di Chromium dengan
  * runtime pratinjau yang sama (src/vendor/pratinjau-react.js) dan mencocokkan hasilnya dengan kunci.
  * Tes ini menjaga bentuk materi, kunci, dan memastikan semua kode bisa diubah oleh sucrase.
@@ -21,7 +21,8 @@ const MODUL: [string, string, number][] = [
   ['react-lanjut', 'modul-06-react-lanjut', 7],
   ['react-todolist', 'modul-07-react-todolist', 7],
 ];
-const URUTAN = ['theory', 'theory', 'theory', 'react_preview', 'theory', 'understanding_check', 'multiple_choice', 'summary'];
+// Praktik (kode React yang jalan) ada di akhir materi, sebelum ringkasan (keputusan Lingga 2 Nov).
+const URUTAN = ['theory', 'theory', 'theory', 'theory', 'understanding_check', 'multiple_choice', 'react_preview', 'summary'];
 const MODUL_BOLEH = ['react', 'react-dom/client', 'react-router', 'react-router-dom'];
 // Soal yang sengaja berisi JSX salah (menanyakan kenapa kodenya tidak bisa dibaca).
 const SENGAJA_SALAH = new Set(['react-dasar-03/0']);
@@ -56,14 +57,14 @@ describe('Kelas React', () => {
           expect(l.runnable).toBe(false);
           expect(l.cards.map((c: { type: string }) => c.type)).toEqual(URUTAN);
           for (const k of [0, 1, 2]) expect(l.cards[k].content.length).toBeGreaterThan(400);
-          expect(l.cards[4].content).toContain('### Kesalahan yang sering terjadi');
+          expect(l.cards[3].content).toContain('### Kesalahan yang sering terjadi');
           expect(l.cards[7].points.length).toBeGreaterThanOrEqual(3);
         });
       });
 
       it('contoh React bisa diubah sucrase, hanya import modul yang tersedia, dan punya komponen yang ditampilkan', () => {
         for (const l of lessons) {
-          const c = l.cards[3];
+          const c = l.cards[6];
           expect(c.prompt.length).toBeGreaterThan(20);
           expect(() => ubah(c.code), l.id).not.toThrow();
           expect(/export default function|createRoot\(/.test(c.code), l.id).toBe(true);
@@ -73,7 +74,7 @@ describe('Kelas React', () => {
 
       it('cek pemahaman 6 soal berbeda dengan remedial sendiri', () => {
         for (const l of lessons) {
-          const cek = l.cards[5];
+          const cek = l.cards[4];
           expect(cek.minCorrect).toBe(2);
           expect(cek.questions).toHaveLength(6);
           expect(new Set(cek.questions.map((q: { question: string; code?: string }) => `${q.question}\n${q.code ?? ''}`)).size).toBe(6);
@@ -86,7 +87,7 @@ describe('Kelas React', () => {
             if (q.code && !SENGAJA_SALAH.has(`${l.id}/${k}`)) expect(() => ubah(q.code!), `${l.id} soal ${k + 1}`).not.toThrow();
           });
           expect(new Set(cek.questions.map((q: { answer: number }) => q.answer)).size).toBeGreaterThan(1);
-          expect(cek.questions.some((q: { question: string }) => q.question === l.cards[6].question)).toBe(false);
+          expect(cek.questions.some((q: { question: string }) => q.question === l.cards[5].question)).toBe(false);
         }
       });
 
