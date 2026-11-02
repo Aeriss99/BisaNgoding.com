@@ -1,0 +1,131 @@
+{
+  "id": "react-lanjut-03",
+  "moduleId": "react-lanjut",
+  "order": 3,
+  "title": "Custom Hook: Logika yang Bisa Dipakai Ulang",
+  "estimatedMinutes": 14,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Efek, Sari menulis kode yang sama di beberapa komponen: membaca dari localStorage dengan `useState(() => ...)`, lalu menyimpannya dengan `useEffect`. Keranjang, daftar favorit, dan pilihan tema semuanya memakai pola itu.\n\nDaripada menyalin, bungkus pola itu menjadi **custom hook**: fungsi biasa yang namanya diawali **use** dan di dalamnya memakai Hook lain.\n\nIbarat **resep bumbu dasar**: sekali diracik, bisa dipakai untuk berbagai masakan. Setiap masakan tetap punya porsinya sendiri.\n\n```jsx\nfunction useLocalStorage(kunci, nilaiAwal) {\n  const [nilai, setNilai] = useState(() => {\n    const tersimpan = localStorage.getItem(kunci);\n    return tersimpan !== null ? JSON.parse(tersimpan) : nilaiAwal;\n  });\n\n  useEffect(() => {\n    localStorage.setItem(kunci, JSON.stringify(nilai));\n  }, [kunci, nilai]);\n\n  return [nilai, setNilai];\n}\n```\n\nDipakai seperti `useState`:\n\n```jsx\nconst [keranjang, setKeranjang] = useLocalStorage('keranjang', []);\nconst [tema, setTema] = useLocalStorage('tema', 'terang');\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Aturan custom hook\n\n1. Nama **wajib diawali `use`** (`useLocalStorage`, `useHitungMundur`). Dengan begitu, React dan ESLint tahu aturan Hook berlaku di dalamnya.\n2. Sama seperti Hook lain, hanya dipanggil di **tingkat atas** komponen atau custom hook lain.\n3. Setiap pemakaian punya **state sendiri**. Custom hook berbagi **logika**, bukan data.\n\n```jsx\nfunction A() { const [n] = useLocalStorage('a', 0); }\nfunction B() { const [n] = useLocalStorage('b', 0); }\n// A dan B tidak berbagi state; masing-masing punya state sendiri.\n```\n\n### Mengembalikan apa saja\n\nCustom hook bebas mengembalikan array, objek, atau satu nilai:\n\n```jsx\nfunction useOnline() {\n  const [online, setOnline] = useState(navigator.onLine);\n  useEffect(() => {\n    const nyala = () => setOnline(true);\n    const mati = () => setOnline(false);\n    window.addEventListener('online', nyala);\n    window.addEventListener('offline', mati);\n    return () => {\n      window.removeEventListener('online', nyala);\n      window.removeEventListener('offline', mati);\n    };\n  }, []);\n  return online;\n}\n```\n\nBiasanya custom hook disimpan di folder `src/hooks/`, misalnya `src/hooks/useLocalStorage.js`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi memakai satu custom hook untuk dua data berbeda:\n\n```jsx\nfunction useLocalStorage(kunci, nilaiAwal) { /* seperti di kartu pertama */ }\n\nexport default function App() {\n  const [favorit, setFavorit] = useLocalStorage('favorit', []);\n  const [tema, setTema] = useLocalStorage('tema', 'terang');\n\n  function toggleFavorit(nama) {\n    setFavorit(favorit.includes(nama) ? favorit.filter((f) => f !== nama) : [...favorit, nama]);\n  }\n  // ...\n}\n```\n\nHasilnya:\n- Komponen `App` jauh lebih pendek: tidak ada `useEffect` dan `JSON.parse` di dalamnya.\n- `favorit` dan `tema` tersimpan dengan kunci berbeda.\n- Kalau cara penyimpanan diubah (misalnya menangani JSON rusak), cukup ubah di satu tempat.\n\nTekan **Jalankan ulang** di kartu contoh: favorit dan tema tetap seperti terakhir dipilih."
+    },
+    {
+      "type": "react_preview",
+      "prompt": "Tandai favorit dan ganti tema, lalu tekan **Jalankan ulang**. Keduanya tetap tersimpan lewat satu custom hook.",
+      "code": "import { useEffect, useState } from 'react';\n\nfunction useLocalStorage(kunci, nilaiAwal) {\n  const [nilai, setNilai] = useState(() => {\n    const tersimpan = localStorage.getItem(kunci);\n    return tersimpan !== null ? JSON.parse(tersimpan) : nilaiAwal;\n  });\n\n  useEffect(() => {\n    localStorage.setItem(kunci, JSON.stringify(nilai));\n  }, [kunci, nilai]);\n\n  return [nilai, setNilai];\n}\n\nconst produk = ['Kopi Susu', 'Teh Melati', 'Roti Bakar'];\n\nexport default function App() {\n  const [favorit, setFavorit] = useLocalStorage('favorit', []);\n  const [tema, setTema] = useLocalStorage('tema', 'terang');\n\n  function toggleFavorit(nama) {\n    setFavorit(favorit.includes(nama) ? favorit.filter((f) => f !== nama) : [...favorit, nama]);\n  }\n\n  return (\n    <div className={tema}>\n      <button onClick={() => setTema(tema === 'terang' ? 'gelap' : 'terang')}>Tema: {tema}</button>\n      <ul>\n        {produk.map((p) => (\n          <li key={p}>\n            <button onClick={() => toggleFavorit(p)} aria-pressed={favorit.includes(p)}>\n              {favorit.includes(p) ? '★' : '☆'}\n            </button>{' '}\n            {p}\n          </li>\n        ))}\n      </ul>\n      <small>Favorit: {favorit.join(', ') || 'belum ada'}</small>\n    </div>\n  );\n}\n",
+      "css": ".gelap { background: #1a1a1a; color: #fff; padding: 8px; border-radius: 10px; }"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Nama custom hook tanpa awalan use**\n\nSalah:\n\n```jsx\nfunction simpanLokal(kunci, awal) {\n  const [nilai, setNilai] = useState(awal);\n  // ...\n}\n```\n\nBenar:\n\n```jsx\nfunction useSimpanLokal(kunci, awal) {\n  const [nilai, setNilai] = useState(awal);\n  // ...\n}\n```\n\nTanpa awalan `use`, ESLint tidak memeriksa aturan Hook di dalamnya, dan pembaca kode tidak tahu fungsi itu memakai state. Akibatnya mudah terpanggil di dalam `if` atau loop tanpa ada peringatan.\n\n**2. Mengira custom hook berbagi state**\n\nSalah (berharap B ikut berubah saat A diubah):\n\n```jsx\nfunction useHitung() {\n  const [n, setN] = useState(0);\n  return [n, setN];\n}\nfunction A() { const [n, setN] = useHitung(); /* ... */ }\nfunction B() { const [n] = useHitung(); /* ... */ }\n```\n\nBenar:\n\n```jsx\n// untuk berbagi data, angkat state ke induk atau pakai Context\nconst [n, setN] = useState(0);\n<A n={n} setN={setN} />\n<B n={n} />\n```\n\nSetiap pemanggilan custom hook membuat state **baru**. Custom hook berbagi **cara kerja**, bukan datanya."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Custom hook adalah...",
+          "options": [
+            "Komponen yang mengembalikan JSX",
+            "Paket npm khusus React",
+            "Fungsi yang namanya diawali use dan memakai Hook lain di dalamnya",
+            "Nama lain useEffect"
+          ],
+          "answer": 2,
+          "explanation": "Bungkus logika Hook supaya dipakai ulang.",
+          "remedial": "**Custom hook** adalah fungsi bernama **use...** yang memakai Hook lain, untuk memakai ulang logika."
+        },
+        {
+          "question": "Kenapa nama custom hook wajib diawali use?",
+          "options": [
+            "Supaya lebih cepat",
+            "Supaya aturan Hook diperiksa dan pembaca tahu fungsi itu memakai Hook",
+            "Karena React hanya membaca fungsi berawalan use",
+            "Supaya bisa di-export default"
+          ],
+          "answer": 1,
+          "explanation": "Konvensi yang diperiksa ESLint.",
+          "remedial": "Awalan **use** membuat ESLint memeriksa aturan Hook di dalamnya dan memberi tahu pembaca bahwa fungsi itu memakai state/efek."
+        },
+        {
+          "question": "Dua komponen memanggil useLocalStorage(\"a\", 0). Apakah state-nya sama?",
+          "options": [
+            "Tidak, setiap pemanggilan punya state sendiri",
+            "Ya, selalu sama",
+            "Ya, kalau kuncinya sama",
+            "Tidak ada state di custom hook"
+          ],
+          "answer": 0,
+          "explanation": "Berbagi logika, bukan data.",
+          "remedial": "Setiap pemanggilan custom hook punya **state sendiri**. Untuk berbagi data, angkat state atau pakai Context."
+        },
+        {
+          "question": "Apa yang dikembalikan useLocalStorage pada contoh?",
+          "options": [
+            "Hanya teks dari localStorage",
+            "Fungsi useEffect",
+            "Elemen JSX",
+            "[nilai, setNilai], seperti useState"
+          ],
+          "answer": 3,
+          "explanation": "Meniru bentuk useState.",
+          "remedial": "Custom hook bebas mengembalikan apa saja. `useLocalStorage` mengembalikan **[nilai, setNilai]** supaya dipakai seperti useState."
+        },
+        {
+          "question": "Di mana custom hook boleh dipanggil?",
+          "options": [
+            "Di dalam if",
+            "Di dalam handler klik",
+            "Di tingkat atas komponen atau custom hook lain",
+            "Di luar semua fungsi"
+          ],
+          "answer": 2,
+          "explanation": "Aturan Hook tetap berlaku.",
+          "remedial": "Custom hook tetap Hook: panggil di **tingkat atas** komponen atau custom hook lain, bukan di dalam if, loop, atau handler."
+        },
+        {
+          "question": "Folder yang biasa dipakai untuk menyimpan custom hook adalah...",
+          "options": [
+            "public/",
+            "src/hooks/",
+            "node_modules/",
+            "dist/"
+          ],
+          "answer": 1,
+          "explanation": "Konvensi struktur proyek.",
+          "remedial": "Custom hook biasanya disimpan di **src/hooks/**, satu file per hook, misalnya `useLocalStorage.js`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Keuntungan utama custom hook adalah...",
+      "options": [
+        "Aplikasi tidak butuh state",
+        "Komponen tidak perlu JSX",
+        "Data otomatis tersimpan di server",
+        "Logika Hook yang sama tidak perlu disalin di banyak komponen"
+      ],
+      "answer": 3,
+      "explanation": "Satu tempat untuk logika yang dipakai ulang."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Custom hook = fungsi use... yang memakai Hook lain, untuk memakai ulang logika.",
+        "Setiap pemanggilan punya state sendiri: berbagi logika, bukan data.",
+        "Bebas mengembalikan array, objek, atau satu nilai.",
+        "Simpan di src/hooks/; aturan Hook tetap berlaku."
+      ]
+    }
+  ]
+}

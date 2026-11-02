@@ -1,0 +1,131 @@
+{
+  "id": "react-efek-03",
+  "moduleId": "react-efek",
+  "order": 3,
+  "title": "Cleanup: Membersihkan Efek",
+  "estimatedMinutes": 13,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Toko Budi punya promo kilat dengan **hitung mundur**. Hitungan dibuat dengan `setInterval` di dalam efek. Masalahnya: kalau pembeli menutup kotak promo, interval itu **tetap berjalan** di latar belakang, terus mencoba mengubah state komponen yang sudah tidak ada. Kalau kotak dibuka-tutup berkali-kali, interval menumpuk.\n\nSetiap efek yang \"menyalakan\" sesuatu harus bisa \"mematikannya\". Caranya: **kembalikan fungsi cleanup** dari efek.\n\n```jsx\nuseEffect(() => {\n  const id = setInterval(() => {\n    setSisa((s) => s - 1);\n  }, 1000);\n\n  return () => {\n    clearInterval(id);\n  };\n}, []);\n```\n\nIbarat **mematikan kompor setelah memasak**: siapa yang menyalakan, dia yang memastikan apinya padam sebelum pergi."
+    },
+    {
+      "type": "theory",
+      "content": "### Kapan cleanup dijalankan?\n\n1. Saat komponen **dihapus** dari layar (unmount).\n2. **Sebelum** efek dijalankan ulang karena dependency berubah. Efek lama dibersihkan dulu, baru efek baru berjalan.\n\n| Efek menyalakan | Cleanup mematikan |\n|---|---|\n| `setInterval` / `setTimeout` | `clearInterval` / `clearTimeout` |\n| `window.addEventListener('resize', f)` | `window.removeEventListener('resize', f)` |\n| koneksi (chat, WebSocket) | memutus koneksi |\n| permintaan data | menandai hasilnya diabaikan (materi berikutnya) |\n\nPerhatikan pemakaian **updater** `setSisa((s) => s - 1)` di dalam interval. Efek dengan `[]` hanya berjalan sekali, jadi `sisa` yang dilihat fungsi di dalamnya selalu nilai render pertama. Updater selalu menerima nilai terbaru."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSari membuat kotak promo yang bisa ditutup:\n\n```jsx\nimport { useEffect, useState } from 'react';\n\nfunction HitungMundur() {\n  const [sisa, setSisa] = useState(10);\n\n  useEffect(() => {\n    console.log('interval dinyalakan');\n    const id = setInterval(() => setSisa((s) => (s > 0 ? s - 1 : 0)), 1000);\n    return () => {\n      clearInterval(id);\n      console.log('interval dimatikan');\n    };\n  }, []);\n\n  return <p>Promo berakhir dalam {sisa} detik</p>;\n}\n\nexport default function App() {\n  const [tampil, setTampil] = useState(true);\n  return (\n    <div>\n      <button onClick={() => setTampil(!tampil)}>{tampil ? 'Tutup promo' : 'Buka promo'}</button>\n      {tampil && <HitungMundur />}\n    </div>\n  );\n}\n```\n\nKlik \"Tutup promo\": konsol menulis \"interval dimatikan\". Buka lagi: interval baru dinyalakan dan hitungan mulai dari 10, karena komponen dibuat ulang."
+    },
+    {
+      "type": "react_preview",
+      "prompt": "Tunggu beberapa detik, lalu klik \"Tutup promo\" dan \"Buka promo\". Perhatikan Konsol. Coba hapus `return () => {...}` dan buka-tutup beberapa kali.",
+      "code": "import { useEffect, useState } from 'react';\n\nfunction HitungMundur() {\n  const [sisa, setSisa] = useState(10);\n\n  useEffect(() => {\n    console.log('interval dinyalakan');\n    const id = setInterval(() => setSisa((s) => (s > 0 ? s - 1 : 0)), 1000);\n    return () => {\n      clearInterval(id);\n      console.log('interval dimatikan');\n    };\n  }, []);\n\n  return <p>Promo berakhir dalam {sisa} detik</p>;\n}\n\nexport default function App() {\n  const [tampil, setTampil] = useState(true);\n  return (\n    <div>\n      <button onClick={() => setTampil(!tampil)}>{tampil ? 'Tutup promo' : 'Buka promo'}</button>\n      {tampil && <HitungMundur />}\n    </div>\n  );\n}\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tidak membersihkan interval**\n\nSalah:\n\n```jsx\nuseEffect(() => {\n  setInterval(() => setSisa((s) => s - 1), 1000);\n}, []);\n```\n\nBenar:\n\n```jsx\nuseEffect(() => {\n  const id = setInterval(() => setSisa((s) => s - 1), 1000);\n  return () => clearInterval(id);\n}, []);\n```\n\nTanpa cleanup, interval terus berjalan setelah komponen hilang. Setiap kali komponen dibuka lagi, interval baru ditambahkan, sehingga hitungan makin cepat dan memori terbuang.\n\n**2. Memakai nilai state langsung di interval**\n\nSalah:\n\n```jsx\nuseEffect(() => {\n  const id = setInterval(() => setSisa(sisa - 1), 1000);\n  return () => clearInterval(id);\n}, []);\n```\n\nBenar:\n\n```jsx\nuseEffect(() => {\n  const id = setInterval(() => setSisa((s) => s - 1), 1000);\n  return () => clearInterval(id);\n}, []);\n```\n\nFungsi di dalam interval melihat `sisa` dari render pertama (10). Hasilnya selalu `10 - 1 = 9`: hitungan berhenti di 9."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Bagaimana menulis cleanup di useEffect?",
+          "options": [
+            "Memanggil useCleanup()",
+            "Mengembalikan fungsi dari dalam efek",
+            "Menulis cleanup di dependency array",
+            "Menghapus useEffect"
+          ],
+          "answer": 1,
+          "explanation": "return () => { ... }.",
+          "remedial": "Cleanup ditulis dengan **mengembalikan fungsi** dari efek: `return () => clearInterval(id);`."
+        },
+        {
+          "question": "Kapan fungsi cleanup dijalankan?",
+          "options": [
+            "Saat komponen dihapus dan sebelum efek dijalankan ulang",
+            "Hanya saat halaman ditutup",
+            "Sebelum render pertama",
+            "Setiap detik"
+          ],
+          "answer": 0,
+          "explanation": "Unmount dan sebelum efek baru.",
+          "remedial": "Cleanup dijalankan saat komponen **dihapus dari layar** dan **sebelum efek berjalan ulang** karena dependency berubah."
+        },
+        {
+          "question": "Pasangan cleanup untuk window.addEventListener(\"resize\", f) adalah...",
+          "options": [
+            "clearInterval(f)",
+            "window.resize = null",
+            "f.remove()",
+            "window.removeEventListener(\"resize\", f)"
+          ],
+          "answer": 3,
+          "explanation": "Lepas listener yang sama.",
+          "remedial": "Setiap listener yang dipasang di efek dilepas di cleanup dengan **removeEventListener** dan fungsi yang sama."
+        },
+        {
+          "question": "Kenapa hitungan berhenti di 9?",
+          "code": "useEffect(() => {\n  const id = setInterval(() => setSisa(sisa - 1), 1000);\n  return () => clearInterval(id);\n}, []);",
+          "options": [
+            "Karena setInterval hanya jalan sekali",
+            "Karena clearInterval terlalu cepat",
+            "Interval selalu melihat sisa dari render pertama, yaitu 10",
+            "Karena 9 adalah batas React"
+          ],
+          "answer": 2,
+          "explanation": "Pakai updater.",
+          "remedial": "Efek dengan `[]` berjalan sekali, jadi fungsi interval selalu melihat `sisa` = 10. Pakai **updater** `setSisa((s) => s - 1)`."
+        },
+        {
+          "question": "Apa akibat interval tanpa cleanup saat kotak promo dibuka-tutup berkali-kali?",
+          "options": [
+            "Tidak ada akibat apa pun",
+            "Interval menumpuk dan terus berjalan di latar belakang",
+            "Halaman langsung tertutup",
+            "Interval otomatis berhenti"
+          ],
+          "answer": 1,
+          "explanation": "Interval lama tidak pernah dimatikan.",
+          "remedial": "Tanpa cleanup, setiap pembukaan menambah interval baru sementara yang lama **tidak pernah dimatikan**."
+        },
+        {
+          "question": "Komponen HitungMundur dihapus lalu ditampilkan lagi. Mulai dari berapa hitungannya?",
+          "options": [
+            "Dari nilai awal useState lagi",
+            "Dari angka terakhir sebelum dihapus",
+            "Dari 0",
+            "Tidak tampil lagi"
+          ],
+          "answer": 0,
+          "explanation": "Komponen dibuat ulang.",
+          "remedial": "Saat komponen dihapus, state-nya ikut hilang. Ditampilkan lagi berarti **dibuat ulang** dengan nilai awal `useState`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Fungsi untuk menghentikan setInterval adalah...",
+      "options": [
+        "clearInterval(id)",
+        "stopInterval(id)",
+        "setInterval(null)",
+        "removeInterval(id)"
+      ],
+      "answer": 0,
+      "explanation": "Simpan id dari setInterval, lalu panggil clearInterval(id) di cleanup."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Efek yang menyalakan sesuatu harus mematikannya: return () => { ... }.",
+        "Cleanup jalan saat komponen dihapus dan sebelum efek berjalan ulang.",
+        "Pasangan: setInterval/clearInterval, addEventListener/removeEventListener.",
+        "Di dalam interval, pakai updater supaya memakai nilai terbaru."
+      ]
+    }
+  ]
+}

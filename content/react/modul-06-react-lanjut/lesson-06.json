@@ -1,0 +1,131 @@
+{
+  "id": "react-lanjut-06",
+  "moduleId": "react-lanjut",
+  "order": 6,
+  "title": "Pindah Halaman dengan useNavigate dan NavLink",
+  "estimatedMinutes": 14,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setelah pembeli menekan \"Bayar\" dan pembayaran berhasil, aplikasi harus **berpindah** ke halaman \"Terima kasih\" secara otomatis. Tidak ada tautan yang diklik; perpindahan terjadi dari kode. Untuk itu React Router punya Hook **useNavigate**.\n\n```jsx\nimport { useNavigate } from 'react-router';\n\nfunction Checkout() {\n  const navigate = useNavigate();\n\n  function handleBayar() {\n    // ... proses pembayaran\n    navigate('/terima-kasih');\n  }\n\n  return <button onClick={handleBayar}>Bayar</button>;\n}\n```\n\nIbarat **petugas yang mengantar tamu**: setelah urusan di meja depan selesai, petugas langsung mengantarnya ke ruangan berikutnya, tanpa tamu harus mencari pintunya sendiri.\n\n| Pemanggilan | Hasil |\n|---|---|\n| `navigate('/terima-kasih')` | pindah ke alamat itu |\n| `navigate(-1)` | kembali satu langkah, seperti tombol Back |\n| `navigate('/', { replace: true })` | pindah tanpa menambah riwayat |"
+    },
+    {
+      "type": "theory",
+      "content": "### Kapan `replace: true`?\n\nSetelah login atau pembayaran, pengguna tidak seharusnya bisa menekan Back dan kembali ke formulir yang sudah dikirim. `replace: true` **mengganti** entri riwayat saat ini, bukan menambah yang baru.\n\n### NavLink: tautan yang tahu dirinya aktif\n\nMenu navigasi biasanya menandai halaman yang sedang dibuka. **NavLink** sama seperti `Link`, tapi otomatis memberi kelas **active** saat alamatnya cocok:\n\n```jsx\nimport { NavLink } from 'react-router';\n\n<NavLink to=\"/\">Beranda</NavLink>\n<NavLink to=\"/produk\">Produk</NavLink>\n```\n\n```css\nnav a.active {\n  font-weight: bold;\n  text-decoration: underline;\n}\n```\n\n`className` juga bisa berupa fungsi yang menerima `{ isActive }`:\n\n```jsx\n<NavLink to=\"/produk\" className={({ isActive }) => (isActive ? 'menu aktif' : 'menu')}>\n  Produk\n</NavLink>\n```\n\nNavLink ke `/produk` juga aktif saat membuka `/produk/1`, karena alamatnya diawali `/produk`. Kalau ingin aktif hanya saat alamatnya persis sama, tambahkan `end`: `<NavLink to=\"/produk\" end>`. Khusus `to=\"/\"`, React Router hanya menganggapnya aktif di `/` persis."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBudi membuat menu dengan penanda aktif dan alur checkout:\n\n```jsx\nfunction Checkout() {\n  const navigate = useNavigate();\n  return (\n    <div>\n      <h2>Checkout</h2>\n      <button onClick={() => navigate('/terima-kasih', { replace: true })}>Bayar</button>{' '}\n      <button onClick={() => navigate(-1)}>Kembali</button>\n    </div>\n  );\n}\n\nfunction Menu() {\n  return (\n    <nav>\n      <NavLink to=\"/\">Beranda</NavLink> | <NavLink to=\"/checkout\">Checkout</NavLink>\n    </nav>\n  );\n}\n```\n\nAlur di kartu contoh:\n1. Klik menu **Checkout**: tautan Checkout menjadi tebal (kelas `active`).\n2. Klik **Bayar**: pindah ke \"Terima kasih\" tanpa tautan.\n3. Di aplikasi sungguhan, tombol Back browser tidak kembali ke Checkout karena `replace: true`."
+    },
+    {
+      "type": "react_preview",
+      "prompt": "Klik menu Checkout (lihat tautannya menjadi tebal), lalu klik Bayar. Coba juga tombol Kembali yang memakai `navigate(-1)`.",
+      "code": "import { BrowserRouter, Routes, Route, NavLink, useNavigate } from 'react-router';\n\nfunction Beranda() {\n  return <h2>Beranda Toko Budi</h2>;\n}\n\nfunction Checkout() {\n  const navigate = useNavigate();\n  return (\n    <div>\n      <h2>Checkout</h2>\n      <button onClick={() => navigate('/terima-kasih', { replace: true })}>Bayar</button>{' '}\n      <button onClick={() => navigate(-1)}>Kembali</button>\n    </div>\n  );\n}\n\nfunction TerimaKasih() {\n  return <h2>Terima kasih, pesananmu diproses!</h2>;\n}\n\nexport default function App() {\n  return (\n    <BrowserRouter>\n      <nav>\n        <NavLink to=\"/\">Beranda</NavLink> | <NavLink to=\"/checkout\">Checkout</NavLink>\n      </nav>\n      <Routes>\n        <Route path=\"/\" element={<Beranda />} />\n        <Route path=\"/checkout\" element={<Checkout />} />\n        <Route path=\"/terima-kasih\" element={<TerimaKasih />} />\n      </Routes>\n    </BrowserRouter>\n  );\n}\n",
+      "css": "nav a { color: #1a1a1a; }\nnav a.active { font-weight: bold; text-decoration: underline; color: #0b57d0; }"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memanggil navigate saat render**\n\nSalah:\n\n```jsx\nfunction Checkout({ lunas }) {\n  const navigate = useNavigate();\n  if (lunas) navigate('/terima-kasih');\n  return <p>Checkout</p>;\n}\n```\n\nBenar:\n\n```jsx\nfunction Checkout({ lunas }) {\n  const navigate = useNavigate();\n  useEffect(() => {\n    if (lunas) navigate('/terima-kasih');\n  }, [lunas, navigate]);\n  return <p>Checkout</p>;\n}\n```\n\nPindah halaman adalah efek samping. Panggil `navigate` di **handler** (paling sering) atau di **efek**, tidak langsung di badan komponen. Kalau dipanggil saat render, perpindahan tidak terjadi dan React Router menulis peringatan:\n\n```\nYou should call navigate() in a React.useEffect(), not when your component is first rendered.\n```\n\n**2. Memakai useNavigate untuk tautan biasa**\n\nSalah:\n\n```jsx\n<span onClick={() => navigate('/produk')}>Produk</span>\n```\n\nBenar:\n\n```jsx\n<Link to=\"/produk\">Produk</Link>\n```\n\nTautan yang diklik pengguna sebaiknya `Link` atau `NavLink`: bisa dibuka di tab baru, dikenali pembaca layar, dan bisa difokus dengan keyboard. `navigate` untuk perpindahan dari kode, misalnya setelah form berhasil dikirim."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Hook untuk pindah halaman dari kode (tanpa tautan) adalah...",
+          "options": [
+            "useNavigate",
+            "useParams",
+            "useLink",
+            "useRoute"
+          ],
+          "answer": 0,
+          "explanation": "navigate('/alamat').",
+          "remedial": "`const navigate = useNavigate();` lalu `navigate('/alamat')` di handler atau efek."
+        },
+        {
+          "question": "Apa arti navigate(-1)?",
+          "options": [
+            "Pindah ke halaman nomor -1",
+            "Menghapus riwayat",
+            "Memuat ulang halaman",
+            "Kembali satu langkah seperti tombol Back"
+          ],
+          "answer": 3,
+          "explanation": "Angka negatif = mundur di riwayat.",
+          "remedial": "`navigate(-1)` **kembali satu langkah** di riwayat, sama seperti tombol Back browser."
+        },
+        {
+          "question": "Untuk apa navigate(\"/\", { replace: true }) setelah login?",
+          "options": [
+            "Supaya halaman dimuat ulang",
+            "Supaya login dua kali",
+            "Supaya tombol Back tidak kembali ke formulir login",
+            "Supaya alamat berubah menjadi #"
+          ],
+          "answer": 2,
+          "explanation": "Mengganti entri riwayat.",
+          "remedial": "`replace: true` **mengganti** entri riwayat saat ini, jadi pengguna tidak kembali ke formulir yang sudah dikirim."
+        },
+        {
+          "question": "Apa kelebihan NavLink dibanding Link?",
+          "options": [
+            "NavLink bisa memuat ulang halaman",
+            "Otomatis memberi kelas active saat alamatnya cocok",
+            "NavLink tidak butuh router",
+            "NavLink lebih cepat dari Link"
+          ],
+          "answer": 1,
+          "explanation": "Penanda halaman aktif.",
+          "remedial": "**NavLink** sama seperti Link, ditambah kelas **active** otomatis saat alamatnya sedang dibuka."
+        },
+        {
+          "question": "Di mana navigate sebaiknya dipanggil?",
+          "options": [
+            "Di handler atau di efek",
+            "Langsung di badan komponen",
+            "Di file CSS",
+            "Di dalam Route"
+          ],
+          "answer": 0,
+          "explanation": "Pindah halaman adalah efek samping.",
+          "remedial": "Pindah halaman adalah efek samping. Panggil di **handler** (misalnya setelah bayar) atau di **efek**, bukan saat render."
+        },
+        {
+          "question": "Tautan menu yang diklik pengguna sebaiknya memakai...",
+          "options": [
+            "span dengan onClick={() => navigate(...)}",
+            "a href ke alamat yang sama",
+            "button tanpa type",
+            "Link atau NavLink"
+          ],
+          "answer": 3,
+          "explanation": "Tautan asli lebih ramah aksesibilitas.",
+          "remedial": "Pakai **Link/NavLink**: bisa dibuka di tab baru, dikenali pembaca layar, dan bisa difokus keyboard."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "className pada NavLink bisa berupa fungsi yang menerima...",
+      "options": [
+        "{ path }",
+        "{ params }",
+        "{ isActive }",
+        "{ navigate }"
+      ],
+      "answer": 2,
+      "explanation": "className={({ isActive }) => (isActive ? 'aktif' : '')}"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "useNavigate untuk pindah dari kode: navigate('/alamat'), navigate(-1).",
+        "replace: true supaya Back tidak kembali ke formulir yang sudah dikirim.",
+        "NavLink memberi kelas active otomatis; className bisa fungsi ({ isActive }).",
+        "Panggil navigate di handler atau efek; tautan biasa tetap Link/NavLink."
+      ]
+    }
+  ]
+}

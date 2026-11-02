@@ -10,6 +10,7 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 | **JavaScript** | JavaScript Dasar, Proyek Todolist, JavaScript OOP, JavaScript DOM, Standard Library, Async, dan Modules |
 | **Git & GitHub** | Git di laptop sampai GitHub: tag dan versi rilis, pull request, code review, manajemen proyek, keamanan, CI/CD, memperbaiki riwayat (amend, revert, reset, rebase), dan alur kerja tim |
 | **Tailwind CSS** | Tailwind v4: warna, spacing, flexbox, grid, responsif mobile-first, state, group/peer, dark mode, nilai bebas, tema dengan @theme, @apply, dan proyek tampilan Todolist (pratinjau jalan di browser) |
+| **React** | React 19: komponen dan JSX, props, render bersyarat, daftar dan key, state dan event, form terkendali, useRef, useEffect (dependency, cleanup, ambil data, localStorage, StrictMode), Context, useReducer, custom hook, React Router 7, dan proyek Todolist sampai build dan terbit (kode React jalan di browser) |
 | **Linux & Terminal** | Mengenal Linux, terminal dan navigasi, file dan folder, membaca dan mencari teks, permission, menginstal program, proses dan service, jaringan dan SSH, bash scripting, cron, mengamankan server, web server Nginx |
 | **RESTful API** | HTTP, prinsip REST, curl dan fetch, desain API, OpenAPI, keamanan (OWASP API Top 10), proyek API toko online |
 | **Spring Boot** | Spring Dasar: IoC, bean, dependency injection, component scan, scope dan siklus hidup bean (teori + praktik di komputer sendiri) |

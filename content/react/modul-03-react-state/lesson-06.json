@@ -1,0 +1,131 @@
+{
+  "id": "react-state-06",
+  "moduleId": "react-state",
+  "order": 6,
+  "title": "Mengangkat State ke Induk",
+  "estimatedMinutes": 14,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Halaman toko Budi punya dua komponen: `DaftarProduk` (tombol \"Beli\") dan `IkonKeranjang` (angka jumlah barang di pojok). Kalau state keranjang disimpan di `DaftarProduk`, `IkonKeranjang` tidak bisa membacanya, karena state hanya milik komponen yang membuatnya.\n\nSolusinya: **angkat state** ke komponen induk terdekat yang memuat keduanya, lalu bagikan ke bawah lewat props.\n\nIbarat **satu papan pengumuman di ruang guru**: daripada setiap kelas punya papan sendiri yang isinya bisa beda-beda, satu papan di tempat bersama dibaca semua kelas.\n\n```\nApp               <- state keranjang di sini\n├── IkonKeranjang  <- menerima jumlah lewat props\n└── DaftarProduk   <- menerima fungsi onBeli lewat props\n```\n\nAnak yang perlu **mengubah** state menerima **fungsi** dari induk sebagai props. Nama props fungsi biasanya diawali `on`: `onBeli`, `onHapus`."
+    },
+    {
+      "type": "theory",
+      "content": "### Fungsi sebagai props\n\n```jsx\nfunction DaftarProduk({ onBeli }) {\n  return <button onClick={() => onBeli('Kopi Susu')}>Beli Kopi</button>;\n}\n\nfunction IkonKeranjang({ jumlah }) {\n  return <span>🛒 {jumlah}</span>;\n}\n\nexport default function App() {\n  const [keranjang, setKeranjang] = useState([]);\n\n  function handleBeli(nama) {\n    setKeranjang([...keranjang, nama]);\n  }\n\n  return (\n    <>\n      <IkonKeranjang jumlah={keranjang.length} />\n      <DaftarProduk onBeli={handleBeli} />\n    </>\n  );\n}\n```\n\nAlurnya:\n1. Tombol di `DaftarProduk` diklik, memanggil `onBeli('Kopi Susu')`.\n2. `onBeli` adalah `handleBeli` milik `App`, yang mengubah state.\n3. `App` digambar ulang, dan `IkonKeranjang` menerima `jumlah` yang baru.\n\nData mengalir **ke bawah** lewat props, sedangkan kejadian mengalir **ke atas** lewat fungsi."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSari memisahkan daftar dan ringkasan keranjang:\n\n```jsx\nimport { useState } from 'react';\n\nconst produk = [\n  { id: 1, nama: 'Kopi Susu', harga: 15000 },\n  { id: 2, nama: 'Teh Melati', harga: 8000 },\n];\n\nfunction DaftarProduk({ onBeli }) {\n  return (\n    <div>\n      {produk.map((p) => (\n        <button key={p.id} onClick={() => onBeli(p)}>Beli {p.nama}</button>\n      ))}\n    </div>\n  );\n}\n\nfunction Ringkasan({ isi }) {\n  const total = isi.reduce((jml, p) => jml + p.harga, 0);\n  return <p>🛒 {isi.length} barang, total Rp{total.toLocaleString('id-ID')}</p>;\n}\n\nexport default function App() {\n  const [keranjang, setKeranjang] = useState([]);\n  return (\n    <div>\n      <Ringkasan isi={keranjang} />\n      <DaftarProduk onBeli={(p) => setKeranjang([...keranjang, p])} />\n    </div>\n  );\n}\n```\n\nSetiap klik \"Beli\" mengubah state di `App`, dan `Ringkasan` langsung ikut berubah."
+    },
+    {
+      "type": "react_preview",
+      "prompt": "Klik beberapa tombol Beli. Tambahkan tombol \"Kosongkan\" di `App` yang memanggil `setKeranjang([])`.",
+      "code": "import { useState } from 'react';\n\nconst produk = [\n  { id: 1, nama: 'Kopi Susu', harga: 15000 },\n  { id: 2, nama: 'Teh Melati', harga: 8000 },\n];\n\nfunction DaftarProduk({ onBeli }) {\n  return (\n    <div>\n      {produk.map((p) => (\n        <button key={p.id} onClick={() => onBeli(p)}>Beli {p.nama}</button>\n      ))}\n    </div>\n  );\n}\n\nfunction Ringkasan({ isi }) {\n  const total = isi.reduce((jml, p) => jml + p.harga, 0);\n  return <p>🛒 {isi.length} barang, total Rp{total.toLocaleString('id-ID')}</p>;\n}\n\nexport default function App() {\n  const [keranjang, setKeranjang] = useState([]);\n  return (\n    <div>\n      <Ringkasan isi={keranjang} />\n      <DaftarProduk onBeli={(p) => setKeranjang([...keranjang, p])} />\n    </div>\n  );\n}\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan salinan state yang sama di dua komponen**\n\nSalah:\n\n```jsx\nfunction IkonKeranjang() {\n  const [jumlah, setJumlah] = useState(0);\n  // ...\n}\nfunction DaftarProduk() {\n  const [keranjang, setKeranjang] = useState([]);\n  // ...\n}\n```\n\nBenar:\n\n```jsx\nfunction App() {\n  const [keranjang, setKeranjang] = useState([]);\n  return (\n    <>\n      <IkonKeranjang jumlah={keranjang.length} />\n      <DaftarProduk onBeli={(p) => setKeranjang([...keranjang, p])} />\n    </>\n  );\n}\n```\n\nDua state terpisah harus selalu disamakan secara manual dan mudah berbeda. Simpan **satu** state di induk bersama.\n\n**2. Memanggil fungsi props saat render**\n\nSalah:\n\n```jsx\n<button onClick={onBeli(p)}>Beli</button>\n```\n\nBenar:\n\n```jsx\n<button onClick={() => onBeli(p)}>Beli</button>\n```\n\nSama seperti handler biasa, fungsi dari props harus **diberikan**, bukan dipanggil. Kalau dipanggil saat render dan fungsi itu mengubah state, React berhenti dengan error \"Too many re-renders\"."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Dua komponen saudara butuh data keranjang yang sama. Di mana state-nya disimpan?",
+          "options": [
+            "Di salah satu komponen saja, yang lain menebak",
+            "Di komponen induk terdekat yang memuat keduanya",
+            "Di kedua komponen, lalu disamakan manual",
+            "Di file CSS"
+          ],
+          "answer": 1,
+          "explanation": "Angkat state ke induk bersama.",
+          "remedial": "**Angkat state** ke induk terdekat yang memuat kedua komponen, lalu bagikan lewat props."
+        },
+        {
+          "question": "Bagaimana komponen anak mengubah state milik induk?",
+          "options": [
+            "Memanggil fungsi yang dikirim induk lewat props, misalnya onBeli",
+            "Mengubah props secara langsung",
+            "Memanggil setState milik induk lewat import",
+            "Tidak bisa sama sekali"
+          ],
+          "answer": 0,
+          "explanation": "Fungsi sebagai props.",
+          "remedial": "Induk mengirim **fungsi** lewat props (`onBeli={handleBeli}`). Anak memanggilnya, dan fungsi itu mengubah state di induk."
+        },
+        {
+          "question": "Data mengalir ke bawah lewat props. Kejadian (misalnya klik) mengalir ke atas lewat...",
+          "options": [
+            "children",
+            "key",
+            "CSS",
+            "Fungsi yang dikirim sebagai props"
+          ],
+          "answer": 3,
+          "explanation": "Callback props.",
+          "remedial": "Data turun lewat **props**, kejadian naik lewat **fungsi props** seperti `onBeli` dan `onHapus`."
+        },
+        {
+          "question": "Apa yang tampil setelah tombol diklik dua kali?",
+          "code": "import { useState } from 'react';\n\nfunction Tombol({ onTambah }) {\n  return <button onClick={onTambah}>Tambah</button>;\n}\n\nexport default function App() {\n  const [n, setN] = useState(0);\n  return (\n    <div>\n      <p>Total: {n}</p>\n      <Tombol onTambah={() => setN(n + 1)} />\n    </div>\n  );\n}",
+          "options": [
+            "Total: 0",
+            "Total: 1",
+            "Total: 2",
+            "Error"
+          ],
+          "answer": 2,
+          "explanation": "Anak memanggil fungsi milik induk.",
+          "remedial": "`Tombol` memanggil `onTambah`, yaitu fungsi di `App` yang mengubah state. `App` digambar ulang dengan nilai baru."
+        },
+        {
+          "question": "Nama props berisi fungsi kejadian biasanya diawali...",
+          "options": [
+            "set, misalnya setBeli",
+            "on, misalnya onBeli",
+            "get, misalnya getBeli",
+            "use, misalnya useBeli"
+          ],
+          "answer": 1,
+          "explanation": "Konvensi penamaan.",
+          "remedial": "Props fungsi kejadian biasanya diawali **on** (`onBeli`, `onHapus`), sedangkan fungsi di induknya diawali `handle`."
+        },
+        {
+          "question": "Kenapa menyimpan salinan state yang sama di dua komponen tidak disarankan?",
+          "options": [
+            "Keduanya harus disamakan manual dan mudah berbeda",
+            "Karena React melarang dua useState",
+            "Karena memakan banyak memori server",
+            "Karena props jadi hilang"
+          ],
+          "answer": 0,
+          "explanation": "Satu sumber kebenaran.",
+          "remedial": "Dua salinan data yang sama mudah **berbeda isinya**. Simpan **satu** state di induk bersama sebagai satu-satunya sumber data."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Istilah memindahkan state ke komponen induk supaya bisa dipakai bersama disebut...",
+      "options": [
+        "Menurunkan props",
+        "Mengangkat state (lifting state up)",
+        "Spread state",
+        "Fragment state"
+      ],
+      "answer": 1,
+      "explanation": "State diangkat ke induk bersama terdekat."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "State hanya milik komponen yang membuatnya.",
+        "Data dibutuhkan beberapa komponen? Angkat state ke induk bersama terdekat.",
+        "Induk mengirim data lewat props dan fungsi kejadian lewat props on...",
+        "Satu data, satu state: jangan simpan salinan di banyak komponen."
+      ]
+    }
+  ]
+}

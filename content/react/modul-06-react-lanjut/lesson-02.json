@@ -1,0 +1,130 @@
+{
+  "id": "react-lanjut-02",
+  "moduleId": "react-lanjut",
+  "order": 2,
+  "title": "useReducer: Mengatur State yang Rumit",
+  "estimatedMinutes": 15,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Keranjang belanja Budi makin rumit: tambah barang, ubah jumlah, hapus, kosongkan, pakai kode promo. Setiap fungsi berisi `setKeranjang(...)` dengan logika berbeda, tersebar di mana-mana. Kalau ada yang salah, sulit mencari bagian mana yang mengubah keranjang.\n\n**useReducer** mengumpulkan semua logika perubahan state di **satu fungsi** bernama **reducer**. Komponen tidak lagi mengubah state langsung; ia hanya **mengirim aksi** (dispatch) yang menjelaskan apa yang terjadi.\n\nIbarat **kasir dan buku aturan toko**: pelayan cukup berkata \"pelanggan menambah 1 kopi\" (aksi). Kasir yang memegang buku aturan tahu persis bagaimana mencatatnya.\n\n```jsx\nconst [keranjang, dispatch] = useReducer(reducer, []);\n\ndispatch({ type: 'tambah', produk: kopi });\ndispatch({ type: 'hapus', id: 1 });\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Fungsi reducer\n\nReducer menerima **state saat ini** dan **aksi**, lalu mengembalikan **state baru**:\n\n```jsx\nfunction reducer(keranjang, aksi) {\n  switch (aksi.type) {\n    case 'tambah':\n      return [...keranjang, { ...aksi.produk, jumlah: 1 }];\n    case 'hapus':\n      return keranjang.filter((b) => b.id !== aksi.id);\n    case 'kosongkan':\n      return [];\n    default:\n      throw new Error('Aksi tidak dikenal: ' + aksi.type);\n  }\n}\n```\n\nAturan reducer sama dengan aturan state: **jangan mengubah** state lama, selalu kembalikan nilai baru. Reducer juga harus **murni**: tanpa fetch, timer, atau `console.log` yang penting.\n\n| | useState | useReducer |\n|---|---|---|\n| Mengubah state | `setX(nilaiBaru)` | `dispatch({ type: ... })` |\n| Logika perubahan | tersebar di handler | terkumpul di reducer |\n| Cocok untuk | state sederhana | banyak jenis perubahan pada data yang sama |\n\nReducer bisa diuji tanpa React: `reducer([], { type: 'kosongkan' })` harus menghasilkan `[]`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nAndi memindahkan semua logika keranjang ke reducer:\n\n```jsx\nfunction reducer(isi, aksi) {\n  switch (aksi.type) {\n    case 'tambah': {\n      const ada = isi.find((b) => b.id === aksi.produk.id);\n      if (ada) return isi.map((b) => (b.id === ada.id ? { ...b, jumlah: b.jumlah + 1 } : b));\n      return [...isi, { ...aksi.produk, jumlah: 1 }];\n    }\n    case 'kurang':\n      return isi\n        .map((b) => (b.id === aksi.id ? { ...b, jumlah: b.jumlah - 1 } : b))\n        .filter((b) => b.jumlah > 0);\n    case 'kosongkan':\n      return [];\n    default:\n      throw new Error('Aksi tidak dikenal: ' + aksi.type);\n  }\n}\n```\n\nKomponennya hanya berisi tampilan dan `dispatch`:\n\n```jsx\n<button onClick={() => dispatch({ type: 'tambah', produk: p })}>+ {p.nama}</button>\n<button onClick={() => dispatch({ type: 'kosongkan' })}>Kosongkan</button>\n```\n\nSiapa pun yang membaca kode langsung tahu semua cara keranjang bisa berubah: cukup lihat reducernya."
+    },
+    {
+      "type": "react_preview",
+      "prompt": "Tambahkan beberapa barang, kurangi, lalu kosongkan. Coba tambahkan aksi baru `'tambahDua'` di reducer dan tombolnya.",
+      "code": "import { useReducer } from 'react';\n\nconst produk = [\n  { id: 1, nama: 'Kopi Susu', harga: 15000 },\n  { id: 2, nama: 'Teh Melati', harga: 8000 },\n];\n\nfunction reducer(isi, aksi) {\n  switch (aksi.type) {\n    case 'tambah': {\n      const ada = isi.find((b) => b.id === aksi.produk.id);\n      if (ada) return isi.map((b) => (b.id === ada.id ? { ...b, jumlah: b.jumlah + 1 } : b));\n      return [...isi, { ...aksi.produk, jumlah: 1 }];\n    }\n    case 'kurang':\n      return isi\n        .map((b) => (b.id === aksi.id ? { ...b, jumlah: b.jumlah - 1 } : b))\n        .filter((b) => b.jumlah > 0);\n    case 'kosongkan':\n      return [];\n    default:\n      throw new Error('Aksi tidak dikenal: ' + aksi.type);\n  }\n}\n\nexport default function App() {\n  const [keranjang, dispatch] = useReducer(reducer, []);\n  const total = keranjang.reduce((t, b) => t + b.harga * b.jumlah, 0);\n\n  return (\n    <div>\n      {produk.map((p) => (\n        <button key={p.id} onClick={() => dispatch({ type: 'tambah', produk: p })}>+ {p.nama}</button>\n      ))}\n      <ul>\n        {keranjang.map((b) => (\n          <li key={b.id}>\n            {b.nama} x{b.jumlah}{' '}\n            <button onClick={() => dispatch({ type: 'kurang', id: b.id })}>−</button>\n          </li>\n        ))}\n      </ul>\n      <p>Total: Rp{total.toLocaleString('id-ID')}</p>\n      <button onClick={() => dispatch({ type: 'kosongkan' })}>Kosongkan</button>\n    </div>\n  );\n}\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengubah state di dalam reducer**\n\nSalah:\n\n```jsx\ncase 'tambah':\n  isi.push({ ...aksi.produk, jumlah: 1 });\n  return isi;\n```\n\nBenar:\n\n```jsx\ncase 'tambah':\n  return [...isi, { ...aksi.produk, jumlah: 1 }];\n```\n\nReducer yang mengembalikan array yang sama membuat React mengira tidak ada perubahan, sehingga layar tidak diperbarui. Selalu kembalikan nilai baru.\n\n**2. Lupa return di salah satu case**\n\nSalah:\n\n```jsx\ncase 'kosongkan':\n  [];\ndefault:\n  throw new Error('Aksi tidak dikenal: ' + aksi.type);\n```\n\nBenar:\n\n```jsx\ncase 'kosongkan':\n  return [];\ndefault:\n  throw new Error('Aksi tidak dikenal: ' + aksi.type);\n```\n\nTanpa `return`, eksekusi jatuh ke case berikutnya. Di sini aksi \"kosongkan\" berakhir di `default` dan melempar error \"Aksi tidak dikenal: kosongkan\", padahal aksinya ada."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "useReducer(reducer, []) mengembalikan...",
+          "options": [
+            "[state, dispatch]",
+            "[state, setState]",
+            "[reducer, aksi]",
+            "state saja"
+          ],
+          "answer": 0,
+          "explanation": "dispatch untuk mengirim aksi.",
+          "remedial": "`useReducer` mengembalikan **[state, dispatch]**. Komponen memanggil `dispatch(aksi)` untuk mengubah state."
+        },
+        {
+          "question": "Apa yang diterima fungsi reducer?",
+          "options": [
+            "Props dan children",
+            "Event klik saja",
+            "Elemen DOM",
+            "State saat ini dan aksi"
+          ],
+          "answer": 3,
+          "explanation": "reducer(state, aksi) → state baru.",
+          "remedial": "Reducer menerima **state saat ini** dan **aksi**, lalu **mengembalikan state baru**."
+        },
+        {
+          "question": "Apa hasilnya?\nreducer([{ id: 1 }, { id: 2 }], { type: \"hapus\", id: 1 })\n(case hapus: return isi.filter((b) => b.id !== aksi.id))",
+          "options": [
+            "[{ id: 1 }]",
+            "[]",
+            "[{ id: 2 }]",
+            "[{ id: 1 }, { id: 2 }]"
+          ],
+          "answer": 2,
+          "explanation": "filter membuang id 1.",
+          "remedial": "Reducer bisa dicoba tanpa React. `filter` menyimpan item yang id-nya **bukan 1**, jadi hasilnya `[{ id: 2 }]`."
+        },
+        {
+          "question": "Kapan useReducer lebih cocok dari useState?",
+          "options": [
+            "Untuk satu nilai benar/salah sederhana",
+            "Saat ada banyak jenis perubahan pada data yang sama",
+            "Untuk elemen DOM",
+            "Untuk props dari induk"
+          ],
+          "answer": 1,
+          "explanation": "Logika terkumpul.",
+          "remedial": "useReducer cocok saat ada **banyak jenis perubahan** (tambah, kurang, hapus, kosongkan) pada data yang sama."
+        },
+        {
+          "question": "Kenapa reducer tidak boleh memakai push lalu mengembalikan array yang sama?",
+          "options": [
+            "React mengira tidak ada perubahan sehingga layar tidak diperbarui",
+            "Karena push tidak ada di JavaScript",
+            "Karena reducer harus mengembalikan teks",
+            "Karena dispatch akan dihapus"
+          ],
+          "answer": 0,
+          "explanation": "Kembalikan nilai baru.",
+          "remedial": "Sama seperti state biasa: nilai yang **sama** dianggap tidak berubah. Reducer harus **mengembalikan nilai baru**."
+        },
+        {
+          "question": "Cara mengirim aksi mengosongkan keranjang adalah...",
+          "options": [
+            "reducer('kosongkan')",
+            "setKeranjang('kosongkan')",
+            "dispatch.kosongkan()",
+            "dispatch({ type: 'kosongkan' })"
+          ],
+          "answer": 3,
+          "explanation": "Aksi berupa objek dengan type.",
+          "remedial": "Aksi biasanya berupa **objek dengan type**: `dispatch({ type: 'kosongkan' })`. Data tambahan ditaruh di properti lain."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Bagian default di switch reducer sebaiknya...",
+      "options": [
+        "Mengosongkan state",
+        "Memanggil fetch",
+        "Melempar error untuk aksi yang tidak dikenal",
+        "Tidak ditulis sama sekali"
+      ],
+      "answer": 2,
+      "explanation": "Error membantu menemukan salah ketik nama aksi."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "useReducer(reducer, awal) → [state, dispatch].",
+        "Reducer(state, aksi) mengembalikan state baru; tidak mengubah state lama dan tanpa efek samping.",
+        "Komponen hanya memanggil dispatch({ type: '...' }).",
+        "Cocok untuk banyak jenis perubahan pada data yang sama; mudah diuji tanpa React."
+      ]
+    }
+  ]
+}

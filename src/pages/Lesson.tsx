@@ -34,6 +34,7 @@ import {
   UnderstandingCheckCardComponent,
 } from '../components/cards/QuizCards';
 import { HtmlPreviewCardComponent } from '../components/cards/HtmlPreviewCard';
+import { ReactPreviewCardComponent } from '../components/cards/ReactPreviewCard';
 import { HtmlCssPreviewCardComponent } from '../components/cards/HtmlCssPreviewCard';
 import { PratinjauTailwind } from '../lib/tailwindPreview';
 import { CekGitHubCardComponent } from '../components/cards/CekGitHubCard';
@@ -342,6 +343,9 @@ export default function LessonPage() {
 
       case 'html_preview':
         return <HtmlPreviewCardComponent card={c} />;
+
+      case 'react_preview':
+        return <ReactPreviewCardComponent card={c} />;
 
       case 'html_css_preview':
         return <HtmlCssPreviewCardComponent card={c} />;

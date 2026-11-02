@@ -12,8 +12,9 @@ import restApiModules from '../../content/rest-api/modules.json';
 import springBootModules from '../../content/spring-boot/modules.json';
 import devopsModules from '../../content/devops/modules.json';
 import tailwindModules from '../../content/tailwind/modules.json';
+import reactModules from '../../content/react/modules.json';
 
-export const modulesData = [...javaModules, ...jsModules, ...englishModules, ...gitModules, ...mysqlModules, ...linuxModules, ...htmlCssModules, ...restApiModules, ...springBootModules, ...devopsModules, ...tailwindModules] as Module[];
+export const modulesData = [...javaModules, ...jsModules, ...englishModules, ...gitModules, ...mysqlModules, ...linuxModules, ...htmlCssModules, ...restApiModules, ...springBootModules, ...devopsModules, ...tailwindModules, ...reactModules] as Module[];
 export const coursesData = coursesJson as Course[];
 
 /**

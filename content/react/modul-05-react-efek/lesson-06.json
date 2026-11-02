@@ -1,0 +1,130 @@
+{
+  "id": "react-efek-06",
+  "moduleId": "react-efek",
+  "order": 6,
+  "title": "StrictMode dan Efek yang Jalan Dua Kali",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Budi kaget: di proyek Vite-nya, `console.log` di efek muncul **dua kali** saat halaman pertama dibuka. Apakah ada yang salah?\n\nTidak. Ingat `src/main.jsx` dari template Vite:\n\n```jsx\ncreateRoot(document.getElementById('root')).render(\n  <StrictMode>\n    <App />\n  </StrictMode>,\n)\n```\n\n**StrictMode** adalah mode pemeriksaan **khusus pengembangan**. Untuk membantu menemukan efek yang lupa dibersihkan, React sengaja menjalankan setiap efek dengan urutan:\n\n1. efek dijalankan (setup),\n2. cleanup dijalankan,\n3. efek dijalankan lagi.\n\nIbarat **uji coba kunci pintu sebelum pindah rumah**: kunci dikunci, dibuka, lalu dikunci lagi untuk memastikan mekanismenya benar-benar bekerja."
+    },
+    {
+      "type": "theory",
+      "content": "### Kenapa ini membantu?\n\nEfek yang benar menghasilkan keadaan yang **sama** walaupun dijalankan setup → cleanup → setup. Efek yang lupa cleanup akan ketahuan:\n\n| Efek | Tanpa cleanup di StrictMode | Dengan cleanup |\n|---|---|---|\n| `setInterval` | dua interval berjalan, hitungan dua kali lebih cepat | satu interval |\n| `addEventListener` | listener terpasang dua kali | satu listener |\n| koneksi chat | dua koneksi | satu koneksi |\n\nStrictMode juga memanggil badan komponen **dua kali** saat pengembangan, untuk menemukan komponen yang tidak murni.\n\n### Hanya saat pengembangan\n\nSemua pemanggilan ganda ini **hanya** terjadi saat `npm run dev`. Setelah `npm run build`, efek berjalan sekali seperti biasa. Jangan menghapus `<StrictMode>` untuk \"memperbaiki\" log ganda; perbaiki efeknya dengan cleanup."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKartu contoh membungkus `App` dengan `StrictMode`, persis seperti `main.jsx`:\n\n```jsx\nfunction Jam() {\n  useEffect(() => {\n    console.log('setup: interval dinyalakan');\n    const id = setInterval(() => console.log('tik'), 1000);\n    return () => {\n      console.log('cleanup: interval dimatikan');\n      clearInterval(id);\n    };\n  }, []);\n  return <p>Lihat Konsol</p>;\n}\n```\n\nKonsol saat pertama tampil:\n\n```\nsetup: interval dinyalakan\ncleanup: interval dimatikan\nsetup: interval dinyalakan\ntik\ntik\n```\n\nKarena cleanup bekerja, hanya **satu** \"tik\" per detik. Hapus `return () => {...}`, lalu tekan Jalankan ulang: \"tik\" muncul dua kali setiap detik, karena dua interval berjalan. Inilah bug yang ingin ditunjukkan StrictMode."
+    },
+    {
+      "type": "react_preview",
+      "prompt": "Perhatikan urutan setup, cleanup, setup di Konsol. Lalu hapus bagian `return () => {...}` dan tekan **Jalankan ulang**: \"tik\" muncul dua kali setiap detik.",
+      "code": "import { StrictMode, useEffect } from 'react';\nimport { createRoot } from 'react-dom/client';\n\nfunction Jam() {\n  useEffect(() => {\n    console.log('setup: interval dinyalakan');\n    const id = setInterval(() => console.log('tik'), 1000);\n    return () => {\n      console.log('cleanup: interval dimatikan');\n      clearInterval(id);\n    };\n  }, []);\n  return <p>Lihat Konsol</p>;\n}\n\ncreateRoot(document.getElementById('root')).render(\n  <StrictMode>\n    <Jam />\n  </StrictMode>\n);\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menghapus StrictMode supaya log tidak ganda**\n\nSalah:\n\n```jsx\ncreateRoot(document.getElementById('root')).render(<App />);\n```\n\nBenar:\n\n```jsx\ncreateRoot(document.getElementById('root')).render(\n  <StrictMode>\n    <App />\n  </StrictMode>,\n);\n```\n\nLog ganda adalah tanda StrictMode sedang bekerja. Menghapusnya hanya menyembunyikan bug efek yang lupa dibersihkan; bug itu tetap muncul nanti, misalnya saat komponen dibuka-tutup.\n\n**2. Mencegah efek jalan dua kali dengan ref**\n\nSalah:\n\n```jsx\nconst sudah = useRef(false);\nuseEffect(() => {\n  if (sudah.current) return;\n  sudah.current = true;\n  const id = setInterval(tik, 1000);\n}, []);\n```\n\nBenar:\n\n```jsx\nuseEffect(() => {\n  const id = setInterval(tik, 1000);\n  return () => clearInterval(id);\n}, []);\n```\n\nTrik ref membuat efek tidak pernah dibersihkan. Solusinya selalu cleanup yang benar."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa itu StrictMode?",
+          "options": [
+            "Mode keamanan yang mengenkripsi data",
+            "Mode untuk mempercepat aplikasi di produksi",
+            "Mode yang melarang useEffect",
+            "Mode pemeriksaan khusus pengembangan untuk menemukan bug"
+          ],
+          "answer": 3,
+          "explanation": "Hanya saat pengembangan.",
+          "remedial": "**StrictMode** adalah mode pemeriksaan **saat pengembangan**. React sengaja menjalankan efek dan render dua kali untuk menemukan bug."
+        },
+        {
+          "question": "Di StrictMode, urutan apa yang terjadi pada efek saat komponen pertama tampil?",
+          "options": [
+            "setup saja",
+            "cleanup, setup, cleanup",
+            "setup, cleanup, setup",
+            "setup, setup, setup"
+          ],
+          "answer": 2,
+          "explanation": "Uji coba cleanup.",
+          "remedial": "React menjalankan **setup → cleanup → setup** untuk memastikan cleanup-mu bekerja."
+        },
+        {
+          "question": "Apakah efek juga jalan dua kali setelah npm run build?",
+          "options": [
+            "Ya, selalu dua kali",
+            "Tidak, hanya saat pengembangan",
+            "Ya, tapi hanya di HP",
+            "Tergantung browser"
+          ],
+          "answer": 1,
+          "explanation": "Produksi normal.",
+          "remedial": "Pemanggilan ganda StrictMode **hanya** saat pengembangan (`npm run dev`). Di hasil build, efek berjalan sekali."
+        },
+        {
+          "question": "Interval tanpa cleanup di StrictMode menyebabkan...",
+          "options": [
+            "Dua interval berjalan, sehingga hitungan dua kali lebih cepat",
+            "Interval tidak pernah berjalan",
+            "Error merah di layar",
+            "Tidak ada bedanya"
+          ],
+          "answer": 0,
+          "explanation": "StrictMode memperlihatkan bug.",
+          "remedial": "Tanpa cleanup, setup kedua menambah interval **kedua**. Hitungan menjadi dua kali lebih cepat; itulah bug yang ditunjukkan StrictMode."
+        },
+        {
+          "question": "Log efek muncul dua kali saat npm run dev. Apa tindakan yang benar?",
+          "options": [
+            "Hapus StrictMode dari main.jsx",
+            "Pakai ref supaya efek hanya jalan sekali",
+            "Ganti useEffect dengan setTimeout",
+            "Pastikan efeknya punya cleanup yang benar"
+          ],
+          "answer": 3,
+          "explanation": "Jangan sembunyikan gejalanya.",
+          "remedial": "Log ganda itu normal. **Perbaiki efeknya dengan cleanup**; jangan hapus StrictMode atau memakai trik ref."
+        },
+        {
+          "question": "Di file mana StrictMode biasanya dipasang di proyek Vite?",
+          "options": [
+            "src/App.css",
+            "vite.config.js",
+            "src/main.jsx",
+            "package.json"
+          ],
+          "answer": 2,
+          "explanation": "Membungkus App.",
+          "remedial": "Template Vite memasang `<StrictMode>` di **src/main.jsx**, membungkus `<App />`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "StrictMode di-import dari paket...",
+      "options": [
+        "'react-dom/client'",
+        "'vite'",
+        "'react-strict'",
+        "'react'"
+      ],
+      "answer": 3,
+      "explanation": "import { StrictMode } from 'react';"
+    },
+    {
+      "type": "summary",
+      "points": [
+        "StrictMode (di main.jsx) adalah pemeriksaan khusus saat pengembangan.",
+        "Efek dijalankan setup → cleanup → setup untuk menguji cleanup.",
+        "Log ganda itu normal; perbaiki efek dengan cleanup, jangan hapus StrictMode.",
+        "Setelah npm run build, efek berjalan sekali."
+      ]
+    }
+  ]
+}

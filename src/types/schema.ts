@@ -155,6 +155,7 @@ export type Card =
   | TypeTranslationCard
   | HtmlCssPreviewCard
   | HtmlPreviewCard
+  | ReactPreviewCard
   | PraktikTerminalCard
   | PraktikGitHubCard
   | PraktikJavaCard
@@ -305,6 +306,16 @@ export interface PraktikGitHubCard {
   bawaan?: Record<string, string>;
   langkah: LangkahGitHub[];
   layar: Record<string, LayarGitHub>;
+}
+
+/** Contoh kode React yang bisa diubah dan langsung dijalankan (src/lib/reactPreview.ts). */
+export interface ReactPreviewCard {
+  type: 'react_preview';
+  prompt: string;
+  /** Isi App.jsx. Komponen yang di-export default ditampilkan otomatis. */
+  code: string;
+  /** CSS tambahan untuk pratinjau (tidak bisa diubah pengguna). */
+  css?: string;
 }
 
 export interface HtmlPreviewCard {

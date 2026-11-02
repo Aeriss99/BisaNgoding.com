@@ -1,0 +1,130 @@
+{
+  "id": "react-efek-07",
+  "moduleId": "react-efek",
+  "order": 7,
+  "title": "Kapan Tidak Perlu useEffect",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setelah mengenal useEffect, Andi memakainya di mana-mana: untuk menghitung total, untuk menyaring daftar, untuk merespons klik. Kodenya jadi panjang, lambat, dan sering salah.\n\nuseEffect hanya untuk **menyinkronkan dengan sistem di luar React** (server, timer, browser API, localStorage). Untuk hal lain, biasanya **tidak perlu** efek.\n\nIbarat **memanggil tukang untuk hal yang bisa dikerjakan sendiri**: mengganti lampu tidak perlu kontraktor.\n\n**1. Menghitung data turunan: hitung saat render**\n\n```jsx\n// Tidak perlu\nconst [total, setTotal] = useState(0);\nuseEffect(() => {\n  setTotal(keranjang.reduce((t, b) => t + b.harga, 0));\n}, [keranjang]);\n\n// Cukup\nconst total = keranjang.reduce((t, b) => t + b.harga, 0);\n```\n\nVersi efek membuat dua kali render: sekali dengan total lama, lalu sekali lagi setelah efek mengubah state."
+    },
+    {
+      "type": "theory",
+      "content": "**2. Merespons aksi pengguna: tulis di handler**\n\n```jsx\n// Tidak perlu\nuseEffect(() => {\n  if (terkirim) console.log('Kirim notifikasi pesanan');\n}, [terkirim]);\n\n// Cukup\nfunction handleKirim() {\n  setTerkirim(true);\n  console.log('Kirim notifikasi pesanan');\n}\n```\n\nKalau sesuatu terjadi **karena pengguna melakukan sesuatu** (klik, kirim form), tempatnya di handler. Efek untuk hal yang harus terjadi **karena komponen tampil**.\n\n**3. Mengatur ulang state saat props berubah: pakai key**\n\n```jsx\n<FormUlasan key={produkId} produkId={produkId} />\n```\n\nMengganti `key` membuat React membuat ulang komponen dengan state baru, tanpa efek yang mengosongkan state satu per satu.\n\n| Kebutuhan | Pakai |\n|---|---|\n| nilai yang dihitung dari state/props | variabel biasa saat render |\n| reaksi atas klik atau submit | handler |\n| state baru saat ganti item | `key` |\n| timer, ambil data, localStorage, event browser | **useEffect** |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSari menyaring produk berdasarkan pencarian dan hanya-promo, tanpa satu pun efek:\n\n```jsx\nimport { useState } from 'react';\n\nconst produk = [\n  { id: 1, nama: 'Kopi Susu', promo: true },\n  { id: 2, nama: 'Kopi Aren', promo: false },\n  { id: 3, nama: 'Teh Melati', promo: true },\n];\n\nexport default function App() {\n  const [kata, setKata] = useState('');\n  const [hanyaPromo, setHanyaPromo] = useState(false);\n\n  const hasil = produk\n    .filter((p) => p.nama.toLowerCase().includes(kata.toLowerCase()))\n    .filter((p) => !hanyaPromo || p.promo);\n\n  function handleBeli(p) {\n    console.log(`${p.nama} dibeli`);\n  }\n  // ... JSX\n}\n```\n\n`hasil` dihitung setiap render dari dua state. Pesan \"dibeli\" ditulis langsung di handler. Kode lebih pendek, dan tidak ada render tambahan."
+    },
+    {
+      "type": "react_preview",
+      "prompt": "Ketik \"kopi\" dan centang \"Hanya promo\". Tidak ada useEffect di kode ini: semuanya dihitung saat render atau di handler.",
+      "code": "import { useState } from 'react';\n\nconst produk = [\n  { id: 1, nama: 'Kopi Susu', promo: true },\n  { id: 2, nama: 'Kopi Aren', promo: false },\n  { id: 3, nama: 'Teh Melati', promo: true },\n];\n\nexport default function App() {\n  const [kata, setKata] = useState('');\n  const [hanyaPromo, setHanyaPromo] = useState(false);\n\n  const hasil = produk\n    .filter((p) => p.nama.toLowerCase().includes(kata.toLowerCase()))\n    .filter((p) => !hanyaPromo || p.promo);\n\n  function handleBeli(p) {\n    console.log(`${p.nama} dibeli`);\n  }\n\n  return (\n    <div>\n      <input value={kata} onChange={(e) => setKata(e.target.value)} placeholder=\"Cari\" />{' '}\n      <label>\n        <input type=\"checkbox\" checked={hanyaPromo} onChange={(e) => setHanyaPromo(e.target.checked)} /> Hanya promo\n      </label>\n      <ul>\n        {hasil.map((p) => (\n          <li key={p.id}>\n            {p.nama} <button onClick={() => handleBeli(p)}>Beli</button>\n          </li>\n        ))}\n      </ul>\n      <small>{hasil.length} produk</small>\n    </div>\n  );\n}\n"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan hasil filter lewat efek**\n\nSalah:\n\n```jsx\nconst [hasil, setHasil] = useState([]);\nuseEffect(() => {\n  setHasil(produk.filter((p) => p.nama.includes(kata)));\n}, [kata]);\n```\n\nBenar:\n\n```jsx\nconst hasil = produk.filter((p) => p.nama.includes(kata));\n```\n\nVersi efek merender dulu dengan hasil lama, baru merender lagi dengan hasil baru. Selain lebih lambat, sesaat tampil data yang salah.\n\n**2. Logika klik di efek**\n\nSalah:\n\n```jsx\nconst [dibeli, setDibeli] = useState(null);\nuseEffect(() => {\n  if (dibeli) console.log(dibeli + ' dibeli');\n}, [dibeli]);\n// onClick={() => setDibeli('Kopi')}\n```\n\nBenar:\n\n```jsx\nfunction handleBeli(nama) {\n  console.log(nama + ' dibeli');\n}\n// onClick={() => handleBeli('Kopi')}\n```\n\nDengan efek, membeli produk yang sama dua kali tidak menulis pesan kedua, karena `dibeli` tidak berubah. Logika yang dipicu pengguna ditulis di handler."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kapan useEffect benar-benar dibutuhkan?",
+          "options": [
+            "Untuk menghitung total harga",
+            "Untuk menyinkronkan dengan sistem di luar React seperti timer, server, atau localStorage",
+            "Untuk merespons klik tombol",
+            "Untuk setiap state"
+          ],
+          "answer": 1,
+          "explanation": "Efek = dunia luar.",
+          "remedial": "useEffect untuk **sistem di luar React**: timer, ambil data, localStorage, event browser."
+        },
+        {
+          "question": "Total keranjang sebaiknya dihitung dengan cara...",
+          "options": [
+            "Variabel biasa saat render",
+            "useEffect yang memanggil setTotal",
+            "setInterval setiap detik",
+            "Menyimpannya di localStorage dulu"
+          ],
+          "answer": 0,
+          "explanation": "Data turunan.",
+          "remedial": "Total adalah data turunan: **hitung saat render** dengan variabel biasa. Efek hanya menambah render dan risiko salah."
+        },
+        {
+          "question": "Pesan \"pesanan terkirim\" muncul karena pengguna menekan Kirim. Kode pesannya ditulis di...",
+          "options": [
+            "useEffect yang memantau state terkirim",
+            "Badan komponen",
+            "File CSS",
+            "Handler tombol atau onSubmit"
+          ],
+          "answer": 3,
+          "explanation": "Dipicu pengguna = handler.",
+          "remedial": "Hal yang terjadi **karena aksi pengguna** ditulis di **handler**. Efek untuk hal yang terjadi karena komponen tampil."
+        },
+        {
+          "question": "Apa kerugian menghitung data turunan lewat efek dan setState?",
+          "options": [
+            "Tidak ada kerugian",
+            "Data tidak pernah tampil",
+            "Ada render tambahan dan sesaat tampil data lama",
+            "Komponen tidak bisa memakai props"
+          ],
+          "answer": 2,
+          "explanation": "Render dua kali.",
+          "remedial": "Efek berjalan **setelah** render, jadi render pertama memakai data lama, lalu efek memicu **render kedua**."
+        },
+        {
+          "question": "Formulir ulasan harus kosong lagi setiap kali produk diganti. Cara paling sederhana?",
+          "options": [
+            "useEffect yang mengosongkan setiap state",
+            "<FormUlasan key={produkId} />",
+            "Memuat ulang halaman",
+            "Menyimpan ulasan di localStorage"
+          ],
+          "answer": 1,
+          "explanation": "Ganti key = komponen baru.",
+          "remedial": "Mengganti **key** membuat React membuat ulang komponen dengan **state baru**, tanpa efek tambahan."
+        },
+        {
+          "question": "Mana yang membutuhkan useEffect?",
+          "options": [
+            "Menyalakan interval jam saat komponen tampil",
+            "Mengubah teks menjadi huruf besar sebelum ditampilkan",
+            "Menghitung jumlah produk promo",
+            "Menulis log saat tombol Beli diklik"
+          ],
+          "answer": 0,
+          "explanation": "Interval adalah sistem luar.",
+          "remedial": "Interval adalah sistem di luar React yang perlu dinyalakan dan dimatikan, jadi butuh **useEffect** dengan cleanup."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Daftar hasil pencarian sebaiknya...",
+      "options": [
+        "Dihitung dengan filter saat render",
+        "Disimpan di state lewat useEffect",
+        "Diambil dari localStorage",
+        "Dihitung di file CSS"
+      ],
+      "answer": 0,
+      "explanation": "Hasil filter adalah data turunan dari kata kunci."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "useEffect hanya untuk sinkron dengan sistem di luar React.",
+        "Data turunan: hitung saat render. Aksi pengguna: tulis di handler.",
+        "State baru saat ganti item: pakai key.",
+        "Lebih sedikit efek = lebih sedikit render tambahan dan bug."
+      ]
+    }
+  ]
+}
