@@ -11,7 +11,7 @@ import { modulesData, getVisibleLessons, getQuizQuestions } from '../lib/content
 import type { UserProgress } from '../types/schema';
 import Sertifikat from '../pages/Sertifikat';
 import CekSertifikat from '../pages/CekSertifikat';
-import { KartuSertifikat } from '../pages/LihatSertifikat';
+import LihatSertifikat, { KartuSertifikat } from '../pages/LihatSertifikat';
 
 // Mock mode lokal agar pengujian halaman berjalan dalam mode situs/cloud
 vi.mock('../lib/modeLokal', () => ({
@@ -448,5 +448,47 @@ describe('Halaman Sertifikat & Cek Keaslian', () => {
       expect(mockKonfirmasi).toHaveBeenCalled();
       expect(mockInsert).toHaveBeenCalled();
     });
+  });
+
+  it('setelah LihatSertifikat dirender, document.head berisi <style> dengan size: A4 landscape; setelah di-unmount, style hilang dan body tidak punya kelas halaman-cetak-sertifikat', async () => {
+    mockSelect.mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: {
+            kode: 'BN-AAAA-BBBB',
+            user_id: 'user-123',
+            kelas_id: 'java',
+            nama: 'Budi Santoso',
+            terbit: '2026-11-04T00:00:00Z',
+          },
+          error: null,
+        }),
+      }),
+    });
+
+    const { unmount } = render(
+      React.createElement(
+        MemoryRouter,
+        { initialEntries: ['/sertifikat/BN-AAAA-BBBB'] },
+        React.createElement(
+          Routes,
+          null,
+          React.createElement(Route, {
+            path: '/sertifikat/:kode',
+            element: React.createElement(LihatSertifikat, null),
+          })
+        )
+      )
+    );
+
+    expect(document.body.classList.contains('halaman-cetak-sertifikat')).toBe(true);
+    const styles = Array.from(document.head.querySelectorAll('style'));
+    expect(styles.some((s) => s.textContent?.includes('size: A4 landscape'))).toBe(true);
+
+    unmount();
+
+    expect(document.body.classList.contains('halaman-cetak-sertifikat')).toBe(false);
+    const stylesAfter = Array.from(document.head.querySelectorAll('style'));
+    expect(stylesAfter.some((s) => s.textContent?.includes('size: A4 landscape'))).toBe(false);
   });
 });

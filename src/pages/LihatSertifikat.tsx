@@ -104,8 +104,12 @@ export default function LihatSertifikat() {
 
   useEffect(() => {
     document.body.classList.add('halaman-cetak-sertifikat');
+    const gaya = document.createElement('style');
+    gaya.textContent = '@page { size: A4 landscape; margin: 0; }';
+    document.head.appendChild(gaya);
     return () => {
       document.body.classList.remove('halaman-cetak-sertifikat');
+      gaya.remove();
     };
   }, []);
 
