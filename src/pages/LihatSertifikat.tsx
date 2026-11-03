@@ -17,6 +17,14 @@ export function KartuSertifikat({
   const baseUrl = import.meta.env.BASE_URL || '/';
   const alamatCek = `${origin}${baseUrl}#/cek-sertifikat/${sertifikat.kode}`;
 
+  const namaLen = sertifikat.nama.length;
+  const kelasUkuranNama =
+    namaLen > 45
+      ? 'nama-sangat-panjang text-[11px] sm:text-[18px] md:text-[24px] lg:text-[28px]'
+      : namaLen > 30
+      ? 'nama-panjang text-[13px] sm:text-[21px] md:text-[28px] lg:text-[34px]'
+      : 'nama-normal text-[15px] sm:text-[24px] md:text-[34px] lg:text-[42px]';
+
   return (
     <div
       className="area-cetak-sertifikat w-full max-w-[960px] aspect-[297/210] box-border p-3 sm:p-6 md:p-8 lg:p-10 bg-[var(--color-landing-card)] border-[4px] lg:border-[6px] border-[var(--color-text-main)] rounded-2xl shadow-[8px_8px_0_var(--color-text-main)] flex flex-col justify-between text-[var(--color-text-main)] relative overflow-hidden select-none"
@@ -43,7 +51,9 @@ export function KartuSertifikat({
             diberikan kepada
           </p>
 
-          <div className="nama-sertifikat font-space font-bold text-[15px] sm:text-[24px] md:text-[34px] lg:text-[42px] leading-tight text-[var(--color-text-main)] px-4 border-b-2 border-[var(--color-text-main)] pb-0.5 max-w-full truncate">
+          <div
+            className={`nama-sertifikat font-space font-bold ${kelasUkuranNama} leading-tight text-[var(--color-text-main)] px-4 border-b-2 border-[var(--color-text-main)] pb-0.5 max-w-full break-words text-center text-balance`}
+          >
             {sertifikat.nama}
           </div>
 
@@ -71,11 +81,11 @@ export function KartuSertifikat({
             </span>
           </div>
 
-          <div className="flex flex-col gap-0.5 text-right max-w-[60%]">
+          <div className="flex flex-col gap-0.5 text-right max-w-[60%] area-alamat-cek">
             <span className="meta-sertifikat text-[7px] sm:text-[10px] md:text-[12px] text-[#5a5a5a]">
               Cek Keaslian:
             </span>
-            <span className="meta-sertifikat font-mono text-[7px] sm:text-[10px] md:text-[11px] truncate text-[#2447f5]">
+            <span className="meta-sertifikat teks-alamat-cek font-mono text-[7px] sm:text-[10px] md:text-[11px] truncate text-[#2447f5]">
               {alamatCek}
             </span>
           </div>
@@ -91,6 +101,13 @@ export default function LihatSertifikat() {
   const [sertifikat, setSertifikat] = useState<DataSertifikat | null>(null);
   const [loading, setLoading] = useState(true);
   const [tidakDitemukan, setTidakDitemukan] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.add('halaman-cetak-sertifikat');
+    return () => {
+      document.body.classList.remove('halaman-cetak-sertifikat');
+    };
+  }, []);
 
   useEffect(() => {
     let aktif = true;

@@ -11,6 +11,7 @@ import { modulesData, getVisibleLessons, getQuizQuestions } from '../lib/content
 import type { UserProgress } from '../types/schema';
 import Sertifikat from '../pages/Sertifikat';
 import CekSertifikat from '../pages/CekSertifikat';
+import { KartuSertifikat } from '../pages/LihatSertifikat';
 
 // Mock mode lokal agar pengujian halaman berjalan dalam mode situs/cloud
 vi.mock('../lib/modeLokal', () => ({
@@ -301,5 +302,151 @@ describe('Halaman Sertifikat & Cek Keaslian', () => {
     expect(
       await screen.findByText(/Sertifikat dengan kode ini tidak ditemukan\./i)
     ).toBeInTheDocument();
+  });
+
+  it('Nama 60 karakter: elemen nama tidak punya kelas truncate dan memakai kelas ukuran untuk nama panjang', () => {
+    const nama60 = 'Muhammad Rizky Pratama Wijaya Kusumanegara Simanjuntak Hadie';
+    expect(nama60.length).toBe(60);
+    const sertifikatMock = {
+      kode: 'BN-TEST-1234',
+      user_id: 'user-123',
+      kelas_id: 'java',
+      nama: nama60,
+      terbit: '2026-11-04T00:00:00Z',
+    };
+    render(
+      React.createElement(KartuSertifikat, {
+        sertifikat: sertifikatMock,
+        namaKelas: 'Java',
+      })
+    );
+    const elNama = screen.getByText(nama60);
+    expect(elNama).toBeInTheDocument();
+    expect(elNama.className).not.toContain('truncate');
+    expect(elNama.className).toContain('nama-sangat-panjang');
+    expect(elNama.className).toContain('break-words');
+  });
+
+  it('Insert gagal dengan sertifikat_user_id_kelas_id_key: insert dipanggil sekali, daftar dimuat ulang, dan teks bahasa Inggris tidak tampil', async () => {
+    mockProgressValue = buatProgresLengkap('java');
+    mockSelect.mockResolvedValue({ data: [], error: null });
+    mockInsert.mockResolvedValue({
+      error: {
+        code: '23505',
+        message:
+          'duplicate key value violates unique constraint "sertifikat_user_id_kelas_id_key"',
+      },
+    });
+
+    render(
+      React.createElement(
+        MemoryRouter,
+        { initialEntries: ['/sertifikat'] },
+        React.createElement(Sertifikat, null)
+      )
+    );
+
+    await waitFor(() => {
+      expect(mockSelect).toHaveBeenCalledTimes(1);
+    });
+
+    const tombolTerbitkan = await screen.findByRole('button', {
+      name: /TERBITKAN SERTIFIKAT/i,
+    });
+    fireEvent.click(tombolTerbitkan);
+
+    const tombolSubmit = screen.getByRole('button', { name: /^Terbitkan$/i });
+    fireEvent.click(tombolSubmit);
+
+    await waitFor(() => {
+      expect(mockInsert).toHaveBeenCalledTimes(1);
+      // Daftar dimuat ulang
+      expect(mockSelect).toHaveBeenCalledTimes(2);
+    });
+
+    // Dialog sudah tertutup
+    expect(screen.queryByRole('dialog')).toBeNull();
+    // Teks bahasa Inggris error dari Supabase tidak tampil
+    expect(screen.queryByText(/duplicate key value/i)).toBeNull();
+  });
+
+  it('Insert gagal dengan sertifikat_pkey dua kali lalu berhasil: insert dipanggil 3 kali dengan kode berbeda', async () => {
+    mockProgressValue = buatProgresLengkap('java');
+    mockSelect.mockResolvedValue({ data: [], error: null });
+    const errPkey = {
+      code: '23505',
+      message:
+        'duplicate key value violates unique constraint "sertifikat_pkey"',
+    };
+    mockInsert
+      .mockResolvedValueOnce({ error: errPkey })
+      .mockResolvedValueOnce({ error: errPkey })
+      .mockResolvedValueOnce({ error: null });
+
+    render(
+      React.createElement(
+        MemoryRouter,
+        { initialEntries: ['/sertifikat'] },
+        React.createElement(Sertifikat, null)
+      )
+    );
+
+    await waitFor(() => {
+      expect(mockSelect).toHaveBeenCalledTimes(1);
+    });
+
+    const tombolTerbitkan = await screen.findByRole('button', {
+      name: /TERBITKAN SERTIFIKAT/i,
+    });
+    fireEvent.click(tombolTerbitkan);
+
+    const tombolSubmit = screen.getByRole('button', { name: /^Terbitkan$/i });
+    fireEvent.click(tombolSubmit);
+
+    await waitFor(() => {
+      expect(mockInsert).toHaveBeenCalledTimes(3);
+    });
+
+    const kodes = mockInsert.mock.calls.map((c: any) => c[0].kode);
+    expect(new Set(kodes).size).toBe(3); // 3 kode berbeda
+  });
+
+  it('Dialog nama: Esc menutup dialog; Enter di isian memanggil konfirmasi', async () => {
+    mockProgressValue = buatProgresLengkap('java');
+    mockSelect.mockResolvedValue({ data: [], error: null });
+    mockInsert.mockResolvedValue({ error: null });
+
+    render(
+      React.createElement(
+        MemoryRouter,
+        { initialEntries: ['/sertifikat'] },
+        React.createElement(Sertifikat, null)
+      )
+    );
+
+    const tombolTerbitkan = await screen.findByRole('button', {
+      name: /TERBITKAN SERTIFIKAT/i,
+    });
+    fireEvent.click(tombolTerbitkan);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // Tekan Escape -> dialog tertutup
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    // Buka lagi
+    fireEvent.click(tombolTerbitkan);
+    const inputNama = screen.getByLabelText(/Nama di sertifikat/i);
+
+    // Tekan Enter di dalam form/input
+    fireEvent.submit(inputNama.closest('form')!);
+
+    await waitFor(() => {
+      expect(mockKonfirmasi).toHaveBeenCalled();
+      expect(mockInsert).toHaveBeenCalled();
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { coursesData } from '../lib/content';
 import { useProgress } from '../context/ProgressContext';
@@ -31,6 +31,10 @@ export default function Sertifikat() {
   const [namaError, setNamaError] = useState<string | null>(null);
   const [sedangKirim, setSedangKirim] = useState(false);
 
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
   const modeLokal = apakahModeLokal() || !supabase;
 
   const muatSertifikat = useCallback(async () => {
@@ -57,13 +61,26 @@ export default function Sertifikat() {
     } finally {
       setLoading(false);
     }
-  }, [modeLokal]);
+  }, []);
 
   useEffect(() => {
     muatSertifikat();
   }, [muatSertifikat]);
 
+  const tutupDialogTerbit = useCallback(() => {
+    if (sedangKirim) return;
+    setTargetKelasId(null);
+    setInputNama('');
+    setNamaError(null);
+    setTimeout(() => {
+      if (triggerRef.current && typeof triggerRef.current.focus === 'function') {
+        triggerRef.current.focus();
+      }
+    }, 0);
+  }, [sedangKirim]);
+
   const bukaDialogTerbit = (kelasId: string) => {
+    triggerRef.current = document.activeElement as HTMLElement | null;
     const defaultNama =
       (user?.user_metadata?.full_name as string) ||
       (user?.user_metadata?.name as string) ||
@@ -73,12 +90,53 @@ export default function Sertifikat() {
     setTargetKelasId(kelasId);
   };
 
-  const tutupDialogTerbit = () => {
-    if (sedangKirim) return;
-    setTargetKelasId(null);
-    setInputNama('');
-    setNamaError(null);
-  };
+  useEffect(() => {
+    if (targetKelasId) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 10);
+    }
+  }, [targetKelasId]);
+
+  useEffect(() => {
+    if (!targetKelasId) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (!sedangKirim) {
+          e.preventDefault();
+          tutupDialogTerbit();
+        }
+        return;
+      }
+
+      if (e.key === 'Tab' && dialogRef.current) {
+        const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
+          'input:not([disabled]), button:not([disabled]), [tabindex="0"]'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [targetKelasId, sedangKirim, tutupDialogTerbit]);
 
   const handleTerbitkan = async () => {
     if (!targetKelasId || modeLokal || !supabase || !user) return;
@@ -103,7 +161,7 @@ export default function Sertifikat() {
 
     try {
       let berhasil = false;
-      let pesanErrorTerakhir = '';
+      let bentrokSudahAda = false;
 
       // Coba maksimal 3 kali jika kode bentrok
       for (let i = 0; i < 3; i++) {
@@ -120,25 +178,34 @@ export default function Sertifikat() {
           break;
         }
 
-        pesanErrorTerakhir = errInsert.message;
-        const bentrok =
-          errInsert.code === '23505' ||
-          errInsert.message.toLowerCase().includes('unique') ||
-          errInsert.message.toLowerCase().includes('duplicate');
+        const teksErr = `${errInsert.message || ''} ${(errInsert as any).details || ''}`;
 
-        if (!bentrok) {
+        // Akun sudah punya sertifikat untuk kelas ini: jangan diulang
+        if (teksErr.includes('sertifikat_user_id_kelas_id_key')) {
+          bentrokSudahAda = true;
           break;
         }
+
+        // Bentrok kode primary key: coba buat kode baru dan ulang
+        if (
+          errInsert.code === '23505' &&
+          (teksErr.includes('sertifikat_pkey') || teksErr.includes('kode'))
+        ) {
+          continue;
+        }
+
+        // Galat lain: jangan ulang
+        break;
       }
 
-      if (berhasil) {
-        setTargetKelasId(null);
+      if (berhasil || bentrokSudahAda) {
+        tutupDialogTerbit();
         await muatSertifikat();
       } else {
-        setNamaError(pesanErrorTerakhir || 'Gagal menerbitkan sertifikat. Coba lagi.');
+        setNamaError('Sertifikat belum bisa diterbitkan. Periksa koneksi lalu coba lagi.');
       }
-    } catch (e: any) {
-      setNamaError(e?.message || 'Terjadi kesalahan. Coba lagi.');
+    } catch {
+      setNamaError('Sertifikat belum bisa diterbitkan. Periksa koneksi lalu coba lagi.');
     } finally {
       setSedangKirim(false);
     }
@@ -308,67 +375,78 @@ export default function Sertifikat() {
           aria-labelledby="dialog-terbit-judul"
           className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
         >
-          <div className="w-full max-w-lg bg-white border-[4px] border-[var(--color-text-main)] rounded-2xl shadow-[8px_8px_0_var(--color-text-main)] p-6 lg:p-8 flex flex-col gap-5">
-            <div className="flex flex-col gap-1.5">
-              <h2
-                id="dialog-terbit-judul"
-                className="m-0 font-space text-[22px] lg:text-[26px] font-bold"
-              >
-                Terbitkan Sertifikat
-              </h2>
-              <p className="m-0 text-[14px] lg:text-[15px] text-[#5a5a5a]">
-                Kelas {targetNamaKelas}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor="input-nama-sertifikat"
-                className="font-space font-bold text-[15px]"
-              >
-                Nama di sertifikat
-              </label>
-              <input
-                id="input-nama-sertifikat"
-                type="text"
-                value={inputNama}
-                onChange={(e) => {
-                  setInputNama(e.target.value);
-                  setNamaError(null);
-                }}
-                maxLength={60}
-                placeholder="Nama lengkapmu"
-                className="w-full px-4 py-3 border-[3px] border-[var(--color-text-main)] rounded-xl font-sans text-[16px] outline-none focus:bg-[#fffde6]"
-              />
-              <p className="m-0 text-[13px] text-[#6b675e]">
-                Nama tidak bisa diubah setelah sertifikat terbit.
-              </p>
-              {namaError && (
-                <p className="m-0 text-[13px] font-bold text-[var(--color-danger)]">
-                  {namaError}
+          <div
+            ref={dialogRef}
+            className="w-full max-w-lg bg-white border-[4px] border-[var(--color-text-main)] rounded-2xl shadow-[8px_8px_0_var(--color-text-main)] p-6 lg:p-8"
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleTerbitkan();
+              }}
+              className="flex flex-col gap-5"
+            >
+              <div className="flex flex-col gap-1.5">
+                <h2
+                  id="dialog-terbit-judul"
+                  className="m-0 font-space text-[22px] lg:text-[26px] font-bold"
+                >
+                  Terbitkan Sertifikat
+                </h2>
+                <p className="m-0 text-[14px] lg:text-[15px] text-[#5a5a5a]">
+                  Kelas {targetNamaKelas}
                 </p>
-              )}
-            </div>
+              </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={tutupDialogTerbit}
-                disabled={sedangKirim}
-                className="px-5 py-2.5 border-[3px] border-[var(--color-text-main)] rounded-xl bg-white font-space font-bold text-[15px] shadow-[3px_3px_0_var(--color-text-main)] hover:translate-y-[-1px] active:translate-y-[1px] disabled:opacity-50"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleTerbitkan}
-                disabled={sedangKirim}
-                className="px-6 py-2.5 border-[3px] border-[var(--color-text-main)] rounded-xl bg-[var(--color-primary)] font-space font-bold text-[15px] shadow-[3px_3px_0_var(--color-text-main)] hover:translate-y-[-1px] active:translate-y-[1px] disabled:opacity-50 flex items-center gap-2"
-              >
-                {sedangKirim && <Loader2 className="w-4 h-4 animate-spin" />}
-                Terbitkan
-              </button>
-            </div>
+              <div className="flex flex-col gap-2">
+                <label
+                  htmlFor="input-nama-sertifikat"
+                  className="font-space font-bold text-[15px]"
+                >
+                  Nama di sertifikat
+                </label>
+                <input
+                  ref={inputRef}
+                  id="input-nama-sertifikat"
+                  type="text"
+                  value={inputNama}
+                  onChange={(e) => {
+                    setInputNama(e.target.value);
+                    setNamaError(null);
+                  }}
+                  maxLength={60}
+                  placeholder="Nama lengkapmu"
+                  className="w-full px-4 py-3 border-[3px] border-[var(--color-text-main)] rounded-xl font-sans text-[16px] outline-none focus:bg-[#fffde6]"
+                />
+                <p className="m-0 text-[13px] text-[#6b675e]">
+                  Nama tidak bisa diubah setelah sertifikat terbit.
+                </p>
+                {namaError && (
+                  <p className="m-0 text-[13px] font-bold text-[var(--color-danger)]">
+                    {namaError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={tutupDialogTerbit}
+                  disabled={sedangKirim}
+                  className="px-5 py-2.5 border-[3px] border-[var(--color-text-main)] rounded-xl bg-white font-space font-bold text-[15px] shadow-[3px_3px_0_var(--color-text-main)] hover:translate-y-[-1px] active:translate-y-[1px] disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={sedangKirim}
+                  className="px-6 py-2.5 border-[3px] border-[var(--color-text-main)] rounded-xl bg-[var(--color-primary)] font-space font-bold text-[15px] shadow-[3px_3px_0_var(--color-text-main)] hover:translate-y-[-1px] active:translate-y-[1px] disabled:opacity-50 flex items-center gap-2"
+                >
+                  {sedangKirim && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Terbitkan
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
