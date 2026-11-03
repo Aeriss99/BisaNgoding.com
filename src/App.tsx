@@ -11,6 +11,9 @@ import SemuaKelas from './pages/SemuaKelas';
 import JalurKarier from './pages/JalurKarier';
 import NotifikasiPage from './pages/Notifikasi';
 import ProgresPage from './pages/Progres';
+import Sertifikat from './pages/Sertifikat';
+import LihatSertifikat from './pages/LihatSertifikat';
+import CekSertifikat from './pages/CekSertifikat';
 import Masuk from './pages/Masuk';
 import VerifikasiEmail from './pages/VerifikasiEmail';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -115,6 +118,8 @@ function AppRoutes() {
       <Route path="/masuk" element={<Masuk />} />
       <Route path="/atur-password" element={<Masuk />} />
       <Route path="/verifikasi-email" element={<VerifikasiEmail />} />
+      <Route path="/cek-sertifikat/:kode" element={<CekSertifikat />} />
+      <Route path="/cek-sertifikat" element={<CekSertifikat />} />
 
       {/* Other Layout Routes */}
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
@@ -123,6 +128,8 @@ function AppRoutes() {
         <Route path="/jalur" element={<JalurKarier />} />
         <Route path="/notifikasi" element={<NotifikasiPage />} />
         <Route path="/progres" element={<ProgresPage />} />
+        <Route path="/sertifikat" element={<Sertifikat />} />
+        <Route path="/sertifikat/:kode" element={<LihatSertifikat />} />
         <Route path="/kelas/:courseId" element={<HalamanKelas />} />
         <Route path="/module/:moduleId" element={<ModuleDetail />} />
         <Route path="*" element={<NotFound />} />
