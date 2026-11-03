@@ -1,4 +1,8 @@
+import React from 'react';
 import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { MenuAkun } from '../components/layout/MenuAtas';
 import { cari, indeksPencarian, normalCari } from '../lib/pencarian';
 import { hitungNotifikasi, labelTanggal, perbaruiModulDikenal, perbaruiQuizDikenal } from '../lib/notifikasi';
 
@@ -107,5 +111,20 @@ describe('Notifikasi lokal', () => {
   it('label tanggal', () => {
     expect(labelTanggal('2026-09-30', '2026-09-30')).toBe('Hari ini');
     expect(labelTanggal('2026-09-27', '2026-09-30')).toBe('3 hari lalu');
+  });
+});
+
+describe('Menu Akun', () => {
+  it('Sertifikat tidak lagi segera dan mengarah ke /sertifikat', () => {
+    render(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(MenuAkun, null)
+      )
+    );
+    const link = screen.getByRole('menuitem', { name: /sertifikat/i });
+    expect(link).toHaveAttribute('href', '/sertifikat');
+    expect(screen.queryByText('SEGERA')).toBeNull();
   });
 });

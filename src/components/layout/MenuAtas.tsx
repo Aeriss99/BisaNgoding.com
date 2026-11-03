@@ -259,7 +259,7 @@ export function MenuAkun() {
     <>
       <ItemMenu to="/profile" ikon="user" teks="Profil saya" />
       <ItemMenu to="/progres" ikon="chart" teks="Progres belajar" />
-      <ItemMenu ikon="award" teks="Sertifikat" segera />
+      <ItemMenu to="/sertifikat" ikon="award" teks="Sertifikat" />
       <ItemMenu to="/profile" ikon="gear" teks="Pengaturan" />
     </>
   );
