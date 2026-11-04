@@ -187,7 +187,7 @@ export default function CekSertifikat() {
               <div className="flex flex-col gap-1">
                 <span className="text-[13px] text-[#5a5a5a]">Kelas:</span>
                 <span className="font-space font-bold text-[18px] text-[var(--color-text-main)]">
-                  Kelas {namaKelas}
+                  {namaKelas}
                 </span>
               </div>
 
