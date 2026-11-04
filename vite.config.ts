@@ -3,7 +3,13 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-const versi = process.env.GITHUB_SHA ? process.env.GITHUB_SHA.slice(0, 7) : 'lokal';
+// Rilis dari tag memakai nama tag (v0.0.1); build lain memakai 7 huruf commit; lokal = 'lokal'.
+const versi =
+  process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME
+    ? process.env.GITHUB_REF_NAME
+    : process.env.GITHUB_SHA
+      ? process.env.GITHUB_SHA.slice(0, 7)
+      : 'lokal';
 const waktuBuild = new Date().toISOString();
 
 // https://vite.dev/config/

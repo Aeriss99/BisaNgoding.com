@@ -1,0 +1,53 @@
+name: Cek (test dan build)
+
+# Berjalan di setiap push ke main dan branch kerja. TIDAK mendeploy situs.
+# Situs hanya diperbarui oleh rilis.yml saat tag versi (v0.0.1 dst.) di-push.
+on:
+  push:
+    branches: ['main', 'kecil/**', 'feat/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cek-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cek:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Tests
+        run: npm run test:unit
+
+      - name: Run Content Tests
+        run: npm run test:content
+
+      - name: Run Java Tests
+        run: npm run test:java
+
+      - name: Build
+        run: npm run build
+        env:
+          GITHUB_PAGES: true
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}

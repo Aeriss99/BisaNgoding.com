@@ -81,7 +81,7 @@ src/
 scripts/              cek konten, validasi materi, test Java, pengumuman modul baru
 supabase/             Edge Functions dan migrasi database (notifikasi email)
 e2e/                  test Playwright
-.github/workflows/    test, build, deploy ke GitHub Pages, dan umumkan modul baru
+.github/workflows/    cek.yml (test + build) dan rilis.yml (deploy dari tag versi)
 ```
 
 ## Menambah materi
@@ -96,4 +96,10 @@ Jenis kartu dan field-nya ada di `src/types/schema.ts`. Kode Java yang dijalanka
 
 ## Deploy
 
-Setiap push ke branch `main` menjalankan test, build, lalu deploy ke GitHub Pages lewat `.github/workflows/deploy.yml`. `VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY` diambil dari GitHub Secrets.
+Situs hanya diperbarui saat **tag versi** di-push (contoh `v0.0.1`), lewat `.github/workflows/rilis.yml`: cek tag ada di `main`, test, build, deploy ke GitHub Pages, lalu umumkan modul baru. Nomor versi tampil di aplikasi dan di `version.json`.
+
+Push ke `main`, `kecil/*`, atau `feat/*` hanya menjalankan test dan build (`.github/workflows/cek.yml`), tanpa mengubah situs.
+
+Versi: angka terakhir untuk perbaikan (`v0.0.1` → `v0.0.2`), angka tengah untuk materi, kelas, atau fitur baru (`v0.0.2` → `v0.1.0`). Kembali ke rilis lama: Actions > **Rilis ke GitHub Pages** > **Run workflow** > pilih tag lama.
+
+`VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY` diambil dari GitHub Secrets.

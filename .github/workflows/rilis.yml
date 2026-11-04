@@ -1,8 +1,10 @@
-name: Deploy to GitHub Pages
+name: Rilis ke GitHub Pages
 
+# Situs hanya diperbarui dari tag versi, misalnya v0.0.1.
+# Kembali ke rilis lama: Actions > Rilis ke GitHub Pages > Run workflow > pilih tag lama.
 on:
   push:
-    branches: ['main']
+    tags: ['v*.*.*']
   workflow_dispatch:
 
 permissions:
@@ -12,7 +14,7 @@ permissions:
 
 concurrency:
   group: 'pages'
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -20,6 +22,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pastikan rilis dari tag yang ada di main
+        run: |
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "Rilis hanya boleh dari tag (contoh v0.0.1). Pilih tag di 'Use workflow from'."; exit 1
+          fi
+          if ! echo "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Format tag salah: $GITHUB_REF_NAME"; exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Commit tag $GITHUB_REF_NAME tidak ada di main."; exit 1
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
