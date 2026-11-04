@@ -22,6 +22,7 @@ import {
   samaIsi,
 } from '../lib/cloudProgress';
 import { apakahModeLokal } from '../lib/modeLokal';
+import { catatSalah, catatBenar, catatSalahLatihan } from '../lib/latihanUlang';
 
 export { samaIsi };
 
@@ -33,6 +34,8 @@ export interface ProgressContextType {
   toggleUnlockAll: (enabled: boolean) => void;
   addXP: (amount: number) => void;
   saveQuizScore: (moduleId: string, score: number, passed: boolean) => void;
+  catatJawabanSalah: (kunci: string, jenis: 'cek' | 'quiz', sumber: string) => void;
+  catatJawabanLatihan: (kunci: string, benar: boolean) => void;
   touchActivity: () => void;
   /** Streak untuk ditampilkan: 0 kalau sudah lebih dari sehari tidak menyelesaikan materi (atau di mode lokal). */
   streakHariIni: number;
@@ -468,6 +471,36 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const catatJawabanSalah = (
+    kunci: string,
+    jenis: 'cek' | 'quiz',
+    sumber: string
+  ) => {
+    setProgress((prev) => {
+      const updated = catatSalah(prev.latihanUlang, kunci, jenis, sumber);
+      const nextProgress = {
+        ...prev,
+        latihanUlang: updated,
+      };
+      saveProgressState(nextProgress);
+      return nextProgress;
+    });
+  };
+
+  const catatJawabanLatihan = (kunci: string, benar: boolean) => {
+    setProgress((prev) => {
+      const updated = benar
+        ? catatBenar(prev.latihanUlang, kunci)
+        : catatSalahLatihan(prev.latihanUlang, kunci);
+      const nextProgress = {
+        ...prev,
+        latihanUlang: updated,
+      };
+      saveProgressState(nextProgress);
+      return nextProgress;
+    });
+  };
+
   const flushKeCloud = async (): Promise<boolean> => {
     if (apakahModeLokal()) return true;
     if (!user || !initializedRef.current) return false;
@@ -506,6 +539,8 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         toggleUnlockAll,
         addXP,
         saveQuizScore,
+        catatJawabanSalah,
+        catatJawabanLatihan,
         touchActivity,
         streakHariIni: apakahModeLokal()
           ? 0

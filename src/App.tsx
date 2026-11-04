@@ -11,6 +11,7 @@ import SemuaKelas from './pages/SemuaKelas';
 import JalurKarier from './pages/JalurKarier';
 import NotifikasiPage from './pages/Notifikasi';
 import ProgresPage from './pages/Progres';
+import LatihanUlang from './pages/LatihanUlang';
 import Sertifikat from './pages/Sertifikat';
 import LihatSertifikat from './pages/LihatSertifikat';
 import CekSertifikat from './pages/CekSertifikat';
@@ -128,6 +129,7 @@ function AppRoutes() {
         <Route path="/jalur" element={<JalurKarier />} />
         <Route path="/notifikasi" element={<NotifikasiPage />} />
         <Route path="/progres" element={<ProgresPage />} />
+        <Route path="/latihan-ulang" element={<LatihanUlang />} />
         <Route path="/sertifikat" element={<Sertifikat />} />
         <Route path="/sertifikat/:kode" element={<LihatSertifikat />} />
         <Route path="/kelas/:courseId" element={<HalamanKelas />} />

@@ -1,10 +1,11 @@
 import React from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { MenuAkun } from '../components/layout/MenuAtas';
 import { cari, indeksPencarian, normalCari } from '../lib/pencarian';
 import { hitungNotifikasi, labelTanggal, perbaruiModulDikenal, perbaruiQuizDikenal } from '../lib/notifikasi';
+import * as ProgressContextModule from '../context/ProgressContext';
 
 describe('Pencarian menu atas', () => {
   it('indeks berisi kelas, modul, dan materi yang siap', () => {
@@ -116,6 +117,17 @@ describe('Notifikasi lokal', () => {
 
 describe('Menu Akun', () => {
   it('Sertifikat tidak lagi segera dan mengarah ke /sertifikat', () => {
+    vi.spyOn(ProgressContextModule, 'useProgress').mockReturnValue({
+      progress: {
+        completedLessons: [],
+        moduleStatus: {},
+        quizScores: {},
+        xp: 0,
+        streak: 0,
+        lastActiveDate: '2026-11-04',
+      },
+    } as any);
+
     render(
       React.createElement(
         MemoryRouter,

@@ -8,6 +8,7 @@ import { cari, type HasilCari } from '../../lib/pencarian';
 import { useNotifikasi } from '../../lib/useNotifikasi';
 import type { Notifikasi } from '../../lib/notifikasi';
 import { useKonfirmasi } from '../ui/DialogKonfirmasi';
+import { daftarAktif } from '../../lib/latihanUlang';
 
 const NAV = [
   { to: '/', label: 'Beranda' },
@@ -213,11 +214,12 @@ export function KotakStreakXp({ ringkas = false }: { ringkas?: boolean }) {
 
 export const Garis = () => <div className="h-[2px] bg-[var(--color-text-main)] my-1.5" />;
 
-export function ItemMenu({ to, ikon, teks, segera, bahaya, onClick }: {
+export function ItemMenu({ to, ikon, teks, segera, badge, bahaya, onClick }: {
   to?: string;
   ikon: NamaIkon;
   teks: string;
   segera?: boolean;
+  badge?: React.ReactNode;
   bahaya?: boolean;
   onClick?: () => void;
 }) {
@@ -225,7 +227,12 @@ export function ItemMenu({ to, ikon, teks, segera, bahaya, onClick }: {
   const isi = (
     <>
       <Ikon nama={ikon} ukuran={20} />
-      {teks}
+      <span>{teks}</span>
+      {badge && (
+        <span className="ml-auto px-2 py-0.5 border-2 border-[var(--color-text-main)] rounded-full bg-[var(--color-primary)] font-mono text-[11px] font-bold">
+          {badge}
+        </span>
+      )}
       {segera && (
         <span className="ml-auto px-2 py-0.5 border-2 border-[var(--color-text-main)] rounded-md bg-[var(--color-purple-light)] font-mono text-[11px] font-bold">
           SEGERA
@@ -255,10 +262,19 @@ export function ItemMenu({ to, ikon, teks, segera, bahaya, onClick }: {
 }
 
 export function MenuAkun() {
+  const { progress } = useProgress();
+  const soalAktif = daftarAktif(progress).length;
+
   return (
     <>
       <ItemMenu to="/profile" ikon="user" teks="Profil saya" />
       <ItemMenu to="/progres" ikon="chart" teks="Progres belajar" />
+      <ItemMenu
+        to="/latihan-ulang"
+        ikon="quiz"
+        teks="Latihan Ulang"
+        badge={soalAktif > 0 ? soalAktif : undefined}
+      />
       <ItemMenu to="/sertifikat" ikon="award" teks="Sertifikat" />
       <ItemMenu to="/profile" ikon="gear" teks="Pengaturan" />
     </>
