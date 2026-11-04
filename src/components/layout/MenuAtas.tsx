@@ -67,10 +67,14 @@ export function useKeluar() {
   const navigate = useNavigate();
   return async () => {
     let tersimpan = await flushKeCloud();
-    if (!tersimpan) {
+    let percobaan = 0;
+    while (!tersimpan) {
       const keluarSaja = await konfirmasi({
-        judul: 'Progres belum tersimpan',
-        pesan: 'Koneksi sedang bermasalah. Progres tetap aman di perangkat ini dan dikirim otomatis saat kamu masuk lagi di perangkat yang sama.',
+        judul: percobaan === 0 ? 'Progres belum tersimpan' : 'Masih belum tersimpan',
+        pesan:
+          percobaan === 0
+            ? 'Koneksi sedang bermasalah. Progres tetap aman di perangkat ini dan dikirim otomatis saat kamu masuk lagi di perangkat yang sama.'
+            : 'Percobaan tadi juga gagal. Progres tetap aman di perangkat ini dan dikirim otomatis saat kamu masuk lagi di perangkat yang sama.',
         teksYa: 'KELUAR SAJA',
         teksBatal: 'COBA LAGI',
         bahaya: true,
@@ -80,10 +84,8 @@ export function useKeluar() {
         navigate('/', { replace: true });
         return;
       }
+      percobaan++;
       tersimpan = await flushKeCloud();
-      if (!tersimpan) {
-        return;
-      }
     }
     bersihkanProgresLokal(user?.id);
     await keluar();
