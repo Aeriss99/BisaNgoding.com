@@ -268,7 +268,8 @@ describe('Halaman Sertifikat & Cek Keaslian', () => {
 
     expect(await screen.findByText(/✓ Sertifikat asli/i)).toBeInTheDocument();
     expect(screen.getByText('Budi Santoso')).toBeInTheDocument();
-    expect(screen.getByText('Kelas Git & GitHub')).toBeInTheDocument();
+    expect(screen.getByText('Git & GitHub')).toBeInTheDocument();
+    expect(screen.queryByText('Kelas Git & GitHub')).not.toBeInTheDocument();
     expect(screen.getByText('4 November 2026')).toBeInTheDocument();
   });
 
