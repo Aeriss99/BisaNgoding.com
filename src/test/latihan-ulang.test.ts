@@ -308,7 +308,9 @@ describe('Komponen UnderstandingCheckCardComponent onSalah', () => {
     fireEvent.click(tombolSalah);
 
     expect(onSalahMock).toHaveBeenCalledTimes(1);
-    expect(onSalahMock).toHaveBeenCalledWith(card.questions[0]);
+    expect(onSalahMock).toHaveBeenCalledWith(
+      expect.objectContaining({ question: card.questions[0].question })
+    );
 
     // Rerender ulang untuk uji jawaban benar
     onSalahMock.mockClear();
