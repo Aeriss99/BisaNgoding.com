@@ -410,4 +410,89 @@ describe('Halaman Latihan Ulang (/latihan-ulang)', () => {
     expect(screen.getByRole('status')).toBeInTheDocument();
     expect(screen.getByText('Benar!')).toBeInTheDocument();
   });
+
+  it('muat ulang antrean saat progres dari cloud masuk di perangkat baru dan tidak mengganti soal setelah menjawab', async () => {
+    mockProgressValue = {
+      completedLessons: [],
+      moduleStatus: {},
+      quizScores: {},
+      xp: 0,
+      streak: 0,
+      lastActiveDate: '2026-11-04',
+      latihanUlang: {},
+    };
+
+    const { rerender } = render(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(LatihanUlang, null)
+      )
+    );
+
+    expect(
+      screen.getByText(/Belum ada soal untuk diulang/i)
+    ).toBeInTheDocument();
+
+    const quizGit = getQuizQuestions('git-dasar')!;
+    const q0 = quizGit[0];
+    const k0 = kunciQuiz(q0);
+
+    mockProgressValue = {
+      ...mockProgressValue,
+      latihanUlang: {
+        [k0]: {
+          jenis: 'quiz',
+          sumber: 'git-dasar',
+          benar: 0,
+          selesai: false,
+          diubah: '2026-11-04T10:00:00Z',
+        },
+      },
+    };
+
+    rerender(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(LatihanUlang, null)
+      )
+    );
+
+    expect(await screen.findByText(q0.question)).toBeInTheDocument();
+    expect(screen.queryByText(/Belum ada soal untuk diulang/i)).toBeNull();
+
+    const opsiBenarTeks = q0.options[q0.answer];
+    const tombolBenar = screen.getByRole('button', { name: opsiBenarTeks });
+    fireEvent.click(tombolBenar);
+
+    expect(await screen.findByText('Benar 1 dari 2')).toBeInTheDocument();
+
+    const q1 = quizGit[1];
+    const k1 = kunciQuiz(q1);
+    mockProgressValue = {
+      ...mockProgressValue,
+      latihanUlang: {
+        ...mockProgressValue.latihanUlang,
+        [k1]: {
+          jenis: 'quiz',
+          sumber: 'git-dasar',
+          benar: 0,
+          selesai: false,
+          diubah: '2026-11-04T10:05:00Z',
+        },
+      },
+    };
+
+    rerender(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(LatihanUlang, null)
+      )
+    );
+
+    expect(screen.getByText(q0.question)).toBeInTheDocument();
+    expect(screen.queryByText(q1.question)).toBeNull();
+  });
 });

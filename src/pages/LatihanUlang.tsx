@@ -14,24 +14,24 @@ export default function LatihanUlang() {
   const { progress, catatJawabanLatihan } = useProgress();
 
   // Daftar soal untuk putaran saat ini
-  const [antrean, setAntrean] = useState<ItemLatihanAktif[]>([]);
-  const [dimulai, setDimulai] = useState(false);
+  const [antrean, setAntrean] = useState<ItemLatihanAktif[]>(() => daftarAktif(progress));
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [terjawab, setTerjawab] = useState(false);
+  const [sudahMenjawab, setSudahMenjawab] = useState(false);
   const [ringkasanSelesai, setRingkasanSelesai] = useState<{
     selesai: number;
     ulang: number;
   } | null>(null);
 
-  // Inisialisasi putaran pertama saat pertama kali dibuka
   useEffect(() => {
-    if (!dimulai) {
+    if (antrean.length === 0 && !sudahMenjawab && !ringkasanSelesai) {
       const aktif = daftarAktif(progress);
-      setAntrean(aktif);
-      setDimulai(true);
+      if (aktif.length > 0) {
+        setAntrean(aktif);
+      }
     }
-  }, [progress, dimulai]);
+  }, [progress, antrean.length, sudahMenjawab, ringkasanSelesai]);
 
   const itemAktif = antrean[currentIdx];
 
@@ -43,6 +43,7 @@ export default function LatihanUlang() {
 
   const handlePilih = (idx: number) => {
     if (terjawab || !itemAktif || !soalAcak) return;
+    setSudahMenjawab(true);
     setSelected(idx);
     setTerjawab(true);
     const benar = idx === soalAcak.answer;
@@ -80,6 +81,7 @@ export default function LatihanUlang() {
     setCurrentIdx(0);
     setSelected(null);
     setTerjawab(false);
+    setSudahMenjawab(false);
     setRingkasanSelesai(null);
   };
 
