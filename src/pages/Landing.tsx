@@ -10,7 +10,7 @@ interface StikerConfig {
   rotasi: number;
 }
 
-const STIKER_MAP: Record<string, StikerConfig> = {
+export const STIKER_MAP: Record<string, StikerConfig> = {
   java: { label: 'JAVA', warna: '#ffe838', bentuk: 'kotak', rotasi: -8 },
   javascript: { label: 'JAVASCRIPT', warna: '#2fe6f0', bentuk: 'pil', rotasi: 6 },
   'html-css': { label: 'HTML & CSS', warna: '#ff3dcb', bentuk: 'kotak', rotasi: -3 },
@@ -22,9 +22,9 @@ const STIKER_MAP: Record<string, StikerConfig> = {
   devops: { label: 'DEVOPS', warna: '#ff3dcb', bentuk: 'pil', rotasi: -4 },
   'english-it': { label: 'ENGLISH', warna: '#a78bfa', bentuk: 'kotak', rotasi: 9 },
   nodejs: { label: 'NODE.JS', warna: 'transparent', bentuk: 'pil', rotasi: -7 },
-  tailwind: { label: 'TAILWIND', warna: 'transparent', bentuk: 'kotak', rotasi: 3 },
+  tailwind: { label: 'TAILWIND', warna: '#7dd3fc', bentuk: 'kotak', rotasi: 3 },
   typescript: { label: 'TYPESCRIPT', warna: 'transparent', bentuk: 'pil', rotasi: 8 },
-  react: { label: 'REACT', warna: 'transparent', bentuk: 'bulat', rotasi: -5 },
+  react: { label: 'REACT', warna: '#61dafb', bentuk: 'bulat', rotasi: -5 },
 };
 
 const PREFERRED_STIKER_ORDER = [

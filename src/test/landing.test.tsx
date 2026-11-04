@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import Landing from '../pages/Landing';
+import Landing, { STIKER_MAP } from '../pages/Landing';
 import { coursesData, modulesData, getVisibleLessons } from '../lib/content';
 
 describe('Landing Page "Hujan Stiker"', () => {
@@ -109,5 +109,15 @@ describe('Landing Page "Hujan Stiker"', () => {
     expect(tombolMenu).toHaveAttribute('aria-expanded', 'true');
     fireEvent.click(tombolMenu);
     expect(tombolMenu).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('setiap kelas bukan soon yang punya entri di STIKER_MAP memiliki warna selain transparent', () => {
+    const readyCourses = coursesData.filter((c) => c.status !== 'soon');
+    expect(readyCourses.length).toBeGreaterThan(0);
+    for (const course of readyCourses) {
+      if (STIKER_MAP[course.id]) {
+        expect(STIKER_MAP[course.id].warna).not.toBe('transparent');
+      }
+    }
   });
 });
