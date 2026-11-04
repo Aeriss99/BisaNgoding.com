@@ -3,6 +3,7 @@ import { useProgress } from '../context/ProgressContext';
 import { Ikon } from '../components/ui/IkonDesain';
 import { Lencana, warnaKelas } from '../components/kelas/KartuKelas';
 import { ringkasanProgres, PASSING_SCORE, type ProgresKelas } from '../lib/progres';
+import { daftarAktif } from '../lib/latihanUlang';
 
 const angka = (n: number) => n.toLocaleString('id-ID');
 
@@ -81,6 +82,7 @@ export default function Progres() {
   const persenTotal = r.totalMateri ? Math.round((r.totalSelesai / r.totalMateri) * 100) : 0;
   const dimulai = r.kelas.filter((k) => k.totalSelesai > 0);
   const belum = r.kelas.filter((k) => k.totalSelesai === 0);
+  const soalUlang = daftarAktif(progress).length;
 
   return (
     <div className="leading-[normal] max-w-[1440px] mx-auto px-4 md:px-8 xl:px-16 py-8 lg:py-16 flex flex-col gap-9 lg:gap-11">
@@ -97,6 +99,23 @@ export default function Progres() {
         <KotakAngka label="MATERI SELESAI" nilai={angka(r.totalSelesai)} sub={`dari ${angka(r.totalMateri)} materi · ${persenTotal}%`} latar="#ffffff" />
         <KotakAngka label="QUIZ LULUS" nilai={angka(r.quizLulus)} sub={`Lulus kalau skor ≥ ${PASSING_SCORE}`} latar="var(--color-success-light)" />
       </div>
+
+      {soalUlang > 0 && (
+        <div className="p-4 lg:p-5 border-[3px] border-[var(--color-text-main)] rounded-xl bg-[var(--color-primary-light)] shadow-[4px_4px_0_var(--color-text-main)] flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Ikon nama="quiz" ukuran={24} />
+            <span className="font-space font-bold text-[16px] lg:text-[18px]">
+              Latihan Ulang: {soalUlang} soal menunggu
+            </span>
+          </div>
+          <Link
+            to="/latihan-ulang"
+            className="px-5 py-2.5 bg-[var(--color-primary)] border-2 border-[var(--color-text-main)] rounded-xl font-space font-bold text-[15px] shadow-[3px_3px_0_var(--color-text-main)] hover:translate-y-[-1px] active:translate-y-[1px] no-underline text-[var(--color-text-main)] flex items-center gap-2"
+          >
+            MULAI <Ikon nama="arrow" ukuran={18} tebal={2.5} />
+          </Link>
+        </div>
+      )}
 
       <section className="flex flex-col gap-4">
         <JudulBagian judul="Sedang dipelajari" sub={dimulai.length ? `${dimulai.length} kelas` : undefined} />

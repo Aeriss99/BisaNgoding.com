@@ -18,11 +18,13 @@ export function UnderstandingCheckCardComponent({
   card,
   onSuccess,
   onNavigateToTheory,
+  onSalah,
   language = 'java',
 }: {
   card: UnderstandingCheckCard;
   onSuccess: (attempts: number) => void;
   onNavigateToTheory: () => void;
+  onSalah?: (q: UnderstandingCheckCard['questions'][number]) => void;
   language?: string;
 }) {
   const [questions, setQuestions] = useState<any[]>([]);
@@ -57,6 +59,7 @@ export function UnderstandingCheckCardComponent({
       }
     } else {
       setCorrectCount(0);
+      onSalah?.(q);
     }
   };
 

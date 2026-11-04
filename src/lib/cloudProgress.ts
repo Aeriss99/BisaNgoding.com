@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import type { UserProgress } from '../types/schema';
 import { gabungStreak, lengkapiStreak } from './streak';
 import { apakahModeLokal } from './modeLokal';
+import { gabungLatihanUlang } from './latihanUlang';
 
 const BASE_STORAGE_KEY = 'bisangoding_progress';
 const CURRENT_USER_KEY = 'bisangoding_current_user';
@@ -156,7 +157,8 @@ export function mergeProgress(
     quizScores,
     lastActiveDate,
     maxSeenDate,
-    resetAt
+    resetAt,
+    latihanUlang: gabungLatihanUlang(local.latihanUlang ?? {}, cloud.latihanUlang ?? {}),
   };
 }
 

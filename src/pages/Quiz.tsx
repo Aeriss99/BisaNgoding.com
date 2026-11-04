@@ -20,6 +20,7 @@ import {
   hapusCadanganQuiz,
   periksaPembaruanSaatPindahQuiz,
 } from '../lib/pembaruanAplikasi';
+import { kunciQuiz } from '../lib/latihanUlang';
 
 export default function QuizPage() {
   const { moduleId } = useParams();
@@ -27,7 +28,7 @@ export default function QuizPage() {
   const course = coursesData.find((c) => c.id === (mod?.courseId || 'java'));
   const language = course?.language || 'java';
   
-  const { progress, saveQuizScore, addXP, touchActivity } = useProgress();
+  const { progress, saveQuizScore, catatJawabanSalah, addXP, touchActivity } = useProgress();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -103,6 +104,12 @@ export default function QuizPage() {
     if (passed) {
       addXP(50); // Big XP bonus for passing quiz
     }
+
+    questions.forEach((q, idx) => {
+      if (answers[idx] === undefined || answers[idx] !== q.answer) {
+        catatJawabanSalah(kunciQuiz(q), 'quiz', moduleId || '');
+      }
+    });
   };
 
   // Penjaga kunci quiz: modul harus terbuka dan semua pelajarannya selesai

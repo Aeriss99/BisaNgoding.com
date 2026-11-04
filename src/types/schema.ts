@@ -417,6 +417,19 @@ export interface SummaryCard {
   points: string[];
 }
 
+export interface EntriLatihanUlang {
+  jenis: 'cek' | 'quiz';
+  /** lessonId untuk 'cek', moduleId untuk 'quiz'. */
+  sumber: string;
+  /** Berapa kali BERTURUT-TURUT dijawab benar di halaman Latihan Ulang (0, 1, atau 2). */
+  benar: number;
+  /** true kalau sudah benar 2 kali berturut-turut. Entri tidak dihapus (supaya tidak muncul lagi saat
+   *  progres dari perangkat lain digabung), cukup ditandai selesai. */
+  selesai: boolean;
+  /** Waktu terakhir entri berubah, ISO. Dipakai saat menggabung progres. */
+  diubah: string;
+}
+
 export interface UserProgress {
   completedLessons: string[];
   passedChecks?: string[];
@@ -432,6 +445,8 @@ export interface UserProgress {
   unlockAll?: boolean;
   justReset?: boolean;
   resetAt?: string;
+  /** Soal yang pernah dijawab salah. Kunci: lihat src/lib/latihanUlang.ts. */
+  latihanUlang?: Record<string, EntriLatihanUlang>;
 }
 
 export interface QuizQuestion {

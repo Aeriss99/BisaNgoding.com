@@ -23,6 +23,7 @@ import {
   hapusCadanganMateri,
   periksaPembaruanSaatPindahMateri,
 } from '../lib/pembaruanAplikasi';
+import { kunciCek } from '../lib/latihanUlang';
 import {
   RunnableCardComponent,
   CodeChallengeCardComponent,
@@ -90,6 +91,7 @@ export default function LessonPage() {
     markCheckPassed,
     addXP,
     touchActivity,
+    catatJawabanSalah,
   } = useProgress();
 
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -356,6 +358,11 @@ export default function LessonPage() {
             card={c}
             onSuccess={handleCheckSuccess}
             onNavigateToTheory={() => setCurrentCardIndex(0)}
+            onSalah={(q) => {
+              if (lesson) {
+                catatJawabanSalah(kunciCek(lesson.id, q), 'cek', lesson.id);
+              }
+            }}
             language={language}
           />
         );
