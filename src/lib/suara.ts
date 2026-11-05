@@ -8,6 +8,7 @@
 //
 // Daftar rekaman ada di src/data/rekaman-en.json: { kunci: nama_file }.
 // Kunci dibuat dengan kunciSuara(). Skrip pembuat rekaman memakai aturan yang sama persis.
+import type { Lesson } from '../types/schema';
 import daftarRekaman from '../data/rekaman-en.json';
 
 const REKAMAN: Record<string, string> = daftarRekaman;
@@ -45,6 +46,57 @@ export function alamatRekaman(teks: string): string | null {
 let audioAktif: HTMLAudioElement | null = null;
 let giliran = 0;
 
+// url rekaman -> object URL (blob) yang sudah diunduh utuh dan siap diputar tanpa jeda
+const siapDiputar = new Map<string, string>();
+const sedangDisiapkan = new Map<string, Promise<void>>();
+
+/** Mengunduh utuh rekaman untuk teks-teks ini (sekali per file), supaya saat diklik langsung berbunyi. */
+export function siapkanSuara(daftar: string[]): Promise<void> {
+  if (typeof window === 'undefined' || typeof fetch !== 'function' || typeof URL.createObjectURL !== 'function') {
+    return Promise.resolve();
+  }
+  const tugas: Promise<void>[] = [];
+  for (const teks of daftar) {
+    const url = alamatRekaman(teks);
+    if (!url || siapDiputar.has(url) || sedangDisiapkan.has(url)) continue;
+    const p = fetch(url)
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((b) => {
+        if (b) siapDiputar.set(url, URL.createObjectURL(b));
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        sedangDisiapkan.delete(url);
+      });
+    sedangDisiapkan.set(url, p);
+    tugas.push(p);
+  }
+  return Promise.all(tugas).then(() => undefined);
+}
+
+/** Teks bahasa Inggris yang bisa dibacakan di satu pelajaran latihan (kartu + kata baru). */
+export function teksSuaraLatihan(lesson: Lesson): string[] {
+  const hasil: string[] = [];
+  for (const card of lesson.cards) {
+    switch (card.type) {
+      case 'listen_tiles':
+        hasil.push(card.text);
+        break;
+      case 'translate_tiles':
+        hasil.push(card.direction === 'en-id' ? card.prompt : card.answers[0].join(' '));
+        break;
+      case 'type_translation':
+        hasil.push(card.direction === 'en-id' ? card.prompt : card.answers[0]);
+        break;
+      case 'match_pairs':
+        card.pairs.forEach((p) => hasil.push(p.en));
+        break;
+    }
+  }
+  lesson.newWords?.forEach((nw) => hasil.push(nw.word));
+  return hasil;
+}
+
 /** Menghentikan suara yang sedang diputar (rekaman maupun suara browser). */
 export function hentikanSuara(): void {
   giliran++;
@@ -77,7 +129,7 @@ export async function ucapkan(teks: string, lambat = false): Promise<HasilSuara>
 
 async function putarRekaman(url: string, lambat: boolean, saya: number): Promise<HasilSuara> {
   try {
-    const audio = new Audio(url);
+    const audio = new Audio(siapDiputar.get(url) ?? url);
     // pelan: 0.7x. Browser modern menjaga nada suara tetap normal saat diperlambat.
     audio.defaultPlaybackRate = lambat ? 0.7 : 1;
     audio.playbackRate = lambat ? 0.7 : 1;

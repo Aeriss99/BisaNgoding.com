@@ -45,7 +45,7 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'suara-en',
-              expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              expiration: { maxEntries: 1500, maxAgeSeconds: 60 * 60 * 24 * 90 },
               cacheableResponse: { statuses: [0, 200] },
               rangeRequests: true,
             },
