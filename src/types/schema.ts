@@ -374,6 +374,7 @@ export interface MultipleChoiceCard {
 
 export interface FillBlankCard {
   type: 'fill_blank';
+  question?: string;
   code: string;
   answers: string[];
 }
