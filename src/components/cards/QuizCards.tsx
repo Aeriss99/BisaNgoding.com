@@ -250,7 +250,7 @@ export function FillBlankCardComponent({
 
   return (
     <div className="space-y-4">
-      <h3 className="font-bold text-lg">Lengkapi kode berikut:</h3>
+      <h3 className="font-bold text-lg [overflow-wrap:anywhere]">{card.question ?? 'Lengkapi kode berikut:'}</h3>
       <div className="p-4 bg-gray-50 border rounded-lg font-mono text-sm leading-loose overflow-x-auto whitespace-pre">
         {parts.map((part, i) => (
           <span key={i}>
