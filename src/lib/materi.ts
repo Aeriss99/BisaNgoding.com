@@ -60,7 +60,7 @@ export interface LangkahBerikutnya {
   jenis: 'materi' | 'quiz' | 'kelas';
   url: string;        // '/lesson/<id>' | '/quiz/<moduleId resmi>' | kembaliKe dari infoMateri
   judul: string;      // judul materi berikutnya | 'Quiz <judul modul>' | 'Kembali ke kelas'
-  keterangan: string; // contoh '1.2 · Distro Linux' | '20 soal · lulus kalau skor ≥ 70' | judul modul
+  keterangan: string; // contoh '1.2 · Distro Linux' | '20 soal · lulus kalau skor ≥ 80' | judul modul
 }
 
 export function langkahBerikutnya(lesson: Lesson): LangkahBerikutnya {
