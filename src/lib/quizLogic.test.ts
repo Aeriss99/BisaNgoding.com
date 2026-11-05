@@ -6,6 +6,7 @@ import {
   calculateScore,
   isPassingScore,
   PASSING_SCORE,
+  gabungSkorQuiz,
 } from './quizLogic';
 import type { QuizQuestion } from '../types/schema';
 
@@ -113,18 +114,47 @@ describe('quizLogic', () => {
   });
 
   describe('isPassingScore', () => {
-    it('lulus jika skor >= 70', () => {
-      expect(isPassingScore(70)).toBe(true);
+    it('lulus jika skor >= 80', () => {
+      expect(isPassingScore(80)).toBe(true);
       expect(isPassingScore(100)).toBe(true);
     });
 
-    it('tidak lulus jika skor < 70', () => {
-      expect(isPassingScore(69)).toBe(false);
+    it('tidak lulus jika skor < 80', () => {
+      expect(isPassingScore(79)).toBe(false);
+      expect(isPassingScore(70)).toBe(false);
       expect(isPassingScore(0)).toBe(false);
     });
 
-    it('PASSING_SCORE constant is 70', () => {
-      expect(PASSING_SCORE).toBe(70);
+    it('PASSING_SCORE constant is 80', () => {
+      expect(PASSING_SCORE).toBe(80);
+    });
+  });
+
+  describe('gabungSkorQuiz', () => {
+    it('belum ada skor lama', () => {
+      expect(gabungSkorQuiz(undefined, 60, false)).toEqual({ score: 60, passed: false });
+    });
+
+    it('lulus lama tidak dicabut', () => {
+      expect(gabungSkorQuiz({ score: 72, passed: true }, 78, false)).toEqual({
+        score: 78,
+        passed: true,
+      });
+    });
+
+    it('skor lebih rendah tidak disimpan', () => {
+      expect(gabungSkorQuiz({ score: 90, passed: true }, 85, true)).toBeNull();
+    });
+
+    it('lulus setelah gagal', () => {
+      expect(gabungSkorQuiz({ score: 60, passed: false }, 85, true)).toEqual({
+        score: 85,
+        passed: true,
+      });
+    });
+
+    it('skor sama, status sama', () => {
+      expect(gabungSkorQuiz({ score: 80, passed: true }, 80, true)).toBeNull();
     });
   });
 });

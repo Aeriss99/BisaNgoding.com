@@ -23,6 +23,7 @@ import {
 } from '../lib/cloudProgress';
 import { apakahModeLokal } from '../lib/modeLokal';
 import { catatSalah, catatBenar, catatSalahLatihan } from '../lib/latihanUlang';
+import { gabungSkorQuiz } from '../lib/quizLogic';
 
 export { samaIsi };
 
@@ -455,19 +456,17 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   const saveQuizScore = (moduleId: string, score: number, passed: boolean) => {
     setProgress((prev) => {
-      const existing = prev.quizScores[moduleId];
-      if (!existing || score > existing.score || (!existing.passed && passed)) {
-        const nextProgress = {
-          ...prev,
-          quizScores: {
-            ...prev.quizScores,
-            [moduleId]: { score, passed },
-          },
-        };
-        saveProgressState(nextProgress);
-        return nextProgress;
-      }
-      return prev;
+      const baru = gabungSkorQuiz(prev.quizScores[moduleId], score, passed);
+      if (!baru) return prev;
+      const nextProgress = {
+        ...prev,
+        quizScores: {
+          ...prev.quizScores,
+          [moduleId]: baru,
+        },
+      };
+      saveProgressState(nextProgress);
+      return nextProgress;
     });
   };
 

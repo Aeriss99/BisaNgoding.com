@@ -112,8 +112,22 @@ export function calculateScore(
   return Math.round((correctCount / questions.length) * 100);
 }
 
-export const PASSING_SCORE = 70;
+export const PASSING_SCORE = 80;
 
 export function isPassingScore(score: number): boolean {
   return score >= PASSING_SCORE;
+}
+
+/** Skor quiz baru digabung dengan yang lama. null = tidak perlu disimpan.
+ *  Status lulus yang sudah didapat tidak pernah dicabut. */
+export function gabungSkorQuiz(
+  lama: { score: number; passed: boolean } | undefined,
+  score: number,
+  passed: boolean
+): { score: number; passed: boolean } | null {
+  if (!lama) return { score, passed };
+  if (score > lama.score || (!lama.passed && passed)) {
+    return { score: Math.max(score, lama.score), passed: passed || lama.passed };
+  }
+  return null;
 }
