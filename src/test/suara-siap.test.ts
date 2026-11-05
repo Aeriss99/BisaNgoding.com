@@ -45,26 +45,30 @@ describe('Suara siap tanpa jeda unduh', () => {
   it('teksSuaraLatihan mengumpulkan teks yang benar dari berbagai jenis kartu dan newWords', () => {
     const contohLesson: Lesson = {
       id: 'lesson-test',
+      moduleId: 'modul-test',
       title: 'Pelajaran Uji',
+      order: 1,
+      estimatedMinutes: 5,
       mode: 'latihan',
       cards: [
         {
           type: 'listen_tiles',
           text: 'Good morning.',
-          options: ['Good', 'morning'],
+          tiles: ['Good', 'morning'],
+          answers: [['Good', 'morning']],
         },
         {
           type: 'translate_tiles',
           direction: 'en-id',
           prompt: 'How are you?',
-          options: ['Bagaimana', 'kabarmu'],
+          tiles: ['Bagaimana', 'kabarmu'],
           answers: [['Bagaimana', 'kabarmu']],
         },
         {
           type: 'translate_tiles',
           direction: 'id-en',
           prompt: 'Selamat pagi',
-          options: ['Good', 'morning'],
+          tiles: ['Good', 'morning'],
           answers: [['Good', 'morning']],
         },
         {
@@ -87,7 +91,7 @@ describe('Suara siap tanpa jeda unduh', () => {
           ],
         },
       ],
-      newWords: [{ word: 'hello', translation: 'halo' }],
+      newWords: [{ word: 'hello', meaning: 'halo' }],
     };
 
     const hasil = suaraModule.teksSuaraLatihan(contohLesson);
