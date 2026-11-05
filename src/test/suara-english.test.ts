@@ -55,7 +55,7 @@ describe('kunciSuara', () => {
   });
 
   it('alamat rekaman mengikuti BASE_URL, null kalau tidak ada', () => {
-    expect(alamatRekaman('Hi, good morning.')).toMatch(/audio\/en\/[0-9a-f]{12}\.mp3$/);
+    expect(alamatRekaman('Hi, good morning.')).toMatch(/audio\/en\/[0-9a-f]{12}\.mp3\?v=2$/);
     expect(alamatRekaman('kalimat yang tidak pernah direkam')).toBeNull();
   });
 });

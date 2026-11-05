@@ -35,12 +35,15 @@ export function adaRekaman(teks: string): boolean {
   return Object.prototype.hasOwnProperty.call(REKAMAN, kunciSuara(teks));
 }
 
+/** Naikkan kalau file rekaman diganti (nama file tetap), supaya cache lama di HP tidak dipakai lagi. */
+const VERSI_REKAMAN = 2;
+
 /** Alamat file rekaman, atau null kalau tidak ada. Mengikuti base Vite (GitHub Pages). */
 export function alamatRekaman(teks: string): string | null {
   const nama = REKAMAN[kunciSuara(teks)];
   if (!nama) return null;
   const base = import.meta.env.BASE_URL || '/';
-  return `${base}audio/en/${nama}.mp3`;
+  return `${base}audio/en/${nama}.mp3?v=${VERSI_REKAMAN}`;
 }
 
 let audioAktif: HTMLAudioElement | null = null;
