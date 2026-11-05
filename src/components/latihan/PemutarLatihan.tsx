@@ -10,7 +10,7 @@ import { SoalSusunUbin } from './SoalSusunUbin';
 import { SoalPasangan } from './SoalPasangan';
 import { SoalKetik } from './SoalKetik';
 import { SoalPilihan } from './SoalPilihan';
-import { ucapkan, hentikanSuara } from '../../lib/suara';
+import { ucapkan, hentikanSuara, siapkanSuara, teksSuaraLatihan } from '../../lib/suara';
 
 interface PemutarLatihanProps {
   lesson: Lesson;
@@ -41,6 +41,7 @@ export function PemutarLatihan({ lesson }: PemutarLatihanProps) {
 
   // Restart if lesson changes
   useEffect(() => {
+    void siapkanSuara(teksSuaraLatihan(lesson));
     setFase('intro');
     setStatus(mulaiLatihan(lesson.cards.length));
     setShowTips(false);
