@@ -39,7 +39,6 @@ const progresPalsu = {
   xp: 0, streak: 0, lastActiveDate: new Date().toISOString().slice(0, 10), version: 1,
 };
 
-const browser = await chromium.launch();
 const temuan = [];
 const statistik = { halaman: 0, lanjut: 0 };
 async function periksa(page, r, lebar, langkah) {
@@ -81,16 +80,21 @@ async function periksa(page, r, lebar, langkah) {
   for (const [jenis, isi] of Object.entries(sisa)) temuan.push({ rute: r, lebar, langkah, jenis, isi });
 }
 async function kerja(antrean, lebar) {
-  const ctx = await browser.newContext({ viewport: { width: lebar, height: 844 } });
+  let browser = await chromium.launch();
+  let ctx, page;
+  let ruteSekarang = '';
+  const siapkan = async () => {
+  ctx = await browser.newContext({ viewport: { width: lebar, height: 844 } });
   await ctx.addInitScript((p) => {
     try { if (!localStorage.getItem('bisangoding_progress_lokal')) localStorage.setItem('bisangoding_progress_lokal', p); } catch {}
   }, JSON.stringify(progresPalsu));
-  const page = await ctx.newPage();
-  let ruteSekarang = '';
+  page = await ctx.newPage();
   page.on('pageerror', (e) => temuan.push({ rute: ruteSekarang, lebar, jenis: 'pageerror', isi: String(e).slice(0, 200) }));
   page.on('console', (m) => {
     if (m.type() === 'error' && !/supabase|Failed to load resource|ERR_|net::/i.test(m.text())) temuan.push({ rute: ruteSekarang, lebar, jenis: 'konsol', isi: m.text().slice(0, 200) });
   });
+  };
+  await siapkan();
   while (antrean.length) {
     const r = antrean.shift();
     ruteSekarang = r;
@@ -111,15 +115,19 @@ async function kerja(antrean, lebar) {
       }
     } catch (e) {
       temuan.push({ rute: r, lebar, jenis: 'gagal-buka', isi: String(e).slice(0, 150) });
+      if (!browser.isConnected() || page.isClosed()) {
+        try { await browser.close(); } catch {}
+        browser = await chromium.launch();
+        await siapkan();
+      }
     }
   }
-  await ctx.close();
+  await browser.close();
 }
 for (const lebar of [390, 1280]) {
   const antrean = lebar === 390 ? [...rute] : rute.filter((r) => !r.startsWith('/lesson/') && !r.startsWith('/module/'));
-  await Promise.all(Array.from({ length: 4 }, () => kerja(antrean, lebar)));
+  await Promise.all(Array.from({ length: 3 }, () => kerja(antrean, lebar)));
 }
-await browser.close();
 fs.writeFileSync('audit-temuan.json', JSON.stringify(temuan, null, 1));
 const per = {};
 for (const t of temuan) (per[t.jenis] ??= []).push(t);
