@@ -30,11 +30,26 @@ console.log('jumlah rute:', rute.length);
 
 const browser = await chromium.launch();
 const temuan = [];
+const statistik = { halaman: 0, lanjut: 0 };
 async function periksa(page, r, lebar, langkah) {
   const hasil = await page.evaluate((lebar) => {
     const o = {};
     if (document.querySelector('h2.text-red-600')) o.layarError = document.querySelector('pre')?.textContent?.slice(0, 200) || 'ErrorBoundary';
     if (/^\s*404\s*$/m.test(document.body.innerText) && document.querySelector('h1.text-6xl')) o.notFound = true;
+    o._hash = location.hash;
+    o._teks = document.body.innerText.length;
+    // Elemen yang keluar dari layar dan tidak berada di dalam kotak yang bisa digeser (overflow auto/scroll)
+    for (const el of document.querySelectorAll('main *, body > div *')) {
+      const b = el.getBoundingClientRect();
+      if (b.width === 0 || b.right <= window.innerWidth + 2 || getComputedStyle(el).position === 'fixed') continue;
+      let p = el.parentElement, geser = false;
+      while (p && p !== document.body) {
+        const ox = getComputedStyle(p).overflowX;
+        if (ox === 'auto' || ox === 'scroll') { geser = true; break; }
+        p = p.parentElement;
+      }
+      if (!geser) { o.keluarLayar = `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 50)} "${(el.textContent || '').trim().slice(0, 50)}" right=${Math.round(b.right)}`; break; }
+    }
     if (document.documentElement.scrollWidth > window.innerWidth + 2) {
       let lebarMaks = null;
       for (const el of document.querySelectorAll('body *')) {
@@ -48,7 +63,11 @@ async function periksa(page, r, lebar, langkah) {
     }
     return o;
   }, lebar);
-  for (const [jenis, isi] of Object.entries(hasil)) temuan.push({ rute: r, lebar, langkah, jenis, isi });
+  const { _hash, _teks, ...sisa } = hasil;
+  statistik.halaman++;
+  if (_hash !== `#${r}` && langkah === 0) temuan.push({ rute: r, lebar, langkah, jenis: 'dialihkan', isi: `ke ${_hash}` });
+  if (_teks < 150) temuan.push({ rute: r, lebar, langkah, jenis: 'isi-sedikit', isi: `${_teks} huruf` });
+  for (const [jenis, isi] of Object.entries(sisa)) temuan.push({ rute: r, lebar, langkah, jenis, isi });
 }
 async function kerja(antrean, lebar) {
   const ctx = await browser.newContext({ viewport: { width: lebar, height: 844 } });
@@ -71,6 +90,7 @@ async function kerja(antrean, lebar) {
           if (!(await tombol.count()) || !(await tombol.isEnabled())) break;
           await tombol.click({ timeout: 3000 }).catch(() => {});
           await page.waitForTimeout(250);
+          statistik.lanjut++;
           await periksa(page, r, lebar, i);
         }
       }
@@ -94,4 +114,5 @@ for (const [j, xs] of Object.entries(per)) {
   for (const x of xs) { const k = x.isi.replace(/\d+px/g, 'Npx').slice(0, 120); if (!unik.has(k)) unik.set(k, []); unik.get(k).push(`${x.rute}@${x.lebar}${x.langkah ? '#' + x.langkah : ''}`); }
   for (const [k, rs] of [...unik.entries()].slice(0, 40)) console.log(`  [${rs.length}x] ${k} | contoh: ${rs.slice(0, 3).join(', ')}`);
 }
-console.log(`\nTOTAL TEMUAN: ${temuan.length}`);
+console.log(`\nDIPERIKSA: ${statistik.halaman} tampilan, tombol Lanjut diklik ${statistik.lanjut} kali`);
+console.log(`TOTAL TEMUAN: ${temuan.length}`);
