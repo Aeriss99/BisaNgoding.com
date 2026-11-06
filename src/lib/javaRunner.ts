@@ -8,7 +8,26 @@ export interface RunResult {
 }
 
 const CHEERPJ_CDN = 'https://cjrtnc.leaningtech.com/3.0/cj3loader.js';
+// Mode percobaan Java 21: CheerpJ 5 membawa JDK lengkap (termasuk javac), jadi tidak memakai tools.jar.
+const CHEERPJ5_CDN = 'https://cjrtnc.leaningtech.com/5.0/loader.js';
 const TIMEOUT_MS = 20_000;
+const KUNCI_MODE = 'bn_java_versi';
+
+export type VersiJava = 8 | 21;
+
+/** Versi Java yang dipakai. Bawaan 8. Mode percobaan 21 dinyalakan dengan ?java=21 (dimatikan ?java=8). */
+export function versiJava(): VersiJava {
+  if (typeof window === 'undefined') return 8;
+  const cari = window.location.search + '&' + (window.location.hash.split('?')[1] ?? '');
+  const pilih = new URLSearchParams(cari).get('java');
+  try {
+    if (pilih === '21') localStorage.setItem(KUNCI_MODE, '21');
+    else if (pilih === '8') localStorage.removeItem(KUNCI_MODE);
+    return localStorage.getItem(KUNCI_MODE) === '21' ? 21 : 8;
+  } catch {
+    return pilih === '21' ? 21 : 8;
+  }
+}
 
 let hiddenIframe: HTMLIFrameElement | null = null;
 let iframeReadyPromise: Promise<void> | null = null;
@@ -53,10 +72,14 @@ function buildRunnerSource(): string {
   ].join('\n');
 }
 
-function buildIframeSrcdoc(): string {
+export function buildIframeSrcdoc(versi: VersiJava = 8): string {
+  const loader = versi === 21 ? CHEERPJ5_CDN : CHEERPJ_CDN;
+  const init = versi === 21 ? "{ status: 'none', version: 21 }" : "{ status: 'none' }";
+  // Java 21: javac bawaan JDK (classpath kosong). Java 8: javac dari tools.jar milik situs.
+  const cekTools = versi === 21 ? 'false' : 'true';
   return `<!doctype html>
 <html><head>
-<script src="${CHEERPJ_CDN}"></script>
+<script src="${loader}"></script>
 <script>
 window.lastCompiledHash = null;
   function hashString(str) {
@@ -66,7 +89,7 @@ window.lastCompiledHash = null;
   }
 (async function() {
   try {
-    await cheerpjInit({ status: 'none' });
+    await cheerpjInit(${init});
     window.parent.postMessage({ type: 'cheerpj-ready' }, '*');
   } catch (e) {
     window.parent.postMessage({ type: 'cheerpj-error', message: String(e) }, '*');
@@ -77,12 +100,13 @@ window.lastCompiledHash = null;
     var d = ev.data;
     if (!d || d.type !== 'run') return;
     var id = d.id, runId = d.runId, toolsPath = d.toolsPath, enc = new TextEncoder();
+    var pakaiTools = ${cekTools};
     cheerpOSAddStringFile('/str/Main.java', enc.encode(d.code));
     cheerpOSAddStringFile('/str/Runner.java', enc.encode(d.runnerSource));
     cheerpOSAddStringFile('/str/stdin.txt', enc.encode(d.stdin || ''));
 
-    // Verify tools.jar is accessible
-    try {
+    // Verify tools.jar is accessible (hanya Java 8)
+    if (pakaiTools) try {
       var blob = await cjFileBlob(toolsPath);
       if (!blob || blob.size < 1000) {
         throw new Error('Blob too small');
@@ -97,7 +121,7 @@ window.lastCompiledHash = null;
       if (window.lastCompiledHash !== currentHash) {
         window.parent.postMessage({ type: 'status', id: id, status: 'Mengompilasi' }, '*');
         var cx = await cheerpjRunMain(
-        'com.sun.tools.javac.Main', toolsPath,
+        'com.sun.tools.javac.Main', pakaiTools ? toolsPath : '',
         '-Xstdout', '/files/javac' + runId + '.txt',
         '/str/Main.java', '/str/Runner.java', '-d', '/files/'
       );
@@ -115,7 +139,7 @@ window.lastCompiledHash = null;
         window.lastCompiledHash = currentHash;
       }
       window.parent.postMessage({ type: 'status', id: id, status: 'Menjalankan' }, '*');
-      var rx = await cheerpjRunMain('Runner', toolsPath + ':/files/', String(runId));
+      var rx = await cheerpjRunMain('Runner', pakaiTools ? toolsPath + ':/files/' : '/files/', String(runId));
       var stdout = '', stderr = '';
       try { stdout = await (await cjFileBlob('/files/out' + runId + '.txt')).text(); } catch(_) {}
       try { stderr = await (await cjFileBlob('/files/err' + runId + '.txt')).text(); } catch(_) {}
@@ -156,9 +180,9 @@ function getOrCreateIframe(): Promise<void> {
     };
     window.addEventListener('message', onMsg);
     
-    const toolsPath = getToolsPath();
-    console.log(toolsPath);
-    iframe.srcdoc = buildIframeSrcdoc();
+    const versi = versiJava();
+    if (versi === 21) console.info('[BisaNgoding] Mode percobaan Java 21 (CheerpJ 5). Kembali ke Java 8: tambahkan ?java=8');
+    iframe.srcdoc = buildIframeSrcdoc(versi);
   });
   return iframeReadyPromise;
 }
