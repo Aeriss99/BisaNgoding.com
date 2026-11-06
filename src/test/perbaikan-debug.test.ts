@@ -64,7 +64,7 @@ describe('Soal membawa konteksnya sendiri', () => {
   it('soal git log di Git Dasar menyebut riwayat commit-nya', () => {
     const gitLog = soal.filter(({ id, q }) => id.startsWith('git-dasar-06') && /git log --oneline/.test(q.code || ''));
     expect(gitLog.length).toBeGreaterThan(0);
-    for (const { q } of gitLog) expect(q.code).toMatch(/Riwayat/);
+    for (const { q } of gitLog) expect(`${q.question ?? ''}\n${q.code}`).toMatch(/Riwayat/);
   });
 });
 

@@ -7,7 +7,7 @@ import * as path from 'path';
  * Soal isian tanpa petunjuk ("git ___") membuat pelajar menebak-nebak dan terjebak.
  */
 const ROOT = path.resolve(__dirname, '../..');
-type Isian = { lesson: string; no: number; kelas: string; code: string; answers: string[] };
+type Isian = { lesson: string; no: number; kelas: string; question: string; code: string; answers: string[] };
 
 function semuaIsian(): Isian[] {
   const hasil: Isian[] = [];
@@ -21,7 +21,7 @@ function semuaIsian(): Isian[] {
       for (const f of fs.readdirSync(dir).filter((x) => x.startsWith('lesson-') && x.endsWith('.json'))) {
         const l = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
         (l.cards ?? []).forEach((c: { type: string; code?: string; answers?: string[] }, i: number) => {
-          if (c.type === 'fill_blank') hasil.push({ lesson: l.id, no: i + 1, kelas, code: c.code ?? '', answers: c.answers ?? [] });
+          if (c.type === 'fill_blank') hasil.push({ lesson: l.id, no: i + 1, kelas, question: c.question ?? '', code: c.code ?? '', answers: c.answers ?? [] });
         });
       }
     }
@@ -50,16 +50,16 @@ describe('Soal isian (fill_blank)', () => {
     expect(salah).toEqual([]);
   });
 
-  it('soal isian Git diawali baris petunjuk (# ...)', () => {
+  it('soal isian Git punya petunjuk (teks soal, atau baris # di kode)', () => {
     const salah = isian
-      .filter((s) => s.kelas === 'git' && !s.code.trimStart().startsWith('# '))
+      .filter((s) => s.kelas === 'git' && !s.question.trim() && !s.code.trimStart().startsWith('# '))
       .map((s) => `${s.lesson} kartu ${s.no}: ${s.code.split('\n')[0]}`);
     expect(salah).toEqual([]);
   });
 
-  it('kode di luar kotak isian tidak kosong (ada konteks yang bisa dibaca)', () => {
+  it('ada konteks yang bisa dibaca (teks soal, atau kode di luar kotak isian)', () => {
     const salah = isian
-      .filter((s) => s.code.replace(/___/g, '').replace(/\s+/g, '').length < 8)
+      .filter((s) => !s.question.trim() && s.code.replace(/___/g, '').replace(/\s+/g, '').length < 8)
       .map((s) => `${s.lesson} kartu ${s.no}`);
     expect(salah).toEqual([]);
   });
