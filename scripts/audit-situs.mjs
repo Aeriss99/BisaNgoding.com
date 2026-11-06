@@ -27,6 +27,14 @@ for (const c of courses) {
   }
 }
 console.log('jumlah rute:', rute.length);
+// Progres palsu: semua materi selesai dan semua quiz lulus, supaya semua modul terbuka.
+const semuaLesson = rute.filter((r) => r.startsWith('/lesson/')).map((r) => r.slice(8));
+const semuaModul = rute.filter((r) => r.startsWith('/module/')).map((r) => r.slice(8));
+const progresPalsu = {
+  completedLessons: semuaLesson, passedChecks: [], moduleStatus: {},
+  quizScores: Object.fromEntries(semuaModul.map((m) => [m, { score: 100, passed: true }])),
+  xp: 0, streak: 0, lastActiveDate: new Date().toISOString().slice(0, 10), version: 1,
+};
 
 const browser = await chromium.launch();
 const temuan = [];
@@ -71,6 +79,9 @@ async function periksa(page, r, lebar, langkah) {
 }
 async function kerja(antrean, lebar) {
   const ctx = await browser.newContext({ viewport: { width: lebar, height: 844 } });
+  await ctx.addInitScript((p) => {
+    try { if (!localStorage.getItem('bisangoding_progress_lokal')) localStorage.setItem('bisangoding_progress_lokal', p); } catch {}
+  }, JSON.stringify(progresPalsu));
   const page = await ctx.newPage();
   let ruteSekarang = '';
   page.on('pageerror', (e) => temuan.push({ rute: ruteSekarang, lebar, jenis: 'pageerror', isi: String(e).slice(0, 200) }));
@@ -101,15 +112,16 @@ async function kerja(antrean, lebar) {
   await ctx.close();
 }
 for (const lebar of [390, 1280]) {
-  const antrean = lebar === 390 ? [...rute] : rute.filter((r) => !r.startsWith('/lesson/'));
+  const antrean = lebar === 390 ? [...rute] : rute.filter((r) => !r.startsWith('/lesson/') && !r.startsWith('/module/'));
   await Promise.all(Array.from({ length: 4 }, () => kerja(antrean, lebar)));
 }
 await browser.close();
 fs.writeFileSync('audit-temuan.json', JSON.stringify(temuan, null, 1));
 const per = {};
 for (const t of temuan) (per[t.jenis] ??= []).push(t);
-for (const [j, xs] of Object.entries(per)) {
+for (let [j, xs] of Object.entries(per)) {
   console.log(`\n== ${j}: ${xs.length}`);
+  if (j === 'dialihkan') { const lain = xs.filter((x) => !x.rute.startsWith('/module/')); console.log(`  (module -> kelas?modul= itu disengaja; selain itu: ${lain.length})`); xs = lain; }
   const unik = new Map();
   for (const x of xs) { const k = x.isi.replace(/\d+px/g, 'Npx').slice(0, 120); if (!unik.has(k)) unik.set(k, []); unik.get(k).push(`${x.rute}@${x.lebar}${x.langkah ? '#' + x.langkah : ''}`); }
   for (const [k, rs] of [...unik.entries()].slice(0, 40)) console.log(`  [${rs.length}x] ${k} | contoh: ${rs.slice(0, 3).join(', ')}`);
