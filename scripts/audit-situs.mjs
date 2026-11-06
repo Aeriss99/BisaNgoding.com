@@ -83,6 +83,7 @@ async function kerja(antrean, lebar) {
   let browser = await chromium.launch();
   let ctx, page;
   let ruteSekarang = '';
+  let perluMuatUlang = false;
   const siapkan = async () => {
   ctx = await browser.newContext({ viewport: { width: lebar, height: 844 } });
   await ctx.addInitScript((p) => {
@@ -99,7 +100,9 @@ async function kerja(antrean, lebar) {
     const r = antrean.shift();
     ruteSekarang = r;
     try {
-      await page.goto('about:blank');
+      // Muat penuh hanya kalau halaman sebelumnya error, supaya error tidak menular tapi audit tetap cepat.
+      if (perluMuatUlang) { await page.goto('about:blank'); perluMuatUlang = false; }
+      const sebelum = temuan.length;
       await page.goto(`${DASAR}#${r}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForTimeout(700);
       await periksa(page, r, lebar, 0);
@@ -113,6 +116,7 @@ async function kerja(antrean, lebar) {
           await periksa(page, r, lebar, i);
         }
       }
+      if (temuan.slice(sebelum).some((t) => t.jenis === 'layarError' || t.jenis === 'pageerror')) perluMuatUlang = true;
     } catch (e) {
       temuan.push({ rute: r, lebar, jenis: 'gagal-buka', isi: String(e).slice(0, 150) });
       if (!browser.isConnected() || page.isClosed()) {
