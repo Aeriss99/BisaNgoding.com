@@ -3,6 +3,16 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+const lesson = [], modul = [];
+for (const k of fs.readdirSync('content', { withFileTypes: true }).filter((d) => d.isDirectory())) {
+  const mf = `content/${k.name}/modules.json`;
+  if (fs.existsSync(mf)) for (const m of JSON.parse(fs.readFileSync(mf, 'utf-8'))) modul.push(m.id);
+  for (const d of fs.readdirSync(`content/${k.name}`, { withFileTypes: true }).filter((d) => d.isDirectory()))
+    for (const n of fs.readdirSync(`content/${k.name}/${d.name}`).filter((x) => /^lesson-\d+\.json$/.test(x)))
+      lesson.push(JSON.parse(fs.readFileSync(`content/${k.name}/${d.name}/${n}`, 'utf-8')).id);
+}
+const p = { completedLessons: lesson, passedChecks: [], moduleStatus: {}, quizScores: Object.fromEntries(modul.map((m) => [m, { score: 100, passed: true }])), xp: 0, streak: 0, lastActiveDate: '2026-11-07', version: 1 };
+await ctx.addInitScript((v) => { try { localStorage.setItem('bisangoding_progress_lokal', v); } catch {} }, JSON.stringify(p));
 const page = await ctx.newPage();
 await page.goto('http://localhost:5173/#/lesson/java-lambda-04', { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(1500);
