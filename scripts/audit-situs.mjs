@@ -15,15 +15,18 @@ for (const c of courses) {
   for (const m of JSON.parse(fs.readFileSync(mf, 'utf-8'))) {
     if (m.status === 'soon') continue;
     rute.push(`/module/${m.id}`);
-    const dir = fs.readdirSync(`${C}/${c.id}`).map((d) => path.join(C, c.id, d)).find((d) => {
+    const dirs = fs.readdirSync(`${C}/${c.id}`).map((d) => path.join(C, c.id, d)).filter((d) => {
       const f = path.join(d, 'lesson-01.json');
       return fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf-8')).moduleId === m.id;
     });
-    if (!dir) continue;
-    if (fs.existsSync(path.join(dir, 'quiz.json'))) rute.push(`/quiz/${m.id}`);
-    for (const n of fs.readdirSync(dir).filter((x) => /^lesson-\d+\.json$/.test(x)).sort()) {
-      rute.push(`/lesson/${JSON.parse(fs.readFileSync(path.join(dir, n), 'utf-8')).id}`);
+    let adaQuiz = false;
+    for (const dir of dirs) {
+      if (fs.existsSync(path.join(dir, 'quiz.json'))) adaQuiz = true;
+      for (const n of fs.readdirSync(dir).filter((x) => /^lesson-\d+\.json$/.test(x)).sort()) {
+        rute.push(`/lesson/${JSON.parse(fs.readFileSync(path.join(dir, n), 'utf-8')).id}`);
+      }
     }
+    if (adaQuiz) rute.push(`/quiz/${m.id}`);
   }
 }
 console.log('jumlah rute:', rute.length);
@@ -92,6 +95,7 @@ async function kerja(antrean, lebar) {
     const r = antrean.shift();
     ruteSekarang = r;
     try {
+      await page.goto('about:blank');
       await page.goto(`${DASAR}#${r}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForTimeout(700);
       await periksa(page, r, lebar, 0);
@@ -124,7 +128,7 @@ for (let [j, xs] of Object.entries(per)) {
   if (j === 'dialihkan') { const lain = xs.filter((x) => !x.rute.startsWith('/module/')); console.log(`  (module -> kelas?modul= itu disengaja; selain itu: ${lain.length})`); xs = lain; }
   const unik = new Map();
   for (const x of xs) { const k = x.isi.replace(/\d+px/g, 'Npx').slice(0, 120); if (!unik.has(k)) unik.set(k, []); unik.get(k).push(`${x.rute}@${x.lebar}${x.langkah ? '#' + x.langkah : ''}`); }
-  for (const [k, rs] of [...unik.entries()].slice(0, 40)) console.log(`  [${rs.length}x] ${k} | contoh: ${rs.slice(0, 3).join(', ')}`);
+  for (const [k, rs] of [...unik.entries()].slice(0, 40)) console.log(`  [${rs.length}x] ${k} | contoh: ${rs.slice(0, j === 'layarError' || j === 'pageerror' ? 40 : 4).join(', ')}`);
 }
 console.log(`\nDIPERIKSA: ${statistik.halaman} tampilan, tombol Lanjut diklik ${statistik.lanjut} kali`);
 console.log(`TOTAL TEMUAN: ${temuan.length}`);
