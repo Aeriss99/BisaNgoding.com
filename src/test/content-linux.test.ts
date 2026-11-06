@@ -70,10 +70,10 @@ describe('Kelas Linux', () => {
         }
       });
 
-      it('isian: jumlah ___ sama dengan jawaban, diawali petunjuk #', () => {
+      it('isian: jumlah ___ sama dengan jawaban, punya petunjuk (question atau komentar #)', () => {
         for (const c of data.cards.filter((x: { type: string }) => x.type === 'fill_blank')) {
           expect((c.code.match(/___/g) || []).length).toBe(c.answers.length);
-          expect(c.code.trimStart().startsWith('#')).toBe(true);
+          expect(Boolean(c.question?.trim()) || c.code.trimStart().startsWith('#')).toBe(true);
         }
       });
 

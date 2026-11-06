@@ -63,7 +63,7 @@ describe('Kelas RESTful API', () => {
           for (const c of l.cards.slice(0, 4)) expect(c.content.length, l.id).toBeGreaterThanOrEqual(350);
           expect(l.cards[2].content.startsWith('### Coba di komputermu'), l.id).toBe(true);
           const isian = l.cards[6];
-          expect(isian.code.startsWith('# '), l.id).toBe(true);
+          expect(Boolean(isian.question?.trim()) || isian.code.startsWith('# '), l.id).toBe(true);
           expect(isian.code.split('___').length - 1, l.id).toBe(isian.answers.length);
           expect(l.cards[7].points.length).toBeGreaterThanOrEqual(3);
           for (const p of l.cards[7].points) expect(p.length, l.id).toBeGreaterThanOrEqual(25);

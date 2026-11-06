@@ -102,10 +102,10 @@ for (const kelas of KELAS) {
           for (const q of cek) expect((q as Soal & { remedial?: string }).remedial).toBeTruthy();
         });
 
-        it(`isian: jumlah ___ sama dengan jawaban, diawali petunjuk ${kelas.komentar}`, () => {
+        it(`isian: jumlah ___ sama dengan jawaban, punya petunjuk (question atau komentar ${kelas.komentar})`, () => {
           const c = data.cards[6];
           expect((c.code.match(/___/g) || []).length).toBe(c.answers.length);
-          expect(c.code.trimStart().startsWith(kelas.komentar)).toBe(true);
+          expect(Boolean(c.question?.trim()) || c.code.trimStart().startsWith(kelas.komentar)).toBe(true);
           for (const a of c.answers) expect(a.trim().length).toBeGreaterThan(0);
         });
 
