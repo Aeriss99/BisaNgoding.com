@@ -12,6 +12,7 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 | **Tailwind CSS** | Tailwind v4: warna, spacing, flexbox, grid, responsif mobile-first, state, group/peer, dark mode, nilai bebas, tema dengan @theme, @apply, dan proyek tampilan Todolist (pratinjau jalan di browser) |
 | **React** | React 19: komponen dan JSX, props, render bersyarat, daftar dan key, state dan event, form terkendali, useRef, useEffect (dependency, cleanup, ambil data, localStorage, StrictMode), Context, useReducer, custom hook, React Router 7, dan proyek Todolist sampai build dan terbit (kode React jalan di browser) |
 | **Linux & Terminal** | Mengenal Linux, terminal dan navigasi, file dan folder, membaca dan mencari teks, permission, menginstal program, proses dan service, jaringan dan SSH, bash scripting, cron, mengamankan server, web server Nginx |
+| **Microsoft Excel** | Lembar kerja dan rumus (pengaturan Indonesia), SUM sampai referensi absolut, format Rupiah dan tanggal, IF, COUNTIF/SUMIF, fungsi teks dan tanggal, VLOOKUP, INDEX+MATCH, XLOOKUP, sort, filter, PivotTable, grafik, studi kasus dan simulasi tes kerja, dengan praktik di lembar Excel tiruan |
 | **RESTful API** | HTTP, prinsip REST, curl dan fetch, desain API, OpenAPI, keamanan (OWASP API Top 10), proyek API toko online |
 | **Spring Boot** | Spring Dasar: IoC, bean, dependency injection, component scan, scope dan siklus hidup bean (teori + praktik di komputer sendiri) |
 | **DevOps** | Mengenal DevOps (siklus, CI/CD, container, DORA), Docker Dasar, Docker Compose, CI/CD Lanjutan (build image, versi, secret, cache, keamanan pipeline), Deploy ke Server, Kubernetes Dasar, Cloud Dasar, Monitoring dan Log, dan Terraform (teori + praktik di komputer sendiri) |
@@ -66,7 +67,7 @@ content/              materi, satu folder per kelas
   courses.json        daftar kelas
   jalur-karier.json   jalur karier di beranda
   roadmap.json        rencana belajar per peran
-  <kelas>/            java, javascript, git, mysql, linux, html-css, tailwind, rest-api, english
+  <kelas>/            java, javascript, git, mysql, linux, html-css, tailwind, rest-api, english, excel
     modules.json      daftar modul kelas itu
     <modul>/          lesson-XX.json + quiz.json
 public/               gambar, ilustrasi, audio English, ikon PWA, dan tools.jar untuk CheerpJ

@@ -26,7 +26,7 @@ function bolehAnimasi(): boolean {
   return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-function Teks({ teks }: { teks: string }) {
+export function Teks({ teks }: { teks: string }) {
   return (
     <>
       {pecahTeks(teks).map((b, i) =>
@@ -47,7 +47,7 @@ function Teks({ teks }: { teks: string }) {
   );
 }
 
-function GelembungLingga({ teks, label, tantangan }: { teks: string; label?: string; tantangan?: boolean }) {
+export function GelembungLingga({ teks, label, tantangan }: { teks: string; label?: string; tantangan?: boolean }) {
   return (
     <div className="flex items-start gap-2.5">
       <div

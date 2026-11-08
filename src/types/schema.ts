@@ -159,6 +159,7 @@ export type Card =
   | PraktikTerminalCard
   | PraktikGitHubCard
   | PraktikJavaCard
+  | PraktikExcelCard
   | CekGitHubCard;
 
 /** Proyek Akhir sungguhan: memeriksa satu tahap di repo GitHub pengguna lewat API publik (src/lib/cekGithub.ts). */
@@ -212,6 +213,44 @@ export interface PraktikTerminalCard {
   penutup: string;
   bawaan?: Record<string, string>;
   tantangan?: { tugas: string; perintah: string; pola: string[]; berhasil: string };
+}
+
+/** Satu langkah praktik di lembar Excel tiruan. Logika rumus di src/lib/excel.ts. */
+export interface LangkahExcel {
+  /** Kata-kata Lingga sebelum langkah ini. Boleh memakai `kode` dan **tebal**. */
+  arahan: string;
+  /** Sel yang diisi pelajar, contoh "D2". */
+  sel: string;
+  /** Kalau diisi, isian di `sel` disalin (AutoFill) sampai sel ini, contoh "D6". */
+  sampai?: string;
+  /** Isian yang benar (rumus berawalan = atau nilai). Ketikan pelajar benar kalau hasil di semua sel sama. */
+  jawaban: string;
+  /** Pola (regex, huruf besar-kecil diabaikan) yang wajib ada, misalnya fungsi yang sedang dipelajari. */
+  wajib?: { pola: string; pesan: string }[];
+  /** Contoh dari Lingga: hanya langkah pertama. */
+  otomatis?: boolean;
+  /** Tantangan: arahan hanya menyebut tujuan karena rumusnya sudah pernah dipakai. */
+  tantangan?: boolean;
+  benar?: string;
+  petunjuk: string;
+  /** Kesalahan yang sering terjadi: pola regex pada ketikan (tanpa spasi) dan reaksi Lingga. */
+  salah?: { pola: string; reaksi: string }[];
+}
+
+export type FormatSelExcel = 'umum' | 'ribuan' | 'rupiah' | 'desimal2' | 'persen' | 'tanggal';
+
+export interface PraktikExcelCard {
+  type: 'praktik_excel';
+  judul: string;
+  pembuka: string;
+  penutup: string;
+  /** Isi awal lembar: alamat -> angka, teks, atau rumus berawalan =. */
+  sel: Record<string, string | number>;
+  /** Format tampilan per kolom ("C") atau per sel ("C2"). */
+  format?: Record<string, FormatSelExcel>;
+  /** Lebar kolom dalam piksel, contoh { "A": 120 }. */
+  lebar?: Record<string, number>;
+  langkah: LangkahExcel[];
 }
 
 /** Satu langkah praktik Java bersama Lingga. Lihat src/lib/praktikJava.ts. */
