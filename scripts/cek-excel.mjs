@@ -44,18 +44,15 @@ async function kerjakan(page, c, id, i) {
   } else if (c.type === 'predict_output') {
     await page.getByRole('button', { name: c.options[c.answer], exact: true }).first().click();
   } else if (c.type === 'understanding_check') {
-    const kunci = new Map(c.questions.map((q) => [q.question, q.options[q.answer]]));
+    const rapi = (x) => x.replace(/\s+/g, ' ').trim();
     for (let n = 0; n < 8; n++) {
-      const tanya = [...kunci.keys()].find((q) => true);
+      const teks = rapi(await page.locator('body').innerText());
+      const q = c.questions.find((q) => teks.includes(rapi(q.question)) && (!q.code || teks.includes(rapi(q.code))));
       let diklik = false;
-      for (const [q, jawab] of kunci) {
-        if (await page.getByText(q, { exact: true }).count()) {
-          const b = page.getByRole('button', { name: jawab, exact: true }).first();
-          if ((await b.count()) && (await b.isEnabled())) { await b.click(); diklik = true; }
-          break;
-        }
+      if (q) {
+        const b = page.getByRole('button', { name: q.options[q.answer], exact: true }).first();
+        if ((await b.count()) && (await b.isEnabled())) { await b.click(); diklik = true; }
       }
-      void tanya;
       await page.waitForTimeout(80);
       const next = page.getByRole('button', { name: 'Soal Berikutnya' });
       if (await next.count()) { await next.click(); await page.waitForTimeout(80); continue; }
