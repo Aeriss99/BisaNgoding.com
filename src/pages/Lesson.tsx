@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { useParams, Navigate, Link } from 'react-router-dom';
 import {
   getLesson,
@@ -49,6 +49,7 @@ const Mermaid = lazy(() =>
 );
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { PemutarLatihan } from '../components/latihan/PemutarLatihan';
+import { useCtrlEnter } from '../lib/ctrlEnter';
 
 function CodeBlockWithCopy({ children, className, ...props }: any) {
   const [copied, setCopied] = useState(false);
@@ -131,6 +132,10 @@ export default function LessonPage() {
     if (!lessonId || isLessonFinished) return;
     simpanCadanganMateri(lessonId, currentCardIndex, attemptsPerCard);
   }, [lessonId, currentCardIndex, attemptsPerCard, isLessonFinished]);
+
+  const lanjutKeyboard = useRef<() => void>(() => {});
+  lanjutKeyboard.current = () => {};
+  useCtrlEnter(() => lanjutKeyboard.current());
 
   if (!lesson) {
     return (
@@ -625,6 +630,11 @@ export default function LessonPage() {
   // Multiple choice shows its own 'next' button when correct, but code challenge / fill blank can use the footer one if passed
   const showFooterNextButton = !isQuizCard || challengePassed;
 
+  lanjutKeyboard.current = () => {
+    const pilihanGandaBenar = card.type === 'multiple_choice' && showExplanation && isAnswerCorrect === true;
+    if (showFooterNextButton || pilihanGandaBenar) nextCard();
+  };
+
   const info = infoMateri(lesson);
   const judulMenu = info.nomor ? `${info.nomor} · ${lesson.title}` : lesson.title;
 
@@ -680,6 +690,7 @@ export default function LessonPage() {
             ) : (
               <Ikon nama="arrow" ukuran={20} tebal={2.5} />
             )}
+            <kbd className="hidden lg:inline ml-1 rounded border border-[var(--color-text-main)] bg-white/70 px-1.5 py-0.5 font-mono text-[11px] font-bold">Ctrl+Enter</kbd>
           </button>
         ) : (
           <div className="flex-1 lg:flex-none lg:w-[400px] h-14 lg:h-[52px] border-2 border-dashed border-[#8a857a] rounded-xl bg-[#efeadf] text-[#4d4a44] flex items-center justify-center px-3 text-center text-[14px] font-bold">
