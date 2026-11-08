@@ -1,5 +1,7 @@
 // Mencoba Java 8 (bawaan) dan Java 21 (?java=21) di Chromium sungguhan lewat window.runJavaCode.
-import { chromium } from 'playwright';
+import { chromium, webkit, devices } from 'playwright';
+const MESIN = process.env.MESIN || 'chromium';
+const PERANGKAT = process.env.PERANGKAT ? devices[process.env.PERANGKAT] : {};
 
 const URL_DASAR = process.env.URL_DASAR || 'http://localhost:4173/';
 const PROGRAM = {
@@ -16,9 +18,10 @@ const PROGRAM = {
 };
 
 let gagal = 0;
-const browser = await chromium.launch();
+const browser = await (MESIN === 'webkit' ? webkit : chromium).launch();
+console.log(`MESIN ${MESIN} PERANGKAT ${process.env.PERANGKAT || '-'}`);
 for (const mode of ['8', '21']) {
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ ...PERANGKAT });
   const page = await ctx.newPage();
   page.on('console', (m) => { if (m.type() === 'error') console.log(`  [konsol ${mode}] ${m.text().slice(0, 200)}`); });
   await page.goto(`${URL_DASAR}?java=${mode}`, { waitUntil: 'load' });
