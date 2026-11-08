@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import Landing from './pages/Landing';
 import Profile from './pages/Profile';
@@ -65,9 +65,20 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function LessonRoute() {
+  const { lessonId } = useParams();
+  return <LessonPage key={lessonId} />;
+}
+
+function QuizRoute() {
+  const { moduleId } = useParams();
+  return <QuizPage key={moduleId} />;
+}
+
 function AppRoutes() {
   const { user, loading, sedangPulihkanPassword, sudahVerifikasiEmail } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
 
   const isDevBypass = import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS === 'true';
   const isLoggedIn = user || isDevBypass;
@@ -98,6 +109,7 @@ function AppRoutes() {
   const perluVerifikasi = user && !isDevBypass && sudahVerifikasiEmail === false;
 
   return (
+    <ErrorBoundary resetKey={location.pathname}>
     <Routes>
       <Route
         path="/"
@@ -138,9 +150,10 @@ function AppRoutes() {
       </Route>
 
       {/* Routes without Layout */}
-      <Route path="/lesson/:lessonId" element={<RequireAuth><LessonPage /></RequireAuth>} />
-      <Route path="/quiz/:moduleId" element={<RequireAuth><QuizPage /></RequireAuth>} />
+      <Route path="/lesson/:lessonId" element={<RequireAuth><LessonRoute /></RequireAuth>} />
+      <Route path="/quiz/:moduleId" element={<RequireAuth><QuizRoute /></RequireAuth>} />
     </Routes>
+    </ErrorBoundary>
   );
 }
 
