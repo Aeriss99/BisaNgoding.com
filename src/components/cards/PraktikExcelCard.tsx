@@ -73,6 +73,11 @@ function Praktik({ card, onSuccess }: { card: PraktikExcelCard; onSuccess: (atte
   const [baruDiisi, setBaruDiisi] = useState<Set<string>>(new Set());
   const [dipilih, setDipilih] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  /** Kotak ketik di dalam sel hijau (sel aktif), seperti mengetik langsung di sel Excel. */
+  const selRef = useRef<HTMLInputElement>(null);
+  /** Kotak ketik terakhir yang dipakai (di sel atau di kotak fx), untuk menyisipkan alamat dan fokus ulang. */
+  const inputAktif = useRef<HTMLInputElement | null>(null);
+  const fokusKetik = () => (inputAktif.current ?? inputRef.current)?.focus();
   const akhirRef = useRef<HTMLDivElement>(null);
   const sudahBerinteraksi = useRef(false);
 
@@ -166,19 +171,23 @@ function Praktik({ card, onSuccess }: { card: PraktikExcelCard; onSuccess: (atte
     const tambahan = jumlahSalah >= 2 ? '\n\nKalau buntu, tekan **Lihat jawabannya**.' : '';
     const teks = hasil.khusus ? `${hasil.pesan}${tambahan}` : `${hasil.pesan} ${langkah.petunjuk}${tambahan}`;
     setEntri((e) => [...e, { jenis: 'lingga', teks }]);
-    inputRef.current?.focus();
+    fokusKetik();
   };
 
   const lihatJawaban = () => {
     if (!langkah) return;
     setKetikan(langkah.jawaban);
-    inputRef.current?.focus();
+    fokusKetik();
   };
 
-  /** Klik sel: saat menulis rumus, alamatnya disisipkan (seperti Excel); selain itu tampilkan isinya. */
+  /**
+   * Klik sel: saat menulis rumus, alamatnya disisipkan (seperti Excel). Klik sel hijau tempat jawaban membuka
+   * kotak ketik di sel itu. Sel lain menampilkan isinya.
+   */
   const klikSel = (a: string) => {
-    const input = inputRef.current;
-    if (!selesai && langkah && !langkah.otomatis && ketikan.startsWith('=') && input) {
+    const input = inputAktif.current ?? inputRef.current;
+    const bolehKetik = !selesai && !!langkah && !langkah.otomatis;
+    if (bolehKetik && ketikan.startsWith('=') && input) {
       const awal = input.selectionStart ?? ketikan.length;
       const akhir = input.selectionEnd ?? awal;
       const baru = ketikan.slice(0, awal) + a + ketikan.slice(akhir);
@@ -187,6 +196,11 @@ function Praktik({ card, onSuccess }: { card: PraktikExcelCard; onSuccess: (atte
         input.focus();
         input.setSelectionRange(awal + a.length, awal + a.length);
       });
+      return;
+    }
+    if (bolehKetik && target.has(a)) {
+      setDipilih(null);
+      selRef.current?.focus();
       return;
     }
     setDipilih(a === dipilih ? null : a);
@@ -245,6 +259,7 @@ function Praktik({ card, onSuccess }: { card: PraktikExcelCard; onSuccess: (atte
             value={isiBar}
             readOnly={selesai || !!langkah?.otomatis}
             onChange={(ev) => setKetikan(ev.target.value)}
+            onFocus={(ev) => (inputAktif.current = ev.currentTarget)}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
@@ -292,18 +307,48 @@ function Praktik({ card, onSuccess }: { card: PraktikExcelCard; onSuccess: (atte
                     const isTarget = target.has(a);
                     const isAktif = !!langkah && !selesai && a === langkah.sel.toUpperCase();
                     const isBaru = baruDiisi.has(a);
+                    const ketikDiSel = isAktif && !!langkah && !langkah.otomatis;
                     return (
                       <td
                         key={a}
                         onClick={() => klikSel(a)}
                         title={a}
-                        className={`border border-[#d6dbd8] px-1.5 py-1 whitespace-nowrap cursor-cell ${
+                        className={`border border-[#d6dbd8] px-1.5 py-1 whitespace-nowrap ${ketikDiSel ? 'cursor-text' : 'cursor-cell'} ${
                           rataKanan(v) ? 'text-right tabular-nums' : 'text-left'
                         } ${b === 1 ? 'font-bold bg-[#f6f7f6]' : ''} ${
                           isTarget ? 'bg-[#e8f5ec] outline outline-2 -outline-offset-2 outline-[#1e7e45]' : isBaru ? 'bg-[#fff7d6]' : ''
                         } ${isAktif ? 'outline-[3px]' : ''} ${dipilih === a ? 'bg-[#dbeafe]' : ''}`}
                       >
-                        {isTarget && v === null ? <span className="sr-only">{a} diisi di sini</span> : tampilkan(v, formatSel(card, a))}
+                        {ketikDiSel ? (
+                          <input
+                            ref={selRef}
+                            type="text"
+                            size={1}
+                            aria-label={`Ketik langsung di sel ${a}`}
+                            value={ketikan}
+                            onChange={(ev) => setKetikan(ev.target.value)}
+                            onFocus={(ev) => (inputAktif.current = ev.currentTarget)}
+                            onClick={(ev) => ev.stopPropagation()}
+                            onKeyDown={(ev) => {
+                              if (ev.key === 'Enter') {
+                                ev.preventDefault();
+                                masukkan();
+                              }
+                            }}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
+                            enterKeyHint="done"
+                            className="block w-full min-w-0 bg-transparent font-mono text-[13px] leading-[18px] outline-none"
+                          />
+                        ) : isAktif && langkah?.otomatis && hurufContoh !== null ? (
+                          <span className="font-mono">{isiBar}</span>
+                        ) : isTarget && v === null ? (
+                          <span className="sr-only">{a} diisi di sini</span>
+                        ) : (
+                          tampilkan(v, formatSel(card, a))
+                        )}
                       </td>
                     );
                   })}
@@ -340,7 +385,7 @@ function Praktik({ card, onSuccess }: { card: PraktikExcelCard; onSuccess: (atte
 
       {!selesai && langkah && !langkah.otomatis && (
         <div className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-[#5a5a5a]">
-          <span>Klik sel saat menulis rumus untuk menyisipkan alamatnya.</span>
+          <span>Klik sel hijau untuk mengetik langsung di sel. Saat menulis rumus, klik sel lain untuk menyisipkan alamatnya.</span>
           {salahDiLangkah >= 2 && (
             <button type="button" onClick={lihatJawaban} className="text-[14px] font-bold underline bg-transparent border-none p-0 cursor-pointer text-[var(--color-text-main)]">
               Lihat jawabannya
