@@ -7,6 +7,7 @@ import { checkHtmlChallenge } from '../../lib/htmlChallenge';
 import ReactMarkdown from 'react-markdown';
 import { Play, Loader2, CheckCircle, RefreshCw } from 'lucide-react';
 import { getErrorHint } from '../../lib/errorHints';
+import { formatKeluaranHtml } from '../../lib/formatKeluaran';
 import { runJavaCode } from '../../lib/javaRunner';
 import { runJsCode, pratinjauHtml } from '../../lib/jsRunner';
 
@@ -43,37 +44,6 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
 
   const resetCode = () => {
     setCode(card.code);
-  };
-
-  const formatOutput = (outputStr: string) => {
-    // If it's a compiler error, we should limit to 5 errors.
-    // Javac outputs errors starting with file name, e.g. "Main.java:..."
-    const lines = outputStr.split('\n');
-    let errorCount = 0;
-    const resultLines = [];
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.includes('at Runner') || line.includes('at java.base/jdk.internal') || line.includes('at java.base/java.lang.reflect') || line.includes('at java.base/sun.reflect')) {
-        continue;
-      }
-      
-      // Match compiler error start line: e.g., "/str/Main.java:5: error:"
-      if (line.match(/\.java:\d+: error:/)) {
-        errorCount++;
-        if (errorCount > 5) {
-          // If we hit the 6th error, stop parsing
-          resultLines.push(`<div class="text-[#E0B25B] mt-2 font-bold">...dan beberapa error lainnya. Perbaiki error pertama dulu, biasanya sisanya ikut hilang.</div>`);
-          break;
-        }
-      }
-      
-      let formattedLine = line.replace(/\/str\/Main\.java/g, 'Main.java').replace(/\/files\/Main\.java/g, 'Main.java');
-      formattedLine = formattedLine.replace(/(Main\.java:\d+(:\d+)?)/g, '<span class="text-[#548AF7] underline cursor-pointer hover:text-blue-400">$1</span>');
-      resultLines.push(`<div key="${i}">${formattedLine}</div>`);
-    }
-
-    return <div dangerouslySetInnerHTML={{ __html: resultLines.join('') }} />;
   };
 
   const getFirstErrorHint = (out: string) => {
@@ -201,7 +171,7 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
               </div>
               <div className="p-4 font-mono text-[14px] leading-[1.6] whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] text-[#DFE1E5]">
                 <div className="text-[#6F737A] mb-2">{language === 'javascript' ? (card.html ? 'Console browser' : 'node script.js') : 'java Main'}</div>
-                {formatOutput(output)}
+                <div dangerouslySetInnerHTML={{ __html: formatKeluaranHtml(output) }} />
                 <div className="text-[#6F737A] mt-2 flex items-center gap-1.5">
                   <div className={`w-2 h-2 rounded-full ${output.includes('Error:') || output.includes('Gagal:') || output.includes('Exception') ? 'bg-[#F75464]' : 'bg-[#6F737A]'}`} />
                   Process finished with exit code {output.includes('Error:') || output.includes('Gagal:') || output.includes('Exception') ? '1' : '0'}
@@ -299,37 +269,6 @@ export function CodeChallengeCardComponent({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3000);
-  };
-
-  const formatOutput = (outputStr: string) => {
-    // If it's a compiler error, we should limit to 5 errors.
-    // Javac outputs errors starting with file name, e.g. "Main.java:..."
-    const lines = outputStr.split('\n');
-    let errorCount = 0;
-    const resultLines = [];
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.includes('at Runner') || line.includes('at java.base/jdk.internal') || line.includes('at java.base/java.lang.reflect') || line.includes('at java.base/sun.reflect')) {
-        continue;
-      }
-      
-      // Match compiler error start line: e.g., "/str/Main.java:5: error:"
-      if (line.match(/\.java:\d+: error:/)) {
-        errorCount++;
-        if (errorCount > 5) {
-          // If we hit the 6th error, stop parsing
-          resultLines.push(`<div class="text-[#E0B25B] mt-2 font-bold">...dan beberapa error lainnya. Perbaiki error pertama dulu, biasanya sisanya ikut hilang.</div>`);
-          break;
-        }
-      }
-      
-      let formattedLine = line.replace(/\/str\/Main\.java/g, 'Main.java').replace(/\/files\/Main\.java/g, 'Main.java');
-      formattedLine = formattedLine.replace(/(Main\.java:\d+(:\d+)?)/g, '<span class="text-[#548AF7] underline cursor-pointer hover:text-blue-400">$1</span>');
-      resultLines.push(`<div key="${i}">${formattedLine}</div>`);
-    }
-
-    return <div dangerouslySetInnerHTML={{ __html: resultLines.join('') }} />;
   };
 
   const getFirstErrorHint = (out: string) => {
@@ -533,7 +472,7 @@ export function CodeChallengeCardComponent({
               </div>
               <div className="p-4 font-mono text-[14px] leading-[1.6] whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] text-[#DFE1E5]">
                 <div className="text-[#6F737A] mb-2">{(language === 'html' || language === 'css') ? (language === 'css' ? 'Pemeriksaan aturan CSS' : 'Pemeriksaan struktur HTML') : language === 'javascript' ? (card.html ? 'Console browser' : 'node script.js') : 'java Main'}</div>
-                {(language === 'html' || language === 'css') ? output : formatOutput(output)}
+                {(language === 'html' || language === 'css') ? output : <div dangerouslySetInnerHTML={{ __html: formatKeluaranHtml(output) }} />}
                 {(language === 'html' || language === 'css') ? (
                   <p className={`mt-2 font-bold ${isSuccess ? 'text-[var(--color-success)]' : 'text-[#F75464]'}`}>
                     {isSuccess ? 'Semua kriteria terpenuhi.' : 'Periksa kembali kode sesuai petunjuk di atas.'}
