@@ -216,7 +216,6 @@ function Praktik({ card, onSuccess }: { card: PraktikExcelCard; onSuccess: (atte
             </div>
           )
         )}
-        <div ref={akhirRef} />
       </div>
 
       <div className="rounded-xl border-2 border-[var(--color-text-main)] bg-white overflow-hidden shadow-[3px_3px_0_var(--color-text-main)]">
@@ -320,6 +319,8 @@ function Praktik({ card, onSuccess }: { card: PraktikExcelCard; onSuccess: (atte
           </p>
         )}
       </div>
+      {/* Setelah Lingga membalas, gulir sampai lembar terlihat (pesan terbaru tepat di atasnya). */}
+      <div ref={akhirRef} />
 
       {!selesai && langkah?.otomatis && (
         <div className="flex items-center justify-between gap-3">

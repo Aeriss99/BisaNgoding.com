@@ -43,6 +43,11 @@ function cekSoalKode(s: { question?: string; code?: string; options: string[]; a
   return 1;
 }
 
+/** Pilihan yang hanya beda jumlah spasi tidak bisa dibedakan di layar. */
+function cekPilihanBeda(s: { options: string[] }, asal: string) {
+  expect(new Set(s.options.map((o) => o.replace(/\s+/g, ' ').trim())).size, `${asal}: pilihan hanya beda spasi`).toBe(s.options.length);
+}
+
 describe('Kelas Excel: modul', () => {
   it('9 modul berurutan, order 170-178, requires berantai, modul terakhir Proyek Akhir', () => {
     expect(modul.map((m) => m.order)).toEqual([170, 171, 172, 173, 174, 175, 176, 177, 178]);
@@ -135,12 +140,16 @@ describe('Kelas Excel: soal dengan isi sel dicek dengan mesin', () => {
         for (const c of l.cards) {
           if (c.type === 'predict_output') {
             expect(c.question, l.id).toMatch(/tampil di [A-Z]+\d+/);
+            cekPilihanBeda(c, l.id);
             dicek += cekSoalKode(c, l.id);
           }
           if (c.type === 'understanding_check') {
             expect(c.questions).toHaveLength(3);
             expect(new Set(c.questions.map((q) => q.answer)).size, l.id).toBeGreaterThan(1);
-            for (const q of c.questions) dicek += cekSoalKode(q, l.id);
+            for (const q of c.questions) {
+              cekPilihanBeda(q, l.id);
+              dicek += cekSoalKode(q, l.id);
+            }
           }
           if (c.type === 'fill_blank') {
             expect((c.code.match(/___/g) ?? []).length, l.id).toBe(c.answers.length);
@@ -155,6 +164,7 @@ describe('Kelas Excel: soal dengan isi sel dicek dengan mesin', () => {
         expect(new Set(soal.map((s) => s.question + (s.code ?? ''))).size).toBe(20);
         for (const s of soal) {
           expect(new Set(s.options).size, s.id).toBe(4);
+          cekPilihanBeda(s, s.id);
           dicek += cekSoalKode(s, s.id);
         }
       }

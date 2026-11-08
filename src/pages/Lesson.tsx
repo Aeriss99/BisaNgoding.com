@@ -519,7 +519,7 @@ export default function LessonPage() {
             </h3>
             <ul className="list-disc pl-5 space-y-2">
               {c.points.map((pt, i) => (
-                <li key={i}>{pt}</li>
+                <li key={i} className="[overflow-wrap:anywhere]">{pt}</li>
               ))}
             </ul>
           </div>
