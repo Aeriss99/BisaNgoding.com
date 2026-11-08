@@ -14,6 +14,7 @@ export const BIDANG: { judul: string; sub: string; warna: string; kelas: string[
   { judul: 'Web frontend', sub: 'Tampilan website', warna: 'var(--color-landing-cyan)', kelas: ['html-css', 'tailwind', 'react'] },
   { judul: 'Backend dan database', sub: 'Server, API, dan data', warna: 'var(--color-primary)', kelas: ['mysql', 'spring-boot', 'nodejs'] },
   { judul: 'DevOps dan cloud', sub: 'Server, otomatisasi, cloud', warna: 'var(--color-landing-purple)', kelas: ['devops'] },
+  { judul: 'Kerja kantor', sub: 'Siap tes kerja admin', warna: 'var(--color-landing-cyan)', kelas: ['excel'] },
 ];
 
 function KartuKelas({ c }: { c: Course }) {

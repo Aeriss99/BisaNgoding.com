@@ -18,6 +18,7 @@ export const WARNA_KELAS: Record<string, string> = {
   devops: 'var(--color-landing-purple)',
   git: 'var(--color-landing-magenta)',
   'english-it': 'var(--color-landing-magenta)',
+  excel: 'var(--color-landing-cyan)',
 };
 
 export function warnaKelas(id: string): string {

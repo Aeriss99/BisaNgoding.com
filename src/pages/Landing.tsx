@@ -25,6 +25,7 @@ export const STIKER_MAP: Record<string, StikerConfig> = {
   tailwind: { label: 'TAILWIND', warna: '#7dd3fc', bentuk: 'kotak', rotasi: 3 },
   typescript: { label: 'TYPESCRIPT', warna: 'transparent', bentuk: 'pil', rotasi: 8 },
   react: { label: 'REACT', warna: '#61dafb', bentuk: 'bulat', rotasi: -5 },
+  excel: { label: 'EXCEL', warna: '#7ee2a8', bentuk: 'kotak', rotasi: 5 },
 };
 
 const PREFERRED_STIKER_ORDER = [
@@ -42,6 +43,7 @@ const PREFERRED_STIKER_ORDER = [
   'tailwind',
   'typescript',
   'react',
+  'excel',
 ];
 
 const FAQ_LIST = [
