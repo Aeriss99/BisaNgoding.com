@@ -98,6 +98,29 @@ describe('PraktikExcelCardComponent', () => {
     expect(input.value).toBe('=B2');
   });
 
+  it('klik sel hijau membuka kotak ketik di sel itu, Enter di sel memeriksa jawaban', () => {
+    render(<PraktikExcelCardComponent card={kartu} onSuccess={vi.fn()} />);
+    const diSel = screen.getByLabelText('Ketik langsung di sel D2');
+    fireEvent.click(screen.getByTitle('D3'));
+    expect(document.activeElement).toBe(diSel);
+    expect(screen.queryByRole('status')).toBeNull();
+    fireEvent.change(diSel, { target: { value: '=B2*C2' } });
+    expect((screen.getByLabelText(/Ketik rumus atau isi sel/) as HTMLInputElement).value).toBe('=B2*C2');
+    fireEvent.keyDown(diSel, { key: 'Enter' });
+    expect(screen.getAllByText('Rp75.000')).toHaveLength(2);
+    expect(screen.getByLabelText('Ketik langsung di sel D4')).toBeInTheDocument();
+  });
+
+  it('menulis rumus di sel lalu klik sel lain menyisipkan alamat ke sel itu', () => {
+    render(<PraktikExcelCardComponent card={kartu} onSuccess={vi.fn()} />);
+    const diSel = screen.getByLabelText('Ketik langsung di sel D2') as HTMLInputElement;
+    diSel.focus();
+    fireEvent.change(diSel, { target: { value: '=' } });
+    diSel.setSelectionRange(1, 1);
+    fireEvent.click(screen.getByTitle('C2'));
+    expect(diSel.value).toBe('=C2');
+  });
+
   it('klik sel di luar mode rumus menampilkan isinya', () => {
     render(<PraktikExcelCardComponent card={kartu} onSuccess={vi.fn()} />);
     fireEvent.click(screen.getByTitle('B2'));
