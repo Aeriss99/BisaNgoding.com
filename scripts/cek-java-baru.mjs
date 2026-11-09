@@ -48,34 +48,53 @@ for (const t of tugas) {
   else if (t.harap !== null && rapi(r.stdout) !== rapi(t.harap)) temuan.push(`${t.asal}: BEDA\n   harap=${JSON.stringify(rapi(t.harap)).slice(0, 300)}\n   dapat=${JSON.stringify(rapi(r.stdout)).slice(0, 300)}`);
   if (i % 25 === 0) console.log(`  ${i}/${tugas.length}, temuan ${temuan.length}`);
 }
-// Tampilan HP
+// Tampilan HP: server dev dengan VITE_DEV_BYPASS (port 5173), semua materi baru kartu demi kartu
+const semuaId = [];
+for (const f of fs.readdirSync('content/java').filter((x) => x.startsWith('module-'))) {
+  for (const n of fs.readdirSync(`content/java/${f}`).filter((x) => x.startsWith('lesson-'))) semuaId.push(JSON.parse(fs.readFileSync(`content/java/${f}/${n}`, 'utf-8')).id);
+}
+const modulJava = JSON.parse(fs.readFileSync('content/java/modules.json', 'utf-8')).map((m) => m.id);
+const progres = { completedLessons: semuaId, passedChecks: [], moduleStatus: {}, quizScores: Object.fromEntries(modulJava.map((m) => [m, { score: 100, passed: true }])), xp: 0, streak: 0, lastActiveDate: '2026-11-10', version: 1 };
+const FOTO = new Set(['java-input-output-02#6', 'java-input-output-03#7', 'java-input-output-08#5', 'java-oop-todolist-06#7', 'java-oop-todolist-03#6', 'java-apache-maven-04#5', 'java-apache-maven-04#6', 'java-oop-11#5']);
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+await ctx.addInitScript((v) => { try { localStorage.setItem('bisangoding_progress_lokal', v); } catch {} }, JSON.stringify(progres));
 const hp = await ctx.newPage();
-await hp.addInitScript(() => { try { localStorage.setItem('bisangoding_progress_lokal', JSON.stringify({ completedLessons: [], passedChecks: [], moduleStatus: {}, quizScores: {}, xp: 0, streak: 0, lastActiveDate: '2026-11-10', version: 1 })); } catch {} });
-hp.on('pageerror', (e) => temuan.push(`pageerror ${String(e).slice(0, 200)}`));
-for (const [id, kartu] of [['java-input-output-02', 6], ['java-input-output-03', 7], ['java-oop-todolist-06', 7], ['java-apache-maven-04', 6], ['java-oop-11', 5]]) {
-  await hp.goto(`http://localhost:4173/#/lesson/${id}`, { waitUntil: 'domcontentloaded' });
-  await hp.waitForTimeout(1500);
-  for (let k = 1; k < kartu; k++) {
-    const b = hp.getByRole('button', { name: /^(Lanjut|Selesai)/ }).last();
-    if (await b.count() && await b.isEnabled()) { await b.click(); await hp.waitForTimeout(250); } else {
-      // kartu yang butuh jawaban: lewati dengan tombol Lewati kalau ada
-      const lw = hp.getByRole('button', { name: /Lewati/ }).first();
-      if (await lw.count()) { await lw.click(); await hp.waitForTimeout(250); }
+let sekarang = '';
+hp.on('pageerror', (e) => temuan.push(`${sekarang}: pageerror ${String(e).slice(0, 200)}`));
+hp.on('console', (m) => { if (m.type() === 'error' && !/supabase|Failed to load resource|net::/i.test(m.text())) temuan.push(`${sekarang}: console ${m.text().slice(0, 160)}`); });
+const daftar = [];
+for (const f of ['module-02-oop', 'module-10-input-output', 'module-11-oop-todolist', 'module-12-apache-maven']) {
+  for (const n of fs.readdirSync(`content/java/${f}`).filter((x) => x.startsWith('lesson-')).sort()) daftar.push(JSON.parse(fs.readFileSync(`content/java/${f}/${n}`, 'utf-8')));
+}
+let kartuDilihat = 0;
+for (const l of daftar) {
+  sekarang = l.id;
+  await hp.goto(`http://localhost:5173/#/lesson/${l.id}`, { waitUntil: 'domcontentloaded' });
+  await hp.waitForTimeout(700);
+  if (!(await hp.url()).includes('/lesson/')) { temuan.push(`${l.id}: dialihkan ke ${hp.url()}`); continue; }
+  for (let k = 1; k <= l.cards.length; k++) {
+    await hp.waitForTimeout(250);
+    if (await hp.locator('text=Ups, ada yang salah!').count()) { temuan.push(`${l.id} kartu ${k}: layar error`); break; }
+    const w = await hp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    if (w > 1) temuan.push(`${l.id} kartu ${k} (${l.cards[k - 1].type}): halaman melebar ${w}px`);
+    kartuDilihat++;
+    if (FOTO.has(`${l.id}#${k}`)) {
+      await hp.waitForTimeout(1500);
+      const buf = await hp.screenshot({ type: 'jpeg', quality: 55, fullPage: true });
+      console.log(`===FOTO ${l.id}-k${k}===`); console.log(buf.toString('base64')); console.log(`===AKHIR ${l.id}-k${k}===`);
     }
+    if (k === l.cards.length) break;
+    const b = hp.getByRole('button', { name: /^(Lanjut|Selesai)/ }).last();
+    if ((await b.count()) && (await b.isEnabled())) { await b.click({ timeout: 3000 }).catch(() => {}); continue; }
+    const lw = hp.getByRole('button', { name: /Lewati/ }).first();
+    if (await lw.count()) { await lw.click({ timeout: 3000 }).catch(() => {}); await hp.waitForTimeout(300); }
+    const b2 = hp.getByRole('button', { name: /^(Lanjut|Selesai)/ }).last();
+    if ((await b2.count()) && (await b2.isEnabled())) { await b2.click({ timeout: 3000 }).catch(() => {}); continue; }
+    temuan.push(`${l.id} kartu ${k} (${l.cards[k - 1].type}): tidak bisa lanjut (materi sudah selesai, seharusnya bebas)`);
+    break;
   }
-  await hp.waitForTimeout(2500);
-  const w = await hp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  if (w > 1) temuan.push(`${id}: halaman melebar ${w}px`);
-  const buf = await hp.screenshot({ type: 'jpeg', quality: 55, fullPage: true });
-  console.log(`===FOTO ${id}===`); console.log(buf.toString('base64')); console.log(`===AKHIR ${id}===`);
 }
-for (const url of ['/kelas/java']) {
-  await hp.goto(`http://localhost:4173/#${url}`, { waitUntil: 'domcontentloaded' });
-  await hp.waitForTimeout(1500);
-  const buf = await hp.screenshot({ type: 'jpeg', quality: 55, fullPage: true });
-  console.log(`===FOTO kelas-java===`); console.log(buf.toString('base64')); console.log(`===AKHIR kelas-java===`);
-}
+console.log(`KARTU DILIHAT: ${kartuDilihat}`);
 await browser.close();
 console.log(`TEMUAN: ${temuan.length}`);
 for (const t of temuan) console.log('  ' + t);
