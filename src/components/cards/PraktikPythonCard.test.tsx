@@ -56,6 +56,12 @@ function ketik(teks: string) {
 
 describe('PraktikPythonCard', () => {
   beforeEach(() => {
+    // Kurangi gerak: contoh Lingga langsung dijalankan tanpa animasi mengetik.
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (q: string) => ({ matches: q.includes('reduce'), media: q, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false }),
+    });
     jalankan.mockClear();
     pulihkan.mockClear();
     siapkan.mockClear();
