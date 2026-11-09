@@ -19,6 +19,7 @@ export const WARNA_KELAS: Record<string, string> = {
   git: 'var(--color-landing-magenta)',
   'english-it': 'var(--color-landing-magenta)',
   excel: 'var(--color-landing-cyan)',
+  python: 'var(--color-primary)',
 };
 
 export function warnaKelas(id: string): string {

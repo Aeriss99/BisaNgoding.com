@@ -67,7 +67,7 @@ content/              materi, satu folder per kelas
   courses.json        daftar kelas
   jalur-karier.json   jalur karier di beranda
   roadmap.json        rencana belajar per peran
-  <kelas>/            java, javascript, git, mysql, linux, html-css, tailwind, rest-api, english, excel
+  <kelas>/            java, javascript, git, mysql, linux, html-css, tailwind, rest-api, english, excel, python
     modules.json      daftar modul kelas itu
     <modul>/          lesson-XX.json + quiz.json
 public/               gambar, ilustrasi, audio English, ikon PWA, dan tools.jar untuk CheerpJ
