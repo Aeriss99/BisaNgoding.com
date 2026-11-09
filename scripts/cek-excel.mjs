@@ -101,6 +101,39 @@ for (const [lebar, tinggi] of [[390, 844], [1280, 900]]) {
   }
   await ctx.close();
 }
+// Skenario sel bebas (G12) di HP
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  await ctx.addInitScript((v) => { try { localStorage.setItem('bisangoding_progress_lokal', v); } catch {} }, JSON.stringify(progres));
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => temuan.push(`bebas: pageerror ${String(e).slice(0, 160)}`));
+  await page.goto('http://localhost:5173/#/lesson/excel-dasar-03', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(600);
+  for (let i = 0; i < 3; i++) await lanjut(page);
+  // praktik: data A1:D5, sel bebas di F2
+  await page.getByTitle('F2').click();
+  const isi = page.getByLabel('Isi bebas sel F2');
+  if (!(await isi.count())) temuan.push('bebas: input sel F2 tidak muncul');
+  else {
+    await page.keyboard.type('=');
+    await page.getByTitle('B2').click();
+    await page.keyboard.type('*2');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    const t = (await page.getByTitle('F2').innerText()).trim();
+    if (t !== '50000') temuan.push(`bebas: F2 berisi "${t}", harap 50000`);
+    const w = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    if (w > 1) temuan.push(`bebas: halaman melebar ${w}px`);
+    // soal tetap bisa dijawab setelah sel bebas diisi
+    await page.getByLabel(/Ketik langsung di sel/).click();
+    await page.keyboard.type('=B3*C3');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    if (!(await page.getByText('Betul, 75000.').count())) temuan.push('bebas: jawaban soal D3 tidak diterima setelah sel bebas diisi');
+    await foto(page, 'sel-bebas-390');
+  }
+  await ctx.close();
+}
 await browser.close();
 console.log(`DIPERIKSA: ${kartuDiperiksa} kartu`);
 console.log(`TEMUAN: ${temuan.length}`);
