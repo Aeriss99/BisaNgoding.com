@@ -3,6 +3,11 @@ import { chromium } from 'playwright';
 const P = (body, impor = 'import java.io.*;\nimport java.nio.file.*;\nimport java.util.*;\n') =>
   `${impor}public class Main { public static void main(String[] args) throws Exception {\n${body}\n} }`;
 const PROGRAM = {
+  appendFOS: P('new File("a1.txt").delete(); try (FileOutputStream o = new FileOutputStream("a1.txt", true)) { o.write("x\\n".getBytes()); }\ntry (FileOutputStream o = new FileOutputStream("a1.txt", true)) { o.write("y\\n".getBytes()); }\nSystem.out.println(new String(Files.readAllBytes(Paths.get("a1.txt")), "UTF-8").replace("\\n", "|"));'),
+  appendNio: P('Path p = Paths.get("a2.txt"); Files.deleteIfExists(p); Files.write(p, Arrays.asList("x")); Files.write(p, Arrays.asList("y"), StandardOpenOption.APPEND); System.out.println(Files.readAllLines(p));'),
+  appendFW: P('new File("a3.txt").delete(); try (FileWriter w = new FileWriter("a3.txt", true)) { w.write("x\\n"); }\ntry (FileWriter w = new FileWriter("a3.txt", true)) { w.write("y\\n"); }\nSystem.out.println(new String(Files.readAllBytes(Paths.get("a3.txt")), "UTF-8").replace("\\n", "|"));'),
+  appendRAF: P('new File("a4.txt").delete(); try (FileWriter w = new FileWriter("a4.txt")) { w.write("x\\n"); }\ntry (RandomAccessFile r = new RandomAccessFile("a4.txt", "rw")) { r.seek(r.length()); r.write("y\\n".getBytes()); }\nSystem.out.println(new String(Files.readAllBytes(Paths.get("a4.txt")), "UTF-8").replace("\\n", "|"));'),
+  appendTwiceSameRun: P('new File("a5.txt").delete(); FileWriter w = new FileWriter("a5.txt"); w.write("x\\n"); w.close(); FileWriter w2 = new FileWriter("a5.txt", true); w2.write("y\\n"); w2.close(); System.out.println(new File("a5.txt").length());'),
   userdir: P('System.out.println(System.getProperty("user.dir")); System.out.println(new File("a.txt").getAbsolutePath());'),
   relatifTulisBaca: P('try (PrintWriter w = new PrintWriter(new FileWriter("catatan.txt"))) { w.println("Kopi 3"); w.println("Teh 5"); }\ntry (BufferedReader r = new BufferedReader(new FileReader("catatan.txt"))) { String b; while ((b = r.readLine()) != null) System.out.println("> " + b); }\nSystem.out.println(new File("catatan.txt").exists() + " " + new File("catatan.txt").length());'),
   relatifLagi: P('System.out.println(new File("catatan.txt").exists());'),
@@ -16,7 +21,7 @@ const PROGRAM = {
   dataStream: P('try (DataOutputStream o = new DataOutputStream(new FileOutputStream("d.bin"))) { o.writeInt(42); o.writeUTF("hai"); }\ntry (DataInputStream i = new DataInputStream(new FileInputStream("d.bin"))) { System.out.println(i.readInt() + i.readUTF()); }'),
 };
 const browser = await chromium.launch();
-for (const mode of ['8', '21']) {
+for (const mode of ['8']) {
   const page = await (await browser.newContext()).newPage();
   await page.goto(`http://localhost:4173/?java=${mode}`, { waitUntil: 'load' });
   await page.waitForFunction(() => typeof window.runJavaCode === 'function');
