@@ -79,7 +79,7 @@ describe('PraktikPythonCard', () => {
     expect(pulihkan).toHaveBeenCalledTimes(1);
 
     ketik('nilia == 100');
-    expect(await screen.findByText(/NameError: name 'nilia' is not defined/)).toBeTruthy();
+    expect(await screen.findByText(/Muncul error NameError: name 'nilia' is not defined/)).toBeTruthy();
     expect(screen.getByText('Lihat jawabannya')).toBeTruthy();
 
     fireEvent.click(screen.getByText('Lihat jawabannya'));
