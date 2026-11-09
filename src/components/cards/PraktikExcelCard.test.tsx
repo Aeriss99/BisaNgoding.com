@@ -126,4 +126,67 @@ describe('PraktikExcelCardComponent', () => {
     fireEvent.click(screen.getByTitle('B2'));
     expect(screen.getByRole('status')).toHaveTextContent('B2 berisi: 25000');
   });
+
+  it('klik sel bebas F2 membuka input bebas, name box berisi F2, Enter menyimpan tanpa pesan Lingga baru', () => {
+    render(<PraktikExcelCardComponent card={kartu} onSuccess={vi.fn()} />);
+    fireEvent.click(screen.getByTitle('F2'));
+    const input = screen.getByLabelText('Isi bebas sel F2') as HTMLInputElement;
+    expect(input).toBeInTheDocument();
+    expect(screen.getByLabelText('Sel yang diisi')).toHaveTextContent('F2');
+
+    const log = screen.getByRole('log');
+    const jumlahAwal = log.children.length;
+
+    fireEvent.change(input, { target: { value: '7' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(screen.getByTitle('F2')).toHaveTextContent('7');
+    expect(screen.queryByLabelText('Isi bebas sel F2')).toBeNull();
+    expect(log.children.length).toBe(jumlahAwal);
+  });
+
+  it('klik F2, ketik =B2*2, Enter -> F2 menampilkan 50000', () => {
+    render(<PraktikExcelCardComponent card={kartu} onSuccess={vi.fn()} />);
+    fireEvent.click(screen.getByTitle('F2'));
+    const input = screen.getByLabelText('Isi bebas sel F2') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '=B2*2' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByTitle('F2')).toHaveTextContent('50000');
+  });
+
+  it('klik F2, ketik =B2,2 (koma), Enter -> muncul pesan berisi titik koma di role="status", F2 tetap kosong', () => {
+    render(<PraktikExcelCardComponent card={kartu} onSuccess={vi.fn()} />);
+    fireEvent.click(screen.getByTitle('F2'));
+    const input = screen.getByLabelText('Isi bebas sel F2') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '=B2,2' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByRole('status')).toHaveTextContent(/titik koma/);
+    expect(screen.getByTitle('F2').textContent).toBe('');
+  });
+
+  it('klik F2, ketik =, lalu klik B2 -> input F2 berisi =B2', () => {
+    render(<PraktikExcelCardComponent card={kartu} onSuccess={vi.fn()} />);
+    fireEvent.click(screen.getByTitle('F2'));
+    const input = screen.getByLabelText('Isi bebas sel F2') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '=' } });
+    input.setSelectionRange(1, 1);
+    fireEvent.click(screen.getByTitle('B2'));
+    expect(input.value).toBe('=B2');
+  });
+
+  it('klik sel data bawaan B2 (tanpa mengetik rumus) -> tidak ada input Isi bebas sel B2; status B2 berisi: 25000', () => {
+    render(<PraktikExcelCardComponent card={kartu} onSuccess={vi.fn()} />);
+    fireEvent.click(screen.getByTitle('B2'));
+    expect(screen.queryByLabelText('Isi bebas sel B2')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('B2 berisi: 25000');
+  });
+
+  it('setelah menyelesaikan semua tugas, klik F2 tetap memunculkan input Isi bebas sel F2', () => {
+    render(<PraktikExcelCardComponent card={kartu} onSuccess={vi.fn()} />);
+    ketik('=B2*C2');
+    ketik('=SUM(D2:D3)');
+    expect(screen.getByText('Selesai.')).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle('F2'));
+    expect(screen.getByLabelText('Isi bebas sel F2')).toBeInTheDocument();
+  });
 });
