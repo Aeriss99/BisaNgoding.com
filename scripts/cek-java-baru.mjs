@@ -19,25 +19,40 @@ for (const f of folder) {
   }
 }
 console.log(`TUGAS: ${tugas.length}`);
-const browser = await chromium.launch();
-const page = await (await browser.newContext()).newPage();
-await page.goto('http://localhost:4173/', { waitUntil: 'load' });
-await page.waitForFunction(() => typeof window.runJavaCode === 'function');
+const browser = await chromium.launch({ args: ['--js-flags=--max-old-space-size=4096'] });
+let page = null;
+async function halamanBaru() {
+  if (page) await page.context().close().catch(() => {});
+  page = await (await browser.newContext()).newPage();
+  await page.goto('http://localhost:4173/', { waitUntil: 'load' });
+  await page.waitForFunction(() => typeof window.runJavaCode === 'function', null, { timeout: 120000 });
+}
 const temuan = [];
 let i = 0;
 for (const t of tugas) {
+  if (i % 15 === 0) await halamanBaru();
   i++;
-  const r = await page.evaluate(async ({ kode, input }) => { try { return await window.runJavaCode(kode, input); } catch (e) { return { stdout: '', stderr: String(e), exitCode: -9 }; } }, t);
+  let r;
+  for (let coba = 0; coba < 2; coba++) {
+    try {
+      r = await page.evaluate(async ({ kode, input }) => { try { return await window.runJavaCode(kode, input); } catch (e) { return { stdout: '', stderr: String(e), exitCode: -9 }; } }, t);
+      break;
+    } catch (e) {
+      console.log(`  crash di ${t.asal}, ulang: ${String(e).slice(0, 80)}`);
+      await halamanBaru();
+      r = { stdout: '', stderr: 'halaman crash: ' + String(e).slice(0, 100), exitCode: -8 };
+    }
+  }
   if (r.exitCode !== 0) temuan.push(`${t.asal}: exit ${r.exitCode} ${(r.stderr || '').slice(0, 300)}`);
   else if (t.harap !== null && rapi(r.stdout) !== rapi(t.harap)) temuan.push(`${t.asal}: BEDA\n   harap=${JSON.stringify(rapi(t.harap)).slice(0, 300)}\n   dapat=${JSON.stringify(rapi(r.stdout)).slice(0, 300)}`);
-  if (i % 50 === 0) console.log(`  ${i}/${tugas.length}, temuan ${temuan.length}`);
+  if (i % 25 === 0) console.log(`  ${i}/${tugas.length}, temuan ${temuan.length}`);
 }
 // Tampilan HP
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
 const hp = await ctx.newPage();
 await hp.addInitScript(() => { try { localStorage.setItem('bisangoding_progress_lokal', JSON.stringify({ completedLessons: [], passedChecks: [], moduleStatus: {}, quizScores: {}, xp: 0, streak: 0, lastActiveDate: '2026-11-10', version: 1 })); } catch {} });
 hp.on('pageerror', (e) => temuan.push(`pageerror ${String(e).slice(0, 200)}`));
-for (const [id, kartu] of [['java-input-output-03', 6], ['java-oop-todolist-06', 6], ['java-apache-maven-04', 5], ['java-oop-11', 5]]) {
+for (const [id, kartu] of [['java-input-output-02', 6], ['java-input-output-03', 7], ['java-oop-todolist-06', 7], ['java-apache-maven-04', 6], ['java-oop-11', 5]]) {
   await hp.goto(`http://localhost:4173/#/lesson/${id}`, { waitUntil: 'domcontentloaded' });
   await hp.waitForTimeout(1500);
   for (let k = 1; k < kartu; k++) {
