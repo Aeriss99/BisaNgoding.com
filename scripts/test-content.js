@@ -112,6 +112,36 @@ const CardSchema = z.union([
       .min(3),
   }).strict(),
   z.object({
+    type: z.literal('praktik_terminal'),
+    judul: z.string(),
+    folder: z.string(),
+    pembuka: z.string(),
+    penutup: z.string(),
+    bawaan: z.record(z.string(), z.string()).optional(),
+    tantangan: z
+      .object({ tugas: z.string(), perintah: z.string(), pola: z.array(z.string()), berhasil: z.string() })
+      .strict()
+      .optional(),
+    langkah: z
+      .array(
+        z.object({
+          arahan: z.string(),
+          terima: z.array(z.string()).min(1),
+          keluaran: z.string(),
+          folderBaru: z.string().optional(),
+          otomatis: z.boolean().optional(),
+          tantangan: z.boolean().optional(),
+          alternatif: z.array(z.object({ terima: z.array(z.string()), keluaran: z.string() }).strict()).optional(),
+          benar: z.string().optional(),
+          petunjuk: z.string(),
+          salah: z
+            .array(z.object({ terima: z.array(z.string()), keluaran: z.string().optional(), reaksi: z.string() }).strict())
+            .optional(),
+        }).strict()
+      )
+      .min(3),
+  }).strict(),
+  z.object({
     type: z.literal('html_css_preview'),
     prompt: z.string().optional(),
     html: z.string(),
