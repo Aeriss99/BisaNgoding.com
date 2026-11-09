@@ -68,7 +68,7 @@ async function kerjakan(page, c, id, i) {
 }
 
 const browser = await chromium.launch();
-for (const [lebar, tinggi] of [[390, 844], [1280, 900]]) {
+for (const [lebar, tinggi] of (process.env.SAJA_BEBAS ? [] : [[390, 844], [1280, 900]])) {
   const ctx = await browser.newContext({ viewport: { width: lebar, height: tinggi }, reducedMotion: 'reduce' });
   await ctx.addInitScript((v) => { try { if (!localStorage.getItem('bisangoding_progress_lokal')) localStorage.setItem('bisangoding_progress_lokal', v); } catch {} }, JSON.stringify(progres));
   const page = await ctx.newPage();
@@ -115,10 +115,20 @@ for (const [lebar, tinggi] of [[390, 844], [1280, 900]]) {
   const isi = page.getByLabel('Isi bebas sel F2');
   if (!(await isi.count())) temuan.push('bebas: input sel F2 tidak muncul');
   else {
+    const info = async (t) => console.log('DEBUG', t, JSON.stringify(await page.evaluate(() => ({ fokus: document.activeElement?.getAttribute('aria-label') || document.activeElement?.tagName, nilai: document.querySelector('[aria-label^="Isi bebas"]')?.value ?? null }))));
+    await info('setelah klik F2');
+    await page.waitForTimeout(100);
+    await info('100ms kemudian');
     await page.keyboard.type('=');
+    await info('setelah ketik =');
     await page.getByTitle('B2').click();
+    await info('setelah klik B2');
+    await page.waitForTimeout(100);
+    await info('100ms kemudian');
     await page.keyboard.type('*2');
+    await info('setelah ketik *2');
     await page.keyboard.press('Enter');
+    await info('setelah Enter');
     await page.waitForTimeout(200);
     const t = (await page.getByTitle('F2').innerText()).trim();
     if (t !== '50000') temuan.push(`bebas: F2 berisi "${t}", harap 50000`);
