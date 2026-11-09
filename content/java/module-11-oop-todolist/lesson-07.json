@@ -1,0 +1,190 @@
+{
+  "id": "java-oop-todolist-07",
+  "moduleId": "oop-todolist",
+  "order": 7,
+  "title": "Proyek Todolist OOP 7: Cari dan Statistik",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Todo yang banyak butuh fitur **cari** dan **statistik**. Fitur ini ditambahkan di service, karena merupakan aturan aplikasi, dan ditulis dengan **Stream** dari modul Java Stream.\n\n- `cari(String kata)`: todo yang judulnya mengandung kata itu, tanpa membedakan huruf besar-kecil.\n- `jumlahSelesai()`: banyak todo yang sudah selesai.\n\nIngat perumpamaan dapur: ini seperti koki yang bisa menjawab \"masih ada menu apa saja yang pakai ayam?\" tanpa pelayan harus memeriksa gudang sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "Stream membuat penyaringan dan penghitungan ringkas:\n\n```java\nrepo.semua().stream()\n        .filter(t -> t.getJudul().toLowerCase().contains(k))\n        .collect(Collectors.toList());\n```\n\n| Bagian | Arti |\n|---|---|\n| `stream()` | ubah list menjadi aliran data |\n| `filter(...)` | ambil yang memenuhi syarat |\n| `collect(Collectors.toList())` | kumpulkan lagi menjadi list (Java 8) |\n| `count()` | hitung banyaknya, hasilnya `long` |\n| `Todo::isSelesai` | method reference, sama dengan `t -> t.isSelesai()` |\n\nDi Java 16 ke atas ada `.toList()` yang lebih pendek, tapi website ini memakai Java 8, jadi kita tulis `collect(Collectors.toList())`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\ns.tambah(\"Belajar Java\");\ns.tambah(\"Beli kopi\");\ns.tambah(\"Latihan JAVA OOP\");\ns.selesaikan(1);\n\ns.cari(\"java\");            // [1. [x] Belajar Java, 3. [ ] Latihan JAVA OOP]\ns.jumlahSelesai();         // 1\n```\n\nView cukup memanggil kedua method itu untuk perintah baru `cari <kata>` dan `statistik`. Tidak ada perulangan di view."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"Belajar Java\");\n        s.tambah(\"Beli kopi\");\n        s.tambah(\"Latihan JAVA OOP\");\n        s.selesaikan(1);\n        s.selesaikan(2);\n        System.out.println(s.cari(\"java\"));\n        System.out.println(s.jumlahSelesai() + \" dari \" + s.semua().size());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n\n    List<Todo> cari(String kata) {\n        String k = kata.toLowerCase();\n        return repo.semua().stream()\n                .filter(t -> t.getJudul().toLowerCase().contains(k))\n                .collect(Collectors.toList());\n    }\n\n    long jumlahSelesai() {\n        return repo.semua().stream().filter(Todo::isSelesai).count();\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "1 dari 3",
+          "3 dari 3",
+          "2 dari 2",
+          "2 dari 3"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "Dua todo diselesaikan."
+        },
+        {
+          "line": 11,
+          "note": "Pencarian tidak membedakan huruf besar-kecil."
+        },
+        {
+          "line": 12,
+          "note": "count() menghitung yang lolos filter."
+        }
+      ],
+      "explanation": "Baris pertama: `[1. [x] Belajar Java, 3. [ ] Latihan JAVA OOP]`, karena \"java\" dicari dalam huruf kecil di judul yang juga diubah ke huruf kecil.\n\nTodo nomor 1 dan 2 selesai, jadi `jumlahSelesai()` = 2 dari 3 todo.",
+      "tryThis": [
+        {
+          "task": "Cari kata \"kopi\". Berapa todo yang muncul?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan method jumlahBelum() di service dengan stream.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai toList() di Java 8**\n\n`stream().filter(...).toList()` baru ada di Java 16. Di Java 8 error `cannot find symbol`. Pakai `collect(Collectors.toList())` dan `import java.util.stream.*;`.\n\n**2. Lupa toLowerCase di salah satu sisi**\n\n`t.getJudul().toLowerCase().contains(kata)` dengan `kata = \"Java\"` tidak menemukan apa pun. Kedua sisi harus huruf kecil.\n\n**3. count() disimpan ke int**\n\n`int n = stream.count();` ditolak compiler karena `count()` mengembalikan `long`. Simpan ke `long`, atau ubah dengan `(int)`.\n\n**4. Logika statistik ditaruh di view**\n\nView yang menghitung sendiri dengan perulangan membuat aturan tersebar. Statistik adalah urusan service."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist OOP 7: Koki yang Bisa Menjawab",
+      "pembuka": "Kita coba fitur cari dan statistik di service.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Mencari todo yang mengandung kata \"kopi\".",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"Beli kopi\");\n        s.tambah(\"Kopi susu\");\n        s.tambah(\"Cuci piring\");\n        System.out.println(s.cari(\"kopi\"));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n\n    List<Todo> cari(String kata) {\n        String k = kata.toLowerCase();\n        return repo.semua().stream()\n                .filter(t -> t.getJudul().toLowerCase().contains(k))\n                .collect(Collectors.toList());\n    }\n\n    long jumlahSelesai() {\n        return repo.semua().stream().filter(Todo::isSelesai).count();\n    }\n}\n",
+          "keluaran": "[1. [ ] Beli kopi, 2. [ ] Kopi susu]",
+          "otomatis": true,
+          "benar": "Huruf besar-kecil tidak berpengaruh.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Selesaikan todo nomor 1 dan 3, lalu cetak `Selesai: 2`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"Beli kopi\");\n        s.tambah(\"Kopi susu\");\n        s.tambah(\"Cuci piring\");\n        System.out.println(s.cari(\"kopi\"));\n        s.selesaikan(1);\n        s.selesaikan(3);\n        System.out.println(\"Selesai: \" + s.jumlahSelesai());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n\n    List<Todo> cari(String kata) {\n        String k = kata.toLowerCase();\n        return repo.semua().stream()\n                .filter(t -> t.getJudul().toLowerCase().contains(k))\n                .collect(Collectors.toList());\n    }\n\n    long jumlahSelesai() {\n        return repo.semua().stream().filter(Todo::isSelesai).count();\n    }\n}\n",
+          "keluaran": "[1. [ ] Beli kopi, 2. [ ] Kopi susu]\nSelesai: 2",
+          "wajib": [
+            {
+              "pola": "s\\.jumlahSelesai\\s*\\(\\s*\\)",
+              "pesan": "pakai `s.jumlahSelesai()`."
+            }
+          ],
+          "petunjuk": "Panggil `s.selesaikan(...)` dua kali, lalu cetak `s.jumlahSelesai()`."
+        },
+        {
+          "arahan": "Cetak persentase todo yang selesai: `Progres: 66%`, yaitu `jumlahSelesai() * 100 / semua().size()`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"Beli kopi\");\n        s.tambah(\"Kopi susu\");\n        s.tambah(\"Cuci piring\");\n        System.out.println(s.cari(\"kopi\"));\n        s.selesaikan(1);\n        s.selesaikan(3);\n        System.out.println(\"Selesai: \" + s.jumlahSelesai());\n        System.out.println(\"Progres: \" + s.jumlahSelesai() * 100 / s.semua().size() + \"%\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n\n    List<Todo> cari(String kata) {\n        String k = kata.toLowerCase();\n        return repo.semua().stream()\n                .filter(t -> t.getJudul().toLowerCase().contains(k))\n                .collect(Collectors.toList());\n    }\n\n    long jumlahSelesai() {\n        return repo.semua().stream().filter(Todo::isSelesai).count();\n    }\n}\n",
+          "keluaran": "[1. [ ] Beli kopi, 2. [ ] Kopi susu]\nSelesai: 2\nProgres: 66%",
+          "wajib": [
+            {
+              "pola": "jumlahSelesai\\s*\\(\\s*\\)\\s*\\*\\s*100\\s*/",
+              "pesan": "hitung `s.jumlahSelesai() * 100 / s.semua().size()`."
+            }
+          ],
+          "tantangan": true,
+          "petunjuk": "Kalikan 100 dulu baru bagi, supaya pembagian bilangan bulat tidak menghasilkan 0."
+        }
+      ],
+      "penutup": "Service sekarang bisa mencari dan menghitung. Di materi terakhir semuanya disatukan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"Beli kopi\");\n        s.tambah(\"Kopi susu\");\n        s.tambah(\"Cuci piring\");\n        System.out.println(s.cari(\"KOPI\"));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n\n    List<Todo> cari(String kata) {\n        String k = kata.toLowerCase();\n        return repo.semua().stream()\n                .filter(t -> t.getJudul().toLowerCase().contains(k))\n                .collect(Collectors.toList());\n    }\n\n    long jumlahSelesai() {\n        return repo.semua().stream().filter(Todo::isSelesai).count();\n    }\n}",
+          "options": [
+            "[1. [ ] Beli kopi, 2. [ ] Kopi susu]",
+            "[1. [ ] Beli kopi]",
+            "[2. [ ] Kopi susu]",
+            "[]"
+          ],
+          "answer": 0,
+          "explanation": "Pencarian tanpa membedakan huruf besar-kecil.",
+          "remedial": "Kata kunci dan judul sama-sama diubah ke huruf kecil, jadi \"KOPI\" cocok dengan \"Beli kopi\" dan \"Kopi susu\"."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"A\");\n        s.tambah(\"B\");\n        s.tambah(\"C\");\n        System.out.println(s.jumlahSelesai());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n\n    List<Todo> cari(String kata) {\n        String k = kata.toLowerCase();\n        return repo.semua().stream()\n                .filter(t -> t.getJudul().toLowerCase().contains(k))\n                .collect(Collectors.toList());\n    }\n\n    long jumlahSelesai() {\n        return repo.semua().stream().filter(Todo::isSelesai).count();\n    }\n}",
+          "options": [
+            "3",
+            "0",
+            "1",
+            "null"
+          ],
+          "answer": 1,
+          "explanation": "Belum ada yang diselesaikan.",
+          "remedial": "`filter(Todo::isSelesai)` hanya meloloskan todo yang selesai. Tidak ada yang selesai, jadi `count()` = 0."
+        },
+        {
+          "question": "Di Java 8, cara mengumpulkan hasil stream menjadi List adalah...",
+          "options": [
+            "toList()",
+            "asList()",
+            "collect(Collectors.toList())",
+            "collect(List)"
+          ],
+          "answer": 2,
+          "explanation": "toList() baru ada di Java 16.",
+          "remedial": "`Collectors.toList()` ada sejak Java 8. Method `toList()` langsung di stream baru ditambahkan di Java 16."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Todo::isSelesai di dalam filter sama artinya dengan...",
+      "options": [
+        "t -> !t.isSelesai()",
+        "t -> t.selesaikan()",
+        "Todo.isSelesai()",
+        "t -> t.isSelesai()"
+      ],
+      "answer": 3,
+      "explanation": "Method reference memanggil method itu pada setiap elemen."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Tambahkan method `List<Todo> belum()` di `TodoService` yang mengembalikan todo yang **belum** selesai, memakai stream. Program membaca perintah `tambah <judul>` dan `selesai <nomor>`, lalu di akhir mencetak `Belum selesai:` diikuti todo dari `belum()`, satu per baris.",
+      "starterCode": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] p = in.nextLine().split(\" \", 2);\n            if (p[0].equals(\"tambah\")) {\n                s.tambah(p[1]);\n            } else if (p[0].equals(\"selesai\")) {\n                s.selesaikan(Integer.parseInt(p[1]));\n            }\n        }\n        System.out.println(\"Belum selesai:\");\n        for (Todo t : s.belum()) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n\n    List<Todo> cari(String kata) {\n        String k = kata.toLowerCase();\n        return repo.semua().stream()\n                .filter(t -> t.getJudul().toLowerCase().contains(k))\n                .collect(Collectors.toList());\n    }\n\n    List<Todo> belum() {\n        return new ArrayList<>();\n    }\n\n    long jumlahSelesai() {\n        return repo.semua().stream().filter(Todo::isSelesai).count();\n    }\n}",
+      "solution": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] p = in.nextLine().split(\" \", 2);\n            if (p[0].equals(\"tambah\")) {\n                s.tambah(p[1]);\n            } else if (p[0].equals(\"selesai\")) {\n                s.selesaikan(Integer.parseInt(p[1]));\n            }\n        }\n        System.out.println(\"Belum selesai:\");\n        for (Todo t : s.belum()) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n\n    List<Todo> cari(String kata) {\n        String k = kata.toLowerCase();\n        return repo.semua().stream()\n                .filter(t -> t.getJudul().toLowerCase().contains(k))\n                .collect(Collectors.toList());\n    }\n\n    List<Todo> belum() {\n        return repo.semua().stream()\n                .filter(t -> !t.isSelesai())\n                .collect(Collectors.toList());\n    }\n\n    long jumlahSelesai() {\n        return repo.semua().stream().filter(Todo::isSelesai).count();\n    }\n}",
+      "tests": [
+        {
+          "input": "tambah Belajar Java\ntambah Beli kopi\ntambah Cuci piring\nselesai 2\n",
+          "expectedOutput": "Belum selesai:\n1. [ ] Belajar Java\n3. [ ] Cuci piring\n"
+        },
+        {
+          "input": "tambah A\nselesai 1\n",
+          "expectedOutput": "Belum selesai:\n"
+        }
+      ],
+      "hints": [
+        "Polanya sama dengan cari: stream, filter, collect.",
+        "Syarat filter: t -> !t.isSelesai()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Fitur cari dan statistik ditaruh di service.",
+        "stream().filter(...).collect(Collectors.toList()) untuk menyaring.",
+        "count() mengembalikan long; Todo::isSelesai adalah method reference.",
+        "Di Java 8 pakai Collectors.toList(), bukan toList()."
+      ]
+    }
+  ]
+}

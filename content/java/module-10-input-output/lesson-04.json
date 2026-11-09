@@ -1,0 +1,194 @@
+{
+  "id": "java-input-output-04",
+  "moduleId": "input-output",
+  "order": 4,
+  "title": "IOException dan File yang Tidak Ada",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Urusan file penuh kemungkinan gagal: file belum dibuat, nama salah ketik, disk penuh, atau tidak punya izin. Java mengelompokkan masalah ini sebagai `IOException`.\n\n`IOException` adalah **checked exception**: compiler memaksa kita memilih salah satu dari dua cara:\n\n1. **Melempar ke atas** dengan `throws IOException` di judul method.\n2. **Menangani di tempat** dengan try-catch.\n\nIngat perumpamaan lemari arsip: kalau map yang dicari tidak ada, petugas arsip bisa melapor ke atasannya (`throws`) atau langsung memberi tahu pembeli dengan sopan bahwa map itu belum dibuat (`catch`)."
+    },
+    {
+      "type": "theory",
+      "content": "Turunan `IOException` yang paling sering muncul adalah `FileNotFoundException`, saat membuka file yang tidak ada untuk dibaca.\n\n```java\ntry (BufferedReader r = new BufferedReader(new FileReader(\"pesanan.txt\"))) {\n    System.out.println(r.readLine());\n} catch (FileNotFoundException e) {\n    System.out.println(\"Belum ada pesanan\");\n} catch (IOException e) {\n    System.out.println(\"Gagal membaca: \" + e.getMessage());\n}\n```\n\nUrutan catch penting: yang lebih **khusus** (`FileNotFoundException`) ditulis lebih dulu, baru yang **umum** (`IOException`). Kalau terbalik, compiler menolak karena catch kedua tidak akan pernah tercapai.\n\nPilihan lain: periksa dulu dengan `new File(nama).exists()` sebelum membaca."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java run\nimport java.io.*;\n\npublic class Main {\n    static String bacaBarisPertama(String nama) {\n        try (BufferedReader r = new BufferedReader(new FileReader(nama))) {\n            return r.readLine();\n        } catch (FileNotFoundException e) {\n            return \"(file \" + nama + \" belum ada)\";\n        } catch (IOException e) {\n            return \"(gagal membaca)\";\n        }\n    }\n\n    public static void main(String[] args) throws IOException {\n        try (PrintWriter w = new PrintWriter(new FileWriter(\"salam.txt\"))) {\n            w.println(\"Selamat datang di Toko Budi\");\n        }\n        System.out.println(bacaBarisPertama(\"salam.txt\"));\n        System.out.println(bacaBarisPertama(\"promo-rahasia.txt\"));\n        System.out.println(\"Program tetap jalan\");\n    }\n}\n```\n\nMethod `bacaBarisPertama` tidak memakai `throws`, karena semua kemungkinan error sudah ditangani di dalamnya. Pemanggilnya tidak perlu khawatir."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String hasil;\n        try (BufferedReader r = new BufferedReader(new FileReader(\"tidak-pernah-ada.txt\"))) {\n            hasil = r.readLine();\n        } catch (FileNotFoundException e) {\n            hasil = \"A\";\n        } catch (IOException e) {\n            hasil = \"B\";\n        } finally {\n            System.out.println(\"selesai\");\n        }\n        System.out.println(hasil);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: huruf apa yang dicetak di baris terakhir?",
+        "options": [
+          "A",
+          "B",
+          "null",
+          "selesai"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 3,
+          "note": "File ini tidak pernah dibuat."
+        },
+        {
+          "line": 5,
+          "note": "Catch yang lebih khusus dicek lebih dulu."
+        },
+        {
+          "line": 10,
+          "note": "finally selalu jalan."
+        }
+      ],
+      "explanation": "Membuka file yang tidak ada melempar `FileNotFoundException`. Catch pertama cocok, jadi `hasil` diisi `\"A\"`. Catch `IOException` dilewati karena error-nya sudah ditangani.\n\nBlok `finally` tetap jalan, jadi `selesai` tercetak lebih dulu, baru `A`.",
+      "tryThis": [
+        {
+          "task": "Tukar urutan kedua catch. Apa kata compiler?",
+          "hint": null
+        },
+        {
+          "task": "Buat dulu file tidak-pernah-ada.txt berisi satu baris. Apa yang dicetak sekarang?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Catch umum ditulis lebih dulu**\n\n```java\n} catch (IOException e) {\n    ...\n} catch (FileNotFoundException e) {   // error: exception has already been caught\n```\n\nTulis yang khusus dulu.\n\n**2. Menelan error tanpa pesan**\n\n```java\n} catch (IOException e) {\n}\n```\n\nProgram diam saja padahal datanya gagal disimpan. Setidaknya cetak pesan, atau `e.getMessage()`.\n\n**3. Memakai throws di mana-mana**\n\n`throws IOException` di `main` boleh untuk latihan, tapi di aplikasi sungguhan error yang dilempar sampai keluar `main` membuat program berhenti dengan stack trace yang membingungkan pengguna.\n\n**4. Mengira exists() menjamin pembacaan berhasil**\n\nFile bisa saja ada tapi tidak boleh dibaca, atau dihapus program lain sesaat setelah dicek. try-catch tetap diperlukan."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Arsip Toko 4: Map yang Hilang",
+      "pembuka": "Tidak semua map ada di lemari. Program yang baik tidak berhenti hanya karena satu file tidak ditemukan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Dua file dibaca, satu memang tidak ada.",
+          "jawaban": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String[] daftar = {\"harga.txt\", \"hilang.txt\"};\n        try (PrintWriter w = new PrintWriter(new FileWriter(\"harga.txt\"))) {\n            w.println(\"Kopi 15000\");\n        }\n        for (String nama : daftar) {\n            try (BufferedReader r = new BufferedReader(new FileReader(nama))) {\n                System.out.println(nama + \": \" + r.readLine());\n            } catch (FileNotFoundException e) {\n                System.out.println(nama + \": belum ada\");\n            }\n        }\n    }\n}\n",
+          "keluaran": "harga.txt: Kopi 15000\nhilang.txt: belum ada",
+          "otomatis": true,
+          "benar": "Error file kedua ditangkap, jadi program tetap lanjut.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan `\"promo.txt\"` ke array `daftar`, dan buat file itu berisi `Diskon 10%` (blok try penulis kedua, sebelum perulangan).",
+          "jawaban": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String[] daftar = {\"harga.txt\", \"hilang.txt\", \"promo.txt\"};\n        try (PrintWriter w = new PrintWriter(new FileWriter(\"harga.txt\"))) {\n            w.println(\"Kopi 15000\");\n        }\n        try (PrintWriter w = new PrintWriter(new FileWriter(\"promo.txt\"))) {\n            w.println(\"Diskon 10%\");\n        }\n        for (String nama : daftar) {\n            try (BufferedReader r = new BufferedReader(new FileReader(nama))) {\n                System.out.println(nama + \": \" + r.readLine());\n            } catch (FileNotFoundException e) {\n                System.out.println(nama + \": belum ada\");\n            }\n        }\n    }\n}\n",
+          "keluaran": "harga.txt: Kopi 15000\nhilang.txt: belum ada\npromo.txt: Diskon 10%",
+          "wajib": [
+            {
+              "pola": "\"promo\\.txt\"\\s*\\}",
+              "pesan": "tambahkan `\"promo.txt\"` ke array."
+            },
+            {
+              "pola": "\"Diskon 10%\"",
+              "pesan": "tulis `Diskon 10%` ke promo.txt."
+            }
+          ],
+          "petunjuk": "Tambah nama di array, lalu tulis file promo.txt dengan pola yang sama seperti harga.txt."
+        },
+        {
+          "arahan": "Hitung berapa file yang tidak ditemukan: buat `int hilang = 0;` sebelum perulangan, naikkan di dalam catch, lalu cetak `File hilang: 1` di akhir.",
+          "jawaban": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String[] daftar = {\"harga.txt\", \"hilang.txt\", \"promo.txt\"};\n        try (PrintWriter w = new PrintWriter(new FileWriter(\"harga.txt\"))) {\n            w.println(\"Kopi 15000\");\n        }\n        try (PrintWriter w = new PrintWriter(new FileWriter(\"promo.txt\"))) {\n            w.println(\"Diskon 10%\");\n        }\n        int hilang = 0;\n        for (String nama : daftar) {\n            try (BufferedReader r = new BufferedReader(new FileReader(nama))) {\n                System.out.println(nama + \": \" + r.readLine());\n            } catch (FileNotFoundException e) {\n                System.out.println(nama + \": belum ada\");\n                hilang++;\n            }\n        }\n        System.out.println(\"File hilang: \" + hilang);\n    }\n}\n",
+          "keluaran": "harga.txt: Kopi 15000\nhilang.txt: belum ada\npromo.txt: Diskon 10%\nFile hilang: 1",
+          "wajib": [
+            {
+              "pola": "catch\\s*\\(\\s*FileNotFoundException\\s+\\w+\\s*\\)\\s*\\{[^}]*hilang\\+\\+",
+              "pesan": "naikkan `hilang` di dalam catch."
+            }
+          ],
+          "tantangan": true,
+          "petunjuk": "Penghitungnya naik di dalam blok catch, karena hanya di situ file tidak ditemukan."
+        }
+      ],
+      "penutup": "Satu file hilang tidak menghentikan seluruh program."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        try (FileReader r = new FileReader(\"tidak-ada-juga.txt\")) {\n            System.out.println(\"terbuka\");\n        } catch (FileNotFoundException e) {\n            System.out.println(\"tidak ada\");\n        } catch (IOException e) {\n            System.out.println(\"gagal\");\n        }\n    }\n}",
+          "options": [
+            "null",
+            "tidak ada",
+            "gagal",
+            "Error"
+          ],
+          "answer": 1,
+          "explanation": "FileNotFoundException ditangkap catch pertama.",
+          "remedial": "Membuka file yang tidak ada untuk dibaca melempar `FileNotFoundException`, turunan `IOException`. Catch yang cocok pertama kali yang dijalankan."
+        },
+        {
+          "question": "Kenapa urutan catch ini ditolak compiler?",
+          "code": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        try (FileReader r = new FileReader(\"x.txt\")) {\n            System.out.println(\"ok\");\n        } catch (IOException e) {\n            System.out.println(\"umum\");\n        } catch (FileNotFoundException e) {\n            System.out.println(\"khusus\");\n        }\n    }\n}",
+          "options": [
+            "FileNotFoundException bukan exception",
+            "IOException tidak boleh ditangkap",
+            "Catch FileNotFoundException tidak akan pernah tercapai",
+            "Hanya boleh ada satu catch"
+          ],
+          "answer": 2,
+          "explanation": "Catch umum sudah menangkap semua turunannya.",
+          "remedial": "`FileNotFoundException` adalah turunan `IOException`. Kalau `IOException` ditangkap lebih dulu, catch kedua tidak akan pernah jalan, jadi compiler menolaknya. Tulis catch yang khusus lebih dulu."
+        },
+        {
+          "question": "Apa artinya IOException disebut checked exception?",
+          "options": [
+            "Error itu sudah dicek dan pasti tidak terjadi",
+            "Error itu hanya muncul saat program dijalankan di browser",
+            "Error itu tidak bisa ditangkap",
+            "Compiler mewajibkan error itu ditangani atau dilempar dengan throws"
+          ],
+          "answer": 3,
+          "explanation": "Checked exception wajib ditangani atau dideklarasikan.",
+          "remedial": "Untuk checked exception seperti `IOException`, compiler menolak kode yang tidak menangani error itu dengan try-catch dan tidak menulis `throws` di judul method."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Cara apa yang membuat pemanggil method tidak perlu menangani IOException lagi?",
+      "options": [
+        "Menangani IOException dengan try-catch di dalam method itu",
+        "Menulis throws IOException di judul method",
+        "Mengganti nama file",
+        "Memanggil exists() sekali"
+      ],
+      "answer": 0,
+      "explanation": "Kalau sudah ditangani di dalam, tidak ada yang dilempar ke pemanggil."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca **nama file** dari input. Kalau file itu ada, cetak baris pertamanya. Kalau tidak ada, cetak `File <nama> tidak ditemukan`. Program sudah menyiapkan file `ada.txt` berisi `Halo dari ada.txt`.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        try (PrintWriter w = new PrintWriter(new FileWriter(\"ada.txt\"))) {\n            w.println(\"Halo dari ada.txt\");\n        }\n        String nama = new Scanner(System.in).nextLine();\n        BufferedReader r = new BufferedReader(new FileReader(nama));\n        System.out.println(r.readLine());\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        try (PrintWriter w = new PrintWriter(new FileWriter(\"ada.txt\"))) {\n            w.println(\"Halo dari ada.txt\");\n        }\n        String nama = new Scanner(System.in).nextLine();\n        try (BufferedReader r = new BufferedReader(new FileReader(nama))) {\n            System.out.println(r.readLine());\n        } catch (FileNotFoundException e) {\n            System.out.println(\"File \" + nama + \" tidak ditemukan\");\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "ada.txt\n",
+          "expectedOutput": "Halo dari ada.txt\n"
+        },
+        {
+          "input": "hilang.txt\n",
+          "expectedOutput": "File hilang.txt tidak ditemukan\n"
+        }
+      ],
+      "hints": [
+        "Bungkus pembukaan file dengan try-with-resources.",
+        "Tangkap FileNotFoundException dan cetak pesannya dengan nama file."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "IOException adalah checked exception: wajib ditangani atau dilempar dengan throws.",
+        "FileNotFoundException muncul saat membuka file yang tidak ada untuk dibaca.",
+        "Tulis catch yang khusus sebelum yang umum.",
+        "Jangan menelan error tanpa pesan."
+      ]
+    }
+  ]
+}

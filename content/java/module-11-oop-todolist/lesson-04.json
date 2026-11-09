@@ -1,0 +1,190 @@
+{
+  "id": "java-oop-todolist-04",
+  "moduleId": "oop-todolist",
+  "order": 4,
+  "title": "Proyek Todolist OOP 4: Service dan Aturannya",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Repository hanya menyimpan, tanpa bertanya. Kalau diminta menyimpan judul kosong, ia patuh. Aturan aplikasi dipegang lapisan **service**:\n\n- Judul tidak boleh kosong atau hanya spasi.\n- Judul maksimal 50 huruf.\n- Menandai atau menghapus nomor yang tidak ada harus memberi tahu pengguna dengan jelas.\n\nIngat perumpamaan dapur: koki menolak memasak pesanan yang tidak masuk akal (\"nasi goreng tanpa nasi\") sebelum mengambil bahan dari gudang."
+    },
+    {
+      "type": "theory",
+      "content": "Service menerima repository lewat **constructor**, bukan membuatnya sendiri:\n\n```java\nTodoService service = new TodoService(new TodoRepositoryMemori());\n```\n\nCara ini disebut **dependency injection**: kebutuhan sebuah class \"disuntikkan\" dari luar. Keuntungannya, service bisa dipakai dengan repository memori saat belajar atau menguji, dan dengan repository file saat aplikasi sungguhan, tanpa mengubah satu baris pun di service.\n\nUntuk pelanggaran aturan, service melempar exception:\n\n| Keadaan | Exception |\n|---|---|\n| judul kosong atau terlalu panjang | `IllegalArgumentException` |\n| nomor todo tidak ada | `TodoTidakDitemukanException` (buatan sendiri) |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nTodoService s = new TodoService(new TodoRepositoryMemori());\ns.tambah(\"  Belajar OOP  \");     // disimpan sebagai \"Belajar OOP\" (spasi tepi dibuang)\ntry {\n    s.tambah(\"   \");\n} catch (IllegalArgumentException e) {\n    System.out.println(e.getMessage());   // Judul tidak boleh kosong\n}\ntry {\n    s.selesaikan(99);\n} catch (TodoTidakDitemukanException e) {\n    System.out.println(e.getMessage());   // Todo nomor 99 tidak ditemukan\n}\n```\n\n`TodoTidakDitemukanException` mewarisi `RuntimeException`, jadi tidak wajib ditulis di `throws`. Pesannya dibuat di constructor, sehingga setiap pelempar tinggal mengirim nomornya."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"  Belajar OOP  \");\n        s.tambah(\"Beli kopi\");\n        s.selesaikan(2);\n        try {\n            s.hapus(5);\n        } catch (TodoTidakDitemukanException e) {\n            System.out.println(e.getMessage());\n        }\n        for (Todo t : s.semua()) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "1. [ ] Belajar OOP",
+          "1. [ ]   Belajar OOP  ",
+          "1. [x] Belajar OOP",
+          "Todo nomor 5 tidak ditemukan"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 5,
+          "note": "Repository disuntikkan lewat constructor."
+        },
+        {
+          "line": 6,
+          "note": "Spasi di tepi judul dibuang oleh service."
+        },
+        {
+          "line": 10,
+          "note": "Nomor 5 tidak ada: exception buatan sendiri."
+        }
+      ],
+      "explanation": "Baris pertama adalah pesan exception `Todo nomor 5 tidak ditemukan`. Setelah itu daftar todo dicetak, dan todo pertama tersimpan sebagai `Belajar OOP` karena service memanggil `trim()` sebelum menyimpan.",
+      "tryThis": [
+        {
+          "task": "Tambahkan s.tambah(\"\") di dalam try-catch IllegalArgumentException. Apa pesannya?",
+          "hint": null
+        },
+        {
+          "task": "Coba tambahkan judul 60 huruf. Apa yang terjadi?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Service membuat repository sendiri**\n\n```java\nprivate final TodoRepository repo = new TodoRepositoryMemori();\n```\n\nService jadi terikat selamanya ke penyimpanan memori. Terima lewat constructor.\n\n**2. Mengembalikan null alih-alih exception**\n\n`selesaikan(99)` yang diam-diam tidak melakukan apa-apa membuat pengguna mengira berhasil. Lempar exception dengan pesan jelas.\n\n**3. Validasi setelah menyimpan**\n\nMemeriksa judul setelah `repo.simpan` berarti judul kosong sudah terlanjur masuk. Periksa dulu, simpan kemudian.\n\n**4. Lupa trim**\n\n`\"   \".isEmpty()` bernilai `false`. Judul yang hanya berisi spasi lolos kalau tidak di-`trim()` dulu."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist OOP 4: Koki yang Teliti",
+      "pembuka": "Kita coba aturan-aturan service dari main.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Judul kosong ditolak service.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"Belajar OOP\");\n        try {\n            s.tambah(\"\");\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"Gagal: \" + e.getMessage());\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "Gagal: Judul tidak boleh kosong",
+          "otomatis": true,
+          "benar": "Repository tidak pernah menerima judul kosong itu.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Coba selesaikan todo nomor 7 yang tidak ada. Tangkap `TodoTidakDitemukanException` dan cetak `Gagal: Todo nomor 7 tidak ditemukan`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"Belajar OOP\");\n        try {\n            s.tambah(\"\");\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"Gagal: \" + e.getMessage());\n        }\n        try {\n            s.selesaikan(7);\n        } catch (TodoTidakDitemukanException e) {\n            System.out.println(\"Gagal: \" + e.getMessage());\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "Gagal: Judul tidak boleh kosong\nGagal: Todo nomor 7 tidak ditemukan",
+          "wajib": [
+            {
+              "pola": "catch\\s*\\(\\s*TodoTidakDitemukanException",
+              "pesan": "tangkap `TodoTidakDitemukanException`."
+            }
+          ],
+          "petunjuk": "Satu blok try-catch lagi, kali ini menangkap `TodoTidakDitemukanException`."
+        },
+        {
+          "arahan": "Tambahkan judul sepanjang 51 huruf memakai `new String(new char[51]).replace(\"\\0\", \"a\")` di dalam try-catch, dan cetak `Gagal: Judul maksimal 50 huruf`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"Belajar OOP\");\n        try {\n            s.tambah(\"\");\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"Gagal: \" + e.getMessage());\n        }\n        try {\n            s.selesaikan(7);\n        } catch (TodoTidakDitemukanException e) {\n            System.out.println(\"Gagal: \" + e.getMessage());\n        }\n        try {\n            s.tambah(new String(new char[51]).replace(\"\\0\", \"a\"));\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"Gagal: \" + e.getMessage());\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "Gagal: Judul tidak boleh kosong\nGagal: Todo nomor 7 tidak ditemukan\nGagal: Judul maksimal 50 huruf",
+          "wajib": [
+            {
+              "pola": "new\\s+char\\s*\\[\\s*51\\s*\\]",
+              "pesan": "buat judul 51 huruf."
+            }
+          ],
+          "tantangan": true,
+          "petunjuk": "Di Java 8 belum ada `\"a\".repeat(51)`, jadi kita buat 51 karakter kosong lalu diganti huruf a."
+        }
+      ],
+      "penutup": "Aturan ada di satu tempat: service. Semua jalan masuk ke data melewatinya."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        try {\n            s.tambah(\"    \");\n        } catch (IllegalArgumentException e) {\n            System.out.println(e.getMessage());\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}",
+          "options": [
+            "Judul maksimal 50 huruf",
+            "Judul tidak boleh kosong",
+            "1. [ ]",
+            "Error"
+          ],
+          "answer": 1,
+          "explanation": "Spasi saja dianggap kosong setelah trim.",
+          "remedial": "Service memanggil `judul.trim().isEmpty()`. Teks yang hanya berisi spasi menjadi kosong setelah `trim()`, jadi ditolak dengan `IllegalArgumentException`."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        s.tambah(\"A\");\n        try {\n            s.selesaikan(3);\n        } catch (TodoTidakDitemukanException e) {\n            System.out.println(e.getMessage());\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}",
+          "options": [
+            "Todo nomor 1 tidak ditemukan",
+            "false",
+            "Todo nomor 3 tidak ditemukan",
+            "null"
+          ],
+          "answer": 2,
+          "explanation": "Pesan dibuat di constructor exception.",
+          "remedial": "Hanya ada todo nomor 1. `selesaikan(3)` tidak menemukan todo, sehingga service melempar `TodoTidakDitemukanException(3)` yang pesannya disusun dari nomor itu."
+        },
+        {
+          "question": "Apa keuntungan service menerima repository lewat constructor?",
+          "options": [
+            "Service jadi lebih cepat",
+            "Repository tidak perlu interface lagi",
+            "Exception tidak perlu ditangkap",
+            "Repository bisa diganti, misalnya memori atau file, tanpa mengubah service"
+          ],
+          "answer": 3,
+          "explanation": "Dependency injection.",
+          "remedial": "Service hanya bergantung pada interface `TodoRepository`. Siapa pun yang memenuhi interface itu boleh disuntikkan, sehingga service yang sama dipakai untuk penyimpanan memori dan file."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa TodoTidakDitemukanException dibuat sendiri, bukan memakai RuntimeException biasa?",
+      "options": [
+        "Supaya jenis kesalahannya jelas dan bisa ditangkap secara khusus",
+        "Karena RuntimeException tidak boleh dilempar",
+        "Supaya wajib ditulis di throws",
+        "Supaya program berhenti"
+      ],
+      "answer": 0,
+      "explanation": "Nama exception menjelaskan masalahnya."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Tambahkan aturan baru di `TodoService.tambah`: judul yang **sama** (tanpa membedakan huruf besar-kecil) dengan todo yang sudah ada ditolak dengan `IllegalArgumentException(\"Todo sudah ada\")`. Program membaca judul per baris, mencoba menambahkan semuanya, mencetak `Gagal: <pesan>` untuk yang ditolak, lalu mencetak daftar akhirnya.",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            try {\n                s.tambah(in.nextLine());\n            } catch (IllegalArgumentException e) {\n                System.out.println(\"Gagal: \" + e.getMessage());\n            }\n        }\n        for (Todo t : s.semua()) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService s = new TodoService(new TodoRepositoryMemori());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            try {\n                s.tambah(in.nextLine());\n            } catch (IllegalArgumentException e) {\n                System.out.println(\"Gagal: \" + e.getMessage());\n            }\n        }\n        for (Todo t : s.semua()) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        for (Todo t : repo.semua()) {\n            if (t.getJudul().equalsIgnoreCase(judul.trim())) {\n                throw new IllegalArgumentException(\"Todo sudah ada\");\n            }\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}",
+      "tests": [
+        {
+          "input": "Belajar Java\nBeli kopi\nbelajar java\n   \nCuci piring\n",
+          "expectedOutput": "Gagal: Todo sudah ada\nGagal: Judul tidak boleh kosong\n1. [ ] Belajar Java\n2. [ ] Beli kopi\n3. [ ] Cuci piring\n"
+        },
+        {
+          "input": "A\na\nA\n",
+          "expectedOutput": "Gagal: Todo sudah ada\nGagal: Todo sudah ada\n1. [ ] A\n"
+        }
+      ],
+      "hints": [
+        "Sebelum repo.simpan, telusuri repo.semua().",
+        "Bandingkan dengan t.getJudul().equalsIgnoreCase(judul.trim()) dan lempar IllegalArgumentException kalau sama."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Service memegang aturan aplikasi dan memanggil repository.",
+        "Repository disuntikkan lewat constructor (dependency injection).",
+        "Pelanggaran aturan dilempar sebagai exception dengan pesan jelas.",
+        "Validasi dilakukan sebelum menyimpan; trim dulu sebelum memeriksa kosong."
+      ]
+    }
+  ]
+}
