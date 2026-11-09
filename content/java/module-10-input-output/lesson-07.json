@@ -1,0 +1,194 @@
+{
+  "id": "java-input-output-07",
+  "moduleId": "input-output",
+  "order": 7,
+  "title": "Menambah Isi File",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Catatan kas kasir terus bertambah sepanjang hari: setiap transaksi ditambahkan di **akhir** file, catatan sebelumnya tidak boleh hilang.\n\nKita sudah tahu `new FileWriter(\"kas.txt\")` menimpa isi lama. Untuk **menambah**, ada dua cara:\n\n1. Mode tambah (append): `new FileWriter(\"kas.txt\", true)`. Argumen `true` berarti \"tulis di akhir\".\n2. Baca semua isi lama, tambahkan baris baru di memori, lalu tulis ulang semuanya.\n\nIngat perumpamaan lemari arsip: cara pertama seperti menyelipkan lembar baru di belakang map. Cara kedua seperti menyalin semua lembar ke map baru ditambah satu lembar, lalu mengganti map lama."
+    },
+    {
+      "type": "theory",
+      "content": "Di komputer sendiri, cara pertama adalah yang biasa dipakai:\n\n```java\ntry (PrintWriter w = new PrintWriter(new FileWriter(\"kas.txt\", true))) {\n    w.println(\"masuk 50000\");\n}\n```\n\nPenyimpanan file di website ini (folder `/files/` milik browser) **belum mendukung mode tambah dengan benar**: hasilnya bisa menimpa isi lama. Karena itu praktik dan tantangan di materi ini memakai cara kedua, yang hasilnya sama di mana pun:\n\n```java\nPath p = Paths.get(\"kas.txt\");\nList<String> isi = Files.exists(p) ? Files.readAllLines(p) : new ArrayList<String>();\nisi.add(\"masuk 50000\");\nFiles.write(p, isi);\n```\n\nCara kedua membaca seluruh file setiap kali menambah, jadi lebih lambat untuk file besar. Untuk catatan harian kecil, bedanya tidak terasa."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java run\nimport java.io.*;\nimport java.nio.file.*;\nimport java.util.*;\n\npublic class Main {\n    static void catat(Path p, String baris) throws IOException {\n        List<String> isi = Files.exists(p) ? Files.readAllLines(p) : new ArrayList<String>();\n        isi.add(baris);\n        Files.write(p, isi);\n    }\n\n    public static void main(String[] args) throws IOException {\n        Path kas = Paths.get(\"kas-hari-ini.txt\");\n        Files.deleteIfExists(kas);          // mulai hari baru\n        catat(kas, \"masuk 50000\");\n        catat(kas, \"keluar 20000\");\n        catat(kas, \"masuk 35000\");\n        System.out.println(Files.readAllLines(kas));\n    }\n}\n```\n\nMethod `catat` bisa dipanggil berkali-kali, dan setiap baris baru masuk di akhir tanpa menghapus yang lama."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.nio.file.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path p = Paths.get(\"log-tambah.txt\");\n        Files.deleteIfExists(p);\n        List<String> isi = Files.exists(p) ? Files.readAllLines(p) : new ArrayList<String>();\n        isi.add(\"buka toko\");\n        Files.write(p, isi);\n        isi = Files.readAllLines(p);\n        isi.add(\"tutup toko\");\n        Files.write(p, isi);\n        System.out.println(Files.readAllLines(p).size());\n        Files.write(p, Arrays.asList(\"hapus semua\"));\n        System.out.println(Files.readAllLines(p).size());\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: angka apa yang dicetak terakhir?",
+        "options": [
+          "3",
+          "2",
+          "0",
+          "1"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "File belum ada, jadi mulai dari list kosong."
+        },
+        {
+          "line": 12,
+          "note": "Isi lama dibaca dulu sebelum ditambah."
+        },
+        {
+          "line": 16,
+          "note": "Menulis list baru tanpa membaca isi lama: isi lama tertimpa."
+        }
+      ],
+      "explanation": "Dua penambahan pertama membaca isi lama dulu, jadi file berisi 2 baris. Baris `Files.write(p, Arrays.asList(\"hapus semua\"))` menulis list yang **tidak** berisi isi lama, sehingga file hanya tinggal 1 baris.\n\nItulah inti menambah: isi lama harus ikut ditulis lagi.",
+      "tryThis": [
+        {
+          "task": "Ubah baris terakhir supaya \"hapus semua\" ditambahkan, bukan menimpa.",
+          "hint": null
+        },
+        {
+          "task": "Buat method catat(Path, String) seperti di materi dan pakai di sini.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa membaca isi lama**\n\n`Files.write(p, Arrays.asList(barisBaru))` menimpa seluruh file dengan satu baris.\n\n**2. Membaca file yang belum ada**\n\n`Files.readAllLines` melempar `NoSuchFileException` kalau file belum ada. Periksa dulu dengan `Files.exists`, seperti di contoh.\n\n**3. Lupa argumen true di FileWriter**\n\nDi komputer sendiri, `new FileWriter(\"kas.txt\")` tanpa `true` menimpa catatan kas sepanjang hari. Kesalahan ini sering baru ketahuan saat laporan sore kosong.\n\n**4. Menambah baris tanpa tanda baris baru**\n\nDengan mode tambah, `w.print(\"masuk 50000\")` menempel ke baris terakhir. Pakai `println`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- **Catatan aktivitas (log) tidak ditulis manual dengan mode tambah.** Aplikasi memakai library logging (Logback atau Log4j2, dibahas di modul Logging) yang menambah baris, memecah file per hari atau per ukuran, dan menghapus file lama secara otomatis.\n- **Menambah isi file di komputer sendiri** dengan NIO ditulis seperti ini:\n\n```java\nFiles.write(Paths.get(\"kas.txt\"), Arrays.asList(\"Penjualan;25000\"), StandardCharsets.UTF_8,\n        StandardOpenOption.CREATE, StandardOpenOption.APPEND);\n```\n\n- **Banyak program menulis ke file yang sama pada waktu bersamaan** membuat isinya bisa bertumpuk. Untuk data transaksi yang ditulis banyak kasir sekaligus, tempatnya di database (modul JDBC), bukan file teks."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Arsip Toko 7: Buku Kas Harian",
+      "pembuka": "Setiap transaksi kas ditambahkan di akhir catatan, dan catatan lama tidak boleh hilang.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Method `catat` membaca isi lama, menambah satu baris, lalu menulis ulang.",
+          "jawaban": "import java.io.*;\nimport java.nio.file.*;\nimport java.util.*;\n\npublic class Main {\n    static void catat(Path p, String baris) throws IOException {\n        List<String> isi = Files.exists(p) ? Files.readAllLines(p) : new ArrayList<String>();\n        isi.add(baris);\n        Files.write(p, isi);\n    }\n\n    public static void main(String[] args) throws IOException {\n        Path kas = Paths.get(\"kas-praktik.txt\");\n        Files.deleteIfExists(kas);\n        catat(kas, \"masuk 50000\");\n        catat(kas, \"keluar 20000\");\n        System.out.println(Files.readAllLines(kas));\n    }\n}\n",
+          "keluaran": "[masuk 50000, keluar 20000]",
+          "otomatis": true,
+          "benar": "File dihapus dulu di awal, seperti membuka buku kas hari baru.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Catat satu transaksi lagi: `masuk 35000`. Cetak lagi isi file: sekarang tiga baris.",
+          "jawaban": "import java.io.*;\nimport java.nio.file.*;\nimport java.util.*;\n\npublic class Main {\n    static void catat(Path p, String baris) throws IOException {\n        List<String> isi = Files.exists(p) ? Files.readAllLines(p) : new ArrayList<String>();\n        isi.add(baris);\n        Files.write(p, isi);\n    }\n\n    public static void main(String[] args) throws IOException {\n        Path kas = Paths.get(\"kas-praktik.txt\");\n        Files.deleteIfExists(kas);\n        catat(kas, \"masuk 50000\");\n        catat(kas, \"keluar 20000\");\n        System.out.println(Files.readAllLines(kas));\n        catat(kas, \"masuk 35000\");\n        System.out.println(Files.readAllLines(kas));\n    }\n}\n",
+          "keluaran": "[masuk 50000, keluar 20000]\n[masuk 50000, keluar 20000, masuk 35000]",
+          "wajib": [
+            {
+              "pola": "catat\\s*\\(\\s*kas\\s*,\\s*\"masuk 35000\"\\s*\\)",
+              "pesan": "pakai method `catat`."
+            }
+          ],
+          "petunjuk": "Panggil `catat(kas, \"masuk 35000\");` lalu cetak isi file."
+        },
+        {
+          "arahan": "Hitung saldo dari isi file: baca semua baris, tambah untuk `masuk`, kurangi untuk `keluar`. Cetak `Saldo: 65000`.",
+          "jawaban": "import java.io.*;\nimport java.nio.file.*;\nimport java.util.*;\n\npublic class Main {\n    static void catat(Path p, String baris) throws IOException {\n        List<String> isi = Files.exists(p) ? Files.readAllLines(p) : new ArrayList<String>();\n        isi.add(baris);\n        Files.write(p, isi);\n    }\n\n    public static void main(String[] args) throws IOException {\n        Path kas = Paths.get(\"kas-praktik.txt\");\n        Files.deleteIfExists(kas);\n        catat(kas, \"masuk 50000\");\n        catat(kas, \"keluar 20000\");\n        System.out.println(Files.readAllLines(kas));\n        catat(kas, \"masuk 35000\");\n        System.out.println(Files.readAllLines(kas));\n        int saldo = 0;\n        for (String b : Files.readAllLines(kas)) {\n            String[] x = b.split(\" \");\n            int n = Integer.parseInt(x[1]);\n            if (x[0].equals(\"masuk\")) {\n                saldo += n;\n            } else {\n                saldo -= n;\n            }\n        }\n        System.out.println(\"Saldo: \" + saldo);\n    }\n}\n",
+          "keluaran": "[masuk 50000, keluar 20000]\n[masuk 50000, keluar 20000, masuk 35000]\nSaldo: 65000",
+          "wajib": [
+            {
+              "pola": "Files\\.readAllLines\\s*\\(\\s*kas\\s*\\)[\\s\\S]*split",
+              "pesan": "hitung dari isi file, pecah setiap baris dengan split."
+            }
+          ],
+          "tantangan": true,
+          "petunjuk": "Pecah setiap baris dengan `split(\" \")`. Bagian 0 jenisnya, bagian 1 jumlahnya."
+        }
+      ],
+      "penutup": "Membaca isi lama lalu menulis ulang adalah cara menambah yang berlaku di mana pun."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.io.*;\nimport java.nio.file.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path p = Paths.get(\"abc.txt\");\n        Files.write(p, Arrays.asList(\"a\", \"b\"));\n        List<String> isi = Files.readAllLines(p);\n        isi.add(\"c\");\n        Files.write(p, isi);\n        System.out.println(Files.readAllLines(p));\n    }\n}",
+          "options": [
+            "[a, b, c]",
+            "[c]",
+            "[a, b]",
+            "[c, a, b]"
+          ],
+          "answer": 0,
+          "explanation": "Isi lama dibaca dulu, lalu ditambah c di akhir.",
+          "remedial": "Pola menambah: baca isi lama, tambah di akhir list, tulis lagi semuanya. `add` menaruh baris baru di **akhir** list."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.io.*;\nimport java.nio.file.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path p = Paths.get(\"abc2.txt\");\n        Files.write(p, Arrays.asList(\"a\", \"b\"));\n        Files.write(p, Arrays.asList(\"c\"));\n        System.out.println(Files.readAllLines(p));\n    }\n}",
+          "options": [
+            "[a, b, c]",
+            "[c]",
+            "[a, b]",
+            "Error"
+          ],
+          "answer": 1,
+          "explanation": "List baru tidak berisi isi lama.",
+          "remedial": "`Files.write` selalu menulis ulang seluruh file dengan isi list yang dikirim. List ini hanya berisi `c`, jadi `a` dan `b` hilang."
+        },
+        {
+          "question": "Di komputer sendiri, argumen apa yang membuat FileWriter menambah di akhir file?",
+          "options": [
+            "false sebagai argumen kedua",
+            "\"a\" sebagai argumen kedua",
+            "true sebagai argumen kedua",
+            "Tidak ada, FileWriter selalu menambah"
+          ],
+          "answer": 2,
+          "explanation": "new FileWriter(nama, true).",
+          "remedial": "Konstruktor `FileWriter(String nama, boolean append)` menulis di akhir file kalau `append` bernilai `true`. Tanpa argumen itu, file ditimpa."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa praktik di website ini menambah isi file dengan cara membaca lalu menulis ulang?",
+      "options": [
+        "Mode tambah dilarang di Java",
+        "Cara itu lebih cepat untuk file besar",
+        "FileWriter tidak ada di Java 8",
+        "Penyimpanan file di browser belum mendukung mode tambah dengan benar"
+      ],
+      "answer": 3,
+      "explanation": "Di komputer sendiri, FileWriter dengan true bekerja normal."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca beberapa baris transaksi dari input, misalnya `masuk 50000` atau `keluar 20000`. **Setiap** baris dicatat ke file `kas-tantangan.txt` dengan method `catat` (baca isi lama, tambah, tulis ulang). Program menghapus file itu dulu di awal. Setelah semua dicatat, baca file dan cetak:\n\n```\nTransaksi: <banyak baris>\nSaldo: <total masuk dikurangi total keluar>\n```",
+      "starterCode": "import java.io.*;\nimport java.nio.file.*;\nimport java.util.*;\n\npublic class Main {\n    static void catat(Path p, String baris) throws IOException {\n        // Lengkapi: baca isi lama, tambah baris, tulis ulang\n    }\n\n    public static void main(String[] args) throws IOException {\n        Path p = Paths.get(\"kas-tantangan.txt\");\n        Files.deleteIfExists(p);\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            catat(p, in.nextLine());\n        }\n        // Hitung saldo di sini\n    }\n}",
+      "solution": "import java.io.*;\nimport java.nio.file.*;\nimport java.util.*;\n\npublic class Main {\n    static void catat(Path p, String baris) throws IOException {\n        List<String> isi = Files.exists(p) ? Files.readAllLines(p) : new ArrayList<String>();\n        isi.add(baris);\n        Files.write(p, isi);\n    }\n\n    public static void main(String[] args) throws IOException {\n        Path p = Paths.get(\"kas-tantangan.txt\");\n        Files.deleteIfExists(p);\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            catat(p, in.nextLine());\n        }\n        List<String> isi = Files.readAllLines(p);\n        int saldo = 0;\n        for (String b : isi) {\n            String[] x = b.split(\" \");\n            int n = Integer.parseInt(x[1]);\n            saldo += x[0].equals(\"masuk\") ? n : -n;\n        }\n        System.out.println(\"Transaksi: \" + isi.size());\n        System.out.println(\"Saldo: \" + saldo);\n    }\n}",
+      "tests": [
+        {
+          "input": "masuk 50000\nkeluar 20000\nmasuk 35000\n",
+          "expectedOutput": "Transaksi: 3\nSaldo: 65000\n"
+        },
+        {
+          "input": "keluar 5000\n",
+          "expectedOutput": "Transaksi: 1\nSaldo: -5000\n"
+        }
+      ],
+      "hints": [
+        "Isi catat: List<String> isi = Files.exists(p) ? Files.readAllLines(p) : new ArrayList<String>(); lalu isi.add(baris); Files.write(p, isi);",
+        "Untuk saldo, pecah setiap baris dengan split(\" \"), tambah kalau masuk, kurangi kalau keluar."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Menambah isi file berarti menulis di akhir tanpa menghapus isi lama.",
+        "Di komputer sendiri: new FileWriter(nama, true).",
+        "Cara yang berlaku di mana pun: baca isi lama, tambah di list, tulis ulang.",
+        "Periksa Files.exists sebelum membaca file yang mungkin belum ada."
+      ]
+    }
+  ]
+}

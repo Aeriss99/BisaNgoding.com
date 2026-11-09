@@ -36,7 +36,7 @@ describe('Modul Java Date & Time', () => {
     expect(dt).toMatchObject({ status: 'ready', requires: 'stream', lessonCount: 12 });
     expect(dt.order).toBe(stream.order + 1);
     expect(lessons.length).toBe(12);
-    expect(modules.find((m) => m.id === 'apache-maven').requires).toBe('date-time');
+    expect(modules.find((m) => m.id === 'input-output').requires).toBe('date-time');
     const orders = modules.map((m) => m.order);
     expect(new Set(orders).size).toBe(orders.length);
   });

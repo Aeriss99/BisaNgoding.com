@@ -1,0 +1,198 @@
+{
+  "id": "java-input-output-09",
+  "moduleId": "input-output",
+  "order": 9,
+  "title": "Menyimpan Angka sebagai Data Biner",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sejauh ini semua file berisi **teks**: angka 15000 disimpan sebagai lima karakter `1`, `5`, `0`, `0`, `0`. Ada cara lain: menyimpan angka dalam bentuk aslinya di memori, yaitu **biner**.\n\n| Class | Kegunaan |\n|---|---|\n| `DataOutputStream` | `writeInt`, `writeDouble`, `writeBoolean`, `writeUTF` (teks) |\n| `DataInputStream` | `readInt`, `readDouble`, `readBoolean`, `readUTF` |\n\nIngat perumpamaan lemari arsip: file teks seperti catatan tulisan tangan yang bisa dibaca siapa saja. File biner seperti kartu berlubang mesin kasir: rapat dan cepat dibaca mesin, tapi tidak bisa dibaca manusia dengan Notepad."
+    },
+    {
+      "type": "theory",
+      "content": "Aturan paling penting: data biner harus dibaca dengan **urutan dan jenis yang sama persis** seperti saat ditulis.\n\n```java\nout.writeUTF(\"Kopi\");     // ditulis: teks\nout.writeInt(15000);      // lalu: int\n...\nString nama = in.readUTF();   // dibaca: teks dulu\nint harga = in.readInt();     // lalu int\n```\n\nFile biner tidak menyimpan keterangan \"ini int, ini teks\". Kalau urutannya tertukar, Java tetap membaca byte-nya, dan hasilnya angka atau teks yang kacau.\n\n`int` selalu 4 byte, `double` 8 byte, `boolean` 1 byte. Teks dari `writeUTF` diawali 2 byte panjangnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java run\nimport java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(\"produk.dat\"))) {\n            out.writeInt(2);              // jumlah produk\n            out.writeUTF(\"Kopi\");\n            out.writeInt(15000);\n            out.writeUTF(\"Teh\");\n            out.writeInt(8000);\n        }\n        System.out.println(\"Ukuran: \" + new File(\"produk.dat\").length() + \" byte\");\n\n        try (DataInputStream in = new DataInputStream(new FileInputStream(\"produk.dat\"))) {\n            int n = in.readInt();\n            for (int i = 0; i < n; i++) {\n                System.out.println(in.readUTF() + \" \" + in.readInt());\n            }\n        }\n    }\n}\n```\n\nMenulis jumlah produk di awal memudahkan pembacaan: pembaca tahu berapa kali harus mengulang."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(\"angka.dat\"))) {\n            out.writeInt(15000);\n            out.writeInt(7);\n        }\n        System.out.println(new File(\"angka.dat\").length());\n        try (PrintWriter w = new PrintWriter(new FileWriter(\"angka.txt\"))) {\n            w.print(15000);\n            w.print(7);\n        }\n        System.out.println(new File(\"angka.txt\").length());\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: berapa ukuran angka.dat yang dicetak pertama?",
+        "options": [
+          "6",
+          "8",
+          "2",
+          "15007"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Setiap int selalu 4 byte, berapa pun nilainya."
+        },
+        {
+          "line": 11,
+          "note": "Sebagai teks, 15000 butuh 5 karakter."
+        },
+        {
+          "line": 14,
+          "note": "Teks 150007 = 6 karakter."
+        }
+      ],
+      "explanation": "Dua `int` di file biner selalu 4 + 4 = 8 byte. Sebagai teks, `15000` dan `7` ditulis menempel menjadi `150007`, 6 byte, dan tidak bisa lagi dibedakan mana angka pertama dan mana kedua.\n\nItulah salah satu kelebihan biner: batas setiap data jelas.",
+      "tryThis": [
+        {
+          "task": "Ganti 15000 menjadi 2000000000. Apakah ukuran angka.dat berubah?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan out.writeDouble(1.5). Berapa ukurannya sekarang?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Urutan baca berbeda dengan urutan tulis**\n\nMenulis `writeUTF` lalu `writeInt`, tapi membaca `readInt` dulu, menghasilkan angka acak atau `EOFException`.\n\n**2. Membuka file biner dengan BufferedReader**\n\nIsinya tampak seperti karakter aneh. File biner dibaca dengan `DataInputStream`.\n\n**3. Membaca melewati akhir file**\n\n`readInt()` saat data habis melempar `EOFException` (turunan `IOException`). Simpan jumlah data di awal file supaya pembaca tahu kapan berhenti.\n\n**4. Memakai biner untuk data yang perlu dibaca manusia**\n\nLaporan untuk atasan sebaiknya teks atau CSV. Biner cocok untuk data internal program."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\nFormat `DataOutputStream` hanya dimengerti program yang tahu persis urutan tulisnya. Untuk bertukar data antar aplikasi, tim biasanya memakai **format standar**:\n\n| Format | Dipakai untuk |\n|---|---|\n| JSON (library Jackson, modul JSON) | REST API, konfigurasi, pertukaran data antar layanan |\n| CSV | ekspor/impor ke Excel dan laporan |\n| Protocol Buffers / Avro | data biner antar layanan dalam jumlah besar |\n\nKalau tetap membuat format biner sendiri, kebiasaan yang baik adalah menulis **penanda dan nomor versi format** di awal file. Saat formatnya berubah, program bisa tahu versi mana yang sedang dibaca.\n\n```java\nout.writeInt(0x544F4B4F); // penanda file toko\nout.writeShort(1);         // versi format\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Arsip Toko 9: Rekap Kasir Biner",
+      "pembuka": "Mesin kasir menyimpan rekap harian dalam bentuk biner yang rapat dan cepat dibaca.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Nama ditulis dengan writeUTF, jumlah pembeli dengan writeInt.",
+          "jawaban": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(\"kasir.dat\"))) {\n            out.writeUTF(\"Sari\");\n            out.writeInt(12);\n        }\n        try (DataInputStream in = new DataInputStream(new FileInputStream(\"kasir.dat\"))) {\n            System.out.println(in.readUTF() + \" melayani \" + in.readInt() + \" pembeli\");\n        }\n    }\n}\n",
+          "keluaran": "Sari melayani 12 pembeli",
+          "otomatis": true,
+          "benar": "Urutan baca sama persis dengan urutan tulis.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan omzet `double` 1250000.5 dengan `writeDouble` setelah jumlah pembeli. Baca dan cetak di baris baru: `Omzet: 1250000.5`.",
+          "jawaban": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(\"kasir.dat\"))) {\n            out.writeUTF(\"Sari\");\n            out.writeInt(12);\n            out.writeDouble(1250000.5);\n        }\n        try (DataInputStream in = new DataInputStream(new FileInputStream(\"kasir.dat\"))) {\n            System.out.println(in.readUTF() + \" melayani \" + in.readInt() + \" pembeli\");\n            System.out.println(\"Omzet: \" + in.readDouble());\n        }\n    }\n}\n",
+          "keluaran": "Sari melayani 12 pembeli\nOmzet: 1250000.5",
+          "wajib": [
+            {
+              "pola": "writeDouble\\s*\\(",
+              "pesan": "tulis omzet dengan `writeDouble`."
+            },
+            {
+              "pola": "readDouble\\s*\\(",
+              "pesan": "baca dengan `readDouble`."
+            }
+          ],
+          "petunjuk": "Tulis dengan `out.writeDouble(...)`, baca dengan `in.readDouble()` di urutan yang sama."
+        },
+        {
+          "arahan": "Cetak ukuran `kasir.dat` di akhir program: `Ukuran: 18 byte`. Teks `Sari` = 2 + 4 byte, int 4 byte, double 8 byte.",
+          "jawaban": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(\"kasir.dat\"))) {\n            out.writeUTF(\"Sari\");\n            out.writeInt(12);\n            out.writeDouble(1250000.5);\n        }\n        try (DataInputStream in = new DataInputStream(new FileInputStream(\"kasir.dat\"))) {\n            System.out.println(in.readUTF() + \" melayani \" + in.readInt() + \" pembeli\");\n            System.out.println(\"Omzet: \" + in.readDouble());\n        }\n        System.out.println(\"Ukuran: \" + new File(\"kasir.dat\").length() + \" byte\");\n    }\n}\n",
+          "keluaran": "Sari melayani 12 pembeli\nOmzet: 1250000.5\nUkuran: 18 byte",
+          "wajib": [
+            {
+              "pola": "new\\s+File\\s*\\(\\s*\"kasir\\.dat\"\\s*\\)\\.length\\s*\\(\\s*\\)",
+              "pesan": "ambil ukurannya dengan `new File(\"kasir.dat\").length()`."
+            }
+          ],
+          "tantangan": true,
+          "petunjuk": "Pakai `new File(\"kasir.dat\").length()` setelah semua blok try."
+        }
+      ],
+      "penutup": "Data biner rapat dan pasti ukurannya, asalkan dibaca dengan urutan yang sama."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        try (DataOutputStream o = new DataOutputStream(new FileOutputStream(\"x.dat\"))) {\n            o.writeUTF(\"Kopi\");\n            o.writeInt(15000);\n        }\n        try (DataInputStream i = new DataInputStream(new FileInputStream(\"x.dat\"))) {\n            String n = i.readUTF();\n            int h = i.readInt();\n            System.out.println(n + \" \" + h);\n        }\n    }\n}",
+          "options": [
+            "15000 Kopi",
+            "Kopi",
+            "Kopi 15000",
+            "Error"
+          ],
+          "answer": 2,
+          "explanation": "Dibaca dengan urutan yang sama seperti ditulis.",
+          "remedial": "Data biner tidak menyimpan keterangan jenisnya. Urutan baca harus sama dengan urutan tulis: teks dulu (`readUTF`), lalu angka (`readInt`)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        try (DataOutputStream o = new DataOutputStream(new FileOutputStream(\"tiga.dat\"))) {\n            o.writeInt(1);\n            o.writeInt(20);\n            o.writeInt(300);\n        }\n        System.out.println(new File(\"tiga.dat\").length());\n    }\n}",
+          "options": [
+            "3",
+            "6",
+            "24",
+            "12"
+          ],
+          "answer": 3,
+          "explanation": "Tiga int masing-masing 4 byte.",
+          "remedial": "Setiap `int` di file biner memakan tepat 4 byte, tidak peduli besar kecil nilainya. Tiga int = 12 byte."
+        },
+        {
+          "question": "Exception apa yang muncul saat readInt dipanggil padahal data sudah habis?",
+          "options": [
+            "EOFException",
+            "NullPointerException",
+            "FileNotFoundException",
+            "NumberFormatException"
+          ],
+          "answer": 0,
+          "explanation": "EOF = end of file.",
+          "remedial": "`DataInputStream` melempar `EOFException` saat diminta membaca lebih dari isi file. Berbeda dengan `readLine()` yang mengembalikan `null`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa aturan terpenting saat membaca file biner?",
+      "options": [
+        "Harus dibaca dengan BufferedReader",
+        "Urutan dan jenis data harus sama dengan saat ditulis",
+        "File harus berakhiran .txt",
+        "Angka harus diubah ke teks dulu"
+      ],
+      "answer": 1,
+      "explanation": "Biner tidak menyimpan keterangan jenis."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca **n**, lalu n baris `nama harga`. Simpan ke file biner `menu.dat`: tulis n dulu dengan `writeInt`, lalu setiap produk dengan `writeUTF` dan `writeInt`. Setelah itu **baca kembali menu.dat** dan cetak setiap produk dengan format `nama: harga`, lalu `Total: <jumlah harga>`.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner in = new Scanner(System.in);\n        int n = in.nextInt();\n        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(\"menu.dat\"))) {\n            // Tulis n dan semua produk di sini\n        }\n        // Baca menu.dat di sini\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner in = new Scanner(System.in);\n        int n = in.nextInt();\n        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(\"menu.dat\"))) {\n            out.writeInt(n);\n            for (int i = 0; i < n; i++) {\n                out.writeUTF(in.next());\n                out.writeInt(in.nextInt());\n            }\n        }\n        int total = 0;\n        try (DataInputStream d = new DataInputStream(new FileInputStream(\"menu.dat\"))) {\n            int m = d.readInt();\n            for (int i = 0; i < m; i++) {\n                String nama = d.readUTF();\n                int harga = d.readInt();\n                total += harga;\n                System.out.println(nama + \": \" + harga);\n            }\n        }\n        System.out.println(\"Total: \" + total);\n    }\n}",
+      "tests": [
+        {
+          "input": "2\nKopi 15000\nTeh 8000\n",
+          "expectedOutput": "Kopi: 15000\nTeh: 8000\nTotal: 23000\n"
+        },
+        {
+          "input": "3\nRoti 7000\nSusu 9000\nGula 14000\n",
+          "expectedOutput": "Roti: 7000\nSusu: 9000\nGula: 14000\nTotal: 30000\n"
+        }
+      ],
+      "hints": [
+        "Saat menulis: out.writeInt(n); lalu di perulangan out.writeUTF(in.next()); out.writeInt(in.nextInt());",
+        "Saat membaca: readInt dulu untuk jumlah, lalu readUTF dan readInt sebanyak itu."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "DataOutputStream dan DataInputStream menyimpan angka dan teks dalam bentuk biner.",
+        "Urutan dan jenis saat membaca harus sama persis dengan saat menulis.",
+        "Simpan jumlah data di awal supaya pembaca tahu kapan berhenti.",
+        "Biner untuk data internal program; teks atau CSV untuk dibaca manusia."
+      ]
+    }
+  ]
+}
