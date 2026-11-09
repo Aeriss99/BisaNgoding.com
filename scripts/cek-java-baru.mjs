@@ -18,6 +18,7 @@ for (const f of folder) {
     }
   }
 }
+for (const h of JSON.parse(fs.readFileSync('scripts/harap-java-baru.json', 'utf-8'))) tugas.push({ asal: h.asal, kode: h.kode, input: '', harap: h.harap });
 console.log(`TUGAS: ${tugas.length}`);
 const browser = await chromium.launch({ args: ['--js-flags=--max-old-space-size=4096'] });
 let page = null;
