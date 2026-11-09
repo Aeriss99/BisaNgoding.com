@@ -16,7 +16,7 @@ const MODUL = [
   { id: 'oop-todolist', folder: 'module-11-oop-todolist', jumlah: 8, requires: 'input-output', praktik: 'Todolist OOP' },
   { id: 'apache-maven', folder: 'module-12-apache-maven', jumlah: 7, requires: 'oop-todolist', praktik: null },
 ];
-const BUKAN_JAVA8 = [/\bList\.of\(/, /\bMap\.of\(/, /\bSet\.of\(/, /\bvar\s+\w+\s*=/, /"""/, /\brecord\s+\w+\s*\(/, /readString\(/, /writeString\(/, /\bPath\.of\(/, /\.toList\(\)/, /isBlank\(/, /\.repeat\(/];
+const BUKAN_JAVA8 = [/\bList\.of\(/, /\bMap\.of\(/, /\bSet\.of\(/, /\bvar\s+\w+\s*=/, /"""/, /\brecord\s+\w+\s*\(/, /readString\(/, /writeString\(/, /\bPath\.of\(/, /(?<!Collectors)\.toList\(\)/, /isBlank\(/, /\.repeat\(/];
 
 function semuaKode(l: Lesson): string[] {
   const kode: string[] = [];
