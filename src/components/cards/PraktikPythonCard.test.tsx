@@ -80,9 +80,9 @@ describe('PraktikPythonCard', () => {
 
     ketik('nilia == 100');
     expect(await screen.findByText(/Muncul error NameError: name 'nilia' is not defined/)).toBeTruthy();
-    expect(screen.getByText('Lihat jawabannya')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Lihat jawabannya' })).toBeTruthy();
 
-    fireEvent.click(screen.getByText('Lihat jawabannya'));
+    fireEvent.click(screen.getByRole('button', { name: 'Lihat jawabannya' }));
     expect((screen.getByLabelText('Ketik perintah Python') as HTMLInputElement).value).toBe('nilai == 100');
     fireEvent.submit(screen.getByLabelText('Ketik perintah Python').closest('form')!);
     expect(await screen.findByText('Hebat, selesai.')).toBeTruthy();
