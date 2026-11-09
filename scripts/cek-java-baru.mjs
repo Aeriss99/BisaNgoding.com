@@ -135,7 +135,7 @@ async function kerjakan(l, c, k) {
     for (let n = 0; n < 10; n++) {
       if (await tombolLanjut()) return;
       const teks = rapiT(await hp.locator('body').innerText());
-      const q = c.questions.find((q) => teks.includes(rapiT(q.question)) && (!q.code || teks.includes(rapiT(q.code).slice(0, 120))));
+      const q = c.questions.find((q) => teks.includes(rapiT(q.question)) && q.options.every((o) => teks.includes(rapiT(o))) && (!q.code || teks.includes(rapiT(q.code.split('\n').find((x) => /println|=/.test(x)) || '').slice(0, 40))));
       if (q) { const b = hp.getByRole('button', { name: q.options[q.answer], exact: true }).first(); if (await b.count()) await b.click().catch(() => {}); }
       await hp.waitForTimeout(150);
       for (const nama of ['Soal Berikutnya', 'Coba Soal Lain']) { const t = hp.getByRole('button', { name: nama }); if (await t.count()) { await t.first().click().catch(() => {}); break; } }
