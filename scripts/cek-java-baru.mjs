@@ -40,7 +40,7 @@ async function halamanBaru() {
 }
 const temuan = [];
 let i = 0;
-for (const t of tugas) {
+for (const t of process.env.SAJA ? [] : tugas) {
   if (i % 15 === 0) await halamanBaru();
   i++;
   let r;
@@ -100,7 +100,8 @@ async function kerjakan(l, c, k) {
   if (c.type === 'praktik_java' || c.type === 'praktik_terminal') {
     const java = c.type === 'praktik_java';
     for (let n = 0; n < 40; n++) {
-      if (await hp.getByText(rapiT(c.penutup).slice(0, 40), { exact: false }).count()) return;
+      if (await tombolLanjut()) return;
+      if (await hp.getByText(rapiT(c.penutup.replace(/[`*]/g, '')).slice(0, 40), { exact: false }).count()) return;
       const lw = hp.getByRole('button', { name: 'Lewati', exact: true });
       if (await lw.count()) { await lw.first().click().catch(() => {}); await hp.waitForTimeout(400); if (java) await tungguJava(); continue; }
       const sebelum = rapiT(await hp.locator('[role=log]').first().innerText());
@@ -134,7 +135,7 @@ async function kerjakan(l, c, k) {
     for (let n = 0; n < 10; n++) {
       if (await tombolLanjut()) return;
       const teks = rapiT(await hp.locator('body').innerText());
-      const q = c.questions.find((q) => teks.includes(rapiT(q.question).slice(0, 60)));
+      const q = c.questions.find((q) => teks.includes(rapiT(q.question)) && (!q.code || teks.includes(rapiT(q.code).slice(0, 120))));
       if (q) { const b = hp.getByRole('button', { name: q.options[q.answer], exact: true }).first(); if (await b.count()) await b.click().catch(() => {}); }
       await hp.waitForTimeout(150);
       for (const nama of ['Soal Berikutnya', 'Coba Soal Lain']) { const t = hp.getByRole('button', { name: nama }); if (await t.count()) { await t.first().click().catch(() => {}); break; } }
@@ -151,7 +152,8 @@ async function kerjakan(l, c, k) {
   }
 }
 let nomor = 0;
-for (const l of daftar) {
+const SAJA = process.env.SAJA ? new Set(process.env.SAJA.split(',')) : null;
+for (const l of SAJA ? daftar.filter((x) => SAJA.has(x.id)) : daftar) {
   sekarang = l.id;
   if (nomor++ % 5 === 0) await hpBaru();
   try {
@@ -173,7 +175,12 @@ for (const l of daftar) {
       }
       if (k === l.cards.length) break;
       const t = await tombolLanjut();
-      if (!t) { temuan.push(`${l.id} kartu ${k} (${c.type}): tombol Lanjut tidak aktif setelah dikerjakan`); break; }
+      if (!t) {
+        temuan.push(`${l.id} kartu ${k} (${c.type}): tombol Lanjut tidak aktif setelah dikerjakan`);
+        const buf = await hp.screenshot({ type: 'jpeg', quality: 55, fullPage: true });
+        console.log(`===FOTO macet-${l.id}-k${k}===`); console.log(buf.toString('base64')); console.log(`===AKHIR macet-${l.id}-k${k}===`);
+        break;
+      }
       await t.click({ timeout: 3000 }).catch(() => {});
     }
   } catch (e) { temuan.push(`${l.id}: ${String(e).split('\n')[0].slice(0, 160)}`); if (/crash|closed/i.test(String(e))) await hpBaru(); }
