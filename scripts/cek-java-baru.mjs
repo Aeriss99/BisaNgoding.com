@@ -27,10 +27,16 @@ console.log(`TUGAS: ${tugas.length}`);
 const browser = await chromium.launch({ args: ['--js-flags=--max-old-space-size=4096'] });
 let page = null;
 async function halamanBaru() {
-  if (page) await page.context().close().catch(() => {});
-  page = await (await browser.newContext()).newPage();
-  await page.goto('http://localhost:4173/', { waitUntil: 'load' });
-  await page.waitForFunction(() => typeof window.runJavaCode === 'function', null, { timeout: 120000 });
+  for (let coba = 0; coba < 3; coba++) {
+    try {
+      if (page) await page.context().close().catch(() => {});
+      page = await (await browser.newContext()).newPage();
+      await page.goto('http://localhost:4173/', { waitUntil: 'load' });
+      await page.waitForFunction(() => typeof window.runJavaCode === 'function', null, { timeout: 120000 });
+      return;
+    } catch (e) { console.log(`  halaman baru gagal (${coba + 1}): ${String(e).slice(0, 80)}`); }
+  }
+  throw new Error('halaman Java tidak bisa dibuka');
 }
 const temuan = [];
 let i = 0;
@@ -60,12 +66,20 @@ for (const f of fs.readdirSync('content/java').filter((x) => x.startsWith('modul
 const modulJava = JSON.parse(fs.readFileSync('content/java/modules.json', 'utf-8')).map((m) => m.id);
 const progres = { completedLessons: semuaId, passedChecks: [], moduleStatus: {}, quizScores: Object.fromEntries(modulJava.map((m) => [m, { score: 100, passed: true }])), xp: 0, streak: 0, lastActiveDate: '2026-11-10', version: 1 };
 const FOTO = new Set(['java-input-output-02#6', 'java-input-output-03#7', 'java-input-output-08#4', 'java-oop-todolist-06#7', 'java-oop-todolist-03#4', 'java-apache-maven-04#5', 'java-apache-maven-04#6', 'java-oop-11#5', 'java-input-output-05#9']);
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
-await ctx.addInitScript((v) => { try { localStorage.setItem('bisangoding_progress_lokal', v); } catch {} }, JSON.stringify(progres));
-const hp = await ctx.newPage();
+if (page) await page.context().close().catch(() => {});
+let hp = null;
 let sekarang = '';
+async function hpBaru() {
+  if (hp) await hp.context().close().catch(() => {});
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  await ctx.addInitScript((v) => { try { localStorage.setItem('bisangoding_progress_lokal', v); } catch {} }, JSON.stringify(progres));
+  hp = await ctx.newPage();
+  pasangPendengar(hp);
+}
+function pasangPendengar(hp) {
 hp.on('pageerror', (e) => temuan.push(`${sekarang}: pageerror ${String(e).slice(0, 200)}`));
 hp.on('console', (m) => { if (m.type() === 'error' && !/supabase|Failed to load resource|net::/i.test(m.text())) temuan.push(`${sekarang}: console ${m.text().slice(0, 160)}`); });
+}
 const daftar = [];
 for (const f of ['module-02-oop', 'module-10-input-output', 'module-11-oop-todolist', 'module-12-apache-maven']) {
   for (const n of fs.readdirSync(`content/java/${f}`).filter((x) => x.startsWith('lesson-')).sort()) daftar.push(JSON.parse(fs.readFileSync(`content/java/${f}/${n}`, 'utf-8')));
@@ -139,7 +153,7 @@ async function kerjakan(l, c, k) {
 let nomor = 0;
 for (const l of daftar) {
   sekarang = l.id;
-  if (nomor++ % 8 === 0) { await hp.goto('about:blank'); }
+  if (nomor++ % 5 === 0) await hpBaru();
   try {
     await hp.goto(`http://localhost:5173/#/lesson/${l.id}`, { waitUntil: 'domcontentloaded' });
     await hp.waitForTimeout(800);
@@ -162,7 +176,7 @@ for (const l of daftar) {
       if (!t) { temuan.push(`${l.id} kartu ${k} (${c.type}): tombol Lanjut tidak aktif setelah dikerjakan`); break; }
       await t.click({ timeout: 3000 }).catch(() => {});
     }
-  } catch (e) { temuan.push(`${l.id}: ${String(e).split('\n')[0].slice(0, 160)}`); }
+  } catch (e) { temuan.push(`${l.id}: ${String(e).split('\n')[0].slice(0, 160)}`); if (/crash|closed/i.test(String(e))) await hpBaru(); }
   if (nomor % 10 === 0) console.log(`  materi ${nomor}/${daftar.length}, temuan ${temuan.length}`);
 }
 console.log(`LANGKAH PRAKTIK: ${langkahPraktik}`);
