@@ -16,7 +16,7 @@ const MODUL = [
   { id: 'oop-todolist', folder: 'module-11-oop-todolist', jumlah: 8, requires: 'input-output', praktik: 'Todolist OOP' },
   { id: 'apache-maven', folder: 'module-12-apache-maven', jumlah: 7, requires: 'oop-todolist', praktik: null },
 ];
-const BUKAN_JAVA8 = [/\bList\.of\(/, /\bMap\.of\(/, /\bSet\.of\(/, /\bvar\s+\w+\s*=/, /"""/, /\brecord\s+\w+\s*\(/, /readString\(/, /writeString\(/, /\bPath\.of\(/, /\.toList\(\)/, /isBlank\(/, /\.repeat\(/];
+const BUKAN_JAVA8 = [/\bList\.of\(/, /\bMap\.of\(/, /\bSet\.of\(/, /\bvar\s+\w+\s*=/, /"""/, /\brecord\s+\w+\s*\(/, /readString\(/, /writeString\(/, /\bPath\.of\(/, /(?<!Collectors)\.toList\(\)/, /isBlank\(/, /\.repeat\(/];
 
 function semuaKode(l: Lesson): string[] {
   const kode: string[] = [];
@@ -70,14 +70,17 @@ describe('Modul Java: Input Output, Proyek Todolist OOP, Maven', () => {
 
           it('susunan kartu', () => {
             if (m.praktik) {
-              expect(jenis).toEqual(['theory', 'theory', 'theory', 'runnable', 'theory', 'praktik_java', 'understanding_check', 'multiple_choice', 'code_challenge', 'summary']);
+              expect(jenis).toEqual(['theory', 'theory', 'theory', 'runnable', 'theory', 'theory', 'praktik_java', 'understanding_check', 'multiple_choice', 'code_challenge', 'summary']);
             } else {
               expect((l as any).runnable).toBe(false);
-              expect(jenis).toEqual(['theory', 'theory', 'theory', 'theory', 'praktik_terminal', 'understanding_check', 'multiple_choice', 'fill_blank', 'summary']);
+              expect(jenis).toEqual(['theory', 'theory', 'theory', 'theory', 'theory', 'praktik_terminal', 'understanding_check', 'multiple_choice', 'fill_blank', 'summary']);
             }
             const teori = l.cards.filter((c) => c.type === 'theory').map((c: any) => c.content as string);
             expect(teori.some((t) => t.includes('### Contoh'))).toBe(true);
             expect(teori.some((t) => t.includes('### Kesalahan yang sering terjadi'))).toBe(true);
+            // praktik standar industri, tepat setelah kartu kesalahan
+            const iKes = teori.findIndex((t) => t.startsWith('### Kesalahan yang sering terjadi'));
+            expect(teori[iKes + 1]).toMatch(/^### Di dunia kerja\n/);
             expect(teori.join('\n')).toMatch(/Ibarat|Ingat perumpamaan/);
           });
 
