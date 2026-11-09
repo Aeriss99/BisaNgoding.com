@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { RotateCcw, AlertTriangle, X } from 'lucide-react';
 import MenuRamping from '../components/layout/MenuRamping';
@@ -21,6 +21,7 @@ import {
   periksaPembaruanSaatPindahQuiz,
 } from '../lib/pembaruanAplikasi';
 import { kunciQuiz } from '../lib/latihanUlang';
+import { useCtrlEnter } from '../lib/ctrlEnter';
 
 export default function QuizPage() {
   const { moduleId } = useParams();
@@ -111,6 +112,10 @@ export default function QuizPage() {
       }
     });
   };
+
+  const lanjutKeyboard = useRef<() => void>(() => {});
+  lanjutKeyboard.current = () => {};
+  useCtrlEnter(() => lanjutKeyboard.current());
 
   // Penjaga kunci quiz: modul harus terbuka dan semua pelajarannya selesai
   // (sama dengan syarat tombol Quiz di halaman modul). Setelah quiz selesai
@@ -276,6 +281,10 @@ export default function QuizPage() {
   const q = questions[currentIndex];
   const hasAnswered = answers[currentIndex] !== undefined;
 
+  lanjutKeyboard.current = () => {
+    if (hasAnswered) handleNext();
+  };
+
   return (
     <div className="flex flex-col min-h-dvh bg-[var(--color-bg-base)] relative z-0">
       <MenuRamping
@@ -337,6 +346,7 @@ export default function QuizPage() {
             {currentIndex === questions.length - 1
               ? 'Selesai & Lihat Hasil'
               : 'Selanjutnya'}
+            <kbd className="hidden lg:inline ml-2 rounded border border-white/60 px-1.5 py-0.5 font-mono text-[11px]">Ctrl+Enter</kbd>
           </button>
         </footer>
       </div>
