@@ -26,6 +26,7 @@ export const STIKER_MAP: Record<string, StikerConfig> = {
   typescript: { label: 'TYPESCRIPT', warna: 'transparent', bentuk: 'pil', rotasi: 8 },
   react: { label: 'REACT', warna: '#61dafb', bentuk: 'bulat', rotasi: -5 },
   excel: { label: 'EXCEL', warna: '#7ee2a8', bentuk: 'kotak', rotasi: 5 },
+  python: { label: 'PYTHON', warna: '#ffd43b', bentuk: 'pil', rotasi: -8 },
 };
 
 const PREFERRED_STIKER_ORDER = [
@@ -44,6 +45,7 @@ const PREFERRED_STIKER_ORDER = [
   'typescript',
   'react',
   'excel',
+  'python',
 ];
 
 const FAQ_LIST = [

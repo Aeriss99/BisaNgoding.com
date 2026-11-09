@@ -10,7 +10,7 @@ export const jumlahModulSiap = jumlahModulTersedia;
 /** Pengelompokan kelas per bidang (urutan tampil). Kelas yang tidak disebut masuk "Lainnya". */
 export const BIDANG: { judul: string; sub: string; warna: string; kelas: string[] }[] = [
   { judul: 'Fondasi', sub: 'Dipakai di semua jalur', warna: 'var(--color-landing-magenta)', kelas: ['git', 'english-it', 'linux'] },
-  { judul: 'Bahasa pemrograman', sub: 'Pilih satu untuk mulai', warna: 'var(--color-primary)', kelas: ['java', 'javascript', 'typescript'] },
+  { judul: 'Bahasa pemrograman', sub: 'Pilih satu untuk mulai', warna: 'var(--color-primary)', kelas: ['java', 'javascript', 'python', 'typescript'] },
   { judul: 'Web frontend', sub: 'Tampilan website', warna: 'var(--color-landing-cyan)', kelas: ['html-css', 'tailwind', 'react'] },
   { judul: 'Backend dan database', sub: 'Server, API, dan data', warna: 'var(--color-primary)', kelas: ['mysql', 'spring-boot', 'nodejs'] },
   { judul: 'DevOps dan cloud', sub: 'Server, otomatisasi, cloud', warna: 'var(--color-landing-purple)', kelas: ['devops'] },

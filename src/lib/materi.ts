@@ -24,6 +24,7 @@ const LABEL_KARTU: Record<Card['type'], string> = {
   praktik_github: 'PRAKTIK DI GITHUB',
   praktik_java: 'PRAKTIK BERSAMA LINGGA',
   praktik_excel: 'PRAKTIK DI EXCEL',
+  praktik_python: 'PRAKTIK DI KONSOL PYTHON',
   cek_github: 'PERIKSA DI GITHUB',
 };
 

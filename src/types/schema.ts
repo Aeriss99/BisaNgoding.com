@@ -160,6 +160,7 @@ export type Card =
   | PraktikGitHubCard
   | PraktikJavaCard
   | PraktikExcelCard
+  | PraktikPythonCard
   | CekGitHubCard;
 
 /** Proyek Akhir sungguhan: memeriksa satu tahap di repo GitHub pengguna lewat API publik (src/lib/cekGithub.ts). */
@@ -213,6 +214,36 @@ export interface PraktikTerminalCard {
   penutup: string;
   bawaan?: Record<string, string>;
   tantangan?: { tugas: string; perintah: string; pola: string[]; berhasil: string };
+}
+
+/** Satu langkah praktik di konsol Python >>>. Logika di src/lib/pythonRunner.ts. */
+export interface LangkahPython {
+  /** Kata-kata Lingga sebelum langkah ini. Boleh memakai `kode` dan **tebal**. */
+  arahan: string;
+  /** Baris yang benar (contoh jawaban). Hanya satu baris. */
+  perintah: string;
+  /** Keluaran yang harus muncul (dibandingkan setelah spasi di awal/akhir dibuang). Kosong = tidak boleh ada keluaran. */
+  keluaran?: string;
+  /** Ekspresi Python yang harus bernilai True setelah baris dijalankan, contoh "harga == 25000". */
+  cek?: string;
+  /** Langkah sengaja memunculkan error jenis ini (contoh "NameError"), untuk belajar membaca error. */
+  galat?: string;
+  wajib?: { pola: string; pesan: string }[];
+  otomatis?: boolean;
+  tantangan?: boolean;
+  benar?: string;
+  petunjuk: string;
+  salah?: { pola: string; reaksi: string }[];
+}
+
+export interface PraktikPythonCard {
+  type: 'praktik_python';
+  judul: string;
+  pembuka: string;
+  penutup: string;
+  /** Kode yang dijalankan diam-diam sebelum langkah pertama (misalnya membuat list contoh). */
+  persiapan?: string;
+  langkah: LangkahPython[];
 }
 
 /** Satu langkah praktik di lembar Excel tiruan. Logika rumus di src/lib/excel.ts. */
