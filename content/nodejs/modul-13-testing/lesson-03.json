@@ -1,0 +1,150 @@
+{
+  "id": "node-testing-03",
+  "moduleId": "node-testing",
+  "order": 3,
+  "title": "Unit Test Service dengan Repository Memori",
+  "estimatedMinutes": 14,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Unit test** menguji satu bagian kecil secara terpisah. Bagian yang paling layak diuji di API adalah **service**, karena di situlah aturan bisnis berada.\n\nBerkat dependency injection (modul REST API), service bisa diuji dengan **repository memori**, tanpa database:\n\n```js\nconst service = buatProdukService(buatRepoMemori([{ id: 1, nama: 'Kopi Susu', harga: 18000, stok: 5 }]));\nawait assert.rejects(service.tambah({ nama: 'kopi susu', harga: 1000 }), { status: 409 });\n```\n\nIbarat menguji mesin mobil di bengkel dengan alat uji, bukan dengan membawanya ke jalan raya: lebih cepat, lebih aman, dan hasilnya bisa diulang."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`describe` mengelompokkan tes, dan `beforeEach` menyiapkan keadaan baru sebelum **setiap** tes, supaya tes tidak saling memengaruhi:\n\n```js\ndescribe('produkService', () => {\n  let service;\n  beforeEach(() => {\n    service = buatProdukService(buatRepoMemori([...]));\n  });\n\n  it('menambah produk dan memberi id baru', async () => { ... });\n  it('menolak nama yang sudah ada', async () => { ... });\n});\n```\n\n`it` sama dengan `test`, hanya berbeda nama. Banyak tim memakai `describe` + `it` supaya kalimatnya terbaca: \"produkService menambah produk dan memberi id baru\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Data dibagi antar tes**\n\nRepository yang dibuat sekali di luar `beforeEach` membuat tes kedua melihat data dari tes pertama. Urutan tes jadi berpengaruh.\n\n**2. Unit test yang memanggil database sungguhan**\n\nTes menjadi lambat dan gagal kalau database mati. Itu tugas tes integrasi.\n\n**3. Hanya menguji jalur berhasil**\n\nAturan bisnis paling banyak berada di jalur yang menolak: nama ganda, harga salah, data tidak ada. Uji juga semuanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Unit test service biasanya menjadi bagian terbesar dari kumpulan tes: cepat (milidetik) dan banyak. Pola ini disebut **piramida tes**: banyak unit test, lebih sedikit tes integrasi, dan sedikit tes ujung ke ujung.\n- Selain repository memori, tim juga memakai **mock** (objek palsu yang mencatat panggilan). `node:test` menyediakan `mock.fn()` untuk itu.\n- Tes yang tidak bergantung urutan bisa dijalankan paralel, sehingga ribuan tes tetap selesai dalam hitungan detik."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\nProyek `~/toko-api` sudah memakai arsitektur berlapis:\n\n```text\nsrc/services/produk.js               buatProdukService(repo)\nsrc/repositories/produk.memori.js    buatRepoMemori(awal)\ntest/produk.service.test.js          4 tes service\n```\n\nKamu akan menjalankan tes service itu dan memilih sebagian tes."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Uji API 3: Uji Service",
+      "folder": "~/toko-api",
+      "pembuka": "Kita uji aturan bisnis produk tanpa database, memakai repository memori.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini bagian awal file tes service.",
+          "terima": [
+            "head -18 test/produk.service.test.js"
+          ],
+          "keluaran": "import { describe, it, beforeEach } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { buatProdukService } from '../src/services/produk.js';\nimport { buatRepoMemori } from '../src/repositories/produk.memori.js';\n\ndescribe('produkService', () => {\n  let service;\n  beforeEach(() => {\n    service = buatProdukService(buatRepoMemori([{ id: 1, nama: 'Kopi Susu', harga: 18000, stok: 5 }]));\n  });\n\n  it('menambah produk dan memberi id baru', async () => {\n    const p = await service.tambah({ nama: 'Teh Tarik', harga: 12000 });\n    assert.deepEqual(p, { id: 2, nama: 'Teh Tarik', harga: 12000, stok: 0 });\n  });\n\n  it('menolak nama yang sudah ada tanpa membedakan huruf besar', async () => {\n    await assert.rejects(service.tambah({ nama: 'kopi susu', harga: 1000 }), { status: 409, kode: 'NAMA_SUDAH_ADA' });",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Jalankan tes service produk.",
+          "terima": [
+            "node --test test/produk.service.test.js"
+          ],
+          "keluaran": "▶ produkService\n  ✔ menambah produk dan memberi id baru (4.033237ms)\n  ✔ menolak nama yang sudah ada tanpa membedakan huruf besar (0.792789ms)\n  ✔ menolak harga yang tidak valid (0.473123ms)\n  ✔ detail produk yang tidak ada melempar 404 (0.357574ms)\n✔ produkService (7.548138ms)\nℹ tests 4\nℹ suites 1\nℹ pass 4\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 180.670303",
+          "petunjuk": "Ketik node --test test/produk.service.test.js."
+        },
+        {
+          "arahan": "Jalankan hanya tes yang namanya mengandung kata menolak.",
+          "terima": [
+            "node --test --test-name-pattern=\"menolak\" test/produk.service.test.js",
+            "node --test --test-name-pattern='menolak' test/produk.service.test.js",
+            "node --test --test-name-pattern=menolak test/produk.service.test.js"
+          ],
+          "keluaran": "▶ produkService\n  ✔ menolak nama yang sudah ada tanpa membedakan huruf besar (3.385672ms)\n  ✔ menolak harga yang tidak valid (0.882605ms)\n✔ produkService (5.928131ms)\nℹ tests 2\nℹ suites 1\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 178.132741",
+          "petunjuk": "node --test --test-name-pattern=\"menolak\" test/produk.service.test.js"
+        },
+        {
+          "arahan": "Jalankan semua tes proyek.",
+          "terima": [
+            "npm test",
+            "npm run test",
+            "npm t"
+          ],
+          "keluaran": "\n> toko-api@1.0.0 test\n> node --test\n\n✔ test/diskon.test.js (38.505325ms)\n✔ hitungTotal menjumlahkan harga dikali jumlah (1.278263ms)\n✔ hitungTotal keranjang kosong bernilai 0 (0.230576ms)\n✔ diskon 10 persen (0.264414ms)\n▶ produkService\n  ✔ menambah produk dan memberi id baru (5.99189ms)\n  ✔ menolak nama yang sudah ada tanpa membedakan huruf besar (1.48934ms)\n  ✔ menolak harga yang tidak valid (0.784353ms)\n  ✔ detail produk yang tidak ada melempar 404 (0.789499ms)\n✔ produkService (13.003369ms)\nℹ tests 8\nℹ suites 1\nℹ pass 8\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 346.7035",
+          "petunjuk": "Ketik npm test.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Aturan bisnis produk teruji tanpa database: tambah, nama ganda, harga salah, dan produk tidak ada."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa service diuji dengan repository memori?",
+          "options": [
+            "Supaya data tersimpan permanen",
+            "Supaya tes cepat, bisa diulang, dan tidak bergantung pada database",
+            "Karena node:test tidak mendukung database",
+            "Karena service tidak bisa memakai database"
+          ],
+          "answer": 1,
+          "explanation": "Unit test terpisah.",
+          "remedial": "Repository memori membuat setiap tes mulai dari data yang sama dalam hitungan milidetik, tanpa perlu menyalakan PostgreSQL."
+        },
+        {
+          "question": "Apa fungsi beforeEach?",
+          "options": [
+            "Menjalankan semua tes sekaligus",
+            "Mengulang tes yang gagal",
+            "Menjalankan tes sebelum kode ditulis",
+            "Menyiapkan keadaan baru sebelum setiap tes supaya tes tidak saling memengaruhi"
+          ],
+          "answer": 3,
+          "explanation": "Sebelum setiap tes.",
+          "remedial": "Dengan beforeEach, setiap tes mendapat service dan repository baru, sehingga urutan tes tidak berpengaruh."
+        },
+        {
+          "question": "Bagian mana dari piramida tes yang jumlahnya paling banyak?",
+          "options": [
+            "Tes ujung ke ujung",
+            "Tes manual",
+            "Tes integrasi",
+            "Unit test"
+          ],
+          "answer": 3,
+          "explanation": "Cepat dan murah.",
+          "remedial": "Unit test cepat dan murah sehingga dibuat paling banyak. Tes integrasi dan ujung ke ujung lebih lambat sehingga jumlahnya lebih sedikit."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa beda it dan test di node:test?",
+      "options": [
+        "it hanya untuk tes async",
+        "Tidak ada bedanya; it hanya nama lain supaya terbaca seperti kalimat",
+        "test hanya boleh di dalam describe",
+        "it dijalankan sebelum test"
+      ],
+      "answer": 1,
+      "explanation": "Pilihan gaya."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi supaya repository baru dibuat sebelum setiap tes.",
+      "code": "___(() => {\n  service = buatProdukService(buatRepoMemori([]));\n});",
+      "answers": [
+        "beforeEach"
+      ],
+      "explanation": "beforeEach dijalankan sebelum setiap tes di dalam describe."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Unit test menguji satu bagian secara terpisah, terutama service.",
+        "Repository memori menggantikan database saat unit test.",
+        "describe mengelompokkan, it menulis satu tes, beforeEach menyiapkan keadaan.",
+        "Uji juga jalur yang menolak, bukan hanya yang berhasil.",
+        "Piramida tes: paling banyak unit test."
+      ]
+    }
+  ]
+}

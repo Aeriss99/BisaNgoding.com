@@ -1,0 +1,147 @@
+{
+  "id": "node-prisma-03",
+  "moduleId": "node-prisma",
+  "order": 3,
+  "title": "Model dan Migrasi",
+  "estimatedMinutes": 14,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tabel ditulis sebagai **model** di `prisma/schema.prisma`:\n\n```prisma\nmodel Produk {\n  id         Int      @id @default(autoincrement())\n  nama       String   @unique\n  harga      Int\n  stok       Int      @default(0)\n  dibuatPada DateTime @default(now())\n}\n```\n\nLalu **migrasi** mengubah database sesuai skema:\n\n```bash\nnpx prisma migrate dev --name buat-produk\n```\n\nPerintah ini membuat file SQL di `prisma/migrations/` dan langsung menerapkannya ke database.\n\nIbarat riwayat renovasi rumah: setiap perubahan (tambah kamar, pindah pintu) dicatat berurutan, sehingga rumah yang sama bisa dibangun ulang persis di tempat lain dengan mengikuti catatan itu."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n| Tanda | Arti |\n|---|---|\n| `@id` | kunci utama |\n| `@default(autoincrement())` | angka otomatis naik |\n| `@unique` | tidak boleh ada nilai kembar |\n| `@default(0)`, `@default(now())` | nilai bawaan |\n| `String?` | boleh kosong (`null`) |\n\nFile konfigurasi `prisma7.config.ts` buatan `prisma init` membaca `DATABASE_URL` dari `.env`:\n\n```ts\nimport \"dotenv/config\";\nimport { defineConfig } from \"prisma/config\";\n\nexport default defineConfig({\n  schema: \"prisma/schema.prisma\",\n  migrations: { path: \"prisma/migrations\" },\n  datasource: { url: process.env[\"DATABASE_URL\"] },\n});\n```\n\n`npx prisma migrate status` memeriksa apakah database sudah sesuai dengan semua migrasi."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengubah tabel langsung dengan SQL**\n\nPerubahan di luar migrasi membuat database berbeda dengan skema (*drift*), dan Prisma meminta database diatur ulang. Ubah lewat skema dan migrasi.\n\n**2. Mengedit file migrasi lama**\n\nMigrasi yang sudah diterapkan di tempat lain tidak boleh diubah. Buat migrasi baru.\n\n**3. Nama migrasi asal-asalan**\n\n`--name update` tidak menjelaskan apa-apa. Tulis perubahannya: `tambah-kategori`, `hapus-kolom-diskon`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- `migrate dev` hanya untuk pengembangan. Di server produksi dipakai `npx prisma migrate deploy`, yang hanya menerapkan migrasi yang sudah ada tanpa membuat yang baru (modul Produksi).\n- Folder migrasi masuk Git dan ikut di-review di pull request, karena perubahan struktur database berdampak besar.\n- Nama tabel di Prisma bisa dibuat huruf kecil di database dengan `@@map(\"produk\")` kalau tim lebih suka gaya SQL biasa."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\nLingga sudah:\n\n- mengisi `DATABASE_URL` di `.env` dengan alamat database `toko`,\n- menambahkan model `Produk` ke `prisma/schema.prisma`.\n\nKamu akan membuat migrasi pertama, melihat SQL yang dibuat Prisma, dan memeriksa statusnya."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Database Toko 3: Tabel dari Skema",
+      "folder": "~/toko-api",
+      "pembuka": "Kita buat tabel Produk di PostgreSQL dari skema Prisma.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini skema Prisma dengan model Produk.",
+          "terima": [
+            "cat prisma/schema.prisma"
+          ],
+          "keluaran": "generator client {\n  provider = \"prisma-client\"\n  output   = \"../generated/prisma\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n}\n\nmodel Produk {\n  id         Int      @id @default(autoincrement())\n  nama       String   @unique\n  harga      Int\n  stok       Int      @default(0)\n  dibuatPada DateTime @default(now())\n}",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat dan terapkan migrasi pertama bernama buat-produk.",
+          "terima": [
+            "npx prisma migrate dev --name buat-produk"
+          ],
+          "keluaran": "Loaded Prisma config from prisma7.config.ts.\n\nPrisma schema loaded from prisma/schema.prisma.\nDatasource \"db\": PostgreSQL database \"toko\", schema \"public\" at \"localhost:5432\"\n\nApplying migration `20261110193642_buat_produk`\n\nThe following migration(s) have been created and applied from new schema changes:\n\nprisma/migrations/\n  └─ 20261110193642_buat_produk/\n    └─ migration.sql\n\nYour database is now in sync with your schema.",
+          "petunjuk": "npx prisma migrate dev --name buat-produk"
+        },
+        {
+          "arahan": "Lihat isi SQL migrasi yang dibuat Prisma.",
+          "terima": [
+            "cat prisma/migrations/*_buat_produk/migration.sql",
+            "cat prisma/migrations/*/migration.sql"
+          ],
+          "keluaran": "-- CreateTable\nCREATE TABLE \"Produk\" (\n    \"id\" SERIAL NOT NULL,\n    \"nama\" TEXT NOT NULL,\n    \"harga\" INTEGER NOT NULL,\n    \"stok\" INTEGER NOT NULL DEFAULT 0,\n    \"dibuatPada\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,\n\n    CONSTRAINT \"Produk_pkey\" PRIMARY KEY (\"id\")\n);\n\n-- CreateIndex\nCREATE UNIQUE INDEX \"Produk_nama_key\" ON \"Produk\"(\"nama\");",
+          "petunjuk": "cat prisma/migrations/*_buat_produk/migration.sql"
+        },
+        {
+          "arahan": "Periksa status migrasi database.",
+          "terima": [
+            "npx prisma migrate status"
+          ],
+          "keluaran": "Loaded Prisma config from prisma7.config.ts.\n\nPrisma schema loaded from prisma/schema.prisma.\nDatasource \"db\": PostgreSQL database \"toko\", schema \"public\" at \"localhost:5432\"\n\n1 migration found in prisma/migrations\n\nDatabase schema is up to date!",
+          "petunjuk": "npx prisma migrate status",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Tabel Produk sudah ada di PostgreSQL, dan riwayat perubahannya tercatat sebagai migrasi."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dilakukan npx prisma migrate dev --name buat-produk?",
+          "options": [
+            "Membuat Prisma Client saja",
+            "Membuat file SQL migrasi dari perubahan skema lalu menerapkannya ke database",
+            "Menyalin data dari database lain",
+            "Menghapus database"
+          ],
+          "answer": 1,
+          "explanation": "Catat lalu terapkan.",
+          "remedial": "migrate dev membandingkan skema dengan database, menulis SQL perubahannya di folder migrasi, lalu menjalankannya."
+        },
+        {
+          "question": "Apa arti tanda @unique pada kolom nama?",
+          "options": [
+            "Nama boleh kosong",
+            "Nama dibuat otomatis",
+            "Nama wajib huruf besar",
+            "Tidak boleh ada dua produk dengan nama yang sama"
+          ],
+          "answer": 3,
+          "explanation": "Unik = tidak kembar.",
+          "remedial": "Database menolak baris baru kalau nilainya sudah ada. Di SQL, Prisma membuat UNIQUE INDEX untuk kolom itu."
+        },
+        {
+          "question": "Perintah apa yang dipakai untuk menerapkan migrasi di server produksi?",
+          "options": [
+            "npx prisma migrate dev",
+            "npx prisma db push",
+            "npx prisma init",
+            "npx prisma migrate deploy"
+          ],
+          "answer": 3,
+          "explanation": "deploy untuk produksi.",
+          "remedial": "migrate deploy hanya menerapkan migrasi yang sudah ada di folder migrasi, tanpa membuat migrasi baru atau mengatur ulang database."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa file migrasi lama tidak boleh diedit?",
+      "options": [
+        "File migrasi hanya bisa dibaca",
+        "Migrasi itu mungkin sudah diterapkan di database lain, sehingga riwayatnya menjadi tidak cocok",
+        "Prisma menghapusnya otomatis",
+        "Supaya Git tidak marah"
+      ],
+      "answer": 1,
+      "explanation": "Buat migrasi baru."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi tanda supaya kolom id bertambah otomatis.",
+      "code": "id Int @id @default(___())",
+      "answers": [
+        "autoincrement"
+      ],
+      "explanation": "autoincrement() membuat angka id naik otomatis untuk setiap baris baru."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Model di schema.prisma mendefinisikan tabel dan kolomnya.",
+        "@id, @unique, @default, dan tanda tanya untuk kolom opsional.",
+        "migrate dev membuat dan menerapkan file SQL migrasi.",
+        "migrate status memeriksa kecocokan database dengan migrasi.",
+        "Di produksi pakai migrate deploy; jangan edit migrasi lama."
+      ]
+    }
+  ]
+}
