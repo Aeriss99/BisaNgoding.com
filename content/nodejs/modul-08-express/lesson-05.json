@@ -1,0 +1,185 @@
+{
+  "id": "node-express-05",
+  "moduleId": "node-express",
+  "order": 5,
+  "title": "File Statis dan Fungsi Bantu Respons",
+  "estimatedMinutes": 12,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**File statis** adalah file yang dikirim apa adanya: HTML, CSS, gambar, dan JavaScript untuk browser. Express melayaninya dengan `express.static`:\n\n```js\napp.use(express.static(path.join(import.meta.dirname, 'public')));\n// public/index.html -> GET /\n// public/gaya.css   -> GET /gaya.css\n```\n\n`express.static` mengatur Content-Type sesuai ekstensi file, menjawab 404 untuk file yang tidak ada, dan **menolak** jalur yang mencoba keluar folder (`../`).\n\nIbarat etalase toko: barang yang dipajang di etalase (folder public) bisa dilihat siapa saja, sedangkan isi gudang (file kode server) tetap tertutup."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nFungsi bantu respons lain yang sering dipakai:\n\n| Kode | Hasil |\n|---|---|\n| `res.set('X-Toko', 'Sari')` | atur header |\n| `res.type('text')` | atur Content-Type singkat |\n| `res.redirect(301, '/baru')` | pindahkan klien ke jalur lain |\n| `res.location('/menu/5')` | header Location (sering untuk 201) |\n| `res.download(file)` | kirim file sebagai unduhan |\n\nFolder statis sebaiknya ditulis dengan `import.meta.dirname`, supaya tetap benar dari mana pun server dijalankan."
+    },
+    {
+      "type": "runnable",
+      "code": "// === public/index.html ===\n<h1>Toko Sari</h1>\n// === public/gaya.css ===\nh1 { color: brown; }\n// === main.js ===\nimport express from 'express';\nimport path from 'node:path';\n\nconst app = express();\napp.use(express.static(path.join(import.meta.dirname, 'public')));\napp.get('/menu-lama', (req, res) => res.redirect(301, '/menu'));\napp.get('/menu', (req, res) => {\n  res.set('X-Toko', 'Sari');\n  res.json(['Kopi Susu']);\n});\nconst server = app.listen(3000);\n\nfor (const jalur of ['/', '/gaya.css', '/menu-lama', '/rahasia.txt']) {\n  const r = await fetch('http://localhost:3000' + jalur);\n  console.log(jalur, r.status, r.headers.get('content-type'), r.redirected ? 'dialihkan ke ' + new URL(r.url).pathname : '');\n}\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "/menu-lama 200 text/html; charset=utf-8 dialihkan ke /menu",
+          "/menu-lama 301 text/html; charset=utf-8",
+          "/menu-lama 200 application/json; charset=utf-8 dialihkan ke /menu",
+          "/menu-lama 404 text/html; charset=utf-8"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 10,
+          "note": "Layani folder public."
+        },
+        {
+          "line": 11,
+          "note": "Pindah permanen ke /menu."
+        },
+        {
+          "line": 13,
+          "note": "Atur header tambahan."
+        }
+      ],
+      "explanation": "fetch mengikuti pengalihan secara otomatis. Jawaban akhirnya dari /menu: status 200 dengan JSON, dan r.redirected bernilai true.",
+      "tryThis": [
+        {
+          "task": "Tambahkan opsi { redirect: 'manual' } di fetch. Apa status /menu-lama sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Cetak juga header x-toko.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menaruh file rahasia di folder statis**\n\nSemua isi folder statis bisa diunduh siapa saja. Jangan taruh `.env`, kunci, atau file kode server di sana.\n\n**2. Jalur folder relatif terhadap cwd**\n\n`express.static('public')` gagal kalau server dijalankan dari folder lain. Pakai `import.meta.dirname`.\n\n**3. Redirect 301 sembarangan**\n\nBrowser menyimpan pengalihan 301 dalam waktu lama. Untuk pengalihan sementara, pakai 302 (bawaan `res.redirect`)."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Untuk aplikasi besar, file statis (gambar, JS, CSS) biasanya dilayani **CDN** atau layanan hosting statis, bukan oleh server Node.js, supaya lebih cepat dan murah.\n- Pola umum: frontend (React, Vue) di-*build* menjadi file statis, lalu dilayani terpisah atau oleh `express.static` di proyek kecil.\n- Header `Location` dengan status 201 memberi tahu klien alamat data yang baru dibuat, sesuai standar HTTP."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Express Toko 5: Etalase",
+      "pembuka": "Toko punya halaman web sederhana yang dilayani dari folder public.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. File di folder public dilayani dengan express.static.",
+          "jawaban": "// === public/index.html ===\n<h1>Toko Sari</h1>\n// === main.js ===\nimport express from 'express';\nimport path from 'node:path';\nconst app = express();\napp.use(express.static(path.join(import.meta.dirname, 'public')));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/');\nconsole.log(r.status, (await r.text()).trim());\nserver.close();",
+          "keluaran": "200 <h1>Toko Sari</h1>",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan file `public/promo.txt` berisi `Diskon 10%`, lalu fetch `/promo.txt` dan cetak status serta Content-Type-nya: `200 text/plain; charset=utf-8`.",
+          "jawaban": "// === public/index.html ===\n<h1>Toko Sari</h1>\n// === public/promo.txt ===\nDiskon 10%\n// === main.js ===\nimport express from 'express';\nimport path from 'node:path';\nconst app = express();\napp.use(express.static(path.join(import.meta.dirname, 'public')));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/');\nconsole.log(r.status, (await r.text()).trim());\nconst r2 = await fetch('http://localhost:3000/promo.txt');\nconsole.log(r2.status, r2.headers.get('content-type'));\nserver.close();",
+          "keluaran": "200 <h1>Toko Sari</h1>\n200 text/plain; charset=utf-8",
+          "wajib": [
+            {
+              "pola": "headers\\.get\\(\\s*'content-type'\\s*\\)",
+              "pesan": "cetak `headers.get('content-type')`."
+            }
+          ],
+          "petunjuk": "Tambahkan penanda file baru // === public/promo.txt ===, lalu fetch."
+        },
+        {
+          "arahan": "Tambahkan rute `GET /promo` yang mengalihkan ke `/promo.txt` dengan `res.redirect`. Fetch `/promo`, lalu cetak teks akhirnya (`Diskon 10%`) dan `r.redirected` (`true`), dipisah spasi.",
+          "jawaban": "// === public/index.html ===\n<h1>Toko Sari</h1>\n// === public/promo.txt ===\nDiskon 10%\n// === main.js ===\nimport express from 'express';\nimport path from 'node:path';\nconst app = express();\napp.use(express.static(path.join(import.meta.dirname, 'public')));\napp.get('/promo', (req, res) => res.redirect('/promo.txt'));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/');\nconsole.log(r.status, (await r.text()).trim());\nconst r2 = await fetch('http://localhost:3000/promo.txt');\nconsole.log(r2.status, r2.headers.get('content-type'));\nconst r3 = await fetch('http://localhost:3000/promo');\nconsole.log((await r3.text()).trim(), r3.redirected);\nserver.close();",
+          "keluaran": "200 <h1>Toko Sari</h1>\n200 text/plain; charset=utf-8\nDiskon 10% true",
+          "wajib": [
+            {
+              "pola": "res\\.redirect\\(",
+              "pesan": "alihkan dengan `res.redirect`."
+            }
+          ],
+          "petunjuk": "app.get('/promo', (req, res) => res.redirect('/promo.txt')).",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Toko kini punya etalase web dari folder public dan jalur promo yang dialihkan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dilakukan express.static untuk permintaan ke /../server.js?",
+          "options": [
+            "Menghapus file server.js",
+            "Mengalihkan ke /",
+            "Menolaknya, karena jalur mencoba keluar dari folder statis",
+            "Mengirim isi server.js"
+          ],
+          "answer": 2,
+          "explanation": "Perlindungan path traversal.",
+          "remedial": "express.static memeriksa jalur dan tidak melayani file di luar folder yang ditentukan."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import express from 'express';\nconst app = express();\napp.get('/a', (req, res) => res.redirect('/b'));\nconst s = app.listen(3000);\nconst r = await fetch('http://localhost:3000/a', { redirect: 'manual' });\nconsole.log(r.status);\nconsole.log(r.headers.get('location'));\ns.close();",
+          "options": [
+            "200 / /b",
+            "301 / /b",
+            "302 / /b",
+            "302 / null"
+          ],
+          "answer": 2,
+          "explanation": "Status bawaan res.redirect.",
+          "remedial": "res.redirect tanpa status memakai 302 (sementara). Dengan redirect: 'manual', fetch tidak mengikuti pengalihan sehingga status dan header Location terlihat."
+        },
+        {
+          "question": "Kenapa file .env tidak boleh ada di folder statis?",
+          "options": [
+            "express.static tidak bisa membaca titik di depan nama",
+            "Semua isi folder statis bisa diunduh siapa saja",
+            "Server menjadi lambat",
+            "File .env akan terhapus"
+          ],
+          "answer": 1,
+          "explanation": "Statis = publik.",
+          "remedial": "Folder statis bersifat publik. Rahasia seperti kunci API dan password database akan bocor."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Di mana file statis aplikasi besar sebaiknya dilayani?",
+      "options": [
+        "Di dalam kode rute",
+        "Di dalam database",
+        "Di CDN atau layanan hosting statis",
+        "Di folder node_modules"
+      ],
+      "answer": 2,
+      "explanation": "Lebih cepat dan murah."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat folder public berisi file data.json dengan isi {\"versi\":2}. Layani dengan express.static memakai import.meta.dirname, fetch /data.json, lalu cetak nilai versi. Keluaran: 2",
+      "starterCode": "// === main.js ===\nimport express from 'express';\nimport path from 'node:path';\n",
+      "solution": "// === public/data.json ===\n{\"versi\":2}\n// === main.js ===\nimport express from 'express';\nimport path from 'node:path';\nconst app = express();\napp.use(express.static(path.join(import.meta.dirname, 'public')));\nconst server = app.listen(3000);\nconst d = await (await fetch('http://localhost:3000/data.json')).json();\nconsole.log(d.versi);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "2\n"
+        }
+      ],
+      "hints": [
+        "Tambahkan penanda // === public/data.json === di atas main.js.",
+        "express.static(path.join(import.meta.dirname, 'public'))."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "express.static melayani file dari satu folder.",
+        "Content-Type diatur otomatis, file di luar folder ditolak.",
+        "Tulis jalur folder dengan import.meta.dirname.",
+        "res.redirect bawaannya 302; 301 untuk pindah permanen.",
+        "Jangan taruh rahasia di folder statis."
+      ]
+    }
+  ]
+}

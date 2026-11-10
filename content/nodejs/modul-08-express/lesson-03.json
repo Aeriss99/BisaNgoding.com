@@ -1,0 +1,197 @@
+{
+  "id": "node-express-03",
+  "moduleId": "node-express",
+  "order": 3,
+  "title": "Body JSON: POST, PUT, PATCH, DELETE",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Express membaca body JSON dengan *middleware* bawaan **`express.json()`**:\n\n```js\napp.use(express.json());\n\napp.post('/menu', (req, res) => {\n  req.body; // objek hasil JSON.parse\n});\n```\n\nTanpa `app.use(express.json())`, `req.body` bernilai `undefined`.\n\n`express.json()` hanya membaca permintaan yang ber-header `Content-Type: application/json`, menjawab **400** otomatis kalau JSON rusak, dan menolak body lebih dari 100 KB (bisa diatur dengan `{ limit: '1mb' }`).\n\nIbarat petugas pos yang membuka paket sebelum diserahkan: kamu tinggal menerima isinya (req.body) yang sudah dikeluarkan dari bungkusnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nOperasi dasar data (**CRUD**: Create, Read, Update, Delete) dipetakan ke method:\n\n| Method + jalur | Fungsi | Status berhasil |\n|---|---|---|\n| `POST /menu` | buat | 201 |\n| `GET /menu`, `GET /menu/:id` | baca | 200 |\n| `PUT /menu/:id` | ganti seluruhnya | 200 |\n| `PATCH /menu/:id` | ubah sebagian | 200 |\n| `DELETE /menu/:id` | hapus | 204 |\n\nAmbil hanya properti yang diizinkan dari `req.body`:\n\n```js\nconst { nama, harga } = req.body;\nconst baru = { id: nextId++, nama, harga };\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\n\nlet nextId = 2;\nconst menu = [{ id: 1, nama: 'Kopi Susu', harga: 18000 }];\nconst app = express();\napp.use(express.json());\n\napp.post('/menu', (req, res) => {\n  const { nama, harga } = req.body;\n  if (typeof nama !== 'string' || typeof harga !== 'number') {\n    return res.status(400).json({ error: 'nama (teks) dan harga (angka) wajib' });\n  }\n  const baru = { id: nextId++, nama, harga };\n  menu.push(baru);\n  res.status(201).json(baru);\n});\napp.patch('/menu/:id', (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) return res.status(404).json({ error: 'Menu tidak ada' });\n  if (req.body.harga !== undefined) m.harga = req.body.harga;\n  res.json(m);\n});\napp.delete('/menu/:id', (req, res) => {\n  const i = menu.findIndex((x) => x.id === Number(req.params.id));\n  if (i === -1) return res.status(404).json({ error: 'Menu tidak ada' });\n  menu.splice(i, 1);\n  res.sendStatus(204);\n});\nconst server = app.listen(3000);\n\nconst kirim = (method, jalur, body) => fetch('http://localhost:3000' + jalur, {\n  method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body),\n});\nlet r = await kirim('POST', '/menu', { nama: 'Teh Tarik', harga: 12000, gratis: true });\nconsole.log(r.status, await r.json());\nr = await kirim('PATCH', '/menu/1', { harga: 20000 });\nconsole.log(r.status, (await r.json()).harga);\nr = await kirim('DELETE', '/menu/2');\nconsole.log(r.status, menu.length);\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "201 { id: 2, nama: 'Teh Tarik', harga: 12000, gratis: true }",
+          "200 { id: 2, nama: 'Teh Tarik', harga: 12000 }",
+          "201 { id: 1, nama: 'Teh Tarik', harga: 12000 }",
+          "201 { id: 2, nama: 'Teh Tarik', harga: 12000 }"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Baca body JSON untuk semua rute."
+        },
+        {
+          "line": 9,
+          "note": "Ambil hanya properti yang diizinkan."
+        },
+        {
+          "line": 15,
+          "note": "Dibuat: 201."
+        },
+        {
+          "line": 17,
+          "note": "Ubah sebagian."
+        },
+        {
+          "line": 27,
+          "note": "Dihapus: 204 tanpa isi."
+        }
+      ],
+      "explanation": "Properti gratis diabaikan karena hanya nama dan harga yang diambil. Menu baru mendapat id 2, dan status 201 karena data baru dibuat.",
+      "tryThis": [
+        {
+          "task": "Hapus baris app.use(express.json()). Apa jawaban POST?",
+          "hint": null
+        },
+        {
+          "task": "Kirim harga sebagai teks \"12000\". Apa jawabannya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `express.json()`**\n\n`req.body` menjadi `undefined`, dan `const { nama } = req.body` melempar `TypeError`.\n\n**2. Klien lupa header Content-Type**\n\nTanpa `Content-Type: application/json`, `express.json()` melewati permintaan itu dan `req.body` tetap `undefined`.\n\n**3. PUT diperlakukan seperti PATCH**\n\nPUT seharusnya mengganti seluruh data (properti yang tidak dikirim menjadi kosong atau ditolak). PATCH untuk mengubah sebagian."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola CRUD ini adalah dasar hampir semua API: produk, pengguna, pesanan, artikel.\n- Di produksi, `nextId++` diganti id dari database (angka otomatis atau UUID), dan array diganti tabel (modul Database).\n- Banyak tim menulis spesifikasi API dengan **OpenAPI** (Swagger) supaya tim frontend tahu bentuk body dan respons setiap rute."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Express Toko 3: Kelola Menu",
+      "pembuka": "Pemilik toko perlu menambah, mengubah, dan menghapus menu lewat API.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Menu baru ditambah dengan POST.",
+          "jawaban": "import express from 'express';\nconst menu = [];\nconst app = express();\napp.use(express.json());\napp.post('/menu', (req, res) => {\n  const baru = { id: menu.length + 1, nama: req.body.nama };\n  menu.push(baru);\n  res.status(201).json(baru);\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nama: 'Kopi Susu' }) });\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "201 { id: 1, nama: 'Kopi Susu' }",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan rute `PUT /menu/:id` yang mengganti nama menu dengan `req.body.nama` dan mengirim menu itu, atau 404 kalau tidak ada. Kirim PUT ke `/menu/1` dengan nama `Kopi Gula Aren` dan cetak `200 { id: 1, nama: 'Kopi Gula Aren' }`.",
+          "jawaban": "import express from 'express';\nconst menu = [];\nconst app = express();\napp.use(express.json());\napp.post('/menu', (req, res) => {\n  const baru = { id: menu.length + 1, nama: req.body.nama };\n  menu.push(baru);\n  res.status(201).json(baru);\n});\napp.put('/menu/:id', (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) return res.status(404).json({ error: 'Menu tidak ada' });\n  m.nama = req.body.nama;\n  res.json(m);\n});\nconst server = app.listen(3000);\nconst kirim = (method, jalur, body) => fetch('http://localhost:3000' + jalur, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\nconst r = await kirim('POST', '/menu', { nama: 'Kopi Susu' });\nconsole.log(r.status, await r.json());\nconst r2 = await kirim('PUT', '/menu/1', { nama: 'Kopi Gula Aren' });\nconsole.log(r2.status, await r2.json());\nserver.close();",
+          "keluaran": "201 { id: 1, nama: 'Kopi Susu' }\n200 { id: 1, nama: 'Kopi Gula Aren' }",
+          "wajib": [
+            {
+              "pola": "app\\.put\\(\\s*'/menu/:id'",
+              "pesan": "buat rute `app.put('/menu/:id', ...)`."
+            }
+          ],
+          "petunjuk": "app.put('/menu/:id', ...) dengan find, lalu ubah m.nama."
+        },
+        {
+          "arahan": "Tambahkan rute `DELETE /menu/:id` yang menghapus menu dengan `splice` dan menjawab `res.sendStatus(204)`. Hapus menu 1, lalu cetak `204 0` (status dan sisa jumlah menu).",
+          "jawaban": "import express from 'express';\nconst menu = [];\nconst app = express();\napp.use(express.json());\napp.post('/menu', (req, res) => {\n  const baru = { id: menu.length + 1, nama: req.body.nama };\n  menu.push(baru);\n  res.status(201).json(baru);\n});\napp.put('/menu/:id', (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) return res.status(404).json({ error: 'Menu tidak ada' });\n  m.nama = req.body.nama;\n  res.json(m);\n});\napp.delete('/menu/:id', (req, res) => {\n  const i = menu.findIndex((x) => x.id === Number(req.params.id));\n  if (i === -1) return res.status(404).json({ error: 'Menu tidak ada' });\n  menu.splice(i, 1);\n  res.sendStatus(204);\n});\nconst server = app.listen(3000);\nconst kirim = (method, jalur, body) => fetch('http://localhost:3000' + jalur, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\nconst r = await kirim('POST', '/menu', { nama: 'Kopi Susu' });\nconsole.log(r.status, await r.json());\nconst r2 = await kirim('PUT', '/menu/1', { nama: 'Kopi Gula Aren' });\nconsole.log(r2.status, await r2.json());\nconst r3 = await fetch('http://localhost:3000/menu/1', { method: 'DELETE' });\nconsole.log(r3.status, menu.length);\nserver.close();",
+          "keluaran": "201 { id: 1, nama: 'Kopi Susu' }\n200 { id: 1, nama: 'Kopi Gula Aren' }\n204 0",
+          "wajib": [
+            {
+              "pola": "app\\.delete\\(",
+              "pesan": "buat rute `app.delete`."
+            },
+            {
+              "pola": "sendStatus\\(\\s*204\\s*\\)",
+              "pesan": "jawab `sendStatus(204)`."
+            }
+          ],
+          "petunjuk": "findIndex, lalu splice(i, 1), lalu res.sendStatus(204).",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Menu toko kini bisa ditambah, diubah, dan dihapus lewat API."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi app.use(express.json())?",
+          "options": [
+            "Mengubah semua respons menjadi JSON",
+            "Membaca body JSON dan menaruh hasilnya di req.body",
+            "Membuat file JSON di server",
+            "Memeriksa isi JSON sesuai skema"
+          ],
+          "answer": 1,
+          "explanation": "Middleware pembaca body.",
+          "remedial": "express.json membaca body permintaan berjenis JSON, mem-parse-nya, dan menaruh hasilnya di req.body."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import express from 'express';\nconst app = express();\napp.use(express.json());\napp.post('/', (req, res) => res.status(201).json(req.body));\nconst s = app.listen(3000);\nconst r = await fetch('http://localhost:3000/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{rusak' });\nconsole.log(r.status);\ns.close();",
+          "options": [
+            "500",
+            "201",
+            "400",
+            "200"
+          ],
+          "answer": 2,
+          "explanation": "express.json menolak JSON rusak.",
+          "remedial": "Body bukan JSON yang sah. express.json langsung menjawab 400 sebelum penangan dijalankan."
+        },
+        {
+          "question": "Apa beda PUT dan PATCH?",
+          "options": [
+            "PUT mengganti seluruh data, PATCH mengubah sebagian",
+            "Tidak ada bedanya",
+            "PATCH lebih aman dari PUT",
+            "PUT untuk membuat, PATCH untuk menghapus"
+          ],
+          "answer": 0,
+          "explanation": "Seluruhnya vs sebagian.",
+          "remedial": "PUT mengirim data lengkap sebagai pengganti. PATCH hanya mengirim properti yang ingin diubah."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Status apa yang lazim untuk respons DELETE yang berhasil tanpa isi?",
+      "options": [
+        "201",
+        "404",
+        "204",
+        "202"
+      ],
+      "answer": 2,
+      "explanation": "No Content."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi rute POST /angka yang menerima body JSON { nilai } dan menyimpannya ke array data, lalu menjawab 201 dengan JSON { total } berisi jumlah semua nilai. Kirim nilai 5 lalu 7, dan cetak total dari respons terakhir: 12",
+      "starterCode": "import express from 'express';\nconst data = [];\nconst app = express();\n",
+      "solution": "import express from 'express';\nconst data = [];\nconst app = express();\napp.use(express.json());\napp.post('/angka', (req, res) => {\n  data.push(req.body.nilai);\n  res.status(201).json({ total: data.reduce((a, b) => a + b, 0) });\n});\nconst server = app.listen(3000);\nlet d;\nfor (const nilai of [5, 7]) {\n  const r = await fetch('http://localhost:3000/angka', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nilai }) });\n  d = await r.json();\n}\nconsole.log(d.total);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "12\n"
+        }
+      ],
+      "hints": [
+        "app.use(express.json()) sebelum rute.",
+        "Kirim dengan headers { 'Content-Type': 'application/json' }."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "app.use(express.json()) membaca body JSON ke req.body.",
+        "Klien wajib mengirim Content-Type: application/json.",
+        "CRUD: POST 201, GET 200, PUT/PATCH 200, DELETE 204.",
+        "Ambil hanya properti yang diizinkan dari req.body.",
+        "JSON rusak otomatis dijawab 400."
+      ]
+    }
+  ]
+}

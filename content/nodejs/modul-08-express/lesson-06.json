@@ -1,0 +1,194 @@
+{
+  "id": "node-express-06",
+  "moduleId": "node-express",
+  "order": 6,
+  "title": "Proyek Mini: Express Toko",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **API menu toko** dengan Express, lengkap dengan CRUD.\n\n| Rute | Fungsi |\n|---|---|\n| `GET /api/menu?q=` | daftar dan cari |\n| `GET /api/menu/:id` | detail |\n| `POST /api/menu` | tambah (201, header Location) |\n| `PATCH /api/menu/:id` | ubah harga atau nama |\n| `DELETE /api/menu/:id` | hapus (204) |\n\nBandingkan dengan proyek node:http di modul sebelumnya: fungsinya mirip, tapi kodenya jauh lebih pendek.\n\nIbarat pindah dari warung yang serba manual ke toko dengan mesin kasir: pekerjaannya sama, tapi lebih cepat dan lebih sedikit kesalahan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nFungsi bantu kecil mengurangi pengulangan:\n\n```js\nfunction cariMenu(req, res) {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) res.status(404).json({ error: 'Menu tidak ada' });\n  return m;\n}\n\nrouter.get('/:id', (req, res) => {\n  const m = cariMenu(req, res);\n  if (m) res.json(m);\n});\n```\n\nDi modul berikutnya, pemeriksaan seperti ini dipindahkan ke **middleware** dan **validasi skema**, supaya penangan rute tetap pendek."
+    },
+    {
+      "type": "runnable",
+      "code": "// === routes/menu.js ===\nimport { Router } from 'express';\nconst menu = [{ id: 1, nama: 'Kopi Susu', harga: 18000 }];\nlet nextId = 2;\nconst router = Router();\nfunction cari(req, res) {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) res.status(404).json({ error: 'Menu tidak ada' });\n  return m;\n}\nrouter.get('/', (req, res) => {\n  const q = String(req.query.q ?? '').toLowerCase();\n  res.json(menu.filter((m) => m.nama.toLowerCase().includes(q)));\n});\nrouter.get('/:id', (req, res) => {\n  const m = cari(req, res);\n  if (m) res.json(m);\n});\nrouter.post('/', (req, res) => {\n  const { nama, harga } = req.body;\n  if (typeof nama !== 'string' || !(harga > 0)) return res.status(400).json({ error: 'nama dan harga wajib' });\n  const baru = { id: nextId++, nama, harga };\n  menu.push(baru);\n  res.status(201).location(`${req.baseUrl}/${baru.id}`).json(baru);\n});\nrouter.patch('/:id', (req, res) => {\n  const m = cari(req, res);\n  if (!m) return;\n  if (req.body.nama !== undefined) m.nama = req.body.nama;\n  if (req.body.harga !== undefined) m.harga = req.body.harga;\n  res.json(m);\n});\nrouter.delete('/:id', (req, res) => {\n  const m = cari(req, res);\n  if (!m) return;\n  menu.splice(menu.indexOf(m), 1);\n  res.sendStatus(204);\n});\nexport default router;\n// === main.js ===\nimport express from 'express';\nimport menuRouter from './routes/menu.js';\nconst app = express();\napp.use(express.json());\napp.use('/api/menu', menuRouter);\nconst server = app.listen(3000);\n\nconst u = 'http://localhost:3000/api/menu';\nconst kirim = (method, jalur, body) => fetch(u + jalur, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });\nlet r = await kirim('POST', '', { nama: 'Es Kopi', harga: 15000 });\nconsole.log(r.status, r.headers.get('location'));\nr = await kirim('PATCH', '/1', { harga: 20000 });\nconsole.log(r.status, (await r.json()).harga);\nr = await kirim('DELETE', '/9');\nconsole.log(r.status);\nr = await kirim('GET', '?q=kopi');\nconsole.log((await r.json()).map((m) => `${m.nama} ${m.harga}`));\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "201 null",
+          "201 /api/menu/2",
+          "201 /api/menu/1",
+          "200 /api/menu/2"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Fungsi bantu: cari atau 404."
+        },
+        {
+          "line": 24,
+          "note": "Dibuat: 201 dengan header Location."
+        },
+        {
+          "line": 28,
+          "note": "Respons 404 sudah dikirim oleh cari."
+        },
+        {
+          "line": 45,
+          "note": "Pasang router dengan awalan."
+        }
+      ],
+      "explanation": "Menu baru mendapat id 2. Status 201 karena dibuat, dan header Location berisi alamat menu baru: req.baseUrl (/api/menu) ditambah id-nya.",
+      "tryThis": [
+        {
+          "task": "Tambahkan PATCH untuk mengubah nama menu 2.",
+          "hint": null
+        },
+        {
+          "task": "Kirim POST tanpa harga. Apa jawabannya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Fungsi bantu yang mengirim respons tanpa memberi tahu pemanggil**\n\nKalau `cari` mengirim 404, pemanggil harus berhenti (`if (!m) return;`). Kalau lanjut, respons terkirim dua kali.\n\n**2. PATCH yang menerima apa saja**\n\n`Object.assign(m, req.body)` memungkinkan klien mengubah `id` atau menambah properti aneh. Ubah hanya properti yang diizinkan.\n\n**3. Data di variabel modul**\n\nArray `menu` di dalam file router hilang saat server dijalankan ulang, dan tidak bisa dibagi antar beberapa server. Database menyelesaikan keduanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Struktur ini (router per sumber data, CRUD, status yang tepat) adalah bentuk API yang akan kamu temui di hampir setiap proyek backend Node.js.\n- Langkah berikutnya di dunia nyata: validasi dengan skema, penangan error terpusat, log permintaan (modul Middleware), lalu lapisan service dan repository (modul REST API).\n- Alat seperti **Postman**, **Insomnia**, atau ekstensi REST Client di VS Code dipakai untuk mencoba API saat pengembangan."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Express Toko 6: API Menu Lengkap",
+      "pembuka": "Kita rakit API menu toko dengan Express: daftar, detail, tambah, dan hapus.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Router menu dengan daftar dan detail.",
+          "jawaban": "import express from 'express';\nconst menu = [{ id: 1, nama: 'Kopi Susu' }];\nconst router = express.Router();\nrouter.get('/', (req, res) => res.json(menu));\nrouter.get('/:id', (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) return res.status(404).json({ error: 'Menu tidak ada' });\n  res.json(m);\n});\nconst app = express();\napp.use(express.json());\napp.use('/api/menu', router);\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/api/menu/1')).json());\nserver.close();",
+          "keluaran": "{ id: 1, nama: 'Kopi Susu' }",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan `router.post('/')` yang menolak dengan 400 `{ error: 'nama wajib' }` kalau `nama` bukan teks, atau menambah menu dengan id berikutnya dan menjawab 201. Kirim `{ nama: 'Teh Tarik' }` lalu `{}`, dan cetak status keduanya: `201` lalu `400`.",
+          "jawaban": "import express from 'express';\nconst menu = [{ id: 1, nama: 'Kopi Susu' }];\nlet nextId = 2;\nconst router = express.Router();\nrouter.get('/', (req, res) => res.json(menu));\nrouter.get('/:id', (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) return res.status(404).json({ error: 'Menu tidak ada' });\n  res.json(m);\n});\nrouter.post('/', (req, res) => {\n  if (typeof req.body.nama !== 'string') return res.status(400).json({ error: 'nama wajib' });\n  const baru = { id: nextId++, nama: req.body.nama };\n  menu.push(baru);\n  res.status(201).json(baru);\n});\nconst app = express();\napp.use(express.json());\napp.use('/api/menu', router);\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/api/menu/1')).json());\nfor (const body of [{ nama: 'Teh Tarik' }, {}]) {\n  const r = await fetch('http://localhost:3000/api/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\n  console.log(r.status);\n}\nserver.close();",
+          "keluaran": "{ id: 1, nama: 'Kopi Susu' }\n201\n400",
+          "wajib": [
+            {
+              "pola": "router\\.post\\(\\s*'/'",
+              "pesan": "buat `router.post('/', ...)`."
+            },
+            {
+              "pola": "status\\(\\s*400\\s*\\)",
+              "pesan": "tolak dengan `status(400)`."
+            }
+          ],
+          "petunjuk": "router.post('/', ...) dengan pemeriksaan typeof req.body.nama."
+        },
+        {
+          "arahan": "Tambahkan `router.delete('/:id')` yang menjawab 404 kalau tidak ada, atau menghapus dan menjawab 204. Hapus menu 1, lalu fetch daftar menu dan cetak jumlahnya: `1` di baris terakhir.",
+          "jawaban": "import express from 'express';\nconst menu = [{ id: 1, nama: 'Kopi Susu' }];\nlet nextId = 2;\nconst router = express.Router();\nrouter.get('/', (req, res) => res.json(menu));\nrouter.get('/:id', (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) return res.status(404).json({ error: 'Menu tidak ada' });\n  res.json(m);\n});\nrouter.post('/', (req, res) => {\n  if (typeof req.body.nama !== 'string') return res.status(400).json({ error: 'nama wajib' });\n  const baru = { id: nextId++, nama: req.body.nama };\n  menu.push(baru);\n  res.status(201).json(baru);\n});\nrouter.delete('/:id', (req, res) => {\n  const i = menu.findIndex((x) => x.id === Number(req.params.id));\n  if (i === -1) return res.status(404).json({ error: 'Menu tidak ada' });\n  menu.splice(i, 1);\n  res.sendStatus(204);\n});\nconst app = express();\napp.use(express.json());\napp.use('/api/menu', router);\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/api/menu/1')).json());\nfor (const body of [{ nama: 'Teh Tarik' }, {}]) {\n  const r = await fetch('http://localhost:3000/api/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\n  console.log(r.status);\n}\nawait fetch('http://localhost:3000/api/menu/1', { method: 'DELETE' });\nconsole.log((await (await fetch('http://localhost:3000/api/menu')).json()).length);\nserver.close();",
+          "keluaran": "{ id: 1, nama: 'Kopi Susu' }\n201\n400\n1",
+          "wajib": [
+            {
+              "pola": "router\\.delete\\(\\s*'/:id'",
+              "pesan": "buat `router.delete('/:id', ...)`."
+            }
+          ],
+          "petunjuk": "findIndex, splice, lalu sendStatus(204).",
+          "tantangan": true,
+          "benar": "API menu Express selesai: daftar, detail, tambah dengan pemeriksaan, dan hapus."
+        }
+      ],
+      "penutup": "API menu toko berjalan di Express dengan router, CRUD, dan status yang tepat."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa isi header Location yang lazim pada respons 201?",
+          "options": [
+            "Alamat server",
+            "Kota tempat server berada",
+            "Alamat data yang baru dibuat, misalnya /api/menu/2",
+            "Lokasi file kode"
+          ],
+          "answer": 2,
+          "explanation": "Location = di mana data baru.",
+          "remedial": "Header Location memberi tahu klien alamat data yang baru dibuat, sehingga klien bisa langsung mengambilnya."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import express from 'express';\nlet kirim = 0;\nconst app = express();\nfunction cari(req, res) {\n  if (req.params.id !== '1') { kirim++; res.status(404).end(); return null; }\n  return { id: 1 };\n}\napp.get('/x/:id', (req, res) => {\n  const d = cari(req, res);\n  if (!d) return;\n  kirim++;\n  res.json(d);\n});\nconst s = app.listen(3000);\nconsole.log((await fetch('http://localhost:3000/x/5')).status);\nconsole.log(kirim);\ns.close();",
+          "options": [
+            "404 / 2",
+            "204 / 1",
+            "200 / 2",
+            "404 / 1"
+          ],
+          "answer": 3,
+          "explanation": "Fungsi bantu sudah mengirim 404.",
+          "remedial": "Data id 5 tidak ada: fungsi bantu mengirim 404, dan penangan berhenti dengan return. Hanya satu respons yang terkirim, jadi kirim bernilai 1."
+        },
+        {
+          "question": "Kenapa Object.assign(m, req.body) berbahaya di rute PATCH?",
+          "options": [
+            "Object.assign menghapus data lama",
+            "req.body selalu kosong saat PATCH",
+            "Klien bisa mengubah properti yang seharusnya tidak boleh, seperti id",
+            "Object.assign lambat"
+          ],
+          "answer": 2,
+          "explanation": "Ubah hanya yang diizinkan.",
+          "remedial": "Semua properti body disalin, termasuk id atau properti yang tidak dikenal. Ambil properti yang diizinkan satu per satu."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Alat apa yang lazim dipakai untuk mencoba API saat pengembangan?",
+      "options": [
+        "Microsoft Word",
+        "Task Manager",
+        "Photoshop",
+        "Postman, Insomnia, atau REST Client di VS Code"
+      ],
+      "answer": 3,
+      "explanation": "Mengirim permintaan dengan mudah."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat router dengan rute PATCH /:id yang hanya mengubah properti harga dari body untuk data id itu, lalu menjawab data tersebut. Pasang di /api/menu, kirim PATCH ke /api/menu/1 dengan body {\"harga\":25000,\"id\":99}, dan cetak id serta harga dari respons dipisah spasi: 1 25000",
+      "starterCode": "import express from 'express';\nconst menu = [{ id: 1, nama: 'Kopi', harga: 18000 }];\n",
+      "solution": "import express from 'express';\nconst menu = [{ id: 1, nama: 'Kopi', harga: 18000 }];\nconst router = express.Router();\nrouter.patch('/:id', (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) return res.status(404).json({ error: 'Menu tidak ada' });\n  if (req.body.harga !== undefined) m.harga = req.body.harga;\n  res.json(m);\n});\nconst app = express();\napp.use(express.json());\napp.use('/api/menu', router);\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/api/menu/1', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ harga: 25000, id: 99 }) });\nconst d = await r.json();\nconsole.log(d.id, d.harga);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "1 25000\n"
+        }
+      ],
+      "hints": [
+        "Ubah hanya m.harga, jangan Object.assign.",
+        "app.use(express.json()) sebelum router."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Router per sumber data dengan CRUD lengkap.",
+        "201 dengan header Location untuk data baru.",
+        "Fungsi bantu boleh mengirim 404, tapi pemanggil harus berhenti.",
+        "Ubah hanya properti yang diizinkan.",
+        "Berikutnya: middleware, validasi, dan penanganan error."
+      ]
+    }
+  ]
+}
