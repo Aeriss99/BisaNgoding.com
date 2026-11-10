@@ -12,7 +12,7 @@ export function petaNode(akar) {
     url: R + '/url.js', querystring: N + '/querystring-es3/index.js',
     string_decoder: N + '/string_decoder/lib/string_decoder.js', crypto: R + '/crypto.js', zlib: R + '/kosong.js',
     net: R + '/net.js', async_hooks: R + '/asyncHooks.js', os: R + '/os.js', tty: R + '/kosong.js',
-    timers: R + '/timers.js', process: R + '/process.js',
+    timers: R + '/timers.js', process: R + '/process.js', readline: R + '/readline.js',
   };
 }
 

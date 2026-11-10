@@ -24,6 +24,7 @@ import * as utilMod from './util.js';
 import * as netMod from './net.js';
 import * as ahMod from './asyncHooks.js';
 import * as spMod from './streamPromises.js';
+import * as rlMod from './readline.js';
 import { inspect, format } from 'node-inspect-extracted';
 
 const ev = eventsMod.default || eventsMod;
@@ -39,7 +40,7 @@ const BAWAAN = {
   crypto: m(cryptoMod.default, cryptoMod), os: m(osMod.default, osMod), url: m(urlMod.default, urlMod),
   util: m(utilMod.default, utilMod), net: m(netMod.default, netMod), async_hooks: m(ahMod.default, ahMod),
   timers: m(timers.default, timers), 'timers/promises': m(timers.promises), process: m(proc), buffer: m({ Buffer }, { Buffer }),
-  string_decoder: m(sdMod.default || sdMod), querystring: m(qsMod.default || qsMod),
+  string_decoder: m(sdMod.default || sdMod), querystring: m(qsMod.default || qsMod), readline: m(rlMod.default, rlMod),
 };
 const PAKET = { express: m(express), zod: m(zodMod, zodMod), bcryptjs: m(bcrypt), jsonwebtoken: m(jwt) };
 function cariModul(spes) {

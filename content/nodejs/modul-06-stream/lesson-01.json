@@ -1,0 +1,189 @@
+{
+  "id": "node-stream-01",
+  "moduleId": "node-stream",
+  "order": 1,
+  "title": "EventEmitter: Mengirim dan Mendengar Event",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Banyak bagian Node.js bekerja dengan **event**: server menerima permintaan, stream menerima data, proses akan berhenti. Dasarnya adalah kelas `EventEmitter` dari `node:events`.\n\n```js\nimport { EventEmitter } from 'node:events';\nconst toko = new EventEmitter();\n\ntoko.on('pesanan', (menu) => console.log('Masak', menu)); // dengar\ntoko.emit('pesanan', 'Kopi');                              // kirim\n```\n\n| Metode | Fungsi |\n|---|---|\n| `on(nama, fn)` | dengarkan setiap kali event terjadi |\n| `once(nama, fn)` | dengarkan hanya sekali |\n| `emit(nama, ...data)` | kirim event beserta datanya |\n| `off(nama, fn)` | berhenti mendengar |\n| `listenerCount(nama)` | jumlah pendengar |\n\nIbarat bel di dapur: kasir menekan bel (emit) setiap ada pesanan, dan semua koki yang mendengarkan bel itu (on) langsung bergerak."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSatu event boleh punya banyak pendengar. Mereka dipanggil **berurutan** sesuai urutan didaftarkan, dan `emit` menunggu semuanya selesai (sinkron):\n\n```js\ntoko.on('pesanan', (m) => console.log('Dapur:', m));\ntoko.on('pesanan', (m) => console.log('Kasir catat:', m));\ntoko.emit('pesanan', 'Teh'); // Dapur: Teh, lalu Kasir catat: Teh\nconsole.log('setelah emit');\n```\n\n`emit` mengembalikan `true` kalau ada pendengar, dan `false` kalau tidak ada.\n\nUntuk `off`, fungsi yang dilepas harus fungsi yang **sama** dengan saat `on`, jadi simpan dulu di variabel."
+    },
+    {
+      "type": "runnable",
+      "code": "import { EventEmitter } from 'node:events';\nconst toko = new EventEmitter();\n\nconst catat = (menu, jumlah) => console.log('Catat:', menu, 'x' + jumlah);\ntoko.on('pesanan', (menu) => console.log('Dapur:', menu));\ntoko.on('pesanan', catat);\ntoko.once('pesanan', () => console.log('Pesanan pertama hari ini!'));\n\ntoko.emit('pesanan', 'Kopi', 2);\ntoko.off('pesanan', catat);\ntoko.emit('pesanan', 'Teh', 1);\nconsole.log(toko.listenerCount('pesanan'));\nconsole.log(toko.emit('tutup'));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kelima?",
+        "options": [
+          "3",
+          "1",
+          "0",
+          "2"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 5,
+          "note": "Dengarkan setiap pesanan."
+        },
+        {
+          "line": 7,
+          "note": "Hanya untuk pesanan pertama."
+        },
+        {
+          "line": 10,
+          "note": "Lepas pendengar catat."
+        },
+        {
+          "line": 13,
+          "note": "Tidak ada pendengar: false."
+        }
+      ],
+      "explanation": "Awalnya ada 3 pendengar. once hilang setelah dipakai sekali, dan catat dilepas dengan off. Tersisa 1 pendengar: Dapur.",
+      "tryThis": [
+        {
+          "task": "Tambahkan pendengar untuk event tutup. Apa hasil emit('tutup') sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Pindahkan once ke paling atas. Apa yang berubah?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Melepas dengan fungsi baru**\n\n`off('pesanan', () => ...)` tidak melepas apa-apa, karena fungsi panah baru adalah fungsi yang berbeda. Simpan fungsinya di variabel.\n\n**2. Salah ketik nama event**\n\n`emit('pesan')` dan `on('pesanan')` tidak bertemu, dan tidak ada error. Simpan nama event di konstanta kalau dipakai di banyak tempat.\n\n**3. Menambah pendengar berulang-ulang**\n\nMendaftarkan `on` di dalam fungsi yang sering dipanggil membuat pendengar menumpuk. Node.js memberi peringatan `MaxListenersExceededWarning` setelah 10 pendengar untuk satu event."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Server HTTP, stream, socket, dan `process` semuanya EventEmitter. Memahami `on` dan `emit` membuat dokumentasi Node.js jauh lebih mudah dibaca.\n- Event dipakai untuk memisahkan bagian aplikasi: modul pesanan cukup mengirim event `pesanan:dibuat`, lalu modul email, notifikasi, dan laporan masing-masing mendengarkan tanpa saling mengenal.\n- Peringatan `MaxListenersExceededWarning` di log server sering menandakan kebocoran memori karena pendengar terus ditambah."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Log Toko 1: Bel Pesanan",
+      "pembuka": "Toko memakai event supaya dapur dan kasir bereaksi setiap ada pesanan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Dapur mendengarkan event pesanan.",
+          "jawaban": "import { EventEmitter } from 'node:events';\nconst toko = new EventEmitter();\ntoko.on('pesanan', (menu) => console.log('Dapur memasak', menu));\ntoko.emit('pesanan', 'Kopi Susu');",
+          "keluaran": "Dapur memasak Kopi Susu",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan pendengar kedua yang mencetak `Kasir mencatat <menu>`, lalu kirim pesanan `Teh Tarik`. Baris terakhir harus `Kasir mencatat Teh Tarik`.",
+          "jawaban": "import { EventEmitter } from 'node:events';\nconst toko = new EventEmitter();\ntoko.on('pesanan', (menu) => console.log('Dapur memasak', menu));\ntoko.on('pesanan', (menu) => console.log('Kasir mencatat', menu));\ntoko.emit('pesanan', 'Kopi Susu');\ntoko.emit('pesanan', 'Teh Tarik');",
+          "keluaran": "Dapur memasak Kopi Susu\nKasir mencatat Kopi Susu\nDapur memasak Teh Tarik\nKasir mencatat Teh Tarik",
+          "wajib": [
+            {
+              "pola": "emit\\(\\s*'pesanan'\\s*,\\s*'Teh Tarik'",
+              "pesan": "kirim `emit('pesanan', 'Teh Tarik')`."
+            }
+          ],
+          "petunjuk": "toko.on('pesanan', (menu) => console.log('Kasir mencatat', menu)), lalu emit lagi."
+        },
+        {
+          "arahan": "Hitung jumlah pesanan dengan variabel `jumlah` yang ditambah oleh pendengar. Tambahkan event `tutup` (didengar dengan `once`) yang mencetak `Toko tutup, 2 pesanan`, lalu kirim `emit('tutup')`.",
+          "jawaban": "import { EventEmitter } from 'node:events';\nconst toko = new EventEmitter();\nlet jumlah = 0;\ntoko.on('pesanan', (menu) => console.log('Dapur memasak', menu));\ntoko.on('pesanan', (menu) => console.log('Kasir mencatat', menu));\ntoko.on('pesanan', () => jumlah++);\ntoko.once('tutup', () => console.log(`Toko tutup, ${jumlah} pesanan`));\ntoko.emit('pesanan', 'Kopi Susu');\ntoko.emit('pesanan', 'Teh Tarik');\ntoko.emit('tutup');",
+          "keluaran": "Dapur memasak Kopi Susu\nKasir mencatat Kopi Susu\nDapur memasak Teh Tarik\nKasir mencatat Teh Tarik\nToko tutup, 2 pesanan",
+          "wajib": [
+            {
+              "pola": "once\\(\\s*'tutup'",
+              "pesan": "dengarkan `tutup` dengan `once`."
+            }
+          ],
+          "petunjuk": "toko.on('pesanan', () => jumlah++) dan toko.once('tutup', ...).",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Dapur dan kasir kini bereaksi otomatis setiap ada pesanan, dan toko tahu jumlah pesanannya saat tutup."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa beda on dan once?",
+          "options": [
+            "on dipanggil setiap kali event terjadi, once hanya sekali lalu dilepas",
+            "on untuk event sinkron, once untuk async",
+            "once dipanggil lebih dulu dari on",
+            "Tidak ada bedanya"
+          ],
+          "answer": 0,
+          "explanation": "once = sekali.",
+          "remedial": "Pendengar once otomatis dilepas setelah dipanggil sekali. Pendengar on tetap aktif sampai dilepas dengan off."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { EventEmitter } from 'node:events';\nconst e = new EventEmitter();\ne.on('x', () => console.log('A'));\ne.on('x', () => console.log('B'));\ne.emit('x');\nconsole.log('C');",
+          "options": [
+            "B / A / C",
+            "C / A / B",
+            "A / B / C",
+            "A / C / B"
+          ],
+          "answer": 2,
+          "explanation": "emit memanggil pendengar secara sinkron.",
+          "remedial": "emit langsung memanggil semua pendengar berurutan sebelum lanjut ke baris berikutnya. Jadi A dan B tercetak sebelum C."
+        },
+        {
+          "question": "Kenapa off('pesanan', () => {}) tidak melepas pendengar apa pun?",
+          "options": [
+            "Fungsi panah baru berbeda dengan fungsi yang didaftarkan sebelumnya",
+            "off harus dipanggil dua kali",
+            "Nama event harus huruf besar",
+            "off hanya bekerja untuk once"
+          ],
+          "answer": 0,
+          "explanation": "Bandingkan identitas fungsi.",
+          "remedial": "off mencari fungsi yang sama persis. Fungsi panah yang baru ditulis adalah objek fungsi lain, jadi tidak ada yang cocok. Simpan fungsinya di variabel."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa yang dikembalikan emit kalau tidak ada pendengar untuk event itu?",
+      "options": [
+        "false",
+        "undefined",
+        "Error",
+        "true"
+      ],
+      "answer": 0,
+      "explanation": "true kalau ada pendengar."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat EventEmitter bernama stok. Daftarkan pendengar event habis yang mencetak Stok habis: <menu>. Kirim event habis dua kali dengan menu Kopi lalu Teh. Keluaran: Stok habis: Kopi lalu Stok habis: Teh",
+      "starterCode": "import { EventEmitter } from 'node:events';\n",
+      "solution": "import { EventEmitter } from 'node:events';\nconst stok = new EventEmitter();\nstok.on('habis', (menu) => console.log(`Stok habis: ${menu}`));\nstok.emit('habis', 'Kopi');\nstok.emit('habis', 'Teh');\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Stok habis: Kopi\nStok habis: Teh\n"
+        }
+      ],
+      "hints": [
+        "const stok = new EventEmitter(); lalu stok.on('habis', ...).",
+        "stok.emit('habis', 'Kopi')."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "EventEmitter: on untuk mendengar, emit untuk mengirim.",
+        "once hanya sekali; off melepas pendengar.",
+        "emit memanggil semua pendengar berurutan secara sinkron.",
+        "Untuk off, pakai fungsi yang sama dengan saat on.",
+        "Server, stream, dan process adalah EventEmitter."
+      ]
+    }
+  ]
+}

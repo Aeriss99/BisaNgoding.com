@@ -1,0 +1,199 @@
+{
+  "id": "node-stream-06",
+  "moduleId": "node-stream",
+  "order": 6,
+  "title": "Proyek Mini: Pemantau Log Toko",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **pemantau log** yang membaca log akses toko, menghitung ringkasannya, mengirim event peringatan, dan menulis laporan.\n\n| Materi | Dipakai untuk |\n|---|---|\n| readline + createReadStream | membaca log per baris |\n| EventEmitter | event `peringatan` saat ada error server |\n| Kelas sendiri | `PemantauLog` yang mewarisi EventEmitter |\n| Transform + pipeline | menulis laporan ke file |\n\nIbarat petugas keamanan yang membaca catatan buku tamu baris demi baris: ia mencatat ringkasannya, dan membunyikan peluit (event) setiap menemukan kejadian mencurigakan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nFormat log akses yang dipakai:\n\n```text\n2026-11-10T08:00:01Z GET /produk 200 12ms\n2026-11-10T08:00:02Z POST /pesanan 500 340ms\n```\n\nSatu baris dipecah dengan `split(' ')` menjadi waktu, metode, jalur, status, dan durasi.\n\nKelas pemantau mengirim event saat menemukan masalah, sehingga bagian lain (email ke tim, notifikasi chat) cukup mendengarkan tanpa mengubah kode pemantau:\n\n```js\npemantau.on('peringatan', (baris) => kirimKeTim(baris));\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "// === akses.log ===\n2026-11-10T08:00:01Z GET /produk 200 12ms\n2026-11-10T08:00:02Z POST /pesanan 201 45ms\n2026-11-10T08:00:03Z GET /produk/9 404 8ms\n2026-11-10T08:00:04Z POST /pesanan 500 340ms\n2026-11-10T08:00:05Z GET /produk 200 15ms\n// === main.js ===\nimport { createReadStream, createWriteStream } from 'node:fs';\nimport { readFile } from 'node:fs/promises';\nimport { EventEmitter } from 'node:events';\nimport { Readable, Transform } from 'node:stream';\nimport { pipeline } from 'node:stream/promises';\nimport readline from 'node:readline';\n\nclass PemantauLog extends EventEmitter {\n  async baca(file) {\n    const status = {};\n    const rl = readline.createInterface({ input: createReadStream(file) });\n    for await (const baris of rl) {\n      const [waktu, metode, jalur, kode] = baris.split(' ');\n      status[kode] = (status[kode] || 0) + 1;\n      if (kode.startsWith('5')) this.emit('peringatan', `${waktu} ${metode} ${jalur}`);\n    }\n    return status;\n  }\n}\nconst pemantau = new PemantauLog();\npemantau.on('peringatan', (info) => console.log('PERINGATAN:', info));\nconst status = await pemantau.baca('akses.log');\n\nconst keBaris = new Transform({\n  objectMode: true,\n  transform([kode, n], enc, cb) { cb(null, `${kode}: ${n}\\n`); },\n});\nawait pipeline(Readable.from(Object.entries(status)), keBaris, createWriteStream('laporan.txt'));\nconsole.log((await readFile('laporan.txt', 'utf8')).trim().split('\\n').join(' | '));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "500: 1 | 404: 1 | 201: 1 | 200: 2",
+          "200: 2 | 201: 1 | 404: 1 | 500: 1",
+          "200: 3 | 404: 1 | 500: 1",
+          "200: 2 | 201: 1 | 404: 1"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 15,
+          "note": "Pemantau bisa mengirim event."
+        },
+        {
+          "line": 19,
+          "note": "Log dibaca per baris."
+        },
+        {
+          "line": 22,
+          "note": "Error server memicu peringatan."
+        },
+        {
+          "line": 35,
+          "note": "Laporan ditulis lewat stream."
+        }
+      ],
+      "explanation": "Ada dua baris berstatus 200, dan masing-masing satu untuk 201, 404, dan 500. Object.entries mengurutkan kunci angka dari kecil ke besar.",
+      "tryThis": [
+        {
+          "task": "Tambahkan baris log berstatus 503. Berapa peringatan yang muncul?",
+          "hint": null
+        },
+        {
+          "task": "Hitung juga rata-rata durasi dari kolom terakhir.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Baris kosong di akhir file**\n\nKalau log diakhiri baris kosong ganda, `split` menghasilkan kolom kosong dan `kode.startsWith` gagal. Lewati baris kosong dengan `if (!baris) continue`.\n\n**2. Mengirim event peringatan tanpa pendengar error**\n\nKalau pemantau juga mengirim `error` (misalnya file tidak ada), pastikan ada `on('error')`, atau biarkan error dilempar dan tangkap dengan try/catch.\n\n**3. Menyusun laporan dengan string besar**\n\nUntuk ringkasan kecil tidak masalah. Untuk laporan per baris dari jutaan data, tulis lewat stream."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di produksi, log biasanya ditulis dalam format **JSON per baris** (dibahas di modul Produksi) dan dikirim ke layanan log seperti Grafana Loki, Datadog, atau ELK, yang membuat ringkasan seperti ini secara otomatis.\n- Script pemantau kecil seperti ini tetap berguna untuk menyelidiki masalah dari file log yang diunduh dari server.\n- Peringatan otomatis (alert) saat banyak error 5xx adalah praktik standar tim yang menjalankan layanan produksi."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Log Toko 6: Pemantau Log",
+      "pembuka": "Kita rakit pemantau log: membaca per baris, mengirim peringatan, dan menulis laporan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Log dibaca per baris dan status setiap baris dicetak.",
+          "jawaban": "// === akses.log ===\nGET /menu 200\nPOST /pesanan 500\nGET /menu 200\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport readline from 'node:readline';\nconst rl = readline.createInterface({ input: createReadStream('akses.log') });\nfor await (const baris of rl) console.log(baris.split(' ')[2]);",
+          "keluaran": "200\n500\n200",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat `class Pemantau extends EventEmitter` dengan `async baca(file)` yang membaca log per baris dan mengirim `this.emit('peringatan', baris)` kalau status diawali 5. Dengarkan event itu dan cetak `PERINGATAN: POST /pesanan 500`.",
+          "jawaban": "// === akses.log ===\nGET /menu 200\nPOST /pesanan 500\nGET /menu 200\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport { EventEmitter } from 'node:events';\nimport readline from 'node:readline';\nclass Pemantau extends EventEmitter {\n  async baca(file) {\n    const rl = readline.createInterface({ input: createReadStream(file) });\n    for await (const baris of rl) {\n      if (baris.split(' ')[2].startsWith('5')) this.emit('peringatan', baris);\n    }\n  }\n}\nconst p = new Pemantau();\np.on('peringatan', (b) => console.log('PERINGATAN:', b));\nawait p.baca('akses.log');",
+          "kodeAwal": "// === akses.log ===\nGET /menu 200\nPOST /pesanan 500\nGET /menu 200\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport { EventEmitter } from 'node:events';\nimport readline from 'node:readline';",
+          "keluaran": "PERINGATAN: POST /pesanan 500",
+          "wajib": [
+            {
+              "pola": "class\\s+Pemantau\\s+extends\\s+EventEmitter",
+              "pesan": "buat `class Pemantau extends EventEmitter`."
+            },
+            {
+              "pola": "emit\\(\\s*'peringatan'",
+              "pesan": "kirim event `'peringatan'`."
+            }
+          ],
+          "petunjuk": "class Pemantau extends EventEmitter { async baca(file) { ... } }"
+        },
+        {
+          "arahan": "Ubah `baca` supaya mengembalikan jumlah baris per status. Tulis laporan dengan `createWriteStream('laporan.txt')`: satu baris `<status>: <jumlah>` per status, lalu `end()` dan tunggu `finish`. Cetak isi laporan dengan `trim()` di akhir.",
+          "jawaban": "// === akses.log ===\nGET /menu 200\nPOST /pesanan 500\nGET /menu 200\n// === main.js ===\nimport { createReadStream, createWriteStream } from 'node:fs';\nimport { readFile } from 'node:fs/promises';\nimport { EventEmitter, once } from 'node:events';\nimport readline from 'node:readline';\nclass Pemantau extends EventEmitter {\n  async baca(file) {\n    const status = {};\n    const rl = readline.createInterface({ input: createReadStream(file) });\n    for await (const baris of rl) {\n      const kode = baris.split(' ')[2];\n      status[kode] = (status[kode] || 0) + 1;\n      if (kode.startsWith('5')) this.emit('peringatan', baris);\n    }\n    return status;\n  }\n}\nconst p = new Pemantau();\np.on('peringatan', (b) => console.log('PERINGATAN:', b));\nconst status = await p.baca('akses.log');\nconst out = createWriteStream('laporan.txt');\nfor (const [kode, n] of Object.entries(status)) out.write(`${kode}: ${n}\\n`);\nout.end();\nawait once(out, 'finish');\nconsole.log((await readFile('laporan.txt', 'utf8')).trim());",
+          "keluaran": "PERINGATAN: POST /pesanan 500\n200: 2\n500: 1",
+          "wajib": [
+            {
+              "pola": "createWriteStream\\(",
+              "pesan": "tulis laporan dengan `createWriteStream`."
+            },
+            {
+              "pola": "'finish'",
+              "pesan": "tunggu event `'finish'`."
+            }
+          ],
+          "petunjuk": "Simpan hitungan di objek status; tulis dengan out.write per status, out.end(), lalu await once(out, 'finish').",
+          "tantangan": true,
+          "benar": "Pemantau log selesai: membaca log per baris, mengirim peringatan untuk error server, dan menulis laporan ke file."
+        }
+      ],
+      "penutup": "Pemantau log memakai event dan stream bersama: membaca hemat memori, memberi peringatan, dan menulis laporan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa pemantau mengirim event peringatan alih-alih langsung mengirim email?",
+          "options": [
+            "Karena Node.js tidak bisa mengirim email",
+            "Karena event wajib untuk setiap kelas",
+            "Supaya bagian lain cukup mendengarkan tanpa mengubah kode pemantau",
+            "Supaya lebih cepat membaca file"
+          ],
+          "answer": 2,
+          "explanation": "Memisahkan tanggung jawab.",
+          "remedial": "Pemantau cukup melaporkan kejadian. Siapa yang bereaksi (email, chat, log) diatur oleh pendengar, sehingga keduanya bisa diubah terpisah."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const s = { '404': '2', '200': '1' };\nfor (const e of Object.entries(s)) console.log(e);",
+          "options": [
+            "[ 200, 1 ] / [ 404, 2 ]",
+            "[ '200', 1 ] / [ '404', 2 ]",
+            "[ '404', '2' ] / [ '200', '1' ]",
+            "[ '200', '1' ] / [ '404', '2' ]"
+          ],
+          "answer": 3,
+          "explanation": "Kunci objek selalu teks.",
+          "remedial": "Kunci objek disimpan sebagai teks. Nilai pada contoh ini juga teks karena ditulis dengan kutip. Kunci angka diurutkan dari kecil ke besar."
+        },
+        {
+          "question": "Format log apa yang dianjurkan di produksi supaya mudah diolah layanan log?",
+          "options": [
+            "File Excel per hari",
+            "HTML",
+            "JSON per baris",
+            "Teks bebas dengan warna"
+          ],
+          "answer": 2,
+          "explanation": "Mudah dibaca mesin.",
+          "remedial": "JSON per baris (satu objek JSON per kejadian) bisa langsung dibaca dan dicari oleh layanan log seperti Loki, Datadog, atau ELK."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa yang sebaiknya dilakukan pada baris kosong saat membaca log?",
+      "options": [
+        "Menghentikan seluruh pembacaan",
+        "Menghapus file log",
+        "Menghitungnya sebagai error 500",
+        "Melewatinya dengan if (!baris) continue"
+      ],
+      "answer": 3,
+      "explanation": "Baris kosong tidak punya kolom."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "File suhu.log berisi baris berformat nama suhu. Baca per baris, dan kirim event panas dari EventEmitter sensor untuk setiap suhu di atas 30. Pendengar mencetak Panas: <nama>. Keluaran: Panas: gudang",
+      "starterCode": "// === suhu.log ===\ndapur 28\ngudang 35\nkasir 25\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport { EventEmitter } from 'node:events';\nimport readline from 'node:readline';\nconst sensor = new EventEmitter();\n",
+      "solution": "// === suhu.log ===\ndapur 28\ngudang 35\nkasir 25\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport { EventEmitter } from 'node:events';\nimport readline from 'node:readline';\nconst sensor = new EventEmitter();\nsensor.on('panas', (nama) => console.log(`Panas: ${nama}`));\nconst rl = readline.createInterface({ input: createReadStream('suhu.log') });\nfor await (const baris of rl) {\n  const [nama, suhu] = baris.split(' ');\n  if (Number(suhu) > 30) sensor.emit('panas', nama);\n}\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Panas: gudang\n"
+        }
+      ],
+      "hints": [
+        "Daftarkan sensor.on('panas', ...) sebelum membaca.",
+        "const [nama, suhu] = baris.split(' '); lalu Number(suhu) > 30."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "readline + createReadStream membaca log besar per baris.",
+        "Kelas pemantau mengirim event saat menemukan masalah.",
+        "Pendengar menentukan reaksi tanpa mengubah pemantau.",
+        "Laporan ditulis lewat Writable stream atau pipeline.",
+        "Di produksi, log JSON dikirim ke layanan log terpusat."
+      ]
+    }
+  ]
+}
