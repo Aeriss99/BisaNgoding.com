@@ -1,0 +1,148 @@
+{
+  "id": "node-produksi-05",
+  "moduleId": "node-produksi",
+  "order": 5,
+  "title": "Migrasi dan Menjalankan di Produksi",
+  "estimatedMinutes": 14,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Langkah rilis ke server produksi biasanya:\n\n1. Siapkan variabel lingkungan produksi (`NODE_ENV=production`, database produksi, kunci acak).\n2. Terapkan migrasi database: `npx prisma migrate deploy`.\n3. Jalankan aplikasi: `node src/server.js` (dengan variabel lingkungan dari platform).\n4. Periksa `/health/ready` dan log.\n\n`migrate deploy` **hanya menerapkan** migrasi yang sudah ada di folder `prisma/migrations`. Ia tidak membuat migrasi baru dan tidak pernah mengosongkan database.\n\nIbarat pindahan rumah dengan daftar barang: di rumah baru, barang ditata sesuai daftar yang sudah dibuat sebelumnya, tanpa mengubah daftarnya di tempat."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`NODE_ENV=production` mengubah perilaku beberapa paket. Express, misalnya, tidak lagi menampilkan stack trace di halaman error bawaannya.\n\nDi contoh ini, lingkungan produksi disimulasikan di laptop dengan file `.env.production` dan database `toko_prod`. Perintah Prisma membaca file itu lewat dotenv-cli:\n\n```bash\nnpx dotenv -e .env.production -- prisma migrate status\nnpx dotenv -e .env.production -- prisma migrate deploy\n```\n\nDi server sungguhan, variabel diisi lewat platform hosting, sehingga cukup `npx prisma migrate deploy`.\n\nBanyak tim menjalankan `migrate deploy` otomatis sebagai langkah *release* di CI/CD sebelum versi baru aplikasi dinyalakan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `migrate dev` di produksi**\n\n`migrate dev` bisa meminta database dikosongkan kalau ada perbedaan. Di produksi hanya pakai `migrate deploy`.\n\n**2. Aplikasi baru jalan sebelum migrasi**\n\nKode baru yang membaca kolom baru akan error kalau migrasinya belum diterapkan. Jalankan migrasi lebih dulu.\n\n**3. Migrasi yang merusak tanpa rencana**\n\nMenghapus atau mengganti nama kolom bisa mematikan versi aplikasi yang masih berjalan. Lakukan bertahap: tambah kolom baru, pindahkan data, baru hapus yang lama di rilis berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Sebelum migrasi besar, tim membuat **cadangan** (*backup*) database, atau memakai fitur titik pemulihan dari layanan database terkelola.\n- Platform seperti Railway, Render, dan Fly.io punya pengaturan *release command* atau *pre-deploy command* untuk menjalankan `prisma migrate deploy`.\n- Server produksi biasanya memakai port yang ditentukan platform lewat `PORT`, seperti 8080 di contoh ini."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\nSudah disiapkan:\n\n- database PostgreSQL kosong `toko_prod`,\n- file `.env.production` (sudah ditambahkan ke `.gitignore`) berisi `NODE_ENV=production`, `PORT=8080`, dan alamat `toko_prod`.\n\nKamu akan memeriksa status migrasi, menerapkannya, lalu menjalankan server dalam mode produksi."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Rilis API 5: Hari Rilis",
+      "folder": "~/toko-api",
+      "pembuka": "Kita terapkan migrasi ke database produksi lalu jalankan server dalam mode produksi.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini isi .env.production.",
+          "terima": [
+            "cat .env.production"
+          ],
+          "keluaran": "NODE_ENV=production\nPORT=8080\nDATABASE_URL=\"postgresql://sari:rahasia@localhost:5432/toko_prod\"\nJWT_SECRET=\"kunci-produksi-contoh-ganti-dengan-yang-acak-dan-panjang\"\nCORS_ORIGIN=\"https://tokosari.id\"\nLOG_LEVEL=info",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Periksa status migrasi di database produksi.",
+          "terima": [
+            "npx dotenv -e .env.production -- prisma migrate status",
+            "npx dotenv -e .env.production -- npx prisma migrate status"
+          ],
+          "keluaran": "Loaded Prisma config from prisma7.config.ts.\n\nPrisma schema loaded from prisma/schema.prisma.\nDatasource \"db\": PostgreSQL database \"toko_prod\", schema \"public\" at \"localhost:5432\"\n\n2 migrations found in prisma/migrations\nFollowing migrations have not yet been applied:\n20261110193642_buat_produk\n20261110193648_tambah_kategori\n\nTo apply migrations in development run prisma migrate dev.\nTo apply migrations in production run prisma migrate deploy.",
+          "petunjuk": "npx dotenv -e .env.production -- prisma migrate status"
+        },
+        {
+          "arahan": "Terapkan migrasi yang belum ada ke database produksi.",
+          "terima": [
+            "npx dotenv -e .env.production -- prisma migrate deploy",
+            "npx dotenv -e .env.production -- npx prisma migrate deploy"
+          ],
+          "keluaran": "Loaded Prisma config from prisma7.config.ts.\n\nPrisma schema loaded from prisma/schema.prisma.\nDatasource \"db\": PostgreSQL database \"toko_prod\", schema \"public\" at \"localhost:5432\"\n\n2 migrations found in prisma/migrations\n\nApplying migration `20261110193642_buat_produk`\nApplying migration `20261110193648_tambah_kategori`\n\nThe following migration(s) have been applied:\n\nmigrations/\n  └─ 20261110193642_buat_produk/\n    └─ migration.sql\n  └─ 20261110193648_tambah_kategori/\n    └─ migration.sql\n\nAll migrations have been successfully applied.",
+          "petunjuk": "npx dotenv -e .env.production -- prisma migrate deploy"
+        },
+        {
+          "arahan": "Jalankan server dengan .env.production dan hentikan otomatis setelah 3 detik.",
+          "terima": [
+            "timeout -s TERM 3 node --env-file=.env.production src/server.js"
+          ],
+          "keluaran": "{\"level\":30,\"time\":\"2026-11-10T19:43:55.456Z\",\"layanan\":\"toko-api\",\"port\":8080,\"mode\":\"production\",\"msg\":\"Toko API siap\"}\n{\"level\":30,\"time\":\"2026-11-10T19:43:58.124Z\",\"layanan\":\"toko-api\",\"sinyal\":\"SIGTERM\",\"msg\":\"Menerima sinyal, menutup server\"}\n{\"level\":30,\"time\":\"2026-11-10T19:43:58.127Z\",\"layanan\":\"toko-api\",\"msg\":\"Server ditutup dengan rapi\"}",
+          "petunjuk": "timeout -s TERM 3 node --env-file=.env.production src/server.js",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Database produksi sudah sesuai migrasi, dan server berjalan dalam mode produksi di port 8080."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa produksi memakai prisma migrate deploy, bukan migrate dev?",
+          "options": [
+            "deploy lebih cepat",
+            "deploy membuat migrasi baru otomatis",
+            "deploy hanya menerapkan migrasi yang ada dan tidak pernah mengosongkan database",
+            "migrate dev tidak bisa terhubung ke server"
+          ],
+          "answer": 2,
+          "explanation": "Aman untuk data asli.",
+          "remedial": "migrate dev dirancang untuk pengembangan dan bisa meminta reset. migrate deploy hanya menjalankan file migrasi yang sudah di-review."
+        },
+        {
+          "question": "Kenapa migrasi dijalankan sebelum aplikasi versi baru dinyalakan?",
+          "options": [
+            "Karena Prisma Client dibuat saat migrasi",
+            "Supaya kode baru tidak membaca kolom atau tabel yang belum ada",
+            "Supaya log lebih rapi",
+            "Supaya port tersedia"
+          ],
+          "answer": 1,
+          "explanation": "Struktur dulu, kode kemudian.",
+          "remedial": "Kode baru mengandalkan struktur database baru. Kalau migrasinya belum diterapkan, query ke kolom baru akan gagal."
+        },
+        {
+          "question": "Apa yang ditunjukkan migrate status saat database produksi masih kosong?",
+          "options": [
+            "Isi semua tabel",
+            "Daftar pengguna database",
+            "Ukuran database",
+            "Daftar migrasi yang belum diterapkan"
+          ],
+          "answer": 3,
+          "explanation": "Belum diterapkan.",
+          "remedial": "migrate status membandingkan folder migrasi dengan catatan di database dan menyebutkan migrasi yang belum dijalankan."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa yang sebaiknya dilakukan sebelum migrasi besar di produksi?",
+      "options": [
+        "Menghapus folder migrasi",
+        "Membuat cadangan database",
+        "Mematikan log",
+        "Menjalankan migrate reset"
+      ],
+      "answer": 1,
+      "explanation": "Supaya bisa kembali kalau gagal."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi perintah untuk menerapkan migrasi di produksi.",
+      "code": "npx prisma migrate ___",
+      "answers": [
+        "deploy"
+      ],
+      "explanation": "migrate deploy hanya menerapkan migrasi yang sudah ada."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Langkah rilis: env produksi, migrate deploy, jalankan, periksa.",
+        "migrate deploy aman untuk produksi; migrate dev hanya untuk pengembangan.",
+        "Jalankan migrasi sebelum versi baru aplikasi.",
+        "NODE_ENV=production mengubah perilaku paket seperti Express.",
+        "Cadangkan database sebelum migrasi besar."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,148 @@
+{
+  "id": "node-produksi-04",
+  "moduleId": "node-produksi",
+  "order": 4,
+  "title": "Health Check dan Graceful Shutdown",
+  "estimatedMinutes": 13,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Platform hosting perlu tahu dua hal tentang aplikasimu:\n\n- **Masih hidup?** `GET /health` menjawab 200 kalau proses berjalan.\n- **Siap melayani?** `GET /health/ready` juga memeriksa database dengan query kecil `SELECT 1` lewat `prisma.$queryRaw`. Kalau database belum tersambung, jawab **503**.\n\nSaat aplikasi diperbarui, platform mengirim sinyal **SIGTERM** ke proses lama. Aplikasi yang baik melakukan **graceful shutdown**: berhenti menerima permintaan baru, menyelesaikan yang sedang berjalan, menutup koneksi database, lalu keluar.\n\nIbarat toko yang akan tutup: pintu dikunci untuk pembeli baru, tapi pembeli yang sudah di dalam tetap dilayani sampai selesai, baru lampu dimatikan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```js\nconst server = app.listen(config.PORT, () => log.info({ port: config.PORT }, 'Toko API siap'));\n\nasync function berhenti(sinyal) {\n  log.info({ sinyal }, 'Menerima sinyal, menutup server');\n  server.close(async () => {          // tunggu permintaan berjalan selesai\n    await prisma.$disconnect();\n    log.info('Server ditutup dengan rapi');\n    process.exit(0);\n  });\n  setTimeout(() => process.exit(1), 10_000).unref(); // batas waktu\n}\nprocess.on('SIGTERM', berhenti);\nprocess.on('SIGINT', berhenti);       // Ctrl+C\n```\n\nUntuk mencoba tanpa menunggu, `timeout -s TERM 3 npm start` menjalankan server dan mengirim SIGTERM setelah 3 detik."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `process.exit()` langsung saat SIGTERM**\n\nPermintaan yang sedang diproses terputus di tengah jalan, misalnya pesanan yang setengah tersimpan.\n\n**2. Tanpa batas waktu**\n\nKalau ada koneksi yang tidak pernah selesai, proses menggantung. Beri batas, lalu keluar paksa.\n\n**3. Health check yang selalu 200**\n\nKalau `/health/ready` tidak memeriksa database, platform tetap mengirim pengguna ke server yang sebenarnya tidak bisa bekerja."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Docker, Kubernetes, dan platform seperti Railway atau Render mengirim SIGTERM sebelum mematikan container, biasanya dengan waktu tunggu sekitar 10 sampai 30 detik.\n- Kubernetes memakai dua pemeriksaan terpisah: *liveness* (hidup) dan *readiness* (siap). Pola `/health` dan `/health/ready` mengikuti pembagian ini.\n- Graceful shutdown memungkinkan pembaruan tanpa jeda (*zero-downtime deploy*): server baru siap dulu, baru server lama ditutup."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\n`src/server.js` sudah memakai graceful shutdown seperti contoh, dan `src/app.js` sudah punya `/health/ready`.\n\nServer masih berjalan di terminal lain. Sebelum langkah ketiga, Lingga menghentikannya dengan Ctrl+C supaya port 3000 bebas."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Rilis API 4: Tutup Toko dengan Rapi",
+      "folder": "~/toko-api",
+      "pembuka": "Kita periksa kesiapan server dan cara ia berhenti dengan rapi.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini bagian graceful shutdown di src/server.js.",
+          "terima": [
+            "sed -n 18,30p src/server.js"
+          ],
+          "keluaran": "  log.info({ sinyal }, 'Menerima sinyal, menutup server');\n  server.close(async () => {\n    await prisma.$disconnect();\n    log.info('Server ditutup dengan rapi');\n    process.exit(0);\n  });\n  setTimeout(() => process.exit(1), 10_000).unref();\n}\nprocess.on('SIGTERM', berhenti);\nprocess.on('SIGINT', berhenti);",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Periksa kesiapan server, termasuk database.",
+          "terima": [
+            "curl -s localhost:3000/health/ready",
+            "curl localhost:3000/health/ready",
+            "curl -s http://localhost:3000/health/ready"
+          ],
+          "keluaran": "{\"status\":\"siap\",\"database\":\"ok\"}",
+          "petunjuk": "curl -s localhost:3000/health/ready"
+        },
+        {
+          "arahan": "Server lama sudah dihentikan. Jalankan npm start dan kirim SIGTERM setelah 3 detik dengan timeout.",
+          "terima": [
+            "timeout -s TERM 3 npm start"
+          ],
+          "keluaran": "\n> toko-api@1.0.0 start\n> node --env-file=.env src/server.js\n\n{\"level\":30,\"time\":\"2026-11-10T19:43:46.527Z\",\"layanan\":\"toko-api\",\"port\":3000,\"mode\":\"development\",\"msg\":\"Toko API siap\"}\n{\"level\":30,\"time\":\"2026-11-10T19:43:49.075Z\",\"layanan\":\"toko-api\",\"sinyal\":\"SIGTERM\",\"msg\":\"Menerima sinyal, menutup server\"}\n{\"level\":30,\"time\":\"2026-11-10T19:43:49.077Z\",\"layanan\":\"toko-api\",\"msg\":\"Server ditutup dengan rapi\"}",
+          "petunjuk": "timeout -s TERM 3 npm start"
+        },
+        {
+          "arahan": "Ulangi, tapi alirkan log ke pino-pretty supaya mudah dibaca.",
+          "terima": [
+            "timeout -s TERM 3 npm start | npx pino-pretty"
+          ],
+          "keluaran": "\n> toko-api@1.0.0 start\n> node --env-file=.env src/server.js\n\n[19:43:49.709] INFO: Toko API siap\n    layanan: \"toko-api\"\n    port: 3000\n    mode: \"development\"\n[19:43:52.098] INFO: Menerima sinyal, menutup server\n    layanan: \"toko-api\"\n    sinyal: \"SIGTERM\"\n[19:43:52.100] INFO: Server ditutup dengan rapi\n    layanan: \"toko-api\"",
+          "petunjuk": "timeout -s TERM 3 npm start | npx pino-pretty",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Server toko siap diperiksa kesehatannya dan berhenti dengan rapi saat diminta platform."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa beda /health dan /health/ready?",
+          "options": [
+            "Tidak ada bedanya",
+            "/health/ready hanya untuk admin",
+            "/health memastikan proses hidup, /health/ready juga memastikan database siap",
+            "/health memeriksa database"
+          ],
+          "answer": 2,
+          "explanation": "Hidup vs siap.",
+          "remedial": "Proses bisa hidup tapi belum bisa melayani karena database belum tersambung. Pemeriksaan siap mencegah pengguna diarahkan ke server itu."
+        },
+        {
+          "question": "Apa yang dilakukan server.close(callback)?",
+          "options": [
+            "Berhenti menerima koneksi baru dan memanggil callback setelah koneksi yang ada selesai",
+            "Menolak semua permintaan yang sedang berjalan",
+            "Menghapus database",
+            "Mematikan proses seketika"
+          ],
+          "answer": 0,
+          "explanation": "Tutup pintu, layani yang di dalam.",
+          "remedial": "server.close tidak memutus permintaan yang sedang berjalan. Callback dipanggil setelah semuanya selesai."
+        },
+        {
+          "question": "Sinyal apa yang dikirim platform hosting sebelum mematikan aplikasi?",
+          "options": [
+            "SIGKILL",
+            "SIGSTOP",
+            "SIGTERM",
+            "SIGHUP"
+          ],
+          "answer": 2,
+          "explanation": "Permintaan berhenti dengan sopan.",
+          "remedial": "SIGTERM memberi kesempatan aplikasi berhenti dengan rapi. Kalau tidak berhenti dalam batas waktu, platform mengirim SIGKILL yang tidak bisa ditangkap."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Status apa yang tepat untuk /health/ready saat database belum tersambung?",
+      "options": [
+        "404 Not Found",
+        "200 OK",
+        "400 Bad Request",
+        "503 Service Unavailable"
+      ],
+      "answer": 3,
+      "explanation": "Belum siap melayani."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi supaya fungsi berhenti dipanggil saat proses menerima SIGTERM.",
+      "code": "process.on('___', berhenti);",
+      "answers": [
+        "SIGTERM"
+      ],
+      "explanation": "SIGTERM dikirim platform hosting saat meminta aplikasi berhenti."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "/health untuk hidup, /health/ready untuk siap (termasuk database).",
+        "Platform mengirim SIGTERM sebelum mematikan aplikasi.",
+        "Graceful shutdown: server.close, tutup database, lalu keluar.",
+        "Beri batas waktu supaya proses tidak menggantung.",
+        "Pola ini memungkinkan pembaruan tanpa jeda."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "id": "node-produksi-06",
+  "moduleId": "node-produksi",
+  "order": 6,
+  "title": "Proyek: Paket Siap Rilis dengan Docker",
+  "estimatedMinutes": 16,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Langkah terakhir: mengemas API supaya bisa dijalankan di mana saja dengan cara yang sama. Standar industri untuk ini adalah **container Docker**.\n\nDaftar periksa sebelum rilis:\n\n1. Tes lulus (`npm test`, `npm run test:db`).\n2. Tidak ada celah keamanan yang diketahui di paket: `npm audit`.\n3. Hanya paket produksi yang ikut: `npm ci --omit=dev`.\n4. Rahasia tidak ikut terkemas: `.dockerignore`.\n5. Image dibuat dari `Dockerfile` dan dijalankan dengan variabel lingkungan dari platform.\n\nIbarat mengirim makanan katering: masakan dikemas dalam wadah standar yang tertutup rapat, sehingga sampai di mana pun rasanya sama, dan dapur pengirim tidak ikut terbawa."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`Dockerfile` dua tahap (*multi-stage*):\n\n```dockerfile\nFROM node:26-slim AS build\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci\nCOPY . .\nRUN npx prisma generate\n\nFROM node:26-slim\nWORKDIR /app\nENV NODE_ENV=production\nCOPY package*.json ./\nRUN npm ci --omit=dev\nCOPY --from=build /app/generated ./generated\nCOPY src ./src\nUSER node\nEXPOSE 3000\nCMD [\"node\", \"src/server.js\"]\n```\n\nPerintah Docker (dijalankan di laptop yang sudah memasang Docker):\n\n```bash\ndocker build -t toko-api:1.0.0 .\ndocker run --env-file .env.production -p 8080:8080 toko-api:1.0.0\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `.env` ikut masuk image**\n\nTanpa `.dockerignore`, `COPY . .` menyalin `.env` ke dalam image, dan siapa pun yang punya image bisa membaca rahasianya.\n\n**2. Container berjalan sebagai root**\n\nKalau aplikasi dibobol, penyerang mendapat akses penuh di container. Pakai `USER node`.\n\n**3. devDependencies ikut ke produksi**\n\nImage menjadi besar dan membawa paket yang tidak perlu. Tahap akhir memakai `npm ci --omit=dev`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Image Docker didorong ke registry (GitHub Container Registry, Docker Hub) lalu dijalankan di VPS, Kubernetes, atau platform seperti Railway, Render, dan Fly.io.\n- CI/CD biasanya menjalankan semuanya otomatis: tes, `npm audit`, build image, migrasi, lalu rilis. Kelas DevOps di BisaNgoding membahas Docker dan CI/CD lebih dalam.\n- Tanpa Docker, banyak tim memakai pengelola proses seperti **PM2** atau **systemd** di VPS untuk menjalankan dan menghidupkan ulang aplikasi Node.js."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\nLingga sudah menambahkan `Dockerfile` dan `.dockerignore`.\n\nDocker tidak tersedia di laptop latihan ini, jadi kita fokus pada daftar periksa yang bisa dijalankan: membaca Dockerfile, `npm audit`, dan memasang hanya paket produksi seperti di tahap akhir Dockerfile."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Rilis API 6: Siap Dikirim",
+      "folder": "~/toko-api",
+      "pembuka": "Kita jalankan daftar periksa terakhir sebelum API toko dikemas dan dirilis.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini Dockerfile dua tahap.",
+          "terima": [
+            "cat Dockerfile"
+          ],
+          "keluaran": "# Tahap 1: pasang semua paket dan buat Prisma Client\nFROM node:26-slim AS build\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci\nCOPY . .\nRUN npx prisma generate\n\n# Tahap 2: hanya paket produksi\nFROM node:26-slim\nWORKDIR /app\nENV NODE_ENV=production\nCOPY package*.json ./\nRUN npm ci --omit=dev\nCOPY --from=build /app/generated ./generated\nCOPY src ./src\nUSER node\nEXPOSE 3000\nCMD [\"node\", \"src/server.js\"]",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Periksa celah keamanan yang diketahui di paket.",
+          "terima": [
+            "npm audit"
+          ],
+          "keluaran": "found 0 vulnerabilities",
+          "petunjuk": "npm audit"
+        },
+        {
+          "arahan": "Tampilkan isi .dockerignore untuk memastikan rahasia tidak ikut.",
+          "terima": [
+            "cat .dockerignore"
+          ],
+          "keluaran": "node_modules\ngenerated\n.env\n.env.*\ntest\n.git",
+          "petunjuk": "cat .dockerignore"
+        },
+        {
+          "arahan": "Pasang hanya paket produksi, persis sesuai lock file.",
+          "terima": [
+            "npm ci --omit=dev"
+          ],
+          "keluaran": "\nadded 239 packages, and audited 240 packages in 11s\n\n51 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities\nnpm warn install-scripts 2 packages have install scripts not yet covered by allowScripts:\nnpm warn install-scripts   @prisma/engines@7.10.1 (postinstall: node scripts/postinstall.js)\nnpm warn install-scripts   prisma@7.10.1 (preinstall: node scripts/preinstall-entry.js)\nnpm warn install-scripts\nnpm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.",
+          "petunjuk": "npm ci --omit=dev"
+        },
+        {
+          "arahan": "Tampilkan daftar paket produksi tingkat atas.",
+          "terima": [
+            "npm ls --omit=dev --depth=0",
+            "npm list --omit=dev --depth=0"
+          ],
+          "keluaran": "toko-api@1.0.0 /home/sari/toko-api\n├── @prisma/adapter-pg@7.10.1\n├── @prisma/client@7.10.1\n├── cors@2.8.6\n├── express-rate-limit@8.7.4\n├── express@5.3.0\n├── helmet@8.3.0\n├── pino-http@11.0.0\n├── pino@10.4.0\n└── zod@4.6.7",
+          "petunjuk": "npm ls --omit=dev --depth=0",
+          "tantangan": true
+        }
+      ],
+      "penutup": "API toko siap dirilis: tes lulus, tanpa celah paket yang diketahui, hanya paket produksi, dan rahasia tidak ikut terkemas."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi .dockerignore?",
+          "options": [
+            "Mempercepat npm install",
+            "Menghapus Docker dari laptop",
+            "Mencegah file seperti .env, node_modules, dan tes ikut masuk image Docker",
+            "Mengabaikan error saat build"
+          ],
+          "answer": 2,
+          "explanation": "Seperti .gitignore untuk Docker.",
+          "remedial": "Tanpa .dockerignore, COPY . . menyalin semua file, termasuk rahasia dan file yang tidak perlu."
+        },
+        {
+          "question": "Kenapa Dockerfile memakai dua tahap?",
+          "options": [
+            "Karena Docker mewajibkan dua FROM",
+            "Supaya bisa memakai dua versi Node.js sekaligus",
+            "Supaya build dua kali lebih lama",
+            "Tahap pertama memasang semua paket untuk membuat client, tahap akhir hanya membawa yang dibutuhkan saat berjalan"
+          ],
+          "answer": 3,
+          "explanation": "Bangun di dapur, kirim makanannya saja.",
+          "remedial": "Alat pembuatan (devDependencies, CLI) hanya dibutuhkan di tahap build. Image akhir lebih kecil dan lebih aman."
+        },
+        {
+          "question": "Apa fungsi USER node di Dockerfile?",
+          "options": [
+            "Membuat akun di database",
+            "Memasang Node.js",
+            "Menjalankan aplikasi sebagai pengguna biasa, bukan root",
+            "Menjalankan npm install"
+          ],
+          "answer": 2,
+          "explanation": "Hak akses seminimal mungkin.",
+          "remedial": "Kalau aplikasi dibobol, penyerang hanya mendapat hak pengguna biasa di container, bukan root."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Perintah apa yang memeriksa celah keamanan yang diketahui di paket npm?",
+      "options": [
+        "npm doctor",
+        "npm audit",
+        "npm verify",
+        "npm check"
+      ],
+      "answer": 1,
+      "explanation": "Membandingkan dengan basis data celah keamanan."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi perintah untuk memasang hanya paket produksi sesuai lock file.",
+      "code": "npm ci --omit=___",
+      "answers": [
+        "dev"
+      ],
+      "explanation": "--omit=dev melewati devDependencies."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Daftar periksa rilis: tes, npm audit, npm ci --omit=dev, .dockerignore.",
+        "Dockerfile dua tahap: build lengkap, image akhir ramping.",
+        "Jalankan container sebagai USER node.",
+        "docker build lalu docker run dengan variabel lingkungan produksi.",
+        "Image dikirim ke registry dan dijalankan di server atau platform."
+      ]
+    }
+  ]
+}

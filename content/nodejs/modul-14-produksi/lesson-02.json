@@ -1,0 +1,166 @@
+{
+  "id": "node-produksi-02",
+  "moduleId": "node-produksi",
+  "order": 2,
+  "title": "Logging Terstruktur dengan pino",
+  "estimatedMinutes": 14,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di produksi, `console.log` saja tidak cukup. Log perlu **terstruktur** (format JSON, satu kejadian per baris) supaya bisa dicari dan disaring oleh layanan log.\n\n**pino** adalah logger yang sangat cepat dan paling umum dipakai di Node.js:\n\n```js\nimport pino from 'pino';\nexport const log = pino({\n  level: process.env.LOG_LEVEL ?? 'info',\n  base: { layanan: 'toko-api' },\n  timestamp: pino.stdTimeFunctions.isoTime,\n});\n\nlog.info({ produkId: 7, stok: 3 }, 'Stok menipis');\n```\n\nIbarat buku catatan kejadian satpam dengan kolom yang sama setiap baris (jam, lokasi, kejadian): mudah dicari, misalnya \"semua kejadian di gudang kemarin malam\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**Level log** dari yang paling penting:\n\n| Level | Angka | Untuk |\n|---|---|---|\n| `fatal` | 60 | aplikasi akan berhenti |\n| `error` | 50 | kegagalan yang perlu diperbaiki |\n| `warn` | 40 | hal aneh tapi masih berjalan |\n| `info` | 30 | kejadian penting biasa |\n| `debug` | 20 | detail untuk mencari masalah |\n\nDengan `level: 'info'`, log `debug` tidak dicetak. Ubah `LOG_LEVEL=debug` saat mencari masalah.\n\n**pino-http** mencatat setiap permintaan HTTP otomatis (method, url, status, waktu). Saat pengembangan, **pino-pretty** mengubah JSON menjadi tampilan yang mudah dibaca manusia:\n\n```bash\nnode scripts/coba-log.js | npx pino-pretty\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mencatat data rahasia**\n\nPassword, token, dan isi kartu tidak boleh masuk log. pino punya opsi `redact` untuk menyamarkan kolom tertentu.\n\n**2. Pesan tanpa konteks**\n\n`log.error('gagal')` tidak membantu. Sertakan objek konteks: `log.error({ err, pesananId }, 'Gagal menyimpan pesanan')`.\n\n**3. pino-pretty dipakai di produksi**\n\nTampilan cantik hanya untuk manusia di laptop. Di produksi, kirim JSON apa adanya ke layanan log."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Log JSON dari server dikumpulkan oleh layanan seperti Grafana Loki, Datadog, Elastic, atau dashboard log platform hosting.\n- Setiap permintaan diberi **id permintaan** (pino-http membuatnya otomatis di `req.id`), sehingga semua log dari satu permintaan bisa ditelusuri bersama.\n- Peringatan otomatis (*alert*) dibuat dari log level `error`, misalnya \"kirim pesan ke tim kalau ada lebih dari 10 error dalam 5 menit\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\nLingga sudah membuat:\n\n- `src/log.js` berisi logger pino,\n- `scripts/coba-log.js` yang mencetak empat log: dua `info`, satu `debug`, dan satu `error`.\n\nPaket pino belum dipasang."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Rilis API 2: Buku Catatan Server",
+      "folder": "~/toko-api",
+      "pembuka": "Kita pasang logger terstruktur supaya kejadian di server mudah dicari.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini isi src/log.js.",
+          "terima": [
+            "cat src/log.js"
+          ],
+          "keluaran": "import pino from 'pino';\n\nexport const log = pino({\n  level: process.env.LOG_LEVEL ?? 'info',\n  base: { layanan: 'toko-api' },\n  timestamp: pino.stdTimeFunctions.isoTime,\n});",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Pasang pino dan pino-http.",
+          "terima": [
+            "npm install pino pino-http",
+            "npm i pino pino-http"
+          ],
+          "keluaran": "\nadded 14 packages, and audited 262 packages in 3s\n\n57 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities\nnpm warn install-scripts 2 packages have install scripts not yet covered by allowScripts:\nnpm warn install-scripts   @prisma/engines@7.10.1 (postinstall: node scripts/postinstall.js)\nnpm warn install-scripts   prisma@7.10.1 (preinstall: node scripts/preinstall-entry.js)\nnpm warn install-scripts\nnpm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.",
+          "petunjuk": "npm install pino pino-http"
+        },
+        {
+          "arahan": "Jalankan script coba-log. Perhatikan log debug tidak muncul.",
+          "terima": [
+            "node scripts/coba-log.js"
+          ],
+          "keluaran": "{\"level\":30,\"time\":\"2026-11-10T19:43:38.985Z\",\"layanan\":\"toko-api\",\"msg\":\"Server siap\"}\n{\"level\":30,\"time\":\"2026-11-10T19:43:38.985Z\",\"layanan\":\"toko-api\",\"produkId\":7,\"stok\":3,\"msg\":\"Stok menipis\"}\n{\"level\":50,\"time\":\"2026-11-10T19:43:38.985Z\",\"layanan\":\"toko-api\",\"err\":{\"type\":\"Error\",\"message\":\"Koneksi database putus\",\"stack\":\"Error: Koneksi database putus\\n    at file:///home/sari/toko-api/scripts/coba-log.js:6:18\\n    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)\\n    at async node:internal/modules/esm/loader:650:26\\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5)\"},\"msg\":\"Gagal menyimpan pesanan\"}",
+          "petunjuk": "node scripts/coba-log.js"
+        },
+        {
+          "arahan": "Jalankan lagi dengan LOG_LEVEL=debug supaya log debug ikut muncul.",
+          "terima": [
+            "LOG_LEVEL=debug node scripts/coba-log.js"
+          ],
+          "keluaran": "{\"level\":30,\"time\":\"2026-11-10T19:43:39.054Z\",\"layanan\":\"toko-api\",\"msg\":\"Server siap\"}\n{\"level\":30,\"time\":\"2026-11-10T19:43:39.054Z\",\"layanan\":\"toko-api\",\"produkId\":7,\"stok\":3,\"msg\":\"Stok menipis\"}\n{\"level\":20,\"time\":\"2026-11-10T19:43:39.054Z\",\"layanan\":\"toko-api\",\"query\":\"SELECT ...\",\"msg\":\"Detail untuk mencari masalah\"}\n{\"level\":50,\"time\":\"2026-11-10T19:43:39.054Z\",\"layanan\":\"toko-api\",\"err\":{\"type\":\"Error\",\"message\":\"Koneksi database putus\",\"stack\":\"Error: Koneksi database putus\\n    at file:///home/sari/toko-api/scripts/coba-log.js:6:18\\n    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)\\n    at async node:internal/modules/esm/loader:650:26\\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5)\"},\"msg\":\"Gagal menyimpan pesanan\"}",
+          "petunjuk": "LOG_LEVEL=debug node scripts/coba-log.js"
+        },
+        {
+          "arahan": "Pasang pino-pretty sebagai dependensi pengembangan.",
+          "terima": [
+            "npm install --save-dev pino-pretty",
+            "npm install -D pino-pretty",
+            "npm i -D pino-pretty",
+            "npm i --save-dev pino-pretty"
+          ],
+          "keluaran": "\nadded 11 packages, and audited 273 packages in 2s\n\n59 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities\nnpm warn install-scripts 2 packages have install scripts not yet covered by allowScripts:\nnpm warn install-scripts   @prisma/engines@7.10.1 (postinstall: node scripts/postinstall.js)\nnpm warn install-scripts   prisma@7.10.1 (preinstall: node scripts/preinstall-entry.js)\nnpm warn install-scripts\nnpm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.",
+          "petunjuk": "npm install --save-dev pino-pretty"
+        },
+        {
+          "arahan": "Tampilkan log dengan rapi: alirkan keluaran script ke pino-pretty.",
+          "terima": [
+            "node scripts/coba-log.js | npx pino-pretty"
+          ],
+          "keluaran": "[19:43:41.550] INFO: Server siap\n    layanan: \"toko-api\"\n[19:43:41.554] INFO: Stok menipis\n    layanan: \"toko-api\"\n    produkId: 7\n    stok: 3\n[19:43:41.554] ERROR: Gagal menyimpan pesanan\n    layanan: \"toko-api\"\n    err: {\n      \"type\": \"Error\",\n      \"message\": \"Koneksi database putus\",\n      \"stack\":\n          Error: Koneksi database putus\n              at file:///home/sari/toko-api/scripts/coba-log.js:6:18\n              at ModuleJob.run (node:internal/modules/esm/module_job:569:25)\n              at async node:internal/modules/esm/loader:650:26\n              at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5)\n    }",
+          "petunjuk": "node scripts/coba-log.js | npx pino-pretty",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Server kini punya log JSON terstruktur dengan level, dan tampilan rapi untuk pengembangan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa log di produksi ditulis dalam format JSON?",
+          "options": [
+            "Supaya mudah dicari dan disaring oleh layanan log",
+            "Karena console.log tidak bisa dipakai",
+            "Supaya ukuran file lebih kecil",
+            "Supaya lebih indah dibaca manusia"
+          ],
+          "answer": 0,
+          "explanation": "Terstruktur.",
+          "remedial": "Layanan log bisa langsung membaca kolom JSON seperti level, waktu, dan produkId, sehingga pencarian seperti \"semua error untuk produk 7\" menjadi mudah."
+        },
+        {
+          "question": "Dengan level info, log mana yang tidak dicetak?",
+          "options": [
+            "error",
+            "debug",
+            "warn",
+            "info"
+          ],
+          "answer": 1,
+          "explanation": "Di bawah batas.",
+          "remedial": "Level info mencetak info dan yang lebih penting (warn, error, fatal). debug di bawahnya, sehingga dilewati."
+        },
+        {
+          "question": "Kenapa password tidak boleh masuk log?",
+          "options": [
+            "Log dibaca banyak orang dan disimpan lama, sehingga rahasia bisa bocor",
+            "Karena password selalu kosong",
+            "Karena log terlalu kecil",
+            "Karena pino menolak teks"
+          ],
+          "answer": 0,
+          "explanation": "Log bukan tempat rahasia.",
+          "remedial": "Log dikirim ke berbagai layanan dan disimpan lama. Pakai redact untuk menyamarkan kolom rahasia."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Paket apa yang mengubah log JSON pino menjadi tampilan yang mudah dibaca saat pengembangan?",
+      "options": [
+        "morgan-json",
+        "helmet",
+        "pino-pretty",
+        "pino-http"
+      ],
+      "answer": 2,
+      "explanation": "Hanya untuk laptop."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi untuk mencatat log level peringatan.",
+      "code": "log.___({ stok: 2 }, 'Stok hampir habis');",
+      "answers": [
+        "warn"
+      ],
+      "explanation": "warn dipakai untuk hal aneh yang belum menghentikan aplikasi."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Log terstruktur: JSON, satu kejadian per baris.",
+        "pino: logger cepat dan populer; pino-http mencatat setiap permintaan.",
+        "Level: fatal, error, warn, info, debug; atur dengan LOG_LEVEL.",
+        "pino-pretty hanya untuk pengembangan.",
+        "Sertakan konteks, jangan catat rahasia."
+      ]
+    }
+  ]
+}
