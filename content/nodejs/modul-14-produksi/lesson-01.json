@@ -1,0 +1,147 @@
+{
+  "id": "node-produksi-01",
+  "moduleId": "node-produksi",
+  "order": 1,
+  "title": "Konfigurasi dan Rahasia",
+  "estimatedMinutes": 14,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi yang sama berjalan di beberapa tempat: laptop, server tes, dan produksi. Yang berbeda hanya **konfigurasinya**: alamat database, port, kunci rahasia. Prinsip yang dipakai industri (dari *The Twelve-Factor App*): **konfigurasi disimpan di variabel lingkungan**, bukan di kode.\n\nNode.js membaca file `.env` langsung:\n\n```bash\nnode --env-file=.env src/server.js\n```\n\nSupaya tidak ada kejutan, konfigurasi **divalidasi saat aplikasi mulai** dengan Zod (`src/config.js`). Kalau ada yang kurang, aplikasi langsung berhenti dengan pesan jelas.\n\nIbarat pilot yang memeriksa bahan bakar sebelum lepas landas: lebih baik tidak terbang daripada ketahuan kehabisan bahan bakar di udara."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```js\n// src/config.js (ringkas)\nconst Env = z.object({\n  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),\n  PORT: z.coerce.number().int().positive().default(3000),\n  DATABASE_URL: z.url(),\n  JWT_SECRET: z.string().min(32),\n});\nconst hasil = Env.safeParse(process.env);\nif (!hasil.success) { /* cetak masalahnya */ process.exit(1); }\nexport const config = hasil.data;\n```\n\nFile **`.env.example`** berisi daftar variabel dengan nilai contoh. File ini **masuk Git**, sehingga anggota tim baru tahu apa saja yang harus diisi. File `.env` yang berisi nilai asli tetap di luar Git.\n\nKunci acak yang kuat dibuat dengan modul `crypto`:\n\n```bash\nnode -e \"console.log(require('node:crypto').randomBytes(32).toString('hex'))\"\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `process.env` dipakai langsung di banyak file**\n\nNama variabel salah ketik tidak ketahuan sampai fiturnya dipakai. Baca dan validasi sekali di `config.js`, lalu impor `config`.\n\n**2. Lupa bahwa nilai env selalu teks**\n\n`process.env.PORT` bernilai `'3000'`. Pakai `z.coerce.number()` untuk mengubahnya.\n\n**3. Rahasia contoh dipakai di produksi**\n\nKunci seperti `rahasia123` atau isi `.env.example` mudah ditebak. Buat kunci acak untuk setiap lingkungan."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di platform hosting (Railway, Render, Fly.io, VPS dengan Docker), variabel lingkungan diisi lewat dashboard atau perintah CLI platform, bukan lewat file `.env` di server.\n- Rahasia penting disimpan di **secret manager** (GitHub Actions Secrets, AWS Secrets Manager, Doppler, Vault).\n- Kalau kunci rahasia pernah bocor (misalnya ikut ter-commit), ganti kuncinya. Menghapus commit saja tidak cukup."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\nLingga sudah menambahkan:\n\n- `.env.example` berisi daftar variabel,\n- `src/config.js` yang memvalidasi variabel lingkungan dengan Zod,\n- `src/cek-config.js` yang mencetak konfigurasi yang terbaca.\n\nFile `.env` saat ini baru berisi `DATABASE_URL`."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Rilis API 1: Periksa Bekal",
+      "folder": "~/toko-api",
+      "pembuka": "Kita pastikan konfigurasi aplikasi lengkap dan valid sebelum server dijalankan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini daftar variabel di .env.example.",
+          "terima": [
+            "cat .env.example"
+          ],
+          "keluaran": "# Salin menjadi .env lalu isi nilainya. Jangan masukkan .env ke Git.\nNODE_ENV=development\nPORT=3000\nDATABASE_URL=\"postgresql://pengguna:password@localhost:5432/toko\"\nJWT_SECRET=\"isi-dengan-kunci-acak-minimal-32-karakter\"\nCORS_ORIGIN=\"http://localhost:5173\"\nLOG_LEVEL=info",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Jalankan pemeriksa konfigurasi dengan file .env.",
+          "terima": [
+            "node --env-file=.env src/cek-config.js"
+          ],
+          "keluaran": "Konfigurasi tidak valid:\n- JWT_SECRET: Invalid input: expected string, received undefined",
+          "petunjuk": "node --env-file=.env src/cek-config.js"
+        },
+        {
+          "arahan": "JWT_SECRET belum ada. Buat kunci acak 32 byte dalam bentuk hex.",
+          "terima": [
+            "node -e \"console.log(require('node:crypto').randomBytes(32).toString('hex'))\"",
+            "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+          ],
+          "keluaran": "e6f685a2ffaf24f832af220d21a61754653d8890e5334e656a2b6720c1de3618",
+          "petunjuk": "node -e \"console.log(require('node:crypto').randomBytes(32).toString('hex'))\""
+        },
+        {
+          "arahan": "Lingga sudah menempelkan kunci itu ke .env sebagai JWT_SECRET. Jalankan pemeriksa konfigurasi lagi.",
+          "terima": [
+            "node --env-file=.env src/cek-config.js"
+          ],
+          "keluaran": "Mode: development\nPort: 3000\nDatabase: localhost:5432\nPanjang JWT_SECRET: 64",
+          "petunjuk": "node --env-file=.env src/cek-config.js",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Konfigurasi aplikasi kini lengkap, tervalidasi, dan kunci rahasianya acak."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa konfigurasi divalidasi saat aplikasi mulai?",
+          "options": [
+            "Supaya aplikasi lebih cepat",
+            "Supaya kesalahan konfigurasi langsung ketahuan dengan pesan jelas, bukan saat fitur dipakai",
+            "Supaya .env tidak perlu ada",
+            "Karena Node.js mewajibkannya"
+          ],
+          "answer": 1,
+          "explanation": "Gagal lebih awal.",
+          "remedial": "Aplikasi yang berhenti di awal dengan pesan \"JWT_SECRET wajib\" jauh lebih mudah diperbaiki daripada error misterius di tengah jalan."
+        },
+        {
+          "question": "File mana yang masuk Git?",
+          "options": [
+            ".env.example",
+            ".env",
+            ".env.production",
+            ".env.test"
+          ],
+          "answer": 0,
+          "explanation": "Contoh, bukan nilai asli.",
+          "remedial": ".env.example hanya berisi daftar variabel dan nilai contoh. File .env lainnya berisi nilai asli, termasuk rahasia."
+        },
+        {
+          "question": "Kenapa PORT divalidasi dengan z.coerce.number()?",
+          "options": [
+            "Karena z.number() tidak ada",
+            "Karena port selalu 3000",
+            "Karena semua nilai variabel lingkungan berupa teks",
+            "Supaya port menjadi acak"
+          ],
+          "answer": 2,
+          "explanation": "Teks menjadi angka.",
+          "remedial": "process.env.PORT bernilai '3000'. coerce mengubahnya menjadi angka 3000 sebelum diperiksa."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Di mana konfigurasi aplikasi sebaiknya disimpan menurut prinsip The Twelve-Factor App?",
+      "options": [
+        "Di variabel lingkungan",
+        "Di database aplikasi",
+        "Di README",
+        "Di dalam kode"
+      ],
+      "answer": 0,
+      "explanation": "Kode sama, konfigurasi beda per lingkungan."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi perintah untuk menjalankan server dengan membaca file .env.",
+      "code": "node ___=.env src/server.js",
+      "answers": [
+        "--env-file"
+      ],
+      "explanation": "--env-file membaca variabel dari file ke process.env."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Konfigurasi di variabel lingkungan, bukan di kode.",
+        "node --env-file=.env membaca file .env.",
+        "Validasi konfigurasi dengan Zod saat aplikasi mulai.",
+        ".env.example masuk Git; .env berisi nilai asli tidak.",
+        "Buat kunci rahasia acak dengan crypto.randomBytes."
+      ]
+    }
+  ]
+}

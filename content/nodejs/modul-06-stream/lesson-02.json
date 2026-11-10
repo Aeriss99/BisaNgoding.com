@@ -1,0 +1,193 @@
+{
+  "id": "node-stream-02",
+  "moduleId": "node-stream",
+  "order": 2,
+  "title": "Kelas Event Sendiri dan Event error",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kelas sendiri bisa **mewarisi** EventEmitter, sehingga objeknya bisa mengirim event:\n\n```js\nclass Kasir extends EventEmitter {\n  bayar(total) {\n    this.emit('bayar', total);\n  }\n}\nconst kasir = new Kasir();\nkasir.on('bayar', (t) => console.log('Masuk', t));\nkasir.bayar(18000);\n```\n\nEvent bernama **`error`** itu istimewa: kalau dikirim tanpa ada pendengarnya, Node.js **melempar error itu** dan program berhenti.\n\nIbarat alarm kebakaran: alarm boleh berbunyi kapan saja, tapi kalau tidak ada satu pun petugas yang ditugaskan mendengarnya, gedung langsung dikosongkan (program berhenti)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMenunggu satu event dengan `await` memakai `once` dari `node:events`:\n\n```js\nimport { EventEmitter, once } from 'node:events';\n\nconst [total] = await once(kasir, 'bayar'); // hasilnya array argumen event\n```\n\nKalau objek mengirim `error` sebelum event yang ditunggu, Promise dari `once` ditolak dengan error itu.\n\nKelas yang mengirim event `error` sebaiknya selalu didengarkan event error-nya:\n\n```js\nkasir.on('error', (e) => console.error('Kasir bermasalah:', e.message));\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import { EventEmitter, once } from 'node:events';\n\nclass Kasir extends EventEmitter {\n  #total = 0;\n  bayar(jumlah) {\n    if (jumlah <= 0) {\n      this.emit('error', new Error(`Jumlah tidak valid: ${jumlah}`));\n      return;\n    }\n    this.#total += jumlah;\n    this.emit('bayar', jumlah, this.#total);\n  }\n}\nconst kasir = new Kasir();\nkasir.on('bayar', (j, t) => console.log(`+${j} (total ${t})`));\nkasir.on('error', (e) => console.log('Ditolak:', e.message));\n\nkasir.bayar(18000);\nkasir.bayar(-5);\nsetTimeout(() => kasir.bayar(12000), 10);\nconst [jumlah, total] = await once(kasir, 'bayar');\nconsole.log('Ditunggu:', jumlah, total);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "Ditunggu: 18000 18000",
+          "Ditunggu: 12000 30000",
+          "Ditunggu: 12000 12000",
+          "Ditunggu: [ 12000, 30000 ]"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 3,
+          "note": "Kelas sendiri yang bisa mengirim event."
+        },
+        {
+          "line": 7,
+          "note": "Laporkan masalah lewat event error."
+        },
+        {
+          "line": 16,
+          "note": "Wajib didengar supaya program tidak berhenti."
+        },
+        {
+          "line": 21,
+          "note": "Tunggu event berikutnya."
+        }
+      ],
+      "explanation": "Pembayaran -5 ditolak sehingga total tetap 18000. Setelah 10 ms, pembayaran 12000 masuk dan total menjadi 30000. once mengembalikan array argumen event, yang dibongkar menjadi jumlah dan total.",
+      "tryThis": [
+        {
+          "task": "Hapus baris kasir.on('error', ...). Apa yang terjadi?",
+          "hint": null
+        },
+        {
+          "task": "Hapus setTimeout. Apakah program pernah selesai?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tidak mendengarkan `error`**\n\nStream, socket, dan server mengirim `error` saat ada masalah. Tanpa pendengar, satu koneksi bermasalah bisa menghentikan seluruh server.\n\n**2. Mengirim event sebelum ada pendengar**\n\nEvent yang dikirim di constructor terjadi sebelum pemanggil sempat memanggil `on`. Event itu hilang begitu saja.\n\n**3. Menunggu event yang tidak akan terjadi**\n\n`await once(x, 'selesai')` menggantung selamanya kalau event itu tidak pernah dikirim. Beri batas waktu dengan opsi `signal`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola ini dipakai library seperti klien database: objek koneksi mengirim event `connect`, `error`, dan `end`.\n- `process` juga EventEmitter: `process.on('SIGTERM', ...)` dipakai untuk mematikan server dengan rapi saat platform hosting memintanya berhenti.\n- Untuk event antar layanan (bukan dalam satu program), dipakai sistem pesan seperti Redis Pub/Sub atau Kafka. EventEmitter hanya bekerja di dalam satu proses."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Log Toko 2: Mesin Kasir",
+      "pembuka": "Mesin kasir mengirim event setiap ada pembayaran, dan melaporkan pembayaran yang salah.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Kelas Kasir mewarisi EventEmitter.",
+          "jawaban": "import { EventEmitter } from 'node:events';\nclass Kasir extends EventEmitter {\n  bayar(jumlah) {\n    this.emit('bayar', jumlah);\n  }\n}\nconst kasir = new Kasir();\nkasir.on('bayar', (j) => console.log('Masuk', j));\nkasir.bayar(18000);",
+          "keluaran": "Masuk 18000",
+          "otomatis": true
+        },
+        {
+          "arahan": "Di `bayar`, kirim `this.emit('error', new Error('Jumlah harus positif'))` dan langsung `return` kalau jumlah tidak lebih dari 0. Dengarkan event error dan cetak `Ditolak: <pesan>`, lalu panggil `kasir.bayar(0)`.",
+          "jawaban": "import { EventEmitter } from 'node:events';\nclass Kasir extends EventEmitter {\n  bayar(jumlah) {\n    if (jumlah <= 0) {\n      this.emit('error', new Error('Jumlah harus positif'));\n      return;\n    }\n    this.emit('bayar', jumlah);\n  }\n}\nconst kasir = new Kasir();\nkasir.on('bayar', (j) => console.log('Masuk', j));\nkasir.on('error', (e) => console.log('Ditolak:', e.message));\nkasir.bayar(18000);\nkasir.bayar(0);",
+          "keluaran": "Masuk 18000\nDitolak: Jumlah harus positif",
+          "wajib": [
+            {
+              "pola": "emit\\(\\s*'error'",
+              "pesan": "kirim event `'error'`."
+            },
+            {
+              "pola": "on\\(\\s*'error'",
+              "pesan": "dengarkan event `'error'`."
+            }
+          ],
+          "petunjuk": "if (jumlah <= 0) { this.emit('error', ...); return; } dan kasir.on('error', ...)."
+        },
+        {
+          "arahan": "Impor `once` dari `node:events`. Jadwalkan `kasir.bayar(12000)` dengan setTimeout 10 ms, lalu tunggu dengan `const [j] = await once(kasir, 'bayar')` dan cetak `Pembayaran berikutnya: 12000`.",
+          "jawaban": "import { EventEmitter, once } from 'node:events';\nclass Kasir extends EventEmitter {\n  bayar(jumlah) {\n    if (jumlah <= 0) {\n      this.emit('error', new Error('Jumlah harus positif'));\n      return;\n    }\n    this.emit('bayar', jumlah);\n  }\n}\nconst kasir = new Kasir();\nkasir.on('bayar', (j) => console.log('Masuk', j));\nkasir.on('error', (e) => console.log('Ditolak:', e.message));\nkasir.bayar(18000);\nkasir.bayar(0);\nsetTimeout(() => kasir.bayar(12000), 10);\nconst [j] = await once(kasir, 'bayar');\nconsole.log('Pembayaran berikutnya:', j);",
+          "keluaran": "Masuk 18000\nDitolak: Jumlah harus positif\nMasuk 12000\nPembayaran berikutnya: 12000",
+          "wajib": [
+            {
+              "pola": "await\\s+once\\(",
+              "pesan": "tunggu dengan `await once(...)`."
+            }
+          ],
+          "petunjuk": "import { EventEmitter, once } from 'node:events'; hasil once berupa array.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Mesin kasir kini mengirim event pembayaran, menolak jumlah yang salah tanpa menghentikan program, dan bisa ditunggu dengan await."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang terjadi kalau event 'error' dikirim tanpa ada pendengarnya?",
+          "options": [
+            "Node.js melempar error itu dan program berhenti",
+            "Error disimpan untuk nanti",
+            "Hanya muncul peringatan",
+            "Event diabaikan"
+          ],
+          "answer": 0,
+          "explanation": "error itu istimewa.",
+          "remedial": "Untuk event error, Node.js tidak membiarkan masalah hilang diam-diam. Tanpa pendengar, error dilempar sebagai exception."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini dijalankan?",
+          "code": "import { EventEmitter } from 'node:events';\nconst db = new EventEmitter();\ndb.emit('error', new Error('koneksi putus'));\nconsole.log('lanjut');",
+          "options": [
+            "Mencetak koneksi putus lalu lanjut",
+            "Mencetak lanjut",
+            "Program berhenti dengan Error: koneksi putus",
+            "Tidak terjadi apa-apa"
+          ],
+          "answer": 2,
+          "explanation": "Tidak ada pendengar error.",
+          "remedial": "Event error dikirim tanpa pendengar, jadi Node.js melemparnya. Baris console.log('lanjut') tidak pernah dijalankan."
+        },
+        {
+          "question": "Apa hasil await once(objek, 'bayar')?",
+          "options": [
+            "Nama event",
+            "Array berisi argumen yang dikirim bersama event",
+            "Argumen pertama saja",
+            "Objek EventEmitter itu sendiri"
+          ],
+          "answer": 1,
+          "explanation": "Biasanya dibongkar dengan [a, b].",
+          "remedial": "once mengembalikan Promise yang selesai dengan array argumen event. Karena itu ditulis const [jumlah] = await once(...)."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Event apa di process yang dipakai untuk mematikan server dengan rapi saat platform hosting memintanya berhenti?",
+      "options": [
+        "shutdown",
+        "beforeStart",
+        "exit",
+        "SIGTERM"
+      ],
+      "answer": 3,
+      "explanation": "Sinyal dari sistem operasi."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat class Timbangan yang mewarisi EventEmitter dengan metode timbang(gram). Kalau gram lebih dari 1000, kirim event berat dengan argumen gram. Dengarkan event itu dan cetak Berat: <gram>. Panggil timbang(500) lalu timbang(1500). Keluaran: Berat: 1500",
+      "starterCode": "import { EventEmitter } from 'node:events';\n",
+      "solution": "import { EventEmitter } from 'node:events';\nclass Timbangan extends EventEmitter {\n  timbang(gram) {\n    if (gram > 1000) this.emit('berat', gram);\n  }\n}\nconst t = new Timbangan();\nt.on('berat', (g) => console.log(`Berat: ${g}`));\nt.timbang(500);\nt.timbang(1500);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Berat: 1500\n"
+        }
+      ],
+      "hints": [
+        "class Timbangan extends EventEmitter { timbang(gram) { ... } }",
+        "if (gram > 1000) this.emit('berat', gram)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Kelas sendiri bisa extends EventEmitter lalu memanggil this.emit.",
+        "Event 'error' tanpa pendengar membuat program berhenti.",
+        "Selalu dengarkan 'error' pada stream, socket, dan server.",
+        "once dari node:events menunggu satu event dengan await.",
+        "EventEmitter hanya bekerja di dalam satu proses."
+      ]
+    }
+  ]
+}

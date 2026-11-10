@@ -1,0 +1,185 @@
+{
+  "id": "node-async-02",
+  "moduleId": "node-async",
+  "order": 2,
+  "title": "async/await, Berurutan dan Paralel",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`await` menunggu satu Promise selesai. Kalau beberapa pekerjaan **tidak saling bergantung**, menunggunya satu per satu membuang waktu.\n\n```js\n// Berurutan: total ~ 300 ms\nconst a = await ambil(100);\nconst b = await ambil(200);\n\n// Paralel: total ~ 200 ms (yang paling lama)\nconst [a, b] = await Promise.all([ambil(100), ambil(200)]);\n```\n\n| Fungsi | Hasil |\n|---|---|\n| `Promise.all` | semua hasil; **gagal** kalau satu saja gagal |\n| `Promise.allSettled` | status setiap Promise, tidak pernah gagal |\n| `Promise.race` | hasil yang paling cepat selesai |\n| `Promise.any` | hasil berhasil yang paling cepat |\n\nIbarat memasak: merebus air dan memotong sayur bisa dikerjakan bersamaan (paralel). Tapi menuang air ke panci harus menunggu airnya mendidih dulu (berurutan)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nFungsi yang ditandai `async` **selalu** mengembalikan Promise:\n\n```js\nasync function harga() { return 18000; }\nconsole.log(harga());       // Promise { 18000 }\nconsole.log(await harga()); // 18000\n```\n\n`await` di luar fungsi (top-level await) hanya boleh di modul ESM.\n\nMengolah daftar secara paralel:\n\n```js\nconst hasil = await Promise.all(daftarId.map((id) => ambilProduk(id)));\n```\n\nHati-hati dengan `forEach`: `daftar.forEach(async (x) => await ...)` **tidak** menunggu. Pakai `for...of` (berurutan) atau `Promise.all` dengan `map` (paralel)."
+    },
+    {
+      "type": "runnable",
+      "code": "const tunda = (ms, nilai) => new Promise((r) => setTimeout(() => r(nilai), ms));\nconst urutan = [];\nasync function ambil(nama, ms) {\n  await tunda(ms);\n  urutan.push(nama);\n  return nama.toUpperCase();\n}\nconst hasil = await Promise.all([ambil('kopi', 30), ambil('teh', 10), ambil('roti', 20)]);\nconsole.log(hasil);\nconsole.log(urutan);\nconst status = await Promise.allSettled([tunda(5, 'ok'), Promise.reject(new Error('habis'))]);\nconsole.log(status.map((s) => s.status));\nconsole.log(await Promise.race([tunda(30, 'lambat'), tunda(10, 'cepat')]));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "[ 'TEH', 'ROTI', 'KOPI' ]",
+          "[ 'KOPI', 'TEH', 'ROTI' ]",
+          "[ 'kopi', 'teh', 'roti' ]",
+          "[ 'KOPI' ]"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 8,
+          "note": "Jalankan bersamaan, tunggu semua."
+        },
+        {
+          "line": 11,
+          "note": "Status setiap Promise."
+        },
+        {
+          "line": 13,
+          "note": "Yang paling cepat menang."
+        }
+      ],
+      "explanation": "Promise.all mengembalikan hasil sesuai urutan di array, bukan urutan selesai. Urutan selesai terlihat di baris kedua: teh, roti, kopi.",
+      "tryThis": [
+        {
+          "task": "Ganti ambil roti menjadi Promise.reject(new Error('x')). Apa yang terjadi pada Promise.all?",
+          "hint": null
+        },
+        {
+          "task": "Bandingkan baris pertama dan kedua.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. await di dalam loop untuk pekerjaan independen**\n\nSepuluh permintaan yang masing-masing 100 ms menjadi 1 detik. Dengan Promise.all, sekitar 100 ms.\n\n**2. forEach dengan async**\n\n`forEach` tidak menunggu callback async. Kode setelahnya jalan sebelum pekerjaan selesai.\n\n**3. Promise.all untuk ribuan pekerjaan sekaligus**\n\nRibuan permintaan bersamaan bisa membebani database atau API lain. Batasi jumlah yang berjalan bersamaan (dibahas di proyek modul ini)."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Endpoint API yang mengambil data dari beberapa sumber independen (profil, pesanan, notifikasi) menjalankannya dengan Promise.all supaya respons lebih cepat.\n- Promise.allSettled dipakai saat sebagian kegagalan masih bisa diterima, misalnya mengirim notifikasi ke banyak pengguna.\n- Promise.race sering dipakai untuk memberi batas waktu (timeout) pada pekerjaan yang bisa macet."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Antrean Pesanan 2: Dapur Paralel",
+      "pembuka": "Tiga menu dari satu meja bisa dimasak bersamaan supaya pembeli tidak menunggu lama.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Tiga menu dimasak berurutan dengan await.",
+          "jawaban": "const tunda = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function masak(menu) {\n  await tunda(10);\n  return `${menu} siap`;\n}\nconsole.log(await masak('Kopi'));\nconsole.log(await masak('Teh'));\nconsole.log(await masak('Roti'));",
+          "keluaran": "Kopi siap\nTeh siap\nRoti siap",
+          "otomatis": true
+        },
+        {
+          "arahan": "Masak ketiganya bersamaan dengan `Promise.all` dan cetak hasilnya digabung dengan koma di baris terakhir: `Kopi siap, Teh siap, Roti siap`.",
+          "jawaban": "const tunda = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function masak(menu) {\n  await tunda(10);\n  return `${menu} siap`;\n}\nconsole.log(await masak('Kopi'));\nconsole.log(await masak('Teh'));\nconsole.log(await masak('Roti'));\nconst semua = await Promise.all(['Kopi', 'Teh', 'Roti'].map((m) => masak(m)));\nconsole.log(semua.join(', '));",
+          "keluaran": "Kopi siap\nTeh siap\nRoti siap\nKopi siap, Teh siap, Roti siap",
+          "wajib": [
+            {
+              "pola": "Promise\\.all\\(",
+              "pesan": "pakai `Promise.all`."
+            }
+          ],
+          "petunjuk": "Promise.all(['Kopi', 'Teh', 'Roti'].map((m) => masak(m)))."
+        },
+        {
+          "arahan": "Ubah `masak` supaya menolak menu `'Es Krim'` dengan `Error('Es Krim habis')`. Masak `['Kopi', 'Es Krim']` dengan `Promise.allSettled` dan cetak status keduanya: `fulfilled, rejected`.",
+          "jawaban": "const tunda = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function masak(menu) {\n  await tunda(10);\n  if (menu === 'Es Krim') throw new Error('Es Krim habis');\n  return `${menu} siap`;\n}\nconsole.log(await masak('Kopi'));\nconsole.log(await masak('Teh'));\nconsole.log(await masak('Roti'));\nconst semua = await Promise.all(['Kopi', 'Teh', 'Roti'].map((m) => masak(m)));\nconsole.log(semua.join(', '));\nconst status = await Promise.allSettled(['Kopi', 'Es Krim'].map((m) => masak(m)));\nconsole.log(status.map((s) => s.status).join(', '));",
+          "keluaran": "Kopi siap\nTeh siap\nRoti siap\nKopi siap, Teh siap, Roti siap\nfulfilled, rejected",
+          "wajib": [
+            {
+              "pola": "Promise\\.allSettled\\(",
+              "pesan": "pakai `Promise.allSettled`."
+            }
+          ],
+          "petunjuk": "Di fungsi async, throw sama dengan reject. Lalu Promise.allSettled dan map ke status.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Pesanan satu meja kini dimasak bersamaan, dan menu yang habis tidak menggagalkan yang lain."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kapan Promise.all lebih tepat daripada await satu per satu?",
+          "options": [
+            "Saat pekerjaan-pekerjaannya tidak saling bergantung",
+            "Tidak pernah, hasilnya sama saja",
+            "Saat hanya ada satu pekerjaan",
+            "Saat pekerjaan kedua butuh hasil pekerjaan pertama"
+          ],
+          "answer": 0,
+          "explanation": "Paralel hanya untuk yang independen.",
+          "remedial": "Pekerjaan independen bisa berjalan bersamaan sehingga total waktunya sekitar yang paling lama. Kalau saling bergantung, harus berurutan."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "try {\n  await Promise.all([Promise.resolve(1), Promise.reject(new Error('x'))]);\n} catch (e) {\n  console.log('gagal:', e.message);\n}",
+          "options": [
+            "Tidak mencetak apa-apa",
+            "[ 1 ]",
+            "gagal: x",
+            "[ 1, 'x' ]"
+          ],
+          "answer": 2,
+          "explanation": "Promise.all gagal kalau satu gagal.",
+          "remedial": "Satu Promise ditolak, jadi Promise.all ikut ditolak dengan error yang sama, dan blok catch mencetak pesannya."
+        },
+        {
+          "question": "Apa yang dikembalikan fungsi bertanda async?",
+          "options": [
+            "undefined",
+            "Selalu sebuah Promise",
+            "Callback",
+            "Nilai biasa yang di-return"
+          ],
+          "answer": 1,
+          "explanation": "async membungkus nilai.",
+          "remedial": "Nilai yang di-return fungsi async dibungkus Promise. Untuk mendapat nilainya, pakai await."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa daftar.forEach(async (x) => await simpan(x)) bermasalah?",
+      "options": [
+        "Simpan dijalankan dua kali",
+        "await dilarang di dalam fungsi panah",
+        "forEach tidak bisa menerima fungsi",
+        "forEach tidak menunggu callback async, jadi kode berikutnya jalan duluan"
+      ],
+      "answer": 3,
+      "explanation": "Pakai for...of atau Promise.all dengan map."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Fungsi harga(id) mengembalikan Promise berisi harga. Ambil harga untuk id 1, 2, dan 3 secara paralel, lalu cetak totalnya: Total: 60000",
+      "starterCode": "const daftar = { 1: 10000, 2: 20000, 3: 30000 };\nconst harga = (id) => new Promise((r) => setTimeout(() => r(daftar[id]), 10));\n",
+      "solution": "const daftar = { 1: 10000, 2: 20000, 3: 30000 };\nconst harga = (id) => new Promise((r) => setTimeout(() => r(daftar[id]), 10));\nconst semua = await Promise.all([1, 2, 3].map((id) => harga(id)));\nconsole.log('Total:', semua.reduce((a, b) => a + b, 0));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Total: 60000\n"
+        }
+      ],
+      "hints": [
+        "Promise.all([1, 2, 3].map((id) => harga(id))).",
+        "Jumlahkan hasilnya dengan reduce."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Fungsi async selalu mengembalikan Promise.",
+        "Pekerjaan independen: jalankan paralel dengan Promise.all.",
+        "Promise.all gagal kalau satu gagal; allSettled melaporkan semua status.",
+        "Promise.race mengambil yang paling cepat.",
+        "forEach tidak menunggu async: pakai for...of atau Promise.all."
+      ]
+    }
+  ]
+}

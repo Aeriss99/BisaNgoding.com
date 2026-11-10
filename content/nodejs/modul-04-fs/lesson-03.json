@@ -1,0 +1,189 @@
+{
+  "id": "node-fs-03",
+  "moduleId": "node-fs",
+  "order": 3,
+  "title": "Folder: mkdir, readdir, stat, rm",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Selain file, `node:fs/promises` juga mengatur folder:\n\n| Fungsi | Untuk |\n|---|---|\n| `mkdir(dir, { recursive: true })` | membuat folder (beserta induknya) |\n| `readdir(dir)` | daftar isi folder |\n| `readdir(dir, { withFileTypes: true })` | daftar isi beserta jenisnya (file/folder) |\n| `stat(path)` | ukuran, waktu ubah, jenis |\n| `rm(path, { recursive: true, force: true })` | menghapus file atau folder |\n| `rename(lama, baru)` | memindahkan atau mengganti nama |\n\nIbarat mengatur lemari arsip: membuat laci baru (mkdir), melihat isi laci (readdir), memeriksa tebal map (stat), membuang map lama (rm), dan memindahkan map ke laci lain (rename)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```js\nimport { mkdir, readdir, writeFile, stat } from 'node:fs/promises';\n\nawait mkdir('laporan/2026', { recursive: true });\nawait writeFile('laporan/2026/nov.txt', 'penjualan 12 juta');\n\nfor (const e of await readdir('laporan', { withFileTypes: true })) {\n  console.log(e.name, e.isDirectory() ? 'folder' : 'file');\n}\n\nconst info = await stat('laporan/2026/nov.txt');\nconsole.log(info.size); // ukuran dalam byte\n```\n\nUrutan hasil `readdir` **tidak dijamin** sama di setiap sistem. Kalau urutan penting, urutkan dengan `.sort()`."
+    },
+    {
+      "type": "runnable",
+      "code": "import { mkdir, writeFile, readdir, stat, rm, rename } from 'node:fs/promises';\nawait mkdir('arsip/2026/nov', { recursive: true });\nawait writeFile('arsip/2026/nov/a.txt', 'Kopi');\nawait writeFile('arsip/2026/nov/b.txt', 'Teh Tarik');\nawait writeFile('arsip/2026/catatan.md', '# Catatan');\nconst isi = (await readdir('arsip/2026', { withFileTypes: true }))\n  .map((e) => e.name + (e.isDirectory() ? '/' : ''))\n  .sort();\nconsole.log(isi);\nconsole.log((await stat('arsip/2026/nov/b.txt')).size);\nawait rename('arsip/2026/nov/a.txt', 'arsip/2026/nov/kopi.txt');\nawait rm('arsip/2026/catatan.md');\nconsole.log((await readdir('arsip/2026/nov')).sort());",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "2",
+          "1",
+          "10",
+          "9"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Buat semua folder induk sekaligus."
+        },
+        {
+          "line": 6,
+          "note": "Hasil berupa Dirent: punya nama dan jenis."
+        },
+        {
+          "line": 8,
+          "note": "Urutan readdir tidak dijamin."
+        },
+        {
+          "line": 10,
+          "note": "Info ukuran dan jenis."
+        }
+      ],
+      "explanation": "Teh Tarik terdiri dari 9 karakter, dan setiap huruf biasa memakan 1 byte, jadi ukuran filenya 9 byte.",
+      "tryThis": [
+        {
+          "task": "Hapus { recursive: true }. Baca error-nya.",
+          "hint": null
+        },
+        {
+          "task": "Ganti rm('arsip/2026/catatan.md') menjadi rm('arsip/2026'). Kenapa gagal?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. mkdir tanpa `recursive`**\n\nKalau folder induk belum ada, muncul `ENOENT`. Kalau folder sudah ada, muncul `EEXIST`. Dengan `{ recursive: true }`, keduanya tidak terjadi.\n\n**2. Menghapus folder tanpa `recursive`**\n\n`rm('folder')` gagal untuk folder. Pakai `rm('folder', { recursive: true })` dan berhati-hatilah: file yang dihapus tidak masuk tempat sampah.\n\n**3. Mengandalkan urutan readdir**\n\nUrutan bisa berbeda antara Linux, macOS, dan Windows. Urutkan sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Script alat bantu sering membersihkan folder hasil build (`rm('dist', { recursive: true, force: true })`) dan membuatnya ulang.\n- Pola menulis file dengan aman: tulis ke file sementara di folder yang sama, lalu `rename` ke nama asli. Rename di satu disk terjadi sekaligus, jadi pembaca tidak pernah melihat file setengah jadi.\n- Untuk mencari file dengan pola (misalnya semua `*.json` di semua subfolder), Node versi baru punya `fs.promises.glob`."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Arsip Node 3: Folder Laporan",
+      "pembuka": "Laporan harian disimpan per bulan dalam folder. Kita susun foldernya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Folder laporan bulan November dibuat beserta induknya.",
+          "jawaban": "import { mkdir, writeFile, readdir } from 'node:fs/promises';\nawait mkdir('laporan/2026-11', { recursive: true });\nawait writeFile('laporan/2026-11/01.txt', 'Terjual 12');\nconsole.log(await readdir('laporan/2026-11'));",
+          "keluaran": "[ '01.txt' ]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan laporan `02.txt` berisi `Terjual 15` dan `03.txt` berisi `Terjual 9`, lalu cetak daftar file yang sudah diurutkan: `[ '01.txt', '02.txt', '03.txt' ]` di baris terakhir.",
+          "jawaban": "import { mkdir, writeFile, readdir } from 'node:fs/promises';\nawait mkdir('laporan/2026-11', { recursive: true });\nawait writeFile('laporan/2026-11/01.txt', 'Terjual 12');\nconsole.log(await readdir('laporan/2026-11'));\nawait writeFile('laporan/2026-11/02.txt', 'Terjual 15');\nawait writeFile('laporan/2026-11/03.txt', 'Terjual 9');\nconsole.log((await readdir('laporan/2026-11')).sort());",
+          "keluaran": "[ '01.txt' ]\n[ '01.txt', '02.txt', '03.txt' ]",
+          "wajib": [
+            {
+              "pola": "\\.sort\\(\\)",
+              "pesan": "urutkan dengan `.sort()`."
+            }
+          ],
+          "petunjuk": "Dua writeFile lagi, lalu readdir(...).sort()."
+        },
+        {
+          "arahan": "Baca semua file di folder itu, ambil angka setelah kata Terjual, dan cetak `Total terjual: 36`.",
+          "jawaban": "import { mkdir, writeFile, readdir, readFile } from 'node:fs/promises';\nawait mkdir('laporan/2026-11', { recursive: true });\nawait writeFile('laporan/2026-11/01.txt', 'Terjual 12');\nconsole.log(await readdir('laporan/2026-11'));\nawait writeFile('laporan/2026-11/02.txt', 'Terjual 15');\nawait writeFile('laporan/2026-11/03.txt', 'Terjual 9');\nconst daftar = (await readdir('laporan/2026-11')).sort();\nconsole.log(daftar);\nlet total = 0;\nfor (const f of daftar) {\n  const isi = await readFile('laporan/2026-11/' + f, 'utf8');\n  total += Number(isi.split(' ')[1]);\n}\nconsole.log('Total terjual:', total);",
+          "keluaran": "[ '01.txt' ]\n[ '01.txt', '02.txt', '03.txt' ]\nTotal terjual: 36",
+          "wajib": [
+            {
+              "pola": "readFile\\(",
+              "pesan": "baca isi setiap file dengan `readFile`."
+            }
+          ],
+          "petunjuk": "Untuk setiap file: readFile, split(' ')[1], lalu Number.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Laporan tersusun dalam folder per bulan, dan totalnya bisa dihitung dari semua file."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi { recursive: true } pada mkdir?",
+          "options": [
+            "Menghapus isi folder",
+            "Membuat semua folder induk yang belum ada, dan tidak error kalau folder sudah ada",
+            "Membuat folder tersembunyi",
+            "Menyalin folder"
+          ],
+          "answer": 1,
+          "explanation": "recursive = sampai ke dalam.",
+          "remedial": "Tanpa opsi ini, mkdir gagal kalau induknya belum ada (ENOENT) atau folder sudah ada (EEXIST)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { mkdir, writeFile, readdir, stat } from 'node:fs/promises';\nawait mkdir('data', { recursive: true });\nawait writeFile('data/b', '2');\nawait writeFile('data/a', '1');\nconsole.log((await readdir('data')).sort());\nconsole.log((await stat('data/a')).isFile());",
+          "options": [
+            "[ 'b', 'a' ] / true",
+            "[ 'a', 'b' ] / false",
+            "[ 'a', 'b' ] / true",
+            "Error"
+          ],
+          "answer": 2,
+          "explanation": "Isi folder diurutkan, lalu dicek jenisnya.",
+          "remedial": "Folder data berisi file a dan b, diurutkan menjadi a, b. data/a adalah file, jadi isFile() true."
+        },
+        {
+          "question": "Kenapa hasil readdir sebaiknya diurutkan dengan sort?",
+          "options": [
+            "Urutan bawaannya bisa berbeda di setiap sistem operasi",
+            "Supaya file tersembunyi hilang",
+            "readdir hanya mengembalikan satu file",
+            "readdir selalu terbalik"
+          ],
+          "answer": 0,
+          "explanation": "Urutan tidak dijamin.",
+          "remedial": "readdir mengembalikan urutan dari sistem file, yang berbeda antara Linux, macOS, dan Windows. Urutkan sendiri kalau urutan penting."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Bagaimana menulis file penting supaya tidak pernah terbaca setengah jadi?",
+      "options": [
+        "Tulis dua kali berturut-turut",
+        "Pakai appendFile",
+        "Tulis ke file sementara, lalu rename ke nama asli",
+        "Hapus file lama setelah menulis"
+      ],
+      "answer": 2,
+      "explanation": "rename di satu disk terjadi sekaligus."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat folder data/backup (beserta induknya), tulis file data/backup/v1.json berisi teks {}, lalu cetak ukuran file itu dalam byte dan apakah data adalah folder, dipisah spasi: 2 true",
+      "starterCode": "import { mkdir } from 'node:fs/promises';\n",
+      "solution": "import { mkdir, writeFile, stat } from 'node:fs/promises';\nawait mkdir('data/backup', { recursive: true });\nawait writeFile('data/backup/v1.json', '{}');\nconst f = await stat('data/backup/v1.json');\nconst d = await stat('data');\nconsole.log(f.size, d.isDirectory());\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "2 true\n"
+        }
+      ],
+      "hints": [
+        "mkdir dengan { recursive: true }, lalu writeFile.",
+        "stat(...).size untuk ukuran, stat(...).isDirectory() untuk jenis."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "mkdir(dir, { recursive: true }) membuat folder beserta induknya.",
+        "readdir membaca isi folder; withFileTypes memberi jenisnya.",
+        "stat memberi ukuran dan jenis; rename memindahkan.",
+        "rm(dir, { recursive: true }) menghapus folder: hati-hati.",
+        "Urutan readdir tidak dijamin: urutkan sendiri."
+      ]
+    }
+  ]
+}

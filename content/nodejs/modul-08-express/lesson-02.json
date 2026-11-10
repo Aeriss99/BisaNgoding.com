@@ -1,0 +1,198 @@
+{
+  "id": "node-express-02",
+  "moduleId": "node-express",
+  "order": 2,
+  "title": "Parameter Rute dan Query",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Express membaca bagian jalur yang berubah-ubah dengan **parameter rute**, ditulis dengan titik dua:\n\n```js\napp.get('/produk/:id', (req, res) => {\n  req.params.id; // '7' untuk /produk/7\n});\n```\n\nQuery (`?q=kopi&halaman=2`) sudah dipecah otomatis di **`req.query`**:\n\n```js\napp.get('/produk', (req, res) => {\n  req.query.q;       // 'kopi'\n  req.query.halaman; // '2'\n});\n```\n\nIbarat alamat rumah: jalur /produk/7 seperti \"Jalan Produk nomor 7\", nomornya berubah tapi jalannya sama. Query seperti catatan tambahan di amplop: \"tolong yang warna merah\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nNilai `req.params` dan `req.query` selalu **teks**. Ubah dulu sebelum dipakai sebagai angka:\n\n```js\nconst id = Number(req.params.id);\nif (!Number.isInteger(id)) return res.status(400).json({ error: 'id harus angka' });\n```\n\nBeberapa parameter sekaligus:\n\n```js\napp.get('/toko/:tokoId/produk/:produkId', (req, res) => {\n  const { tokoId, produkId } = req.params;\n});\n```\n\nKalau query muncul berulang (`?tag=a&tag=b`), nilainya menjadi array `['a', 'b']`. Pemeriksaan jenis data penting supaya kode tidak gagal."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\n\nconst produk = [\n  { id: 1, nama: 'Kopi Susu', harga: 18000 },\n  { id: 2, nama: 'Teh Tarik', harga: 12000 },\n  { id: 3, nama: 'Es Kopi', harga: 15000 },\n];\nconst app = express();\napp.get('/produk', (req, res) => {\n  const q = String(req.query.q ?? '').toLowerCase();\n  const maks = Number(req.query.maks ?? Infinity);\n  res.json(produk.filter((p) => p.nama.toLowerCase().includes(q) && p.harga <= maks).map((p) => p.nama));\n});\napp.get('/produk/:id', (req, res) => {\n  const id = Number(req.params.id);\n  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id harus angka' });\n  const p = produk.find((x) => x.id === id);\n  if (!p) return res.status(404).json({ error: `Produk ${id} tidak ditemukan` });\n  res.json(p);\n});\nconst server = app.listen(3000);\n\nconst ambil = async (jalur) => {\n  const r = await fetch('http://localhost:3000' + jalur);\n  console.log(jalur, r.status, await r.json());\n};\nawait ambil('/produk?q=kopi&maks=16000');\nawait ambil('/produk/2');\nawait ambil('/produk/9');\nawait ambil('/produk/abc');\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "/produk?q=kopi&maks=16000 200 [ 'Kopi Susu', 'Es Kopi' ]",
+          "/produk?q=kopi&maks=16000 200 [ 'Es Kopi' ]",
+          "/produk?q=kopi&maks=16000 200 []",
+          "/produk?q=kopi&maks=16000 404 [ 'Es Kopi' ]"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 10,
+          "note": "Query sudah dipecah Express."
+        },
+        {
+          "line": 14,
+          "note": "Parameter rute :id."
+        },
+        {
+          "line": 15,
+          "note": "Parameter selalu teks: ubah ke angka."
+        },
+        {
+          "line": 16,
+          "note": "Format salah: 400."
+        },
+        {
+          "line": 18,
+          "note": "Tidak ada: 404."
+        }
+      ],
+      "explanation": "Produk yang mengandung kopi adalah Kopi Susu (18000) dan Es Kopi (15000). Hanya Es Kopi yang harganya tidak lebih dari 16000.",
+      "tryThis": [
+        {
+          "task": "Hapus Number di Number(req.params.id). Apa yang terjadi pada /produk/2?",
+          "hint": null
+        },
+        {
+          "task": "Ganti maks=16000 menjadi maks=20000.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membandingkan parameter teks dengan angka**\n\n`p.id === req.params.id` selalu false karena `1 !== '1'`. Ubah dengan `Number` dulu.\n\n**2. Tidak memeriksa id yang tidak valid**\n\n`Number('abc')` menghasilkan `NaN`. Tanpa pemeriksaan, hasilnya selalu 404 padahal kesalahannya format (400).\n\n**3. Urutan rute**\n\n`app.get('/produk/baru')` yang ditulis **setelah** `app.get('/produk/:id')` tidak pernah tercapai, karena `:id` sudah menangkap kata baru. Tulis rute khusus lebih dulu."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- API publik biasanya memakai id berupa UUID (`/pesanan/3f2b...`), bukan angka berurutan, supaya jumlah data tidak bisa ditebak dari luar.\n- Query standar untuk daftar data: `q` (cari), `sort` atau `urut`, `page` dan `limit` (halaman). Batasi `limit`, misalnya paling besar 100.\n- Pemeriksaan params dan query dengan Zod (modul berikutnya) membuat kode lebih ringkas dan pesan errornya konsisten."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Express Toko 2: Detail Menu",
+      "pembuka": "Setiap menu punya halaman detail berdasarkan id-nya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Parameter :id dibaca dari req.params.",
+          "jawaban": "import express from 'express';\nconst app = express();\napp.get('/menu/:id', (req, res) => res.json({ diminta: req.params.id }));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/menu/2');\nconsole.log(await r.json());\nserver.close();",
+          "keluaran": "{ diminta: '2' }",
+          "otomatis": true
+        },
+        {
+          "arahan": "Cari menu dengan id yang diminta dari daftar `menu` (ubah `req.params.id` dengan `Number`), lalu kirim menunya, atau 404 `{ error: 'Menu tidak ada' }`. Fetch `/menu/2` lalu `/menu/9` dan cetak status serta isinya.",
+          "jawaban": "import express from 'express';\nconst menu = [{ id: 1, nama: 'Kopi Susu' }, { id: 2, nama: 'Teh Tarik' }];\nconst app = express();\napp.get('/menu/:id', (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) return res.status(404).json({ error: 'Menu tidak ada' });\n  res.json(m);\n});\nconst server = app.listen(3000);\nfor (const id of [2, 9]) {\n  const r = await fetch(`http://localhost:3000/menu/${id}`);\n  console.log(r.status, await r.json());\n}\nserver.close();",
+          "kodeAwal": "import express from 'express';\nconst menu = [{ id: 1, nama: 'Kopi Susu' }, { id: 2, nama: 'Teh Tarik' }];\nconst app = express();\napp.get('/menu/:id', (req, res) => res.json({ diminta: req.params.id }));\nconst server = app.listen(3000);\nfor (const id of [2, 9]) {\n  const r = await fetch(`http://localhost:3000/menu/${id}`);\n  console.log(r.status, await r.json());\n}\nserver.close();",
+          "keluaran": "200 { id: 2, nama: 'Teh Tarik' }\n404 { error: 'Menu tidak ada' }",
+          "wajib": [
+            {
+              "pola": "Number\\(\\s*req\\.params\\.id\\s*\\)",
+              "pesan": "ubah dengan `Number(req.params.id)`."
+            },
+            {
+              "pola": "status\\(\\s*404\\s*\\)",
+              "pesan": "jawab `status(404)`."
+            }
+          ],
+          "petunjuk": "menu.find((x) => x.id === Number(req.params.id)), lalu return res.status(404).json(...)."
+        },
+        {
+          "arahan": "Tambahkan rute `GET /menu` yang mendukung query `?urut=nama`: kalau ada, urutkan nama dari A ke Z, lalu kirim daftar nama saja. Fetch `/menu?urut=nama` dan cetak `[ 'Kopi Susu', 'Teh Tarik' ]` di baris terakhir.",
+          "jawaban": "import express from 'express';\nconst menu = [{ id: 1, nama: 'Kopi Susu' }, { id: 2, nama: 'Teh Tarik' }];\nconst app = express();\napp.get('/menu', (req, res) => {\n  const nama = menu.map((m) => m.nama);\n  if (req.query.urut === 'nama') nama.sort((a, b) => a.localeCompare(b));\n  res.json(nama);\n});\napp.get('/menu/:id', (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) return res.status(404).json({ error: 'Menu tidak ada' });\n  res.json(m);\n});\nconst server = app.listen(3000);\nfor (const id of [2, 9]) {\n  const r = await fetch(`http://localhost:3000/menu/${id}`);\n  console.log(r.status, await r.json());\n}\nconsole.log(await (await fetch('http://localhost:3000/menu?urut=nama')).json());\nserver.close();",
+          "keluaran": "200 { id: 2, nama: 'Teh Tarik' }\n404 { error: 'Menu tidak ada' }\n[ 'Kopi Susu', 'Teh Tarik' ]",
+          "wajib": [
+            {
+              "pola": "req\\.query\\.urut",
+              "pesan": "baca `req.query.urut`."
+            }
+          ],
+          "petunjuk": "if (req.query.urut === 'nama') nama.sort(...).",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Setiap menu kini punya detail berdasarkan id, dan daftar menu bisa diurutkan lewat query."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di mana Express menyimpan nilai :id dari jalur /produk/:id?",
+          "options": [
+            "req.params.id",
+            "req.id",
+            "req.body.id",
+            "req.query.id"
+          ],
+          "answer": 0,
+          "explanation": "params = parameter rute.",
+          "remedial": "Parameter rute ada di req.params, query di req.query, dan body di req.body."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import express from 'express';\nconst app = express();\napp.get('/p/:id', (req, res) => res.json({ jenis: typeof req.params.id, id: req.params.id }));\nconst s = app.listen(3000);\nconst d = await (await fetch('http://localhost:3000/p/7')).json();\nconsole.log(d.jenis);\nconsole.log(d.id);\ns.close();",
+          "options": [
+            "number / 8",
+            "string / 8",
+            "string / 7",
+            "number / 7"
+          ],
+          "answer": 2,
+          "explanation": "Parameter rute selalu teks.",
+          "remedial": "Parameter rute selalu teks. typeof-nya string, dan nilainya '7'."
+        },
+        {
+          "question": "Kenapa app.get('/produk/baru') harus ditulis sebelum app.get('/produk/:id')?",
+          "options": [
+            "Express mengurutkan rute menurut abjad",
+            "Express mencocokkan rute berurutan, dan :id juga cocok dengan kata baru",
+            "Tidak ada pengaruh urutan",
+            "Rute dengan kata harus selalu di atas"
+          ],
+          "answer": 1,
+          "explanation": "Siapa cepat dia dapat.",
+          "remedial": "Express memeriksa rute sesuai urutan didaftarkan. Rute pertama yang cocok yang dijalankan, dan :id cocok dengan teks apa pun."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa hasil req.query.tag untuk URL /produk?tag=a&tag=b?",
+      "options": [
+        "Teks 'a,b'",
+        "Teks 'b'",
+        "Teks 'a'",
+        "Array [ 'a', 'b' ]"
+      ],
+      "answer": 3,
+      "explanation": "Query berulang menjadi array."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat rute GET /kali/:a/:b yang menjawab JSON { hasil } berisi hasil perkalian kedua parameter (ubah ke angka). Fetch /kali/6/7, cetak hasil, lalu tutup server. Keluaran: 42",
+      "starterCode": "import express from 'express';\nconst app = express();\n",
+      "solution": "import express from 'express';\nconst app = express();\napp.get('/kali/:a/:b', (req, res) => {\n  const hasil = Number(req.params.a) * Number(req.params.b);\n  res.json({ hasil });\n});\nconst server = app.listen(3000);\nconst d = await (await fetch('http://localhost:3000/kali/6/7')).json();\nconsole.log(d.hasil);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "42\n"
+        }
+      ],
+      "hints": [
+        "Rute '/kali/:a/:b' punya dua parameter.",
+        "Number(req.params.a) * Number(req.params.b)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Parameter rute ditulis :nama dan dibaca dari req.params.",
+        "Query dibaca dari req.query.",
+        "Nilai params dan query selalu teks; ubah dengan Number.",
+        "Format salah: 400. Data tidak ada: 404.",
+        "Tulis rute khusus sebelum rute berparameter."
+      ]
+    }
+  ]
+}

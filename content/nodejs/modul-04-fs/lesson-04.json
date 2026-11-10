@@ -1,0 +1,193 @@
+{
+  "id": "node-fs-04",
+  "moduleId": "node-fs",
+  "order": 4,
+  "title": "Jalur File: cwd dan import.meta.dirname",
+  "estimatedMinutes": 12,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Jalur relatif seperti `'data/menu.json'` dihitung dari **folder tempat perintah node diketik** (`process.cwd()`), bukan dari folder file kode.\n\n```bash\ncd ~/toko-api && node src/main.js   # cwd = ~/toko-api\ncd ~/toko-api/src && node main.js   # cwd = ~/toko-api/src\n```\n\nProgram yang sama bisa menemukan file di perintah pertama tapi gagal di perintah kedua. Supaya selalu benar, susun jalur dari folder file kode:\n\n```js\nimport path from 'node:path';\nconst fileMenu = path.join(import.meta.dirname, '..', 'data', 'menu.json');\n```\n\nIbarat petunjuk arah: \"belok kiri di perempatan kedua\" bergantung dari mana kamu mulai (cwd), sedangkan \"di samping kantor pos\" selalu benar karena patokannya tetap (import.meta.dirname)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n| Fungsi | Hasil |\n|---|---|\n| `path.join('a', 'b', '../c')` | `'a/c'` (menggabung dan merapikan) |\n| `path.resolve('data')` | jalur **absolut** dari cwd, misalnya `/home/sari/proyek/data` |\n| `path.relative('/a/b', '/a/c/d')` | `'../c/d'` |\n| `path.parse('/x/laporan.csv')` | `{ root, dir, base, ext, name }` |\n| `path.isAbsolute('/x')` | `true` |\n\nDi kode lama (CommonJS) patokannya `__dirname`; di ESM lama sering ditulis `path.dirname(fileURLToPath(import.meta.url))`."
+    },
+    {
+      "type": "runnable",
+      "code": "// === src/main.js ===\nimport path from 'node:path';\nconsole.log(process.cwd());\nconsole.log(import.meta.dirname);\nconsole.log(path.join(import.meta.dirname, '..', 'data', 'menu.json'));\nconsole.log(path.resolve('data'));\nconsole.log(path.relative('/home/sari/proyek/src', '/home/sari/proyek/data/menu.json'));\nconst p = path.parse('/home/sari/proyek/data/menu.json');\nconsole.log(p.name, p.ext, p.base);\n// === main.js ===\nimport './src/main.js';",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "data/menu.json",
+          "/home/sari/proyek/src/data/menu.json",
+          "/home/sari/proyek/src/../data/menu.json",
+          "/home/sari/proyek/data/menu.json"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 3,
+          "note": "Folder tempat perintah node diketik."
+        },
+        {
+          "line": 4,
+          "note": "Folder file kode ini: src."
+        },
+        {
+          "line": 5,
+          "note": "Naik satu folder dari src."
+        },
+        {
+          "line": 6,
+          "note": "Absolut, dihitung dari cwd."
+        }
+      ],
+      "explanation": "import.meta.dirname untuk src/main.js adalah /home/sari/proyek/src. Naik satu folder dengan .. lalu masuk ke data, hasilnya /home/sari/proyek/data/menu.json.",
+      "tryThis": [
+        {
+          "task": "Bandingkan baris pertama dan kedua. Kenapa berbeda?",
+          "hint": null
+        },
+        {
+          "task": "Ganti path.join menjadi path.resolve('data', 'menu.json'). Apa hasilnya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengandalkan cwd**\n\nProgram jalan saat diuji di laptop, tapi gagal di server karena perintahnya dijalankan dari folder lain.\n\n**2. Menyusun jalur dengan `+`**\n\n`dir + '/' + nama` bisa menghasilkan `//` atau salah pemisah di Windows. Pakai `path.join`.\n\n**3. Memakai jalur dari pengguna tanpa memeriksa**\n\nNama file dari pengguna seperti `../../etc/passwd` bisa keluar dari folder yang diizinkan (*path traversal*). Periksa hasil `path.resolve` masih di dalam folder yang benar."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Jalur ke template, file statis, dan data selalu disusun dari `import.meta.dirname` (atau `__dirname` di kode lama), supaya aplikasi bisa dijalankan dari mana saja, termasuk oleh pengelola proses di server.\n- *Path traversal* adalah celah keamanan yang nyata: server yang melayani file berdasarkan nama dari URL tanpa pemeriksaan bisa membocorkan file rahasia.\n- Express punya `express.static` yang sudah menangani pemeriksaan ini dengan aman."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Arsip Node 4: Jalur yang Pasti",
+      "pembuka": "Program arsip berada di folder src, dan datanya di folder data. Kita pastikan jalurnya selalu benar.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Lokasi folder file kode dan folder kerja dicetak.",
+          "jawaban": "// === src/arsip.js ===\nconsole.log('Kode di:', import.meta.dirname);\nconsole.log('Dijalankan dari:', process.cwd());\n// === main.js ===\nimport './src/arsip.js';",
+          "keluaran": "Kode di: /home/sari/proyek/src\nDijalankan dari: /home/sari/proyek",
+          "otomatis": true
+        },
+        {
+          "arahan": "Di src/arsip.js, susun jalur file data dengan `path.join(import.meta.dirname, '..', 'data', 'stok.json')` dan cetak `Data: <jalur>`.",
+          "jawaban": "// === src/arsip.js ===\nimport path from 'node:path';\nconsole.log('Kode di:', import.meta.dirname);\nconsole.log('Dijalankan dari:', process.cwd());\nconst fileStok = path.join(import.meta.dirname, '..', 'data', 'stok.json');\nconsole.log('Data:', fileStok);\n// === main.js ===\nimport './src/arsip.js';",
+          "keluaran": "Kode di: /home/sari/proyek/src\nDijalankan dari: /home/sari/proyek\nData: /home/sari/proyek/data/stok.json",
+          "wajib": [
+            {
+              "pola": "path\\.join\\(\\s*import\\.meta\\.dirname\\s*,\\s*'\\.\\.'",
+              "pesan": "mulai dari `import.meta.dirname` lalu `'..'`."
+            }
+          ],
+          "petunjuk": "import path from 'node:path'; lalu path.join dengan '..'."
+        },
+        {
+          "arahan": "Buat fungsi `amanDiData(nama)` yang mengembalikan `true` hanya kalau `path.resolve(folderData, nama)` diawali `folderData + path.sep`. Cetak hasil untuk `'stok.json'` lalu `'../../rahasia.txt'`: `true` lalu `false`.",
+          "jawaban": "// === src/arsip.js ===\nimport path from 'node:path';\nconsole.log('Kode di:', import.meta.dirname);\nconsole.log('Dijalankan dari:', process.cwd());\nconst fileStok = path.join(import.meta.dirname, '..', 'data', 'stok.json');\nconsole.log('Data:', fileStok);\nconst folderData = path.join(import.meta.dirname, '..', 'data');\nfunction amanDiData(nama) {\n  return path.resolve(folderData, nama).startsWith(folderData + path.sep);\n}\nconsole.log(amanDiData('stok.json'));\nconsole.log(amanDiData('../../rahasia.txt'));\n// === main.js ===\nimport './src/arsip.js';",
+          "keluaran": "Kode di: /home/sari/proyek/src\nDijalankan dari: /home/sari/proyek\nData: /home/sari/proyek/data/stok.json\ntrue\nfalse",
+          "wajib": [
+            {
+              "pola": "function\\s+amanDiData",
+              "pesan": "buat `function amanDiData`."
+            },
+            {
+              "pola": "path\\.resolve\\(",
+              "pesan": "pakai `path.resolve`."
+            }
+          ],
+          "petunjuk": "path.resolve(folderData, nama) memberi jalur absolut; cek awalannya dengan startsWith.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Jalur file disusun dari lokasi kode, dan nama file dari luar diperiksa supaya tidak keluar folder."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Jalur relatif seperti 'data/a.json' di readFile dihitung dari mana?",
+          "options": [
+            "Dari folder file kode",
+            "Dari folder node_modules",
+            "Dari folder tempat perintah node diketik (process.cwd())",
+            "Dari folder rumah pengguna"
+          ],
+          "answer": 2,
+          "explanation": "cwd = current working directory.",
+          "remedial": "Jalur relatif selalu dihitung dari process.cwd(). Karena itu program bisa gagal kalau dijalankan dari folder lain. Susun jalur dari import.meta.dirname supaya pasti."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import path from 'node:path';\nconst p = path.parse('/x/laporan.csv');\nconsole.log(p.name);\nconsole.log(p.ext);\nconsole.log(p.base);",
+          "options": [
+            "/x / .csv / laporan",
+            "laporan / .csv / laporan.csv",
+            "laporan.csv / csv / laporan",
+            "laporan / csv / laporan.csv"
+          ],
+          "answer": 1,
+          "explanation": "path.parse memecah jalur.",
+          "remedial": "name adalah nama tanpa ekstensi, ext ekstensinya dengan titik, dan base nama lengkap file."
+        },
+        {
+          "question": "Apa bahaya memakai nama file dari pengguna tanpa memeriksa?",
+          "options": [
+            "Nama file menjadi huruf besar",
+            "Node.js menolak semua nama file",
+            "File otomatis terhapus",
+            "Nama seperti ../../rahasia bisa membaca file di luar folder yang diizinkan"
+          ],
+          "answer": 3,
+          "explanation": "Path traversal.",
+          "remedial": "Dengan .. berulang, jalur bisa naik keluar dari folder data. Periksa bahwa hasil path.resolve masih diawali folder yang diizinkan."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Patokan apa yang paling aman untuk menyusun jalur ke file data milik aplikasi?",
+      "options": [
+        "process.cwd()",
+        "import.meta.dirname (folder file kode)",
+        "Nama file saja",
+        "Jalur absolut dari laptop developer"
+      ],
+      "answer": 1,
+      "explanation": "Folder file kode tidak berubah dari mana pun program dijalankan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Cetak jalur relatif dari folder /home/sari/proyek/src ke /home/sari/proyek/data/menu.json memakai path.relative, lalu cetak apakah /home/sari/proyek absolut: ../data/menu.json lalu true",
+      "starterCode": "import path from 'node:path';\n",
+      "solution": "import path from 'node:path';\nconsole.log(path.relative('/home/sari/proyek/src', '/home/sari/proyek/data/menu.json'));\nconsole.log(path.isAbsolute('/home/sari/proyek'));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "../data/menu.json\ntrue\n"
+        }
+      ],
+      "hints": [
+        "path.relative(dari, ke).",
+        "path.isAbsolute untuk memeriksa jalur absolut."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Jalur relatif dihitung dari process.cwd().",
+        "Susun jalur file aplikasi dari import.meta.dirname.",
+        "path.join menggabung, path.resolve membuat jalur absolut.",
+        "path.parse memecah jalur: name, ext, base, dir.",
+        "Periksa nama file dari pengguna untuk mencegah path traversal."
+      ]
+    }
+  ]
+}

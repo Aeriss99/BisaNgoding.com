@@ -1,0 +1,193 @@
+{
+  "id": "node-async-01",
+  "moduleId": "node-async",
+  "order": 1,
+  "title": "Callback dan Promise",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Node.js tidak menunggu pekerjaan lambat (baca file, permintaan jaringan, database). Ia memulai pekerjaan itu, lanjut ke kode berikutnya, lalu memanggil kode kita saat hasilnya siap.\n\nAda dua gaya untuk menerima hasil itu:\n\n| Gaya | Bentuk |\n|---|---|\n| **Callback** (gaya lama) | `readFile('a.txt', 'utf8', (err, isi) => { ... })` |\n| **Promise** (gaya modern) | `const isi = await readFile('a.txt', 'utf8')` |\n\nCallback Node.js mengikuti aturan **error-first**: argumen pertama selalu error (atau `null` kalau berhasil), baru hasilnya.\n\nIbarat memesan di kedai kopi: kasir tidak berdiri menunggu kopimu selesai. Ia memberimu nomor antrean (Promise), lalu melayani pembeli berikutnya. Saat kopi siap, nomormu dipanggil."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMengubah fungsi callback menjadi Promise dengan `util.promisify`:\n\n```js\nimport { promisify } from 'node:util';\nimport { readFile } from 'node:fs';\nconst bacaFile = promisify(readFile);\nconst isi = await bacaFile('a.txt', 'utf8');\n```\n\nMembuat Promise sendiri dengan `new Promise`:\n\n```js\nfunction tunda(ms) {\n  return new Promise((resolve) => setTimeout(resolve, ms));\n}\nawait tunda(100); // menunggu 100 ms\n```\n\nPromise punya tiga keadaan: **pending** (menunggu), **fulfilled** (berhasil, lewat `resolve`), dan **rejected** (gagal, lewat `reject`)."
+    },
+    {
+      "type": "runnable",
+      "code": "// === menu.txt ===\nKopi Susu\n// === main.js ===\nimport { readFile } from 'node:fs';\nimport { promisify } from 'node:util';\n\nreadFile('menu.txt', 'utf8', (err, isi) => {\n  console.log('callback:', err, isi.trim());\n});\nreadFile('hilang.txt', 'utf8', (err) => {\n  console.log('callback gagal:', err.code);\n});\n\nfunction bagi(a, b) {\n  return new Promise((resolve, reject) => {\n    if (b === 0) reject(new Error('Tidak bisa dibagi nol'));\n    else resolve(a / b);\n  });\n}\nconsole.log('hasil bagi:', await bagi(10, 4));\nconst baca = promisify(readFile);\nconsole.log('promisify:', (await baca('menu.txt', 'utf8')).trim());",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "callback: null Kopi Susu",
+          "hasil bagi: 2.5",
+          "promisify: Kopi Susu",
+          "callback gagal: ENOENT"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Error-first: err dulu, baru hasil."
+        },
+        {
+          "line": 15,
+          "note": "Membuat Promise sendiri."
+        },
+        {
+          "line": 20,
+          "note": "Menunggu Promise selesai."
+        },
+        {
+          "line": 21,
+          "note": "Ubah callback menjadi Promise."
+        }
+      ],
+      "explanation": "Callback readFile baru dipanggil setelah file selesai dibaca, sedangkan bagi langsung selesai. Karena itu hasil bagi tercetak lebih dulu.",
+      "tryThis": [
+        {
+          "task": "Ganti bagi(10, 4) menjadi bagi(10, 0). Apa yang terjadi?",
+          "hint": null
+        },
+        {
+          "task": "Cetak bagi(10, 4) tanpa await. Apa yang tercetak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengabaikan `err` di callback**\n\nKalau `err` tidak diperiksa, kode lanjut dengan hasil `undefined` dan gagal di tempat lain yang membingungkan.\n\n**2. Callback hell**\n\nCallback di dalam callback di dalam callback membuat kode menjorok jauh ke kanan dan sulit dibaca. Pakai Promise dan await.\n\n**3. Lupa `return` atau `await` Promise**\n\nPromise yang tidak ditunggu tetap berjalan, tapi errornya tidak tertangkap oleh try/catch di sekitarnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Kode Node.js modern hampir selalu memakai Promise dan async/await. Gaya callback masih kamu temui di kode lama dan beberapa library.\n- Hampir semua modul bawaan punya versi Promise: `node:fs/promises`, `node:timers/promises`, `node:dns/promises`, `node:stream/promises`.\n- Saat membaca kode lama di tempat kerja, `promisify` sering dipakai untuk membungkus fungsi callback supaya bisa di-await."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Antrean Pesanan 1: Dapur Lambat",
+      "pembuka": "Dapur butuh waktu untuk menyiapkan pesanan. Kita tunggu dengan Promise.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Fungsi tunda membuat Promise yang selesai setelah beberapa milidetik.",
+          "jawaban": "function tunda(ms) {\n  return new Promise((resolve) => setTimeout(resolve, ms));\n}\nconsole.log('Pesanan masuk');\nawait tunda(20);\nconsole.log('Pesanan siap');",
+          "keluaran": "Pesanan masuk\nPesanan siap",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat `function masak(menu)` yang mengembalikan Promise: menunggu 10 ms lalu `resolve` dengan teks `<menu> siap`. Cetak hasil `await masak('Kopi Susu')` di baris terakhir.",
+          "jawaban": "function tunda(ms) {\n  return new Promise((resolve) => setTimeout(resolve, ms));\n}\nconsole.log('Pesanan masuk');\nawait tunda(20);\nconsole.log('Pesanan siap');\nfunction masak(menu) {\n  return new Promise((resolve) => {\n    setTimeout(() => resolve(`${menu} siap`), 10);\n  });\n}\nconsole.log(await masak('Kopi Susu'));",
+          "keluaran": "Pesanan masuk\nPesanan siap\nKopi Susu siap",
+          "wajib": [
+            {
+              "pola": "new\\s+Promise",
+              "pesan": "buat dengan `new Promise`."
+            }
+          ],
+          "petunjuk": "new Promise((resolve) => { setTimeout(() => resolve(...), 10) })."
+        },
+        {
+          "arahan": "Ubah `masak` supaya `reject(new Error('Menu kosong'))` kalau menu adalah teks kosong. Panggil `masak('')` di dalam try/catch dan cetak `Gagal: Menu kosong` di baris terakhir.",
+          "jawaban": "function tunda(ms) {\n  return new Promise((resolve) => setTimeout(resolve, ms));\n}\nconsole.log('Pesanan masuk');\nawait tunda(20);\nconsole.log('Pesanan siap');\nfunction masak(menu) {\n  return new Promise((resolve, reject) => {\n    if (menu === '') {\n      reject(new Error('Menu kosong'));\n      return;\n    }\n    setTimeout(() => resolve(`${menu} siap`), 10);\n  });\n}\nconsole.log(await masak('Kopi Susu'));\ntry {\n  await masak('');\n} catch (e) {\n  console.log('Gagal:', e.message);\n}",
+          "keluaran": "Pesanan masuk\nPesanan siap\nKopi Susu siap\nGagal: Menu kosong",
+          "wajib": [
+            {
+              "pola": "reject\\(\\s*new\\s+Error",
+              "pesan": "tolak dengan `reject(new Error(...))`."
+            },
+            {
+              "pola": "catch",
+              "pesan": "tangkap dengan try/catch."
+            }
+          ],
+          "petunjuk": "Tambahkan parameter reject; if (menu === '') reject(new Error('Menu kosong')).",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Dapur yang lambat kini bisa ditunggu dengan await, dan kegagalannya bisa ditangkap."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa isi argumen pertama callback gaya Node.js?",
+          "options": [
+            "Error, atau null kalau berhasil",
+            "Hasil pekerjaan",
+            "Nama fungsi",
+            "Waktu selesai"
+          ],
+          "answer": 0,
+          "explanation": "Error-first.",
+          "remedial": "Callback Node.js mengikuti aturan error-first: argumen pertama error (null kalau berhasil), argumen berikutnya hasilnya."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "console.log('A');\nsetTimeout(() => console.log('B'), 0);\nconsole.log('C');",
+          "options": [
+            "C / A / B",
+            "A / B / C",
+            "A / C / B",
+            "B / A / C"
+          ],
+          "answer": 2,
+          "explanation": "Callback setTimeout dijalankan belakangan.",
+          "remedial": "setTimeout menjadwalkan B untuk nanti. Kode berikutnya (C) langsung jalan, lalu B dicetak setelah waktu tunggu selesai."
+        },
+        {
+          "question": "Apa fungsi util.promisify?",
+          "options": [
+            "Mengubah fungsi bergaya callback menjadi fungsi yang mengembalikan Promise",
+            "Mengubah Promise menjadi callback",
+            "Menghapus error dari fungsi",
+            "Mempercepat fungsi"
+          ],
+          "answer": 0,
+          "explanation": "promise + ify.",
+          "remedial": "promisify membungkus fungsi bergaya callback error-first, sehingga hasilnya bisa di-await."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa tiga keadaan sebuah Promise?",
+      "options": [
+        "pending, fulfilled, rejected",
+        "open, close, error",
+        "waiting, done, cancelled",
+        "start, run, stop"
+      ],
+      "answer": 0,
+      "explanation": "Menunggu, berhasil, gagal."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi cekStok(jumlah) yang mengembalikan Promise: resolve dengan teks Stok cukup kalau jumlah lebih dari 0, dan reject dengan Error berpesan Stok habis kalau tidak. Cetak hasil cekStok(3), lalu tangkap cekStok(0) dan cetak pesannya: Stok cukup lalu Stok habis",
+      "starterCode": "function cekStok(jumlah) {}\n",
+      "solution": "function cekStok(jumlah) {\n  return new Promise((resolve, reject) => {\n    if (jumlah > 0) resolve('Stok cukup');\n    else reject(new Error('Stok habis'));\n  });\n}\nconsole.log(await cekStok(3));\ntry {\n  await cekStok(0);\n} catch (e) {\n  console.log(e.message);\n}\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Stok cukup\nStok habis\n"
+        }
+      ],
+      "hints": [
+        "return new Promise((resolve, reject) => { ... }).",
+        "Pakai try/catch di sekitar await cekStok(0)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Node.js tidak menunggu pekerjaan lambat; hasilnya datang belakangan.",
+        "Callback Node.js bergaya error-first: (err, hasil).",
+        "Promise: pending, lalu fulfilled (resolve) atau rejected (reject).",
+        "promisify mengubah fungsi callback menjadi Promise.",
+        "Kode modern memakai Promise dan async/await."
+      ]
+    }
+  ]
+}

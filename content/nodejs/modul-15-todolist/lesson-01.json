@@ -1,0 +1,193 @@
+{
+  "id": "node-todolist-01",
+  "moduleId": "node-todolist",
+  "order": 1,
+  "title": "Rancangan API Todolist",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Modul terakhir ini adalah **proyek akhir**: membangun **REST API Todolist** dengan standar yang dipakai di tempat kerja. Kita merancang dulu sebelum menulis kode.\n\n**Fitur:**\n\n- pengguna mendaftar dan masuk (JWT),\n- setiap pengguna hanya melihat dan mengubah todonya sendiri,\n- todo bisa dicari, disaring (selesai atau belum), diurutkan, dan dibagi per halaman.\n\n**Rute:**\n\n| Method | Jalur | Fungsi |\n|---|---|---|\n| POST | `/api/v1/auth/daftar` | daftar |\n| POST | `/api/v1/auth/masuk` | masuk, dapat token |\n| GET | `/api/v1/todos` | daftar todo milik sendiri |\n| POST | `/api/v1/todos` | tambah todo |\n| GET/PATCH/DELETE | `/api/v1/todos/:id` | detail, ubah, hapus |\n| GET | `/health` | pemeriksaan kesehatan |\n\nIbarat membangun rumah: arsitek menggambar denah dulu (rancangan API), baru tukang mulai memasang batu bata (kode)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**Model data todo:**\n\n```js\n{\n  id: 1,\n  penggunaId: 7,\n  judul: 'Beli kopi',\n  selesai: false,\n  prioritas: 'sedang', // rendah | sedang | tinggi\n}\n```\n\n**Struktur folder** mengikuti arsitektur berlapis dari modul REST:\n\n```text\nsrc/\n  errors.js\n  repositories/todo.js     penyimpanan (memori, nanti Prisma)\n  services/todo.js         aturan bisnis + validasi Zod\n  routes/todo.js           router Express\n  middleware/auth.js       butuhLogin\n  app.js                   buatApp({ ... })\n  server.js                merakit lalu listen\n```\n\nMateri pertama ini membangun lapisan paling bawah: **repository** todo."
+    },
+    {
+      "type": "runnable",
+      "code": "// === src/errors.js ===\nexport class AppError extends Error {\n  constructor(status, kode, pesan) { super(pesan); Object.assign(this, { status, kode }); }\n}\n// === src/repositories/todo.js ===\nexport function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async semuaMilik(penggunaId) { return data.filter((t) => t.penggunaId === penggunaId).map((t) => ({ ...t })); },\n    async cari(id) { const t = data.find((x) => x.id === id); return t ? { ...t } : null; },\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async ubah(id, perubahan) { const t = data.find((x) => x.id === id); Object.assign(t, perubahan); return { ...t }; },\n    async hapus(id) { data.splice(data.findIndex((x) => x.id === id), 1); },\n  };\n}\n// === main.js ===\nimport { buatTodoRepo } from './src/repositories/todo.js';\nconst repo = buatTodoRepo();\nawait repo.tambah({ penggunaId: 1, judul: 'Beli kopi' });\nawait repo.tambah({ penggunaId: 2, judul: 'Bayar listrik' });\nconst t = await repo.tambah({ penggunaId: 1, judul: 'Belajar Node.js', prioritas: 'tinggi' });\nawait repo.ubah(t.id, { selesai: true });\nconsole.log(await repo.semuaMilik(1));\nconsole.log((await repo.semuaMilik(2)).length);\nawait repo.hapus(1);\nconsole.log((await repo.semuaMilik(1)).map((x) => x.judul));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "[ 'Beli kopi', 'Belajar Node.js' ]",
+          "[ 'Belajar Node.js' ]",
+          "[]",
+          "[ 'Beli kopi' ]"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Pabrik repository todo."
+        },
+        {
+          "line": 10,
+          "note": "Hanya todo milik satu pengguna."
+        },
+        {
+          "line": 12,
+          "note": "Nilai bawaan: belum selesai."
+        },
+        {
+          "line": 14,
+          "note": "Hapus berdasarkan id."
+        }
+      ],
+      "explanation": "Todo id 1 (Beli kopi) dihapus. Todo milik pengguna 1 yang tersisa hanya Belajar Node.js.",
+      "tryThis": [
+        {
+          "task": "Cetak repo.cari(2). Siapa pemiliknya?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan fungsi hitungMilik(penggunaId) di repository.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Langsung menulis kode tanpa rancangan**\n\nRute dan bentuk data berubah-ubah di tengah jalan, dan frontend harus terus menyesuaikan.\n\n**2. Repository mengembalikan objek asli**\n\nLapisan lain bisa mengubah data tanpa lewat `ubah`. Kembalikan salinan.\n\n**3. Lupa kolom pemilik**\n\nTanpa `penggunaId`, todo semua pengguna tercampur dan tidak bisa dibatasi aksesnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Tim biasanya menulis rancangan API di dokumen atau file **OpenAPI** sebelum menulis kode, lalu frontend dan backend bekerja bersamaan berdasarkan kontrak itu.\n- Repository memori di proyek ini nantinya diganti `buatTodoRepoPrisma(prisma)` dengan fungsi yang sama.\n- Proyek seperti Todolist API adalah contoh portofolio yang umum. Yang membedakan adalah kualitasnya: validasi, keamanan, struktur, dan dokumentasi."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Todolist API 1: Gudang Todo",
+      "pembuka": "Kita mulai dari lapisan paling bawah: repository todo.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Repository sederhana dengan tambah dan semua.",
+          "jawaban": "function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async semua() { return data.map((t) => ({ ...t })); },\n  };\n}\nconst repo = buatTodoRepo();\nawait repo.tambah({ penggunaId: 1, judul: 'Beli kopi' });\nconsole.log(await repo.semua());",
+          "keluaran": "[ { id: 1, selesai: false, penggunaId: 1, judul: 'Beli kopi' } ]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Ganti `semua()` dengan `semuaMilik(penggunaId)` yang hanya mengembalikan todo milik pengguna itu. Tambah todo `Bayar listrik` milik pengguna 2, lalu cetak jumlah todo milik pengguna 1 dan 2 dipisah spasi: `1 1`.",
+          "jawaban": "function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async semuaMilik(penggunaId) { return data.filter((t) => t.penggunaId === penggunaId).map((t) => ({ ...t })); },\n  };\n}\nconst repo = buatTodoRepo();\nawait repo.tambah({ penggunaId: 1, judul: 'Beli kopi' });\nawait repo.tambah({ penggunaId: 2, judul: 'Bayar listrik' });\nconsole.log((await repo.semuaMilik(1)).length, (await repo.semuaMilik(2)).length);",
+          "keluaran": "1 1",
+          "wajib": [
+            {
+              "pola": "async\\s+semuaMilik\\s*\\(\\s*penggunaId\\s*\\)",
+              "pesan": "buat `async semuaMilik(penggunaId)`."
+            }
+          ],
+          "petunjuk": "filter((t) => t.penggunaId === penggunaId), lalu salin dengan map."
+        },
+        {
+          "arahan": "Tambahkan `cari(id)` (salinan atau null) dan `ubah(id, perubahan)` (gabungkan dengan `Object.assign`, kembalikan salinan). Tandai todo 1 selesai, lalu cetak `true` dari `(await repo.cari(1)).selesai` di baris terakhir.",
+          "jawaban": "function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async semuaMilik(penggunaId) { return data.filter((t) => t.penggunaId === penggunaId).map((t) => ({ ...t })); },\n    async cari(id) { const t = data.find((x) => x.id === id); return t ? { ...t } : null; },\n    async ubah(id, perubahan) { const t = data.find((x) => x.id === id); Object.assign(t, perubahan); return { ...t }; },\n  };\n}\nconst repo = buatTodoRepo();\nawait repo.tambah({ penggunaId: 1, judul: 'Beli kopi' });\nawait repo.tambah({ penggunaId: 2, judul: 'Bayar listrik' });\nconsole.log((await repo.semuaMilik(1)).length, (await repo.semuaMilik(2)).length);\nawait repo.ubah(1, { selesai: true });\nconsole.log((await repo.cari(1)).selesai);",
+          "keluaran": "1 1\ntrue",
+          "wajib": [
+            {
+              "pola": "async\\s+cari\\s*\\(\\s*id\\s*\\)",
+              "pesan": "buat `async cari(id)`."
+            },
+            {
+              "pola": "async\\s+ubah\\s*\\(\\s*id\\s*,\\s*perubahan\\s*\\)",
+              "pesan": "buat `async ubah(id, perubahan)`."
+            }
+          ],
+          "petunjuk": "cari: find lalu salin atau null. ubah: find, Object.assign, salin.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Repository todo siap: menyimpan, mencari, mengubah, dan memisahkan todo per pengguna."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa setiap todo menyimpan penggunaId?",
+          "options": [
+            "Supaya todo bisa dibatasi hanya untuk pemiliknya",
+            "Supaya id todo unik",
+            "Karena Zod mewajibkannya",
+            "Supaya urutan todo benar"
+          ],
+          "answer": 0,
+          "explanation": "Kepemilikan.",
+          "remedial": "Tanpa kolom pemilik, server tidak bisa membedakan todo milik siapa, dan pengguna bisa melihat todo orang lain."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const baru = (t) => ({ selesai: false, ...t });\nconst t = baru({ judul: 'x' });\nconsole.log(t.selesai);\nObject.assign(t, { selesai: true });\nconsole.log(t.selesai);",
+          "options": [
+            "true / false",
+            "true / true",
+            "false / true",
+            "false / false"
+          ],
+          "answer": 2,
+          "explanation": "Nilai bawaan lalu diubah.",
+          "remedial": "Todo baru mendapat selesai: false sebagai nilai bawaan. Setelah diubah, nilainya true."
+        },
+        {
+          "question": "Kenapa API dirancang dulu sebelum kode ditulis?",
+          "options": [
+            "Supaya rute dan bentuk data tidak berubah-ubah dan tim lain bisa bekerja bersamaan",
+            "Supaya kode lebih pendek",
+            "Supaya tidak perlu tes",
+            "Karena Express mewajibkannya"
+          ],
+          "answer": 0,
+          "explanation": "Kontrak lebih dulu.",
+          "remedial": "Rancangan menjadi kontrak antara backend dan frontend, sehingga keduanya bisa dikerjakan bersamaan tanpa saling menunggu."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Format dokumen apa yang lazim dipakai untuk menulis rancangan REST API?",
+      "options": [
+        "OpenAPI (Swagger)",
+        "Markdown biasa tanpa aturan",
+        "XML Sitemap",
+        "CSV"
+      ],
+      "answer": 0,
+      "explanation": "Bisa ditampilkan sebagai dokumentasi interaktif."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi repository dengan hapus(id) yang membuang todo dari array. Tambah dua todo milik pengguna 1, hapus todo id 1, lalu cetak judul todo yang tersisa: [ 'Kedua' ]",
+      "starterCode": "function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async semuaMilik(p) { return data.filter((t) => t.penggunaId === p).map((t) => ({ ...t })); },\n  };\n}\n",
+      "solution": "function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async semuaMilik(p) { return data.filter((t) => t.penggunaId === p).map((t) => ({ ...t })); },\n    async hapus(id) { data.splice(data.findIndex((x) => x.id === id), 1); },\n  };\n}\nconst repo = buatTodoRepo();\nawait repo.tambah({ penggunaId: 1, judul: 'Pertama' });\nawait repo.tambah({ penggunaId: 1, judul: 'Kedua' });\nawait repo.hapus(1);\nconsole.log((await repo.semuaMilik(1)).map((t) => t.judul));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "[ 'Kedua' ]\n"
+        }
+      ],
+      "hints": [
+        "async hapus(id) { data.splice(data.findIndex((x) => x.id === id), 1); }",
+        "Tambah dua todo, hapus id 1, lalu cetak judul."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Rancang rute dan model data sebelum menulis kode.",
+        "Setiap todo menyimpan penggunaId pemiliknya.",
+        "Repository: tambah, cari, semuaMilik, ubah, hapus.",
+        "Kembalikan salinan data dari repository.",
+        "Repository memori nanti diganti Prisma tanpa mengubah service."
+      ]
+    }
+  ]
+}

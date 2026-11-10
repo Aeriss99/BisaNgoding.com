@@ -1,0 +1,186 @@
+{
+  "id": "node-async-06",
+  "moduleId": "node-async",
+  "order": 6,
+  "title": "Proyek Mini: Antrean Pesanan",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **antrean pesanan** yang memproses banyak pesanan dengan aman.\n\n| Materi | Dipakai untuk |\n|---|---|\n| Promise dan async/await | memproses setiap pesanan |\n| Promise.all | menjalankan beberapa pesanan bersamaan |\n| Batas paralel | tidak lebih dari N pesanan sekaligus |\n| Kelas error | membedakan pesanan ditolak dan error tak terduga |\n| allSettled | laporan akhir semua pesanan |\n\nIbarat dapur dengan tiga kompor: pesanan banyak, tapi yang dimasak bersamaan paling banyak tiga. Pesanan berikutnya menunggu kompor kosong."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMembatasi jumlah pekerjaan yang berjalan bersamaan dengan beberapa \"pekerja\":\n\n```js\nasync function prosesSemua(daftar, batas, kerja) {\n  const hasil = new Array(daftar.length);\n  let berikut = 0;\n  async function pekerja() {\n    while (berikut < daftar.length) {\n      const i = berikut++;\n      hasil[i] = await kerja(daftar[i]);\n    }\n  }\n  await Promise.all(Array.from({ length: batas }, pekerja));\n  return hasil;\n}\n```\n\nKarena JavaScript berjalan di satu thread, `berikut++` aman: tidak ada dua pekerja yang mengambil indeks yang sama.\n\nDi dunia kerja, pola ini tersedia di library seperti `p-limit`."
+    },
+    {
+      "type": "runnable",
+      "code": "const tunda = (ms) => new Promise((r) => setTimeout(r, ms));\nlet sedang = 0;\nlet puncak = 0;\nasync function masak(p) {\n  sedang++;\n  puncak = Math.max(puncak, sedang);\n  await tunda(p.ms);\n  sedang--;\n  if (p.menu === 'Es Krim') throw new Error('Es Krim habis');\n  return `${p.menu} siap`;\n}\nasync function prosesSemua(daftar, batas, kerja) {\n  const hasil = new Array(daftar.length);\n  let berikut = 0;\n  async function pekerja() {\n    while (berikut < daftar.length) {\n      const i = berikut++;\n      try {\n        hasil[i] = { ok: true, nilai: await kerja(daftar[i]) };\n      } catch (e) {\n        hasil[i] = { ok: false, nilai: e.message };\n      }\n    }\n  }\n  await Promise.all(Array.from({ length: batas }, pekerja));\n  return hasil;\n}\nconst pesanan = [\n  { menu: 'Kopi', ms: 20 }, { menu: 'Teh', ms: 10 }, { menu: 'Es Krim', ms: 5 },\n  { menu: 'Roti', ms: 15 }, { menu: 'Jus', ms: 5 },\n];\nconst hasil = await prosesSemua(pesanan, 2, masak);\nconsole.log(hasil.filter((h) => h.ok).length, 'berhasil');\nconsole.log(hasil.filter((h) => !h.ok).map((h) => h.nilai));\nconsole.log('Paling banyak bersamaan:', puncak);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "Paling banyak bersamaan: 3",
+          "Paling banyak bersamaan: 2",
+          "Paling banyak bersamaan: 5",
+          "Paling banyak bersamaan: 1"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 17,
+          "note": "Ambil pesanan berikutnya."
+        },
+        {
+          "line": 20,
+          "note": "Pesanan gagal tidak menghentikan yang lain."
+        },
+        {
+          "line": 25,
+          "note": "Buat sebanyak batas pekerja."
+        }
+      ],
+      "explanation": "Hanya ada 2 pekerja, dan setiap pekerja memasak satu pesanan pada satu waktu. Jadi paling banyak 2 pesanan dimasak bersamaan.",
+      "tryThis": [
+        {
+          "task": "Ganti batas 2 menjadi 5. Berapa puncaknya?",
+          "hint": null
+        },
+        {
+          "task": "Ganti batas menjadi 1. Apa bedanya dengan await satu per satu?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Promise.all untuk semua pesanan sekaligus**\n\nSeribu pesanan berarti seribu pekerjaan bersamaan. Batasi dengan pekerja.\n\n**2. Satu pesanan gagal menghentikan semuanya**\n\nTangkap error per pesanan, catat hasilnya, dan lanjutkan yang lain.\n\n**3. Urutan hasil tertukar**\n\nSimpan hasil berdasarkan indeks (`hasil[i]`), bukan `push`, karena pesanan selesai dalam urutan berbeda."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Untuk antrean sungguhan yang tahan program mati, pesanan disimpan di sistem antrean seperti Redis (dengan BullMQ), RabbitMQ, atau layanan cloud, lalu diproses oleh *worker*.\n- Batas paralel juga dipakai saat memanggil API pihak ketiga yang punya *rate limit*.\n- Laporan akhir (berapa berhasil, berapa gagal beserta alasannya) adalah bagian penting dari script batch di tempat kerja."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Antrean Pesanan 6: Dapur Tiga Kompor",
+      "pembuka": "Kita rakit antrean pesanan: dimasak bersamaan dengan batas, dan ada laporan akhir.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Setiap pesanan dimasak dengan waktu berbeda.",
+          "jawaban": "const tunda = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function masak(menu) {\n  await tunda(menu.length * 2);\n  return `${menu} siap`;\n}\nconsole.log(await masak('Kopi'));",
+          "keluaran": "Kopi siap",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat `async function prosesSemua(daftar, batas)` dengan pola pekerja: `batas` pekerja yang masing-masing mengambil indeks berikutnya dan menyimpan `hasil[i] = await masak(daftar[i])`. Proses `['Kopi', 'Teh', 'Roti', 'Jus']` dengan batas 2 dan cetak hasilnya digabung koma.",
+          "jawaban": "const tunda = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function masak(menu) {\n  await tunda(menu.length * 2);\n  return `${menu} siap`;\n}\nconsole.log(await masak('Kopi'));\nasync function prosesSemua(daftar, batas) {\n  const hasil = new Array(daftar.length);\n  let berikut = 0;\n  async function pekerja() {\n    while (berikut < daftar.length) {\n      const i = berikut++;\n      hasil[i] = await masak(daftar[i]);\n    }\n  }\n  await Promise.all(Array.from({ length: batas }, pekerja));\n  return hasil;\n}\nconst hasil = await prosesSemua(['Kopi', 'Teh', 'Roti', 'Jus'], 2);\nconsole.log(hasil.join(', '));",
+          "keluaran": "Kopi siap\nKopi siap, Teh siap, Roti siap, Jus siap",
+          "wajib": [
+            {
+              "pola": "Promise\\.all\\(\\s*Array\\.from",
+              "pesan": "jalankan pekerja dengan `Promise.all(Array.from(...))`."
+            }
+          ],
+          "petunjuk": "Lihat contoh di kartu teori: berikut++, while, dan Promise.all dari Array.from."
+        },
+        {
+          "arahan": "Ubah `masak` supaya menu `'Es Krim'` melempar `Error('habis')`, dan di pekerja tangkap error per pesanan sehingga `hasil[i]` berisi `gagal: habis`. Proses `['Kopi', 'Es Krim', 'Teh']` dengan batas 2 dan cetak `Laporan: 2 siap, 1 gagal` di baris terakhir.",
+          "jawaban": "const tunda = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function masak(menu) {\n  await tunda(menu.length * 2);\n  if (menu === 'Es Krim') throw new Error('habis');\n  return `${menu} siap`;\n}\nconsole.log(await masak('Kopi'));\nasync function prosesSemua(daftar, batas) {\n  const hasil = new Array(daftar.length);\n  let berikut = 0;\n  async function pekerja() {\n    while (berikut < daftar.length) {\n      const i = berikut++;\n      try {\n        hasil[i] = await masak(daftar[i]);\n      } catch (e) {\n        hasil[i] = `gagal: ${e.message}`;\n      }\n    }\n  }\n  await Promise.all(Array.from({ length: batas }, pekerja));\n  return hasil;\n}\nconst hasil = await prosesSemua(['Kopi', 'Es Krim', 'Teh'], 2);\nconst gagal = hasil.filter((h) => h.startsWith('gagal')).length;\nconsole.log(`Laporan: ${hasil.length - gagal} siap, ${gagal} gagal`);",
+          "keluaran": "Kopi siap\nLaporan: 2 siap, 1 gagal",
+          "wajib": [
+            {
+              "pola": "catch",
+              "pesan": "tangkap error per pesanan dengan try/catch."
+            }
+          ],
+          "petunjuk": "Bungkus await masak(...) di pekerja dengan try/catch, lalu hitung yang diawali gagal.",
+          "tantangan": true,
+          "benar": "Antrean pesanan selesai: dimasak bersamaan dengan batas, pesanan gagal tidak menghentikan yang lain, dan ada laporan akhirnya."
+        }
+      ],
+      "penutup": "Antrean pesanan memakai semua alat async: Promise, paralel dengan batas, penanganan error, dan laporan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa jumlah pekerjaan bersamaan perlu dibatasi?",
+          "options": [
+            "Supaya kodenya lebih pendek",
+            "Supaya urutan hasil terbalik",
+            "Supaya database atau layanan lain tidak kebanjiran permintaan",
+            "Karena Promise.all hanya menerima 2 Promise"
+          ],
+          "answer": 2,
+          "explanation": "Seribu permintaan sekaligus berbahaya.",
+          "remedial": "Tanpa batas, semua pekerjaan dimulai bersamaan dan bisa membebani database, API pihak ketiga, atau memori server."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const tunda = (ms) => new Promise((r) => setTimeout(r, ms));\nconst daftar = [['a', 30], ['b', 10], ['c', 20]];\nconst hasil = [];\nawait Promise.all(daftar.map(async ([n, ms], i) => {\n  await tunda(ms);\n  hasil[i] = n;\n}));\nconsole.log(hasil);",
+          "options": [
+            "[ 'b', 'c', 'a' ]",
+            "[]",
+            "[ 'c', 'b', 'a' ]",
+            "[ 'a', 'b', 'c' ]"
+          ],
+          "answer": 3,
+          "explanation": "Disimpan per indeks.",
+          "remedial": "Walau selesai dalam urutan berbeda, setiap hasil disimpan di indeksnya sendiri, sehingga urutannya sama dengan daftar asal."
+        },
+        {
+          "question": "Kenapa berikut++ aman dipakai bersama oleh beberapa pekerja?",
+          "options": [
+            "Karena Promise.all menguncinya",
+            "Tidak aman, harus pakai kunci khusus",
+            "JavaScript berjalan di satu thread, jadi tidak ada dua pekerja yang menjalankannya bersamaan",
+            "Karena berikut adalah const"
+          ],
+          "answer": 2,
+          "explanation": "Satu thread.",
+          "remedial": "Kode sinkron di antara dua await tidak pernah disela. Jadi i = berikut++ dijalankan utuh oleh satu pekerja sebelum pekerja lain mendapat giliran."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Untuk antrean yang tetap aman walau program mati, pesanan sebaiknya disimpan di mana?",
+      "options": [
+        "Di variabel array",
+        "Di console.log",
+        "Di dalam Promise.all",
+        "Di sistem antrean seperti Redis dengan BullMQ atau RabbitMQ"
+      ],
+      "answer": 3,
+      "explanation": "Antrean di memori hilang saat program berhenti."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Proses daftar angka [1, 2, 3, 4] dengan fungsi async kali2(n) yang menunggu 5 ms lalu mengembalikan n * 2. Jalankan berurutan dengan for...of, simpan hasilnya, dan cetak: [ 2, 4, 6, 8 ]",
+      "starterCode": "const tunda = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function kali2(n) {}\n",
+      "solution": "const tunda = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function kali2(n) {\n  await tunda(5);\n  return n * 2;\n}\nconst hasil = [];\nfor (const n of [1, 2, 3, 4]) {\n  hasil.push(await kali2(n));\n}\nconsole.log(hasil);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "[ 2, 4, 6, 8 ]\n"
+        }
+      ],
+      "hints": [
+        "kali2: await tunda(5) lalu return n * 2.",
+        "for (const n of [...]) { hasil.push(await kali2(n)); }"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Batasi pekerjaan bersamaan dengan pola pekerja.",
+        "Tangkap error per pekerjaan supaya yang lain tetap jalan.",
+        "Simpan hasil berdasarkan indeks supaya urutannya terjaga.",
+        "Buat laporan akhir: berapa berhasil dan berapa gagal.",
+        "Antrean sungguhan memakai Redis, RabbitMQ, atau layanan cloud."
+      ]
+    }
+  ]
+}

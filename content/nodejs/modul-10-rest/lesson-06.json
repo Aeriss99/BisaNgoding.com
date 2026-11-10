@@ -1,0 +1,202 @@
+{
+  "id": "node-rest-06",
+  "moduleId": "node-rest",
+  "order": 6,
+  "title": "Proyek Mini: API Produk Berlapis",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **API produk** dengan arsitektur berlapis lengkap.\n\n```text\nerrors.js                  AppError\nrepositories/produk.js     buatRepoMemori()\nservices/produk.js         buatProdukService(repo)\nroutes/produk.js           buatProdukRouter(service)\napp.js                     buatApp({ produkService })\nmain.js                    merakit semuanya lalu listen\n```\n\nSemua bagian dirakit di satu tempat (`main.js` atau `server.js`). Untuk tes, perakitan yang sama dipakai dengan repository memori.\n\nIbarat merakit komputer: setiap komponen (RAM, SSD, prosesor) dibuat terpisah dengan colokan standar, lalu dirakit di satu casing. Komponen bisa diganti tanpa membuang yang lain."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nRouter yang menerima service dari luar:\n\n```js\nexport function buatProdukRouter(service) {\n  const router = Router();\n  router.get('/', async (req, res) => res.json({ data: await service.daftar() }));\n  router.post('/', async (req, res) => {\n    const baru = await service.tambah(req.body);\n    res.status(201).location(`${req.baseUrl}/${baru.id}`).json({ data: baru });\n  });\n  return router;\n}\n```\n\nValidasi dengan Zod bisa ditaruh di service (aturan data milik bisnis) atau di middleware rute (bentuk permintaan). Banyak tim menaruh validasi **bentuk** di lapisan HTTP dan aturan **bisnis** di service."
+    },
+    {
+      "type": "runnable",
+      "code": "// === src/errors.js ===\nexport class AppError extends Error {\n  constructor(status, kode, pesan) { super(pesan); Object.assign(this, { status, kode }); }\n}\n// === src/repositories/produk.js ===\nexport function buatRepoMemori(awal = []) {\n  const data = awal.map((p) => ({ ...p }));\n  let nextId = data.length + 1;\n  return {\n    async semua() { return data.map((p) => ({ ...p })); },\n    async cari(id) { const p = data.find((x) => x.id === id); return p ? { ...p } : null; },\n    async cariNama(nama) { return data.find((x) => x.nama.toLowerCase() === nama.toLowerCase()) ?? null; },\n    async tambah(p) { const baru = { id: nextId++, ...p }; data.push(baru); return { ...baru }; },\n  };\n}\n// === src/services/produk.js ===\nimport { z } from 'zod';\nimport { AppError } from '../errors.js';\nconst ProdukBaru = z.object({ nama: z.string().trim().min(2), harga: z.number().int().positive() });\nexport function buatProdukService(repo) {\n  return {\n    daftar: () => repo.semua(),\n    async detail(id) {\n      const p = await repo.cari(id);\n      if (!p) throw new AppError(404, 'PRODUK_TIDAK_ADA', `Produk ${id} tidak ada`);\n      return p;\n    },\n    async tambah(masukan) {\n      const h = ProdukBaru.safeParse(masukan);\n      if (!h.success) throw new AppError(400, 'VALIDASI_GAGAL', 'Data produk tidak valid');\n      if (await repo.cariNama(h.data.nama)) throw new AppError(409, 'NAMA_SUDAH_ADA', `${h.data.nama} sudah ada`);\n      return repo.tambah(h.data);\n    },\n  };\n}\n// === src/routes/produk.js ===\nimport { Router } from 'express';\nexport function buatProdukRouter(service) {\n  const router = Router();\n  router.get('/', async (req, res) => res.json({ data: await service.daftar() }));\n  router.get('/:id', async (req, res) => res.json({ data: await service.detail(Number(req.params.id)) }));\n  router.post('/', async (req, res) => {\n    const baru = await service.tambah(req.body);\n    res.status(201).location(`${req.baseUrl}/${baru.id}`).json({ data: baru });\n  });\n  return router;\n}\n// === src/app.js ===\nimport express from 'express';\nimport { AppError } from './errors.js';\nimport { buatProdukRouter } from './routes/produk.js';\nexport function buatApp({ produkService }) {\n  const app = express();\n  app.use(express.json());\n  app.use('/api/v1/produk', buatProdukRouter(produkService));\n  app.use((req, res) => res.status(404).json({ error: { kode: 'JALUR_TIDAK_ADA', pesan: 'Jalur tidak ditemukan' } }));\n  app.use((err, req, res, next) => {\n    if (!(err instanceof AppError)) err = new AppError(500, 'KESALAHAN_SERVER', 'Terjadi kesalahan');\n    res.status(err.status).json({ error: { kode: err.kode, pesan: err.message } });\n  });\n  return app;\n}\n// === main.js ===\nimport { buatRepoMemori } from './src/repositories/produk.js';\nimport { buatProdukService } from './src/services/produk.js';\nimport { buatApp } from './src/app.js';\n\nconst repo = buatRepoMemori([{ id: 1, nama: 'Kopi Susu', harga: 18000 }]);\nconst app = buatApp({ produkService: buatProdukService(repo) });\nconst server = app.listen(3000);\n\nconst u = 'http://localhost:3000/api/v1/produk';\nconst post = (body) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\nlet r = await post({ nama: '  Es Teh  ', harga: 8000 });\nconsole.log(r.status, r.headers.get('location'), (await r.json()).data);\nfor (const body of [{ nama: 'kopi susu', harga: 1 }, { nama: 'X', harga: 0 }]) {\n  r = await post(body);\n  console.log(r.status, (await r.json()).error.kode);\n}\nr = await fetch(u + '/7');\nconsole.log(r.status, (await r.json()).error.pesan);\nconsole.log((await (await fetch(u)).json()).data.length);\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "200 null { id: 2, nama: 'Es Teh', harga: 8000 }",
+          "201 /api/v1/produk/2 { id: 2, nama: 'Es Teh', harga: 8000 }",
+          "201 /api/v1/produk { id: 2, nama: 'Es Teh', harga: 8000 }",
+          "201 /api/v1/produk/1 { id: 1, nama: 'Es Teh', harga: 8000 }"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Repository: penyimpanan."
+        },
+        {
+          "line": 19,
+          "note": "Spasi di awal dan akhir dibuang."
+        },
+        {
+          "line": 20,
+          "note": "Service: aturan bisnis dan validasi."
+        },
+        {
+          "line": 38,
+          "note": "Router menerima service."
+        },
+        {
+          "line": 52,
+          "note": "App dirakit dari luar."
+        }
+      ],
+      "explanation": "Zod dengan trim membuang spasi di awal dan akhir nama. Produk baru mendapat id 2, status 201, dan header Location menunjuk ke alamatnya.",
+      "tryThis": [
+        {
+          "task": "Buat app kedua dengan repository kosong. Berapa jumlah produknya?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan rute DELETE di router, service, dan repository.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Merakit di banyak tempat**\n\nKalau setiap file membuat repository sendiri, data terpecah dan tes sulit diatur. Rakit di satu titik.\n\n**2. Lupa `await` di router**\n\n`res.json({ data: service.daftar() })` mengirim objek Promise kosong. Pastikan memakai `await`.\n\n**3. Menyimpan id dari klien**\n\nId dibuat oleh repository (atau database). Skema tidak menerima `id` dari body."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Struktur ini siap diganti ke database sungguhan: cukup buat `buatRepoPrisma(prisma)` dengan fungsi yang sama, dan service tidak berubah (modul Database).\n- Fungsi `buatApp(...)` dipakai langsung oleh Supertest di tes integrasi (modul Testing).\n- Di proyek TypeScript, setiap lapisan juga diberi tipe: `ProdukRepository`, `ProdukService`, sehingga editor bisa memeriksa colokannya cocok."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "API Produk 6: Rakit Berlapis",
+      "pembuka": "Kita rakit API produk berlapis: repository, service, router, dan app yang dirakit dari luar.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Repository dan service produk sudah tersedia.",
+          "jawaban": "// === lapisan.js ===\nexport function buatRepo(awal) {\n  const data = [...awal];\n  return {\n    async semua() { return [...data]; },\n    async tambah(p) { const baru = { id: data.length + 1, ...p }; data.push(baru); return baru; },\n  };\n}\nexport function buatService(repo) {\n  return {\n    daftar: () => repo.semua(),\n    async tambah({ nama }) {\n      if (typeof nama !== 'string') throw Object.assign(new Error('nama wajib'), { status: 400, kode: 'VALIDASI_GAGAL' });\n      return repo.tambah({ nama });\n    },\n  };\n}\n// === main.js ===\nimport { buatRepo, buatService } from './lapisan.js';\nconst service = buatService(buatRepo([{ id: 1, nama: 'Kopi' }]));\nconsole.log(await service.daftar());",
+          "keluaran": "[ { id: 1, nama: 'Kopi' } ]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Di `main.js`, buat `function buatRouter(service)` (pakai `Router` dari express) dengan `GET /` yang menjawab `{ data: await service.daftar() }`. Pasang di `/api/produk` pada app baru, fetch, dan cetak jumlah data: `1`.",
+          "jawaban": "// === lapisan.js ===\nexport function buatRepo(awal) {\n  const data = [...awal];\n  return {\n    async semua() { return [...data]; },\n    async tambah(p) { const baru = { id: data.length + 1, ...p }; data.push(baru); return baru; },\n  };\n}\nexport function buatService(repo) {\n  return {\n    daftar: () => repo.semua(),\n    async tambah({ nama }) {\n      if (typeof nama !== 'string') throw Object.assign(new Error('nama wajib'), { status: 400, kode: 'VALIDASI_GAGAL' });\n      return repo.tambah({ nama });\n    },\n  };\n}\n// === main.js ===\nimport express, { Router } from 'express';\nimport { buatRepo, buatService } from './lapisan.js';\nfunction buatRouter(service) {\n  const router = Router();\n  router.get('/', async (req, res) => res.json({ data: await service.daftar() }));\n  return router;\n}\nconst service = buatService(buatRepo([{ id: 1, nama: 'Kopi' }]));\nconst app = express();\napp.use(express.json());\napp.use('/api/produk', buatRouter(service));\nconst server = app.listen(3000);\nconsole.log((await (await fetch('http://localhost:3000/api/produk')).json()).data.length);\nserver.close();",
+          "keluaran": "1",
+          "wajib": [
+            {
+              "pola": "function\\s+buatRouter\\s*\\(\\s*service\\s*\\)",
+              "pesan": "buat `function buatRouter(service)`."
+            },
+            {
+              "pola": "buatRouter\\(\\s*service\\s*\\)",
+              "pesan": "pasang `buatRouter(service)` di app."
+            }
+          ],
+          "petunjuk": "import express, { Router } from 'express'; function buatRouter(service) { const router = Router(); ... return router; }"
+        },
+        {
+          "arahan": "Tambahkan `POST /` di router yang memanggil `service.tambah(req.body)` dan menjawab 201 `{ data }`, serta penangan error di app yang menjawab `{ error: { kode: err.kode, pesan: err.message } }` dengan `err.status`. Kirim `{ nama: 'Teh' }` lalu `{}`, dan cetak `201` lalu `400 VALIDASI_GAGAL`.",
+          "jawaban": "// === lapisan.js ===\nexport function buatRepo(awal) {\n  const data = [...awal];\n  return {\n    async semua() { return [...data]; },\n    async tambah(p) { const baru = { id: data.length + 1, ...p }; data.push(baru); return baru; },\n  };\n}\nexport function buatService(repo) {\n  return {\n    daftar: () => repo.semua(),\n    async tambah({ nama }) {\n      if (typeof nama !== 'string') throw Object.assign(new Error('nama wajib'), { status: 400, kode: 'VALIDASI_GAGAL' });\n      return repo.tambah({ nama });\n    },\n  };\n}\n// === main.js ===\nimport express, { Router } from 'express';\nimport { buatRepo, buatService } from './lapisan.js';\nfunction buatRouter(service) {\n  const router = Router();\n  router.get('/', async (req, res) => res.json({ data: await service.daftar() }));\n  router.post('/', async (req, res) => res.status(201).json({ data: await service.tambah(req.body) }));\n  return router;\n}\nconst service = buatService(buatRepo([{ id: 1, nama: 'Kopi' }]));\nconst app = express();\napp.use(express.json());\napp.use('/api/produk', buatRouter(service));\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: { kode: err.kode, pesan: err.message } }));\nconst server = app.listen(3000);\nconsole.log((await (await fetch('http://localhost:3000/api/produk')).json()).data.length);\nconst kirim = (body) => fetch('http://localhost:3000/api/produk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\nconsole.log((await kirim({ nama: 'Teh' })).status);\nconst r = await kirim({});\nconsole.log(r.status, (await r.json()).error.kode);\nserver.close();",
+          "keluaran": "1\n201\n400 VALIDASI_GAGAL",
+          "wajib": [
+            {
+              "pola": "service\\.tambah\\(\\s*req\\.body\\s*\\)",
+              "pesan": "panggil `service.tambah(req.body)`."
+            },
+            {
+              "pola": "\\(\\s*err\\s*,\\s*req\\s*,\\s*res\\s*,\\s*next\\s*\\)",
+              "pesan": "pasang penangan error `(err, req, res, next)`."
+            }
+          ],
+          "petunjuk": "router.post memanggil service.tambah; penangan error (err, req, res, next) di app.",
+          "tantangan": true,
+          "benar": "API produk berlapis selesai: repository, service, router, dan app yang dirakit di satu tempat."
+        }
+      ],
+      "penutup": "API produk kini berlapis rapi dan siap diganti ke database sungguhan tanpa mengubah service."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di mana sebaiknya semua lapisan dirakit (repository ke service, service ke router)?",
+          "options": [
+            "Di setiap file lapisan masing-masing",
+            "Di package.json",
+            "Di satu titik awal aplikasi, misalnya main.js atau server.js",
+            "Di dalam penangan error"
+          ],
+          "answer": 2,
+          "explanation": "Satu titik perakitan.",
+          "remedial": "Merakit di satu tempat membuat mudah mengganti repository (memori untuk tes, database untuk produksi) tanpa mengubah lapisan lain."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const service = { daftar: async () => ['Kopi'] };\nconst tanpa = service.daftar();\nconsole.log(tanpa.constructor.name);\nconsole.log((await service.daftar())[0]);",
+          "options": [
+            "Promise / Promise",
+            "undefined / Kopi",
+            "Kopi / Kopi",
+            "Promise / Kopi"
+          ],
+          "answer": 3,
+          "explanation": "Lupa await.",
+          "remedial": "Tanpa await, yang didapat adalah objek Promise. Dengan await, nilainya."
+        },
+        {
+          "question": "Kenapa skema validasi tidak menerima id dari body?",
+          "options": [
+            "Karena Zod tidak bisa memeriksa id",
+            "Supaya body lebih kecil",
+            "Id dibuat oleh repository atau database, bukan oleh klien",
+            "Karena id selalu angka"
+          ],
+          "answer": 2,
+          "explanation": "Server yang menentukan id.",
+          "remedial": "Kalau klien boleh mengirim id, ia bisa menimpa data lain atau membuat id bentrok."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa yang perlu diubah saat repository memori diganti repository database dengan fungsi yang sama?",
+      "options": [
+        "Semua lapisan",
+        "Penangan error saja",
+        "Service dan router",
+        "Hanya bagian perakitan; service dan router tetap"
+      ],
+      "answer": 3,
+      "explanation": "Colokan yang sama."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat function buatApp(service) yang mengembalikan app Express dengan rute GET /jumlah yang menjawab JSON { jumlah } dari await service.hitung(). Buat app dengan service palsu { hitung: async () => 42 }, fetch /jumlah, dan cetak jumlahnya: 42",
+      "starterCode": "import express from 'express';\n",
+      "solution": "import express from 'express';\nfunction buatApp(service) {\n  const app = express();\n  app.get('/jumlah', async (req, res) => res.json({ jumlah: await service.hitung() }));\n  return app;\n}\nconst app = buatApp({ hitung: async () => 42 });\nconst server = app.listen(3000);\nconsole.log((await (await fetch('http://localhost:3000/jumlah')).json()).jumlah);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "42\n"
+        }
+      ],
+      "hints": [
+        "function buatApp(service) { const app = express(); ... return app; }",
+        "Service palsu: { hitung: async () => 42 }."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "API berlapis: errors, repository, service, router, app.",
+        "Setiap lapisan menerima bagian yang dibutuhkan dari luar.",
+        "Rakit semuanya di satu titik awal.",
+        "Router memakai await untuk memanggil service.",
+        "Ganti repository tanpa mengubah service."
+      ]
+    }
+  ]
+}

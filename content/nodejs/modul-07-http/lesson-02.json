@@ -1,0 +1,194 @@
+{
+  "id": "node-http-02",
+  "moduleId": "node-http",
+  "order": 2,
+  "title": "Membaca Permintaan: Method, URL, Query, Header",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Objek `req` berisi semua informasi permintaan:\n\n| Properti | Contoh |\n|---|---|\n| `req.method` | `'GET'`, `'POST'`, `'PUT'`, `'PATCH'`, `'DELETE'` |\n| `req.url` | `'/produk?kategori=minuman&urut=harga'` |\n| `req.headers` | `{ host: 'localhost:3000', 'user-agent': '...' }` |\n\n`req.url` berisi jalur **beserta** query. Pecah dengan kelas `URL`:\n\n```js\nconst url = new URL(req.url, `http://${req.headers.host}`);\nurl.pathname;                    // '/produk'\nurl.searchParams.get('kategori'); // 'minuman'\n```\n\nIbarat surat yang masuk ke kantor: method adalah jenis urusannya (minta informasi atau mengirim berkas), URL adalah bagian yang dituju, dan header adalah keterangan di amplop."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**Method** menunjukkan maksud permintaan:\n\n| Method | Maksud |\n|---|---|\n| GET | ambil data |\n| POST | buat data baru |\n| PUT / PATCH | ganti seluruhnya / ubah sebagian |\n| DELETE | hapus data |\n\n**Header** ditulis dengan huruf kecil di `req.headers` (Node.js mengubahnya otomatis):\n\n```js\nreq.headers['content-type']; // 'application/json'\nreq.headers.authorization;   // 'Bearer abc...'\n```\n\nNilai dari `searchParams.get` selalu **teks** (atau `null` kalau tidak ada). Ubah dengan `Number(...)` kalau butuh angka."
+    },
+    {
+      "type": "runnable",
+      "code": "import http from 'node:http';\n\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  const info = {\n    method: req.method,\n    jalur: url.pathname,\n    kategori: url.searchParams.get('kategori'),\n    halaman: Number(url.searchParams.get('halaman') ?? 1),\n    klien: req.headers['x-klien'] ?? 'tidak diketahui',\n  };\n  res.end(JSON.stringify(info));\n});\nserver.listen(3000);\n\nconst cetak = (d) => console.log(d.method, d.jalur, d.kategori, d.halaman, d.klien);\nlet r = await fetch('http://localhost:3000/produk?kategori=minuman&halaman=2');\ncetak(await r.json());\nr = await fetch('http://localhost:3000/pesanan', { method: 'DELETE', headers: { 'X-Klien': 'aplikasi-kasir' } });\ncetak(await r.json());\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "DELETE /pesanan null null aplikasi-kasir",
+          "DELETE /pesanan null 1 aplikasi-kasir",
+          "DELETE /pesanan minuman 1 tidak diketahui",
+          "DELETE /pesanan null 2 aplikasi-kasir"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Pecah jalur dan query."
+        },
+        {
+          "line": 8,
+          "note": "Ambil satu nilai query."
+        },
+        {
+          "line": 9,
+          "note": "Nilai bawaan kalau query tidak ada."
+        },
+        {
+          "line": 10,
+          "note": "Nama header selalu huruf kecil."
+        }
+      ],
+      "explanation": "Permintaan kedua tidak punya query, jadi kategori bernilai null dan halaman memakai nilai bawaan 1 dari ?? 1. Header X-Klien terbaca walau ditulis dengan huruf besar.",
+      "tryThis": [
+        {
+          "task": "Tambahkan &halaman=abc. Apa nilai halaman?",
+          "hint": null
+        },
+        {
+          "task": "Kirim header X-Klien dengan huruf kecil semua. Apakah hasilnya sama?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membandingkan `req.url` langsung**\n\n`req.url === '/produk'` gagal kalau ada query (`/produk?halaman=2`). Bandingkan `url.pathname`.\n\n**2. Mengira query berupa angka**\n\n`searchParams.get('halaman')` adalah teks `'2'`. `'2' + 1` menjadi `'21'`.\n\n**3. Membaca header dengan huruf besar**\n\n`req.headers['Content-Type']` selalu `undefined`. Pakai huruf kecil."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Query dipakai untuk penyaringan, pencarian, pengurutan, dan halaman (*pagination*): `/produk?q=kopi&urut=-harga&halaman=2&per=20`.\n- Header `Authorization` membawa token login, `Content-Type` menyebut format isi, dan `Accept-Language` menyebut bahasa pilihan pengguna.\n- Nilai dari klien (query, header, body) tidak boleh dipercaya begitu saja. Selalu periksa dan batasi, misalnya `per` paling besar 100."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Server Toko 2: Cari Menu",
+      "pembuka": "Pengunjung mencari menu lewat query. Server membaca jalur dan query-nya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Server memecah URL dan menjawab jalurnya.",
+          "jawaban": "import http from 'node:http';\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  res.end(`Jalur: ${url.pathname}`);\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu?q=kopi');\nconsole.log(await r.text());\nserver.close();",
+          "keluaran": "Jalur: /menu",
+          "otomatis": true
+        },
+        {
+          "arahan": "Ambil query `q` dengan `url.searchParams.get('q')` dan jawab `Jalur: /menu, cari: kopi`.",
+          "jawaban": "import http from 'node:http';\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  const q = url.searchParams.get('q');\n  res.end(`Jalur: ${url.pathname}, cari: ${q}`);\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu?q=kopi');\nconsole.log(await r.text());\nserver.close();",
+          "keluaran": "Jalur: /menu, cari: kopi",
+          "wajib": [
+            {
+              "pola": "searchParams\\.get\\(\\s*'q'\\s*\\)",
+              "pesan": "ambil dengan `searchParams.get('q')`."
+            }
+          ],
+          "petunjuk": "const q = url.searchParams.get('q');"
+        },
+        {
+          "arahan": "Saring daftar `menu` (sudah disediakan) dengan nama yang mengandung `q` tanpa membedakan huruf besar kecil, lalu jawab nama-namanya dipisah koma. Fetch `/menu?q=KOPI` dan cetak `Kopi Susu, Es Kopi`.",
+          "jawaban": "import http from 'node:http';\nconst menu = ['Kopi Susu', 'Teh Tarik', 'Es Kopi'];\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  const q = (url.searchParams.get('q') ?? '').toLowerCase();\n  const cocok = menu.filter((m) => m.toLowerCase().includes(q));\n  res.end(cocok.join(', '));\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu?q=KOPI');\nconsole.log(await r.text());\nserver.close();",
+          "kodeAwal": "import http from 'node:http';\nconst menu = ['Kopi Susu', 'Teh Tarik', 'Es Kopi'];\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  const q = url.searchParams.get('q');\n  res.end(`Jalur: ${url.pathname}, cari: ${q}`);\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu?q=KOPI');\nconsole.log(await r.text());\nserver.close();",
+          "keluaran": "Kopi Susu, Es Kopi",
+          "wajib": [
+            {
+              "pola": "toLowerCase\\(\\)",
+              "pesan": "samakan huruf dengan `toLowerCase()`."
+            },
+            {
+              "pola": "\\.filter\\(",
+              "pesan": "saring dengan `.filter`."
+            }
+          ],
+          "petunjuk": "Ubah q dan nama menu ke huruf kecil, lalu filter dengan includes.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Pengunjung kini bisa mencari menu lewat query, tanpa peduli huruf besar atau kecil."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa req.url === '/produk' bisa gagal?",
+          "options": [
+            "req.url juga memuat query, misalnya /produk?halaman=2",
+            "Perbandingan teks tidak bisa dipakai di server",
+            "req.url tidak memuat jalur",
+            "req.url selalu huruf besar"
+          ],
+          "answer": 0,
+          "explanation": "Pakai url.pathname.",
+          "remedial": "req.url berisi jalur dan query sekaligus. Pecah dengan new URL lalu bandingkan pathname."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const url = new URL('/produk?halaman=2', 'http://localhost');\nconst h = url.searchParams.get('halaman');\nconsole.log(typeof h);\nconsole.log(h + 1);",
+          "options": [
+            "number / 21",
+            "string / 3",
+            "string / 21",
+            "number / 3"
+          ],
+          "answer": 2,
+          "explanation": "searchParams selalu teks.",
+          "remedial": "Nilai query selalu teks. '2' + 1 menggabungkan teks menjadi 21."
+        },
+        {
+          "question": "Bagaimana membaca header Content-Type dari req.headers?",
+          "options": [
+            "req.contentType",
+            "req.headers['content-type']",
+            "req.header('CONTENT-TYPE')",
+            "req.headers['Content-Type']"
+          ],
+          "answer": 1,
+          "explanation": "Node.js mengubah nama header.",
+          "remedial": "Node.js menyimpan nama header dalam huruf kecil, sehingga dibaca dengan kunci huruf kecil."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method HTTP apa yang dipakai untuk membuat data baru?",
+      "options": [
+        "HEAD",
+        "DELETE",
+        "GET",
+        "POST"
+      ],
+      "answer": 3,
+      "explanation": "GET untuk mengambil, DELETE untuk menghapus."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat server yang menjawab jumlah dua angka dari query a dan b (ubah ke angka dulu). Fetch http://localhost:3000/tambah?a=7&b=5, cetak teks jawabannya, lalu tutup server. Keluaran: 12",
+      "starterCode": "import http from 'node:http';\n",
+      "solution": "import http from 'node:http';\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  const a = Number(url.searchParams.get('a'));\n  const b = Number(url.searchParams.get('b'));\n  res.end(String(a + b));\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/tambah?a=7&b=5');\nconsole.log(await r.text());\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "12\n"
+        }
+      ],
+      "hints": [
+        "Number(url.searchParams.get(...)) untuk a dan b.",
+        "res.end menerima teks: String(a + b)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "req.method, req.url, dan req.headers berisi informasi permintaan.",
+        "Pecah req.url dengan new URL(req.url, alamat dasar).",
+        "url.pathname untuk jalur, url.searchParams.get untuk query.",
+        "Nilai query selalu teks; ubah dengan Number.",
+        "Nama header di req.headers selalu huruf kecil."
+      ]
+    }
+  ]
+}

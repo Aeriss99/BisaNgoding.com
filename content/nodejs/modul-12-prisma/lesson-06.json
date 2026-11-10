@@ -1,0 +1,161 @@
+{
+  "id": "node-prisma-06",
+  "moduleId": "node-prisma",
+  "order": 6,
+  "title": "Repository Prisma di API",
+  "estimatedMinutes": 15,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya API toko memakai database sungguhan. Karena arsitektur berlapis (modul REST API), cukup buat **repository Prisma** dengan fungsi yang sama seperti repository memori:\n\n```js\nexport function buatRepoPrisma(prisma) {\n  const kolom = { id: true, nama: true, harga: true, stok: true };\n  return {\n    semua: () => prisma.produk.findMany({ select: kolom, orderBy: { id: 'asc' } }),\n    cari: (id) => prisma.produk.findUnique({ where: { id }, select: kolom }),\n    cariNama: (nama) => prisma.produk.findFirst({ where: { nama: { equals: nama, mode: 'insensitive' } }, select: kolom }),\n    tambah: (p) => prisma.produk.create({ data: p, select: kolom }),\n  };\n}\n```\n\nService, router, dan app **tidak berubah**. Hanya `src/server.js` yang merakitnya dengan repository Prisma.\n\nIbarat mengganti mesin mobil dengan mesin yang lebih kuat tapi berdudukan sama: kursi, setir, dan rodanya tetap, hanya mesinnya yang diganti."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```js\n// src/server.js\nimport { prisma } from './db.js';\nimport { buatApp } from './app.js';\nimport { buatProdukService } from './services/produk.js';\nimport { buatRepoPrisma } from './repositories/produk.prisma.js';\n\nconst app = buatApp({ produkService: buatProdukService(buatRepoPrisma(prisma)) });\napp.listen(process.env.PORT || 3000);\n```\n\nScript di `package.json`:\n\n```json\n\"start\": \"node --env-file=.env src/server.js\",\n\"dev\": \"node --watch --env-file=.env src/server.js\"\n```\n\n`mode: 'insensitive'` membuat pencarian nama tidak membedakan huruf besar dan kecil di PostgreSQL."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengembalikan semua kolom**\n\nTanpa `select`, kolom internal (misalnya `dibuatPada`, atau hash password di tabel pengguna) ikut terkirim ke klien.\n\n**2. Mengandalkan pemeriksaan unik di kode saja**\n\nDua permintaan bersamaan bisa lolos pemeriksaan `cariNama`. Aturan `@unique` di database adalah pengaman terakhir: tangkap error Prisma `P2002` dan jawab 409.\n\n**3. Server dijalankan tanpa `.env`**\n\n`node src/server.js` tanpa `--env-file` membuat `DATABASE_URL` kosong dan koneksi gagal."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola mengganti repository tanpa mengubah service inilah manfaat nyata dependency injection: tes memakai memori, produksi memakai PostgreSQL.\n- Tim biasanya menambahkan **transaksi** (`prisma.$transaction`) untuk operasi yang harus berhasil semuanya atau tidak sama sekali, misalnya mengurangi stok sekaligus membuat pesanan.\n- Server, repository, dan migrasi yang rapi seperti ini adalah bekal untuk modul Testing dan Produksi berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\nLingga sudah menyalin lapisan API dari modul REST ke `src/` (errors, services, routes, app), menambahkan `src/repositories/produk.prisma.js` dan `src/server.js`, lalu mengubah script `start` dan `dev`.\n\nServer sudah dijalankan dengan `npm run dev` di jendela terminal lain dan menampilkan:\n\n```text\nToko API jalan di http://localhost:3000\n```\n\nKamu akan mencoba API-nya dengan `curl` dari terminal ini."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Database Toko 6: API Bertenaga Database",
+      "folder": "~/toko-api",
+      "pembuka": "Kita coba API toko yang kini menyimpan data di PostgreSQL.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini repository Prisma.",
+          "terima": [
+            "cat src/repositories/produk.prisma.js"
+          ],
+          "keluaran": "export function buatRepoPrisma(prisma) {\n  const kolom = { id: true, nama: true, harga: true, stok: true };\n  return {\n    semua: () => prisma.produk.findMany({ select: kolom, orderBy: { id: 'asc' } }),\n    cari: (id) => prisma.produk.findUnique({ where: { id }, select: kolom }),\n    cariNama: (nama) => prisma.produk.findFirst({ where: { nama: { equals: nama, mode: 'insensitive' } }, select: kolom }),\n    tambah: (p) => prisma.produk.create({ data: p, select: kolom }),\n  };\n}",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Ambil daftar produk dengan curl (opsi -s menyembunyikan progres).",
+          "terima": [
+            "curl -s localhost:3000/api/v1/produk",
+            "curl -s http://localhost:3000/api/v1/produk",
+            "curl localhost:3000/api/v1/produk",
+            "curl http://localhost:3000/api/v1/produk"
+          ],
+          "keluaran": "{\"data\":[{\"id\":4,\"nama\":\"Kopi Susu\",\"harga\":18000,\"stok\":12},{\"id\":5,\"nama\":\"Teh Tarik\",\"harga\":12000,\"stok\":20},{\"id\":6,\"nama\":\"Es Kopi\",\"harga\":15000,\"stok\":0},{\"id\":7,\"nama\":\"Roti Bakar\",\"harga\":15000,\"stok\":8}]}",
+          "petunjuk": "curl -s localhost:3000/api/v1/produk"
+        },
+        {
+          "arahan": "Tambah produk Es Teh dengan harga 8000 dan stok 30 lewat POST berisi JSON.",
+          "terima": [
+            "curl -s -X POST localhost:3000/api/v1/produk -H \"Content-Type: application/json\" -d '{\"nama\":\"Es Teh\",\"harga\":8000,\"stok\":30}'",
+            "curl -s -X POST http://localhost:3000/api/v1/produk -H \"Content-Type: application/json\" -d '{\"nama\":\"Es Teh\",\"harga\":8000,\"stok\":30}'"
+          ],
+          "keluaran": "{\"data\":{\"id\":8,\"nama\":\"Es Teh\",\"harga\":8000,\"stok\":30}}",
+          "petunjuk": "curl -s -X POST localhost:3000/api/v1/produk -H \"Content-Type: application/json\" -d '{\"nama\":\"Es Teh\",\"harga\":8000,\"stok\":30}'"
+        },
+        {
+          "arahan": "Coba tambah produk es teh (huruf kecil) dengan harga 9000. Seharusnya ditolak karena namanya sudah ada.",
+          "terima": [
+            "curl -s -X POST localhost:3000/api/v1/produk -H \"Content-Type: application/json\" -d '{\"nama\":\"es teh\",\"harga\":9000}'",
+            "curl -s -X POST http://localhost:3000/api/v1/produk -H \"Content-Type: application/json\" -d '{\"nama\":\"es teh\",\"harga\":9000}'"
+          ],
+          "keluaran": "{\"error\":{\"kode\":\"NAMA_SUDAH_ADA\",\"pesan\":\"es teh sudah ada\"}}",
+          "petunjuk": "curl -s -X POST localhost:3000/api/v1/produk -H \"Content-Type: application/json\" -d '{\"nama\":\"es teh\",\"harga\":9000}'"
+        },
+        {
+          "arahan": "Ambil produk dengan id 99 yang tidak ada.",
+          "terima": [
+            "curl -s localhost:3000/api/v1/produk/99",
+            "curl -s http://localhost:3000/api/v1/produk/99",
+            "curl localhost:3000/api/v1/produk/99"
+          ],
+          "keluaran": "{\"error\":{\"kode\":\"PRODUK_TIDAK_ADA\",\"pesan\":\"Produk 99 tidak ada\"}}",
+          "petunjuk": "curl -s localhost:3000/api/v1/produk/99",
+          "tantangan": true
+        }
+      ],
+      "penutup": "API toko kini menyimpan produk di PostgreSQL lewat Prisma, tanpa mengubah service, router, maupun app."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Lapisan mana yang berubah saat API pindah dari repository memori ke Prisma?",
+          "options": [
+            "Hanya penangan error",
+            "Semua lapisan",
+            "Hanya repository dan bagian perakitan di server.js",
+            "Service dan router"
+          ],
+          "answer": 2,
+          "explanation": "Colokan yang sama.",
+          "remedial": "Repository Prisma punya fungsi yang sama dengan repository memori, sehingga service, router, dan app tidak perlu diubah."
+        },
+        {
+          "question": "Apa fungsi mode: 'insensitive' di pencarian nama?",
+          "options": [
+            "Mengabaikan spasi",
+            "Mencari sebagian kata",
+            "Mempercepat query",
+            "Membandingkan teks tanpa membedakan huruf besar dan kecil"
+          ],
+          "answer": 3,
+          "explanation": "Tidak peka huruf besar.",
+          "remedial": "Dengan mode insensitive, es teh dan Es Teh dianggap sama, sehingga nama ganda tertolak."
+        },
+        {
+          "question": "Kenapa aturan @unique di database tetap perlu walau service sudah memeriksa nama ganda?",
+          "options": [
+            "Supaya query lebih cepat",
+            "Karena service tidak bisa membaca database",
+            "Dua permintaan bersamaan bisa sama-sama lolos pemeriksaan di kode",
+            "Karena Prisma mewajibkannya untuk semua kolom"
+          ],
+          "answer": 2,
+          "explanation": "Pengaman terakhir.",
+          "remedial": "Pemeriksaan di kode dan penyimpanan terjadi di waktu berbeda. Aturan unik di database menjamin data tetap benar."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Opsi node apa yang membaca variabel dari file .env saat menjalankan server?",
+      "options": [
+        "--load-env",
+        "--env-file=.env",
+        "--dotenv",
+        "--env=.env"
+      ],
+      "answer": 1,
+      "explanation": "Bawaan Node.js sejak versi 20.6."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi perintah curl untuk mengirim permintaan POST.",
+      "code": "curl -s ___ POST localhost:3000/api/v1/produk",
+      "answers": [
+        "-X"
+      ],
+      "explanation": "Opsi -X menentukan method HTTP yang dipakai curl."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Repository Prisma punya fungsi yang sama dengan repository memori.",
+        "Service, router, dan app tidak berubah; server.js merakit ulang.",
+        "Pakai select supaya hanya kolom yang perlu yang dikirim.",
+        "mode: 'insensitive' untuk perbandingan teks tanpa peduli huruf besar.",
+        "Jalankan server dengan --env-file=.env."
+      ]
+    }
+  ]
+}

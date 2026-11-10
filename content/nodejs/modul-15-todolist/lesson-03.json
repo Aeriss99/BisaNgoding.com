@@ -1,0 +1,205 @@
+{
+  "id": "node-todolist-03",
+  "moduleId": "node-todolist",
+  "order": 3,
+  "title": "Router, App, dan Penanganan Error",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Lapisan HTTP terdiri dari **router** todo dan **app** yang merakit semuanya.\n\nRouter hanya menerjemahkan HTTP ke panggilan service:\n\n```js\nr.patch('/:id', async (req, res) =>\n  res.json({ data: await todoService.ubah(req.pengguna.id, Number(req.params.id), req.body) }));\n```\n\nApp memasang middleware umum, router, penangan 404, dan penangan error yang mengubah `AppError` menjadi respons berbentuk sama:\n\n```json\n{ \"error\": { \"kode\": \"TODO_TIDAK_ADA\", \"pesan\": \"Todo 9 tidak ada\" } }\n```\n\nUntuk sementara, pengguna dikenali dari header `X-Pengguna`. Di materi berikutnya diganti JWT.\n\nIbarat kasir restoran: kasir hanya mencatat pesanan dan menyerahkan struk. Memasak (service) dan menyimpan bahan (repository) dikerjakan bagian lain."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nStatus yang dipakai API Todolist:\n\n| Situasi | Status | Kode |\n|---|---|---|\n| daftar, detail, ubah berhasil | 200 | |\n| tambah berhasil | 201 + header Location | |\n| hapus berhasil | 204 | |\n| validasi gagal | 400 | `VALIDASI_GAGAL` |\n| belum login | 401 | `PERLU_LOGIN` |\n| todo tidak ada atau milik orang lain | 404 | `TODO_TIDAK_ADA` |\n| jalur tidak dikenal | 404 | `JALUR_TIDAK_ADA` |\n| error tak terduga | 500 | `KESALAHAN_SERVER` |\n\nTabel seperti ini biasanya ditulis di dokumentasi API, supaya klien tahu apa yang harus ditangani."
+    },
+    {
+      "type": "runnable",
+      "code": "// === src/errors.js ===\nexport class AppError extends Error {\n  constructor(status, kode, pesan) { super(pesan); Object.assign(this, { status, kode }); }\n}\n// === src/repositories/todo.js ===\nexport function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async semuaMilik(penggunaId) { return data.filter((t) => t.penggunaId === penggunaId).map((t) => ({ ...t })); },\n    async cari(id) { const t = data.find((x) => x.id === id); return t ? { ...t } : null; },\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async ubah(id, perubahan) { const t = data.find((x) => x.id === id); Object.assign(t, perubahan); return { ...t }; },\n    async hapus(id) { data.splice(data.findIndex((x) => x.id === id), 1); },\n  };\n}\n// === src/services/todo.js ===\nimport { z } from 'zod';\nimport { AppError } from '../errors.js';\nconst TodoBaru = z.object({ judul: z.string().trim().min(1).max(100), prioritas: z.enum(['rendah', 'sedang', 'tinggi']).default('sedang') });\nconst TodoUbah = z.object({ judul: z.string().trim().min(1).max(100), selesai: z.boolean(), prioritas: z.enum(['rendah', 'sedang', 'tinggi']) }).partial();\nfunction periksa(skema, data) {\n  const h = skema.safeParse(data);\n  if (!h.success) throw new AppError(400, 'VALIDASI_GAGAL', h.error.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; '));\n  return h.data;\n}\nexport function buatTodoService(repo) {\n  async function milik(penggunaId, id) {\n    const t = await repo.cari(id);\n    if (!t || t.penggunaId !== penggunaId) throw new AppError(404, 'TODO_TIDAK_ADA', `Todo ${id} tidak ada`);\n    return t;\n  }\n  return {\n    daftar: (penggunaId) => repo.semuaMilik(penggunaId),\n    detail: milik,\n    async tambah(penggunaId, masukan) { return repo.tambah({ ...periksa(TodoBaru, masukan), penggunaId }); },\n    async ubah(penggunaId, id, masukan) { await milik(penggunaId, id); return repo.ubah(id, periksa(TodoUbah, masukan)); },\n    async hapus(penggunaId, id) { await milik(penggunaId, id); await repo.hapus(id); },\n  };\n}\n// === src/routes/todo.js ===\nimport { Router } from 'express';\nexport function buatTodoRouter(todoService) {\n  const r = Router();\n  r.get('/', async (req, res) => res.json({ data: await todoService.daftar(req.pengguna.id) }));\n  r.post('/', async (req, res) => {\n    const t = await todoService.tambah(req.pengguna.id, req.body);\n    res.status(201).location(`${req.baseUrl}/${t.id}`).json({ data: t });\n  });\n  r.get('/:id', async (req, res) => res.json({ data: await todoService.detail(req.pengguna.id, Number(req.params.id)) }));\n  r.patch('/:id', async (req, res) => res.json({ data: await todoService.ubah(req.pengguna.id, Number(req.params.id), req.body) }));\n  r.delete('/:id', async (req, res) => {\n    await todoService.hapus(req.pengguna.id, Number(req.params.id));\n    res.sendStatus(204);\n  });\n  return r;\n}\n// === src/app.js ===\nimport express from 'express';\nimport { AppError } from './errors.js';\nimport { buatTodoRouter } from './routes/todo.js';\nexport function buatApp({ todoService }) {\n  const app = express();\n  app.use(express.json());\n  app.get('/health', (req, res) => res.json({ status: 'ok' }));\n  app.use('/api/v1/todos', (req, res, next) => {\n    req.pengguna = { id: Number(req.get('x-pengguna') ?? 1) }; // sementara, diganti JWT di materi 4\n    next();\n  }, buatTodoRouter(todoService));\n  app.use((req, res) => res.status(404).json({ error: { kode: 'JALUR_TIDAK_ADA', pesan: 'Jalur tidak ditemukan' } }));\n  app.use((err, req, res, next) => {\n    if (!(err instanceof AppError)) err = new AppError(500, 'KESALAHAN_SERVER', 'Terjadi kesalahan di server');\n    res.status(err.status).json({ error: { kode: err.kode, pesan: err.message } });\n  });\n  return app;\n}\n// === main.js ===\nimport { buatTodoRepo } from './src/repositories/todo.js';\nimport { buatTodoService } from './src/services/todo.js';\nimport { buatApp } from './src/app.js';\nconst app = buatApp({ todoService: buatTodoService(buatTodoRepo()) });\nconst server = app.listen(3000);\nconst u = 'http://localhost:3000/api/v1/todos';\nconst kirim = (method, jalur, body, pengguna = '1') => fetch(u + jalur, { method, headers: { 'Content-Type': 'application/json', 'X-Pengguna': pengguna }, body: body && JSON.stringify(body) });\n\nlet r = await kirim('POST', '', { judul: 'Beli kopi' });\nconsole.log(r.status, r.headers.get('location'));\nr = await kirim('PATCH', '/1', { selesai: true });\nconsole.log(r.status, (await r.json()).data.selesai);\nr = await kirim('GET', '/1', undefined, '2');\nconsole.log(r.status, (await r.json()).error.kode);\nr = await kirim('POST', '', { judul: '' });\nconsole.log(r.status, (await r.json()).error.kode);\nr = await kirim('DELETE', '/1');\nconsole.log(r.status, (await (await kirim('GET', '')).json()).data.length);\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "200 TODO_TIDAK_ADA",
+          "403 TIDAK_BERHAK",
+          "401 PERLU_LOGIN",
+          "404 TODO_TIDAK_ADA"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 43,
+          "note": "Router menerima service."
+        },
+        {
+          "line": 48,
+          "note": "Tambah: 201 dengan Location."
+        },
+        {
+          "line": 54,
+          "note": "Hapus: 204."
+        },
+        {
+          "line": 65,
+          "note": "Pemeriksaan kesehatan."
+        },
+        {
+          "line": 72,
+          "note": "Semua error diubah ke bentuk yang sama."
+        }
+      ],
+      "explanation": "Todo 1 milik pengguna 1. Pengguna 2 memintanya, dan service menjawab dengan AppError 404 TODO_TIDAK_ADA.",
+      "tryThis": [
+        {
+          "task": "Panggil /health dan cetak hasilnya.",
+          "hint": null
+        },
+        {
+          "task": "Kirim PATCH dengan { prioritas: \"darurat\" }. Apa kodenya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `Number(req.params.id)`**\n\nService membandingkan `id === '1'` dengan angka 1, sehingga todo tidak pernah ditemukan.\n\n**2. Lupa `await`**\n\n`res.json({ data: todoService.daftar(...) })` mengirim Promise yang menjadi `{}`.\n\n**3. Penangan error di atas router**\n\nError dari router tidak sampai ke sana. Penangan error selalu paling bawah."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Rute `/health` dipakai platform hosting (Railway, Render, Fly.io, Kubernetes) untuk tahu apakah aplikasi siap menerima permintaan.\n- Banyak tim menambahkan **id permintaan** di setiap respons error, supaya pengguna yang melapor bisa menyebutkan id itu dan tim mencarinya di log.\n- Router yang tipis dan service yang tebal memudahkan pindah framework, misalnya dari Express ke Fastify, tanpa mengubah aturan bisnis."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Todolist API 3: Loket Todo",
+      "pembuka": "Kita pasang lapisan HTTP: router todo dan penanganan error.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Router menampilkan daftar todo dari service.",
+          "jawaban": "import express, { Router } from 'express';\nconst data = [{ id: 1, penggunaId: 1, judul: 'Beli kopi', selesai: false }];\nconst service = { daftar: async (p) => data.filter((t) => t.penggunaId === p) };\nfunction buatRouter(svc) {\n  const r = Router();\n  r.get('/', async (req, res) => res.json({ data: await svc.daftar(1) }));\n  return r;\n}\nconst app = express();\napp.use('/api/v1/todos', buatRouter(service));\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/api/v1/todos')).json());\nserver.close();",
+          "keluaran": "{\n  data: [ { id: 1, penggunaId: 1, judul: 'Beli kopi', selesai: false } ]\n}",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan `detail(p, id)` di service yang melempar error berstatus 404 dan kode `TODO_TIDAK_ADA` kalau tidak ada, rute `GET /:id` di router, dan penangan error di app yang menjawab `{ error: { kode, pesan } }`. Fetch `/api/v1/todos/9` dan cetak `404 TODO_TIDAK_ADA`.",
+          "jawaban": "import express, { Router } from 'express';\nconst data = [{ id: 1, penggunaId: 1, judul: 'Beli kopi', selesai: false }];\nconst service = {\n  daftar: async (p) => data.filter((t) => t.penggunaId === p),\n  async detail(p, id) {\n    const t = data.find((x) => x.id === id && x.penggunaId === p);\n    if (!t) throw Object.assign(new Error(`Todo ${id} tidak ada`), { status: 404, kode: 'TODO_TIDAK_ADA' });\n    return t;\n  },\n};\nfunction buatRouter(svc) {\n  const r = Router();\n  r.get('/', async (req, res) => res.json({ data: await svc.daftar(1) }));\n  r.get('/:id', async (req, res) => res.json({ data: await svc.detail(1, Number(req.params.id)) }));\n  return r;\n}\nconst app = express();\napp.use('/api/v1/todos', buatRouter(service));\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: { kode: err.kode, pesan: err.message } }));\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/api/v1/todos')).json());\nconst r = await fetch('http://localhost:3000/api/v1/todos/9');\nconsole.log(r.status, (await r.json()).error.kode);\nserver.close();",
+          "keluaran": "{\n  data: [ { id: 1, penggunaId: 1, judul: 'Beli kopi', selesai: false } ]\n}\n404 TODO_TIDAK_ADA",
+          "wajib": [
+            {
+              "pola": "r\\.get\\(\\s*'/:id'",
+              "pesan": "buat rute `r.get('/:id', ...)`."
+            },
+            {
+              "pola": "'TODO_TIDAK_ADA'",
+              "pesan": "pakai kode `'TODO_TIDAK_ADA'`."
+            },
+            {
+              "pola": "\\(\\s*err\\s*,\\s*req\\s*,\\s*res\\s*,\\s*next\\s*\\)",
+              "pesan": "pasang penangan error."
+            }
+          ],
+          "petunjuk": "r.get('/:id', ...) dengan Number(req.params.id); penangan error (err, req, res, next)."
+        },
+        {
+          "arahan": "Tambahkan rute `GET /health` di app yang menjawab `{ status: 'ok' }`, dan penangan 404 untuk jalur tidak dikenal dengan kode `JALUR_TIDAK_ADA` (dipasang sebelum penangan error). Fetch `/health` lalu `/apa`, dan cetak `ok` lalu `404 JALUR_TIDAK_ADA`.",
+          "jawaban": "import express, { Router } from 'express';\nconst data = [{ id: 1, penggunaId: 1, judul: 'Beli kopi', selesai: false }];\nconst service = {\n  daftar: async (p) => data.filter((t) => t.penggunaId === p),\n  async detail(p, id) {\n    const t = data.find((x) => x.id === id && x.penggunaId === p);\n    if (!t) throw Object.assign(new Error(`Todo ${id} tidak ada`), { status: 404, kode: 'TODO_TIDAK_ADA' });\n    return t;\n  },\n};\nfunction buatRouter(svc) {\n  const r = Router();\n  r.get('/', async (req, res) => res.json({ data: await svc.daftar(1) }));\n  r.get('/:id', async (req, res) => res.json({ data: await svc.detail(1, Number(req.params.id)) }));\n  return r;\n}\nconst app = express();\napp.get('/health', (req, res) => res.json({ status: 'ok' }));\napp.use('/api/v1/todos', buatRouter(service));\napp.use((req, res) => res.status(404).json({ error: { kode: 'JALUR_TIDAK_ADA', pesan: 'Jalur tidak ditemukan' } }));\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: { kode: err.kode, pesan: err.message } }));\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/api/v1/todos')).json());\nconst r = await fetch('http://localhost:3000/api/v1/todos/9');\nconsole.log(r.status, (await r.json()).error.kode);\nconsole.log((await (await fetch('http://localhost:3000/health')).json()).status);\nconst r2 = await fetch('http://localhost:3000/apa');\nconsole.log(r2.status, (await r2.json()).error.kode);\nserver.close();",
+          "keluaran": "{\n  data: [ { id: 1, penggunaId: 1, judul: 'Beli kopi', selesai: false } ]\n}\n404 TODO_TIDAK_ADA\nok\n404 JALUR_TIDAK_ADA",
+          "wajib": [
+            {
+              "pola": "app\\.get\\(\\s*'/health'",
+              "pesan": "buat rute `'/health'`."
+            },
+            {
+              "pola": "'JALUR_TIDAK_ADA'",
+              "pesan": "pakai kode `'JALUR_TIDAK_ADA'`."
+            }
+          ],
+          "petunjuk": "app.get('/health', ...) di atas; app.use((req, res) => res.status(404)...) sebelum penangan error.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Lapisan HTTP Todolist siap: router, health check, penangan 404, dan error yang seragam."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa tugas router di arsitektur Todolist?",
+          "options": [
+            "Memeriksa aturan bisnis",
+            "Menerjemahkan permintaan HTTP menjadi panggilan service dan membentuk respons",
+            "Menyimpan data ke array",
+            "Membuat token login"
+          ],
+          "answer": 1,
+          "explanation": "Router tipis.",
+          "remedial": "Router membaca params, body, dan pengguna dari req, memanggil service, lalu mengirim respons. Aturan bisnis ada di service."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const daftar = async () => ['a'];\nconsole.log(JSON.parse(JSON.stringify(daftar())));",
+          "options": [
+            "{ data: [ 'a' ] }",
+            "[ 'a' ]",
+            "{}",
+            "undefined"
+          ],
+          "answer": 2,
+          "explanation": "Lupa await.",
+          "remedial": "Promise yang diubah ke JSON menjadi objek kosong, karena Promise tidak punya properti yang bisa dikirim."
+        },
+        {
+          "question": "Kenapa ada rute /health?",
+          "options": [
+            "Supaya platform hosting bisa memeriksa aplikasi masih hidup dan siap",
+            "Karena Express mewajibkannya",
+            "Untuk menyimpan data kesehatan",
+            "Supaya pengguna bisa login"
+          ],
+          "answer": 0,
+          "explanation": "Health check.",
+          "remedial": "Platform hosting dan load balancer memanggil /health secara berkala dan berhenti mengirim permintaan ke aplikasi yang tidak menjawab."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Status apa untuk penghapusan todo yang berhasil?",
+      "options": [
+        "200 OK dengan isi todo",
+        "201 Created",
+        "204 No Content",
+        "202 Accepted"
+      ],
+      "answer": 2,
+      "explanation": "Berhasil tanpa isi."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat app Express dengan penangan error yang menjawab { error: { kode, pesan } } dari err.status, err.kode, dan err.message. Tambahkan rute GET /coba yang melempar Object.assign(new Error('Tidak boleh'), { status: 403, kode: 'TIDAK_BOLEH' }). Fetch /coba dan cetak status, kode, dan pesan dipisah spasi: 403 TIDAK_BOLEH Tidak boleh",
+      "starterCode": "import express from 'express';\nconst app = express();\n",
+      "solution": "import express from 'express';\nconst app = express();\napp.get('/coba', () => {\n  throw Object.assign(new Error('Tidak boleh'), { status: 403, kode: 'TIDAK_BOLEH' });\n});\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: { kode: err.kode, pesan: err.message } }));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/coba');\nconst { error } = await r.json();\nconsole.log(r.status, error.kode, error.pesan);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "403 TIDAK_BOLEH Tidak boleh\n"
+        }
+      ],
+      "hints": [
+        "Penangan error dipasang setelah rute.",
+        "Bongkar { error } dari r.json()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Router menerjemahkan HTTP ke panggilan service.",
+        "App merakit middleware, router, penangan 404, dan penangan error.",
+        "Status Todolist: 200, 201, 204, 400, 401, 404, 500.",
+        "Selalu Number(req.params.id) dan await service.",
+        "/health untuk pemeriksaan platform hosting."
+      ]
+    }
+  ]
+}

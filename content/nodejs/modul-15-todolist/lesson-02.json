@@ -1,0 +1,197 @@
+{
+  "id": "node-todolist-02",
+  "moduleId": "node-todolist",
+  "order": 2,
+  "title": "Service Todo: Aturan dan Validasi",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Service** todo berisi aturan bisnis:\n\n1. Judul wajib, dipangkas spasinya, 1 sampai 100 karakter.\n2. Prioritas hanya `rendah`, `sedang`, atau `tinggi` (bawaan `sedang`).\n3. Perubahan (PATCH) boleh sebagian, tapi setiap kolom tetap diperiksa.\n4. Pengguna hanya boleh mengakses todo miliknya. Todo orang lain dianggap **tidak ada** (404).\n\nValidasi memakai Zod. Untuk PATCH, skema dibuat **opsional semua** dengan `.partial()`.\n\nIbarat mandor proyek: ia tidak mengangkat batu bata sendiri (itu tugas repository), tapi memastikan setiap pekerjaan sesuai aturan sebelum dikerjakan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nFungsi bantu `periksa(skema, data)` mengubah kegagalan Zod menjadi `AppError` 400:\n\n```js\nfunction periksa(skema, data) {\n  const h = skema.safeParse(data);\n  if (!h.success) throw new AppError(400, 'VALIDASI_GAGAL', ...);\n  return h.data;\n}\n```\n\nPemeriksaan kepemilikan dikumpulkan di satu fungsi `milik(penggunaId, id)` yang dipakai oleh detail, ubah, dan hapus, supaya tidak ada rute yang lupa memeriksanya.\n\nService **tidak tahu** soal Express: ia menerima `penggunaId` dan data biasa, sehingga bisa diuji langsung."
+    },
+    {
+      "type": "runnable",
+      "code": "// === src/errors.js ===\nexport class AppError extends Error {\n  constructor(status, kode, pesan) { super(pesan); Object.assign(this, { status, kode }); }\n}\n// === src/repositories/todo.js ===\nexport function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async semuaMilik(penggunaId) { return data.filter((t) => t.penggunaId === penggunaId).map((t) => ({ ...t })); },\n    async cari(id) { const t = data.find((x) => x.id === id); return t ? { ...t } : null; },\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async ubah(id, perubahan) { const t = data.find((x) => x.id === id); Object.assign(t, perubahan); return { ...t }; },\n    async hapus(id) { data.splice(data.findIndex((x) => x.id === id), 1); },\n  };\n}\n// === src/services/todo.js ===\nimport { z } from 'zod';\nimport { AppError } from '../errors.js';\nconst TodoBaru = z.object({ judul: z.string().trim().min(1).max(100), prioritas: z.enum(['rendah', 'sedang', 'tinggi']).default('sedang') });\nconst TodoUbah = z.object({ judul: z.string().trim().min(1).max(100), selesai: z.boolean(), prioritas: z.enum(['rendah', 'sedang', 'tinggi']) }).partial();\nfunction periksa(skema, data) {\n  const h = skema.safeParse(data);\n  if (!h.success) throw new AppError(400, 'VALIDASI_GAGAL', h.error.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; '));\n  return h.data;\n}\nexport function buatTodoService(repo) {\n  async function milik(penggunaId, id) {\n    const t = await repo.cari(id);\n    if (!t || t.penggunaId !== penggunaId) throw new AppError(404, 'TODO_TIDAK_ADA', `Todo ${id} tidak ada`);\n    return t;\n  }\n  return {\n    daftar: (penggunaId) => repo.semuaMilik(penggunaId),\n    detail: milik,\n    async tambah(penggunaId, masukan) { return repo.tambah({ ...periksa(TodoBaru, masukan), penggunaId }); },\n    async ubah(penggunaId, id, masukan) { await milik(penggunaId, id); return repo.ubah(id, periksa(TodoUbah, masukan)); },\n    async hapus(penggunaId, id) { await milik(penggunaId, id); await repo.hapus(id); },\n  };\n}\n// === main.js ===\nimport { buatTodoRepo } from './src/repositories/todo.js';\nimport { buatTodoService } from './src/services/todo.js';\nconst todo = buatTodoService(buatTodoRepo());\n\nconst a = await todo.tambah(1, { judul: '  Beli kopi  ', prioritas: 'tinggi' });\nconsole.log(a.judul, a.prioritas, a.selesai);\nfor (const [nama, kerja] of [\n  ['judul kosong', () => todo.tambah(1, { judul: '   ' })],\n  ['prioritas aneh', () => todo.tambah(1, { judul: 'X', prioritas: 'darurat' })],\n  ['milik orang lain', () => todo.ubah(2, a.id, { selesai: true })],\n]) {\n  try {\n    await kerja();\n  } catch (e) {\n    console.log(nama, '->', e.status, e.kode);\n  }\n}\nconsole.log((await todo.ubah(1, a.id, { selesai: true })).selesai);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris keempat?",
+        "options": [
+          "milik orang lain -> 403 TIDAK_BERHAK",
+          "milik orang lain -> 404 TODO_TIDAK_ADA",
+          "milik orang lain -> 400 VALIDASI_GAGAL",
+          "milik orang lain -> 200 undefined"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 20,
+          "note": "Judul dipangkas lalu diperiksa panjangnya."
+        },
+        {
+          "line": 21,
+          "note": "PATCH: semua kolom opsional."
+        },
+        {
+          "line": 22,
+          "note": "Zod gagal menjadi AppError 400."
+        },
+        {
+          "line": 27,
+          "note": "Service menerima repository dari luar."
+        },
+        {
+          "line": 28,
+          "note": "Satu tempat pemeriksaan kepemilikan."
+        }
+      ],
+      "explanation": "Todo milik pengguna 1, tapi diubah oleh pengguna 2. Fungsi milik menganggapnya tidak ada dan melempar AppError 404, sehingga pengguna 2 bahkan tidak tahu todo itu ada.",
+      "tryThis": [
+        {
+          "task": "Ubah todo dengan { judul: 5 }. Apa pesannya?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan aturan: pengguna paling banyak punya 3 todo.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Skema PATCH sama dengan skema tambah**\n\nKlien yang hanya ingin menandai selesai harus mengirim judul juga. Pakai `.partial()`.\n\n**2. Pemeriksaan kepemilikan di setiap rute**\n\nMudah ada satu rute yang lupa. Taruh di service, di satu fungsi.\n\n**3. Menerima `penggunaId` dari body**\n\nKlien bisa membuat todo atas nama orang lain. `penggunaId` selalu dari token, diteruskan oleh controller."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Service seperti ini adalah bagian yang paling banyak diuji dengan **unit test**, karena berisi aturan bisnis yang penting.\n- Pesan validasi yang jelas per kolom (`judul: Too small...`) membantu frontend menampilkan error di bawah kolom yang tepat.\n- Aturan seperti batas jumlah todo, atau hanya pemilik akun premium yang boleh prioritas tinggi, adalah contoh aturan bisnis yang hidup di service."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Todolist API 2: Mandor Todo",
+      "pembuka": "Service todo memastikan setiap todo valid dan hanya bisa diakses pemiliknya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Service menambah todo setelah diperiksa skema Zod.",
+          "jawaban": "import { z } from 'zod';\nconst TodoBaru = z.object({ judul: z.string().trim().min(1) });\nconst data = [];\nconst service = {\n  async tambah(penggunaId, masukan) {\n    const h = TodoBaru.safeParse(masukan);\n    if (!h.success) throw Object.assign(new Error('Data tidak valid'), { status: 400 });\n    const t = { id: data.length + 1, penggunaId, selesai: false, ...h.data };\n    data.push(t);\n    return t;\n  },\n};\nconsole.log(await service.tambah(1, { judul: ' Beli kopi ' }));",
+          "keluaran": "{ id: 1, penggunaId: 1, selesai: false, judul: 'Beli kopi' }",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan `prioritas` di skema: `z.enum(['rendah', 'sedang', 'tinggi']).default('sedang')`. Tambah todo kedua `{ judul: 'Rapat', prioritas: 'tinggi' }` dan cetak prioritas keduanya: `sedang tinggi`.",
+          "jawaban": "import { z } from 'zod';\nconst TodoBaru = z.object({ judul: z.string().trim().min(1), prioritas: z.enum(['rendah', 'sedang', 'tinggi']).default('sedang') });\nconst data = [];\nconst service = {\n  async tambah(penggunaId, masukan) {\n    const h = TodoBaru.safeParse(masukan);\n    if (!h.success) throw Object.assign(new Error('Data tidak valid'), { status: 400 });\n    const t = { id: data.length + 1, penggunaId, selesai: false, ...h.data };\n    data.push(t);\n    return t;\n  },\n};\nconst a = await service.tambah(1, { judul: ' Beli kopi ' });\nconst b = await service.tambah(1, { judul: 'Rapat', prioritas: 'tinggi' });\nconsole.log(a.prioritas, b.prioritas);",
+          "keluaran": "sedang tinggi",
+          "wajib": [
+            {
+              "pola": "z\\.enum\\(\\s*\\[\\s*'rendah'\\s*,\\s*'sedang'\\s*,\\s*'tinggi'\\s*\\]\\s*\\)\\.default\\(\\s*'sedang'\\s*\\)",
+              "pesan": "pakai `z.enum(['rendah', 'sedang', 'tinggi']).default('sedang')`."
+            }
+          ],
+          "petunjuk": "prioritas: z.enum([...]).default('sedang')."
+        },
+        {
+          "arahan": "Tambahkan `async ubah(penggunaId, id, masukan)` yang melempar error berstatus 404 kalau todo tidak ada atau bukan milik `penggunaId`, lalu menerapkan perubahan `{ selesai }` yang diperiksa dengan `z.object({ selesai: z.boolean() }).partial()`. Coba ubah todo 1 oleh pengguna 2 dan cetak `404`.",
+          "jawaban": "import { z } from 'zod';\nconst TodoBaru = z.object({ judul: z.string().trim().min(1), prioritas: z.enum(['rendah', 'sedang', 'tinggi']).default('sedang') });\nconst TodoUbah = z.object({ selesai: z.boolean() }).partial();\nconst data = [];\nconst service = {\n  async tambah(penggunaId, masukan) {\n    const h = TodoBaru.safeParse(masukan);\n    if (!h.success) throw Object.assign(new Error('Data tidak valid'), { status: 400 });\n    const t = { id: data.length + 1, penggunaId, selesai: false, ...h.data };\n    data.push(t);\n    return t;\n  },\n  async ubah(penggunaId, id, masukan) {\n    const t = data.find((x) => x.id === id);\n    if (!t || t.penggunaId !== penggunaId) throw Object.assign(new Error('Todo tidak ada'), { status: 404 });\n    const h = TodoUbah.safeParse(masukan);\n    if (!h.success) throw Object.assign(new Error('Data tidak valid'), { status: 400 });\n    return Object.assign(t, h.data);\n  },\n};\nconst a = await service.tambah(1, { judul: ' Beli kopi ' });\nconst b = await service.tambah(1, { judul: 'Rapat', prioritas: 'tinggi' });\nconsole.log(a.prioritas, b.prioritas);\ntry {\n  await service.ubah(2, 1, { selesai: true });\n} catch (e) {\n  console.log(e.status);\n}",
+          "keluaran": "sedang tinggi\n404",
+          "wajib": [
+            {
+              "pola": "\\.partial\\(\\)",
+              "pesan": "pakai `.partial()` untuk skema ubah."
+            },
+            {
+              "pola": "penggunaId\\s*!==\\s*penggunaId|t\\.penggunaId\\s*!==\\s*penggunaId",
+              "pesan": "periksa pemilik dengan `t.penggunaId !== penggunaId`."
+            }
+          ],
+          "petunjuk": "if (!t || t.penggunaId !== penggunaId) throw ... { status: 404 }; lalu .partial() untuk perubahan.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Service todo memeriksa data dengan Zod dan menjaga todo tetap milik pemiliknya."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa skema untuk PATCH memakai .partial()?",
+          "options": [
+            "Supaya klien boleh mengirim sebagian kolom saja, tapi yang dikirim tetap diperiksa",
+            "Karena PATCH tidak punya body",
+            "Supaya validasi dilewati",
+            "Supaya semua kolom wajib"
+          ],
+          "answer": 0,
+          "explanation": "Sebagian, tapi tetap diperiksa.",
+          "remedial": ".partial() membuat semua kolom opsional. Kolom yang dikirim tetap harus sesuai jenisnya."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { z } from 'zod';\nconst S = z.object({ selesai: z.boolean() }).partial();\nconsole.log(S.safeParse({}).success);\nconsole.log(S.safeParse({ selesai: 'ya' }).success);",
+          "options": [
+            "false / true",
+            "false / false",
+            "true / false",
+            "true / true"
+          ],
+          "answer": 2,
+          "explanation": "partial dan jenis kolom.",
+          "remedial": "Objek kosong lolos karena semua kolom opsional. selesai bernilai teks ya tidak lolos karena harus boolean."
+        },
+        {
+          "question": "Dari mana penggunaId yang diteruskan ke service seharusnya berasal?",
+          "options": [
+            "Dari query ?pengguna=",
+            "Dari token login, diteruskan oleh controller",
+            "Dari judul todo",
+            "Dari body permintaan"
+          ],
+          "answer": 1,
+          "explanation": "Jangan percaya klien.",
+          "remedial": "Kalau penggunaId dari body, klien bisa membuat atau mengubah todo atas nama orang lain."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa todo milik orang lain dijawab 404, bukan 403?",
+      "options": [
+        "Karena todo memang terhapus",
+        "Karena 404 lebih cepat",
+        "Karena 403 tidak ada di Express",
+        "Supaya pengguna tidak tahu bahwa todo dengan id itu ada"
+      ],
+      "answer": 3,
+      "explanation": "Jangan bocorkan keberadaan data."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat skema Zod JudulTodo berupa teks yang dipangkas (trim), minimal 1 dan maksimal 10 karakter. Cetak hasil safeParse untuk '  Kopi  ' (nilai data) dan untuk 'Judul yang terlalu panjang' (success): Kopi lalu false",
+      "starterCode": "import { z } from 'zod';\n",
+      "solution": "import { z } from 'zod';\nconst JudulTodo = z.string().trim().min(1).max(10);\nconsole.log(JudulTodo.safeParse('  Kopi  ').data);\nconsole.log(JudulTodo.safeParse('Judul yang terlalu panjang').success);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Kopi\nfalse\n"
+        }
+      ],
+      "hints": [
+        "z.string().trim().min(1).max(10).",
+        "safeParse(...).data untuk nilai, .success untuk hasil."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Service todo: validasi Zod dan aturan bisnis.",
+        ".partial() untuk skema PATCH.",
+        "Kegagalan Zod menjadi AppError 400.",
+        "Kepemilikan diperiksa di satu fungsi; bukan milik berarti 404.",
+        "penggunaId selalu dari token, bukan dari body."
+      ]
+    }
+  ]
+}

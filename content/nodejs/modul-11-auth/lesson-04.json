@@ -1,0 +1,201 @@
+{
+  "id": "node-auth-04",
+  "moduleId": "node-auth",
+  "order": 4,
+  "title": "Login dan Middleware Autentikasi",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Alur login dengan JWT:\n\n1. Klien mengirim `POST /auth/masuk` dengan email dan password.\n2. Server mencari pengguna dan memeriksa password dengan `bcrypt.compare`.\n3. Kalau cocok, server membuat token dan mengirimkannya.\n4. Klien menyimpan token dan mengirimnya di header setiap permintaan:\n\n```text\nAuthorization: Bearer eyJhbGciOiJIUzI1NiIs...\n```\n\n5. Middleware `butuhLogin` memeriksa token dan mengisi `req.pengguna`.\n\nIbarat check-in hotel: di resepsionis kamu menunjukkan identitas sekali (login), lalu mendapat kartu kamar (token). Setelah itu cukup tempelkan kartu di pintu, tanpa menunjukkan KTP lagi."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMiddleware autentikasi:\n\n```js\nfunction butuhLogin(req, res, next) {\n  const [jenis, token] = (req.get('authorization') ?? '').split(' ');\n  if (jenis !== 'Bearer' || !token) return res.status(401).json({ error: 'Perlu login' });\n  try {\n    const isi = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });\n    req.pengguna = { id: Number(isi.sub), peran: isi.peran };\n    next();\n  } catch {\n    res.status(401).json({ error: 'Token tidak valid atau kedaluwarsa' });\n  }\n}\n```\n\nUntuk email tidak terdaftar **dan** password salah, kirim pesan yang **sama**: `Email atau password salah`. Pesan yang berbeda memberi tahu penyerang email mana yang terdaftar."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nimport jwt from 'jsonwebtoken';\n\nconst RAHASIA = 'kunci-rahasia-yang-panjang-dan-acak';\nconst pengguna = [{ id: 1, email: 'sari@toko.id', hashPassword: await bcrypt.hash('kopiSusu123', 10), peran: 'admin' }];\nfunction butuhLogin(req, res, next) {\n  const [jenis, token] = (req.get('authorization') ?? '').split(' ');\n  if (jenis !== 'Bearer' || !token) return res.status(401).json({ error: 'Perlu login' });\n  try {\n    const isi = jwt.verify(token, RAHASIA, { algorithms: ['HS256'] });\n    req.pengguna = { id: Number(isi.sub), peran: isi.peran };\n    next();\n  } catch {\n    res.status(401).json({ error: 'Token tidak valid' });\n  }\n}\nconst app = express();\napp.use(express.json());\napp.post('/auth/masuk', async (req, res) => {\n  const p = pengguna.find((x) => x.email === String(req.body.email).toLowerCase());\n  const cocok = p && (await bcrypt.compare(String(req.body.password), p.hashPassword));\n  if (!cocok) return res.status(401).json({ error: 'Email atau password salah' });\n  res.json({ token: jwt.sign({ sub: String(p.id), peran: p.peran }, RAHASIA, { expiresIn: '15m' }) });\n});\napp.get('/saya', butuhLogin, (req, res) => res.json(req.pengguna));\nconst server = app.listen(3000);\n\nconst u = 'http://localhost:3000';\nconst masuk = (email, password) => fetch(u + '/auth/masuk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });\nconsole.log((await (await masuk('rina@toko.id', 'apaSaja123')).json()).error);\nconsole.log((await (await masuk('sari@toko.id', 'salah123')).json()).error);\nconst { token } = await (await masuk('SARI@toko.id', 'kopiSusu123')).json();\nconsole.log((await fetch(u + '/saya')).status);\nconsole.log(await (await fetch(u + '/saya', { headers: { Authorization: `Bearer ${token}` } })).json());\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "{ error: 'Perlu login' }",
+          "{ id: '1', peran: 'admin' }",
+          "{ id: 1, email: 'sari@toko.id', peran: 'admin' }",
+          "{ id: 1, peran: 'admin' }"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Middleware autentikasi."
+        },
+        {
+          "line": 8,
+          "note": "Pisahkan Bearer dan token."
+        },
+        {
+          "line": 11,
+          "note": "Hanya terima algoritma yang dipakai."
+        },
+        {
+          "line": 23,
+          "note": "Pesan sama untuk email dan password salah."
+        },
+        {
+          "line": 26,
+          "note": "Rute yang wajib login."
+        }
+      ],
+      "explanation": "Token berisi sub '1' dan peran admin. Middleware mengubah sub menjadi angka dan menaruhnya di req.pengguna, lalu rute /saya mengirimnya kembali.",
+      "tryThis": [
+        {
+          "task": "Kirim header Authorization: Token abc. Apa jawabannya?",
+          "hint": null
+        },
+        {
+          "task": "Bandingkan pesan error dua baris pertama. Kenapa sama?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Pesan error login yang berbeda**\n\n\"Email tidak terdaftar\" dan \"Password salah\" membantu penyerang menebak email. Pakai satu pesan.\n\n**2. Lupa `try/catch` di sekitar `jwt.verify`**\n\nToken rusak atau kedaluwarsa membuat verify melempar error, dan tanpa penanganan, respons menjadi 500.\n\n**3. Token di URL**\n\n`/saya?token=...` tercatat di log server dan riwayat browser. Kirim di header `Authorization`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Rute login diberi pembatas permintaan yang ketat (misalnya 5 percobaan per menit per IP dan per email) untuk menahan tebakan password massal.\n- Aplikasi web sering menyimpan token di **cookie httpOnly** supaya tidak bisa dibaca JavaScript di halaman (melindungi dari serangan XSS). Aplikasi HP menyimpannya di penyimpanan aman perangkat.\n- Passport.js adalah library middleware autentikasi lama yang masih banyak ditemui di proyek Express."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Login API 4: Kartu Kamar",
+      "pembuka": "Pelanggan login sekali, lalu memakai token untuk membuka halaman profilnya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Endpoint login memberi token kalau password cocok.",
+          "jawaban": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-toko-sari-yang-panjang';\nconst pengguna = [{ id: 1, email: 'rina@toko.id', hashPassword: await bcrypt.hash('rahasia123', 10) }];\nconst app = express();\napp.use(express.json());\napp.post('/auth/masuk', async (req, res) => {\n  const p = pengguna.find((x) => x.email === req.body.email);\n  if (!p || !(await bcrypt.compare(req.body.password, p.hashPassword))) return res.status(401).json({ error: 'Email atau password salah' });\n  res.json({ token: jwt.sign({ sub: String(p.id) }, RAHASIA, { expiresIn: '15m' }) });\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/auth/masuk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'rina@toko.id', password: 'rahasia123' }) });\nconst { token } = await r.json();\nconsole.log(r.status, token.split('.').length);\nserver.close();",
+          "keluaran": "200 3",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat middleware `butuhLogin` yang membaca header `Authorization: Bearer <token>`, memverifikasi token, dan mengisi `req.penggunaId = Number(isi.sub)`, atau menjawab 401. Tambahkan `GET /saya` yang menjawab `{ id: req.penggunaId }`. Cetak hasil fetch `/saya` dengan token: `{ id: 1 }`.",
+          "jawaban": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-toko-sari-yang-panjang';\nconst pengguna = [{ id: 1, email: 'rina@toko.id', hashPassword: await bcrypt.hash('rahasia123', 10) }];\nfunction butuhLogin(req, res, next) {\n  const [jenis, token] = (req.get('authorization') ?? '').split(' ');\n  if (jenis !== 'Bearer' || !token) return res.status(401).json({ error: 'Perlu login' });\n  try {\n    const isi = jwt.verify(token, RAHASIA);\n    req.penggunaId = Number(isi.sub);\n    next();\n  } catch {\n    res.status(401).json({ error: 'Token tidak valid' });\n  }\n}\nconst app = express();\napp.use(express.json());\napp.post('/auth/masuk', async (req, res) => {\n  const p = pengguna.find((x) => x.email === req.body.email);\n  if (!p || !(await bcrypt.compare(req.body.password, p.hashPassword))) return res.status(401).json({ error: 'Email atau password salah' });\n  res.json({ token: jwt.sign({ sub: String(p.id) }, RAHASIA, { expiresIn: '15m' }) });\n});\napp.get('/saya', butuhLogin, (req, res) => res.json({ id: req.penggunaId }));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/auth/masuk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'rina@toko.id', password: 'rahasia123' }) });\nconst { token } = await r.json();\nconsole.log(r.status, token.split('.').length);\nconsole.log(await (await fetch('http://localhost:3000/saya', { headers: { Authorization: `Bearer ${token}` } })).json());\nserver.close();",
+          "keluaran": "200 3\n{ id: 1 }",
+          "wajib": [
+            {
+              "pola": "function\\s+butuhLogin",
+              "pesan": "buat `function butuhLogin`."
+            },
+            {
+              "pola": "jwt\\.verify\\(",
+              "pesan": "periksa dengan `jwt.verify`."
+            },
+            {
+              "pola": "app\\.get\\(\\s*'/saya'\\s*,\\s*butuhLogin",
+              "pesan": "pasang `butuhLogin` di `'/saya'`."
+            }
+          ],
+          "petunjuk": "const [jenis, token] = (req.get('authorization') ?? '').split(' '); lalu jwt.verify di dalam try."
+        },
+        {
+          "arahan": "Uji keamanan: fetch `/saya` tanpa header, lalu dengan `Bearer token-palsu`. Cetak kedua status di baris terakhir dipisah spasi: `401 401`.",
+          "jawaban": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-toko-sari-yang-panjang';\nconst pengguna = [{ id: 1, email: 'rina@toko.id', hashPassword: await bcrypt.hash('rahasia123', 10) }];\nfunction butuhLogin(req, res, next) {\n  const [jenis, token] = (req.get('authorization') ?? '').split(' ');\n  if (jenis !== 'Bearer' || !token) return res.status(401).json({ error: 'Perlu login' });\n  try {\n    const isi = jwt.verify(token, RAHASIA);\n    req.penggunaId = Number(isi.sub);\n    next();\n  } catch {\n    res.status(401).json({ error: 'Token tidak valid' });\n  }\n}\nconst app = express();\napp.use(express.json());\napp.post('/auth/masuk', async (req, res) => {\n  const p = pengguna.find((x) => x.email === req.body.email);\n  if (!p || !(await bcrypt.compare(req.body.password, p.hashPassword))) return res.status(401).json({ error: 'Email atau password salah' });\n  res.json({ token: jwt.sign({ sub: String(p.id) }, RAHASIA, { expiresIn: '15m' }) });\n});\napp.get('/saya', butuhLogin, (req, res) => res.json({ id: req.penggunaId }));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/auth/masuk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'rina@toko.id', password: 'rahasia123' }) });\nconst { token } = await r.json();\nconsole.log(r.status, token.split('.').length);\nconsole.log(await (await fetch('http://localhost:3000/saya', { headers: { Authorization: `Bearer ${token}` } })).json());\nconst a = await fetch('http://localhost:3000/saya');\nconst palsu = 'Bearer token-palsu';\nconst b = await fetch('http://localhost:3000/saya', { headers: { Authorization: palsu } });\nconsole.log(a.status, b.status);\nserver.close();",
+          "keluaran": "200 3\n{ id: 1 }\n401 401",
+          "wajib": [
+            {
+              "pola": "'Bearer token-palsu'",
+              "pesan": "simpan `'Bearer token-palsu'` di variabel lalu kirim."
+            }
+          ],
+          "petunjuk": "Dua fetch: tanpa headers, dan dengan { Authorization: 'Bearer token-palsu' }.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Pelanggan kini login sekali dan memakai token untuk membuka profilnya, sedangkan token palsu ditolak."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di mana klien mengirim token JWT pada setiap permintaan?",
+          "options": [
+            "Di query ?token=",
+            "Di nama jalur",
+            "Di header Authorization dengan awalan Bearer",
+            "Di body setiap GET"
+          ],
+          "answer": 2,
+          "explanation": "Authorization: Bearer.",
+          "remedial": "Header Authorization adalah tempat standar untuk token. Token di URL bisa tercatat di log dan riwayat browser."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const [jenis, token] = 'Bearer abc'.split(' ');\nconsole.log(jenis);\nconsole.log(token);",
+          "options": [
+            "Bearer abc / undefined",
+            "Bearer / abc",
+            "abc / Bearer",
+            "undefined / undefined"
+          ],
+          "answer": 1,
+          "explanation": "split pada spasi.",
+          "remedial": "Header dipecah pada spasi menjadi jenis Bearer dan token abc."
+        },
+        {
+          "question": "Kenapa pesan login salah dibuat sama untuk email tidak terdaftar dan password salah?",
+          "options": [
+            "Supaya kode lebih pendek",
+            "Karena bcrypt tidak bisa membedakannya",
+            "Karena status 401 hanya boleh punya satu pesan",
+            "Supaya penyerang tidak bisa menebak email mana yang punya akun"
+          ],
+          "answer": 3,
+          "explanation": "Jangan bocorkan informasi.",
+          "remedial": "Pesan yang berbeda memberi tahu penyerang bahwa email itu terdaftar, sehingga ia tinggal menebak password-nya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Di mana token sebaiknya disimpan di aplikasi web supaya tidak bisa dibaca JavaScript di halaman?",
+      "options": [
+        "Di localStorage",
+        "Di cookie httpOnly",
+        "Di variabel global window",
+        "Di URL"
+      ],
+      "answer": 1,
+      "explanation": "Melindungi dari serangan XSS."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi ambilToken(header) yang mengembalikan token kalau header berbentuk Bearer <token>, atau null kalau tidak. Cetak hasil untuk 'Bearer xyz', 'Token xyz', dan undefined, masing-masing di baris sendiri: xyz, null, null",
+      "starterCode": "function ambilToken(header) {}\n",
+      "solution": "function ambilToken(header) {\n  const [jenis, token] = (header ?? '').split(' ');\n  if (jenis !== 'Bearer' || !token) return null;\n  return token;\n}\nconsole.log(ambilToken('Bearer xyz'));\nconsole.log(ambilToken('Token xyz'));\nconsole.log(ambilToken(undefined));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "xyz\nnull\nnull\n"
+        }
+      ],
+      "hints": [
+        "(header ?? '').split(' ') supaya undefined tidak error.",
+        "if (jenis !== 'Bearer' || !token) return null;"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Login: cari pengguna, bcrypt.compare, lalu kirim token.",
+        "Klien mengirim Authorization: Bearer <token>.",
+        "Middleware butuhLogin memverifikasi token dan mengisi req.pengguna.",
+        "Token tidak ada atau tidak valid: 401.",
+        "Pesan login salah dibuat sama untuk email dan password."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,210 @@
+{
+  "id": "node-auth-06",
+  "moduleId": "node-auth",
+  "order": 6,
+  "title": "Proyek Mini: Login API Toko",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **sistem akun toko** dengan pendaftaran, login, profil, dan rute khusus admin.\n\n| Rute | Akses |\n|---|---|\n| `POST /auth/daftar` | umum |\n| `POST /auth/masuk` | umum |\n| `GET /saya` | perlu login |\n| `GET /admin/pengguna` | khusus admin |\n\nSemua materi dipakai: hash bcrypt, validasi Zod, JWT dengan masa berlaku, middleware autentikasi, otorisasi peran, dan respons tanpa hash.\n\nIbarat sistem keanggotaan pusat kebugaran: pendaftaran di meja depan, kartu anggota untuk masuk, dan ruang pengelola yang hanya bisa dibuka staf."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKunci rahasia dibaca dari variabel lingkungan dan **diperiksa** saat aplikasi mulai:\n\n```js\nconst JWT_SECRET = process.env.JWT_SECRET;\nif (!JWT_SECRET || JWT_SECRET.length < 32) {\n  throw new Error('JWT_SECRET wajib diisi, minimal 32 karakter');\n}\n```\n\nKunci acak yang kuat bisa dibuat dengan:\n\n```bash\nnode -e \"console.log(require('node:crypto').randomBytes(32).toString('hex'))\"\n```\n\nAplikasi yang langsung berhenti kalau pengaturan penting kosong lebih aman daripada aplikasi yang diam-diam berjalan dengan kunci kosong."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nimport jwt from 'jsonwebtoken';\nimport { z } from 'zod';\n\nprocess.env.JWT_SECRET = 'contoh-kunci-di-editor-minimal-32-karakter!';\nconst JWT_SECRET = process.env.JWT_SECRET;\nif (!JWT_SECRET || JWT_SECRET.length < 32) throw new Error('JWT_SECRET wajib diisi, minimal 32 karakter');\n\nconst pengguna = [];\nconst Akun = z.object({ email: z.email().toLowerCase(), password: z.string().min(8) });\nconst tampil = ({ hashPassword, ...p }) => p;\nfunction butuhLogin(req, res, next) {\n  const [jenis, token] = (req.get('authorization') ?? '').split(' ');\n  try {\n    if (jenis !== 'Bearer') throw new Error();\n    const isi = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });\n    req.pengguna = pengguna.find((p) => p.id === Number(isi.sub));\n    if (!req.pengguna) throw new Error();\n    next();\n  } catch {\n    res.status(401).json({ error: 'Perlu login' });\n  }\n}\nconst butuhPeran = (peran) => (req, res, next) => (req.pengguna.peran === peran ? next() : res.status(403).json({ error: 'Tidak berhak' }));\n\nconst app = express();\napp.use(express.json());\napp.post('/auth/daftar', async (req, res) => {\n  const h = Akun.safeParse(req.body);\n  if (!h.success) return res.status(400).json({ error: 'Data tidak valid' });\n  if (pengguna.some((p) => p.email === h.data.email)) return res.status(409).json({ error: 'Email sudah terdaftar' });\n  const baru = { id: pengguna.length + 1, email: h.data.email, hashPassword: await bcrypt.hash(h.data.password, 10), peran: pengguna.length === 0 ? 'admin' : 'pelanggan' };\n  pengguna.push(baru);\n  res.status(201).json(tampil(baru));\n});\napp.post('/auth/masuk', async (req, res) => {\n  const p = pengguna.find((x) => x.email === String(req.body.email).toLowerCase());\n  if (!p || !(await bcrypt.compare(String(req.body.password), p.hashPassword))) return res.status(401).json({ error: 'Email atau password salah' });\n  res.json({ token: jwt.sign({ sub: String(p.id) }, JWT_SECRET, { expiresIn: '15m' }) });\n});\napp.get('/saya', butuhLogin, (req, res) => res.json(tampil(req.pengguna)));\napp.get('/admin/pengguna', butuhLogin, butuhPeran('admin'), (req, res) => res.json(pengguna.map(tampil)));\nconst server = app.listen(3000);\n\nconst u = 'http://localhost:3000';\nconst post = (jalur, body) => fetch(u + jalur, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\nawait post('/auth/daftar', { email: 'sari@toko.id', password: 'pemilikToko1' });\nawait post('/auth/daftar', { email: 'rina@toko.id', password: 'pelanggan123' });\nconst tokenRina = (await (await post('/auth/masuk', { email: 'rina@toko.id', password: 'pelanggan123' })).json()).token;\nconst tokenSari = (await (await post('/auth/masuk', { email: 'sari@toko.id', password: 'pemilikToko1' })).json()).token;\nconst get = (jalur, token) => fetch(u + jalur, { headers: { Authorization: `Bearer ${token}` } });\nconsole.log(await (await get('/saya', tokenRina)).json());\nconsole.log((await get('/admin/pengguna', tokenRina)).status);\nconsole.log((await (await get('/admin/pengguna', tokenSari)).json()).map((p) => p.email));\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "{ error: 'Perlu login' }",
+          "{ id: 2, email: 'rina@toko.id', peran: 'pelanggan' }",
+          "{ id: 2, email: 'rina@toko.id', hashPassword: '...', peran: 'pelanggan' }",
+          "{ id: 1, email: 'sari@toko.id', peran: 'admin' }"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 8,
+          "note": "Berhenti kalau kunci lemah atau kosong."
+        },
+        {
+          "line": 12,
+          "note": "Buang hash dari semua respons."
+        },
+        {
+          "line": 18,
+          "note": "Ambil data terbaru pengguna dari penyimpanan."
+        },
+        {
+          "line": 33,
+          "note": "Pengguna pertama menjadi admin (contoh)."
+        },
+        {
+          "line": 43,
+          "note": "Rute khusus admin."
+        }
+      ],
+      "explanation": "Rina adalah pengguna kedua, sehingga id-nya 2 dan perannya pelanggan. Fungsi tampil membuang hashPassword sebelum dikirim.",
+      "tryThis": [
+        {
+          "task": "Login dengan password Rina yang salah. Apa jawabannya?",
+          "hint": null
+        },
+        {
+          "task": "Ganti JWT_SECRET menjadi teks pendek. Apa yang terjadi?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Middleware memakai isi token tanpa memeriksa pengguna masih ada**\n\nPengguna yang sudah dihapus atau diblokir masih bisa memakai token lamanya. Ambil data pengguna terbaru, seperti `req.pengguna = pengguna.find(...)`.\n\n**2. Kunci rahasia kosong saat produksi**\n\n`jwt.sign(data, undefined)` melempar error, tapi kunci seperti `'secret'` atau `'123'` diterima dan mudah ditebak. Periksa panjangnya saat aplikasi mulai.\n\n**3. Admin pertama dibuat lewat pendaftaran publik**\n\nContoh di atas hanya untuk latihan. Di produksi, akun admin dibuat lewat script atau database, bukan lewat endpoint publik."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Sistem login sungguhan biasanya ditambah: verifikasi email, lupa password (token sekali pakai lewat email), pembatas percobaan login, dan sering kali **2FA** (kode dari aplikasi autentikator).\n- Kalau tidak ingin membangun semua itu, tim memakai layanan seperti **Supabase Auth**, **Clerk**, **Auth0**, atau library seperti **Better Auth** dan **Lucia**.\n- Data yang disimpan di modul ini masih di memori. Di modul berikutnya, pengguna disimpan di PostgreSQL dengan Prisma."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Login API 6: Akun Toko",
+      "pembuka": "Kita rakit sistem akun toko: daftar, masuk, profil, dan rute admin.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Pendaftaran menyimpan pengguna dengan hash password.",
+          "jawaban": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nconst pengguna = [];\nconst app = express();\napp.use(express.json());\napp.post('/auth/daftar', async (req, res) => {\n  const baru = { id: pengguna.length + 1, email: req.body.email, hashPassword: await bcrypt.hash(req.body.password, 10), peran: 'pelanggan' };\n  pengguna.push(baru);\n  res.status(201).json({ id: baru.id, email: baru.email });\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/auth/daftar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'rina@toko.id', password: 'rahasia123' }) });\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "201 { id: 1, email: 'rina@toko.id' }",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan `POST /auth/masuk` yang menjawab `{ token }` (JWT dengan `sub` id pengguna, kunci `RAHASIA` yang kamu buat minimal 32 karakter, `expiresIn: '15m'`), atau 401 `Email atau password salah`. Login sebagai Rina dan cetak jumlah bagian token: `3`.",
+          "jawaban": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-akun-toko-sari-minimal-32-karakter';\nconst pengguna = [];\nconst app = express();\napp.use(express.json());\napp.post('/auth/daftar', async (req, res) => {\n  const baru = { id: pengguna.length + 1, email: req.body.email, hashPassword: await bcrypt.hash(req.body.password, 10), peran: 'pelanggan' };\n  pengguna.push(baru);\n  res.status(201).json({ id: baru.id, email: baru.email });\n});\napp.post('/auth/masuk', async (req, res) => {\n  const p = pengguna.find((x) => x.email === req.body.email);\n  if (!p || !(await bcrypt.compare(req.body.password, p.hashPassword))) return res.status(401).json({ error: 'Email atau password salah' });\n  res.json({ token: jwt.sign({ sub: String(p.id) }, RAHASIA, { expiresIn: '15m' }) });\n});\nconst server = app.listen(3000);\nconst post = (jalur, body) => fetch('http://localhost:3000' + jalur, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\nconst r = await post('/auth/daftar', { email: 'rina@toko.id', password: 'rahasia123' });\nconsole.log(r.status, await r.json());\nconst { token } = await (await post('/auth/masuk', { email: 'rina@toko.id', password: 'rahasia123' })).json();\nconsole.log(token.split('.').length);\nserver.close();",
+          "keluaran": "201 { id: 1, email: 'rina@toko.id' }\n3",
+          "wajib": [
+            {
+              "pola": "app\\.post\\(\\s*'/auth/masuk'",
+              "pesan": "buat rute `'/auth/masuk'`."
+            },
+            {
+              "pola": "jwt\\.sign\\(",
+              "pesan": "buat token dengan `jwt.sign`."
+            },
+            {
+              "pola": "bcrypt\\.compare\\(",
+              "pesan": "periksa dengan `bcrypt.compare`."
+            }
+          ],
+          "petunjuk": "bcrypt.compare lalu jwt.sign({ sub: String(p.id) }, RAHASIA, { expiresIn: '15m' })."
+        },
+        {
+          "arahan": "Tambahkan middleware `butuhLogin` (Bearer + `jwt.verify`, isi `req.pengguna` dari array `pengguna`, atau 401) dan rute `GET /saya` yang menjawab pengguna **tanpa** `hashPassword`. Fetch `/saya` dengan token Rina dan cetak `{ id: 1, email: 'rina@toko.id', peran: 'pelanggan' }`.",
+          "jawaban": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-akun-toko-sari-minimal-32-karakter';\nconst pengguna = [];\nfunction butuhLogin(req, res, next) {\n  const [jenis, token] = (req.get('authorization') ?? '').split(' ');\n  try {\n    if (jenis !== 'Bearer') throw new Error();\n    const isi = jwt.verify(token, RAHASIA);\n    req.pengguna = pengguna.find((p) => p.id === Number(isi.sub));\n    if (!req.pengguna) throw new Error();\n    next();\n  } catch {\n    res.status(401).json({ error: 'Perlu login' });\n  }\n}\nconst app = express();\napp.use(express.json());\napp.post('/auth/daftar', async (req, res) => {\n  const baru = { id: pengguna.length + 1, email: req.body.email, hashPassword: await bcrypt.hash(req.body.password, 10), peran: 'pelanggan' };\n  pengguna.push(baru);\n  res.status(201).json({ id: baru.id, email: baru.email });\n});\napp.post('/auth/masuk', async (req, res) => {\n  const p = pengguna.find((x) => x.email === req.body.email);\n  if (!p || !(await bcrypt.compare(req.body.password, p.hashPassword))) return res.status(401).json({ error: 'Email atau password salah' });\n  res.json({ token: jwt.sign({ sub: String(p.id) }, RAHASIA, { expiresIn: '15m' }) });\n});\napp.get('/saya', butuhLogin, (req, res) => {\n  const { hashPassword, ...data } = req.pengguna;\n  res.json(data);\n});\nconst server = app.listen(3000);\nconst post = (jalur, body) => fetch('http://localhost:3000' + jalur, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\nconst r = await post('/auth/daftar', { email: 'rina@toko.id', password: 'rahasia123' });\nconsole.log(r.status, await r.json());\nconst { token } = await (await post('/auth/masuk', { email: 'rina@toko.id', password: 'rahasia123' })).json();\nconsole.log(token.split('.').length);\nconsole.log(await (await fetch('http://localhost:3000/saya', { headers: { Authorization: `Bearer ${token}` } })).json());\nserver.close();",
+          "keluaran": "201 { id: 1, email: 'rina@toko.id' }\n3\n{ id: 1, email: 'rina@toko.id', peran: 'pelanggan' }",
+          "wajib": [
+            {
+              "pola": "function\\s+butuhLogin",
+              "pesan": "buat `function butuhLogin`."
+            },
+            {
+              "pola": "app\\.get\\(\\s*'/saya'\\s*,\\s*butuhLogin",
+              "pesan": "pasang `butuhLogin` di `'/saya'`."
+            },
+            {
+              "pola": "hashPassword\\s*,\\s*\\.\\.\\.",
+              "pesan": "buang `hashPassword` dengan destrukturisasi."
+            }
+          ],
+          "petunjuk": "const { hashPassword, ...data } = req.pengguna; res.json(data);",
+          "tantangan": true,
+          "benar": "Sistem akun toko selesai: daftar dengan hash, masuk dengan JWT, dan profil yang hanya bisa dibuka pemiliknya."
+        }
+      ],
+      "penutup": "Sistem akun toko berjalan lengkap: pendaftaran, login dengan JWT, profil, dan rute admin yang terlindungi."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa middleware mengambil data pengguna terbaru dari penyimpanan, bukan hanya memakai isi token?",
+          "options": [
+            "Karena token tidak berisi id",
+            "Karena jwt.verify tidak mengembalikan apa pun",
+            "Supaya pengguna yang dihapus atau diblokir tidak bisa memakai token lamanya",
+            "Supaya token lebih pendek"
+          ],
+          "answer": 2,
+          "explanation": "Token bisa lebih tua dari datanya.",
+          "remedial": "Token tetap sah sampai kedaluwarsa. Memeriksa penyimpanan memastikan akun masih ada dan perannya terbaru."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const tampil = ({ hashPassword, ...p }) => p;\nconsole.log(tampil({ id: 1, hashPassword: 'h', peran: 'admin' }));",
+          "options": [
+            "{ hashPassword: 'h' }",
+            "{}",
+            "{ id: 1, hashPassword: 'h', peran: 'admin' }",
+            "{ id: 1, peran: 'admin' }"
+          ],
+          "answer": 3,
+          "explanation": "Destrukturisasi dengan sisa.",
+          "remedial": "hashPassword diambil ke variabel sendiri, dan sisanya masuk ke p. Jadi p tidak memuat hash."
+        },
+        {
+          "question": "Kenapa aplikasi sebaiknya berhenti saat JWT_SECRET kosong atau terlalu pendek?",
+          "options": [
+            "Supaya server lebih cepat",
+            "Karena process.env wajib diisi semua",
+            "Lebih aman gagal di awal daripada berjalan dengan kunci yang mudah ditebak",
+            "Karena jwt.sign selalu gagal tanpa kunci 32 karakter"
+          ],
+          "answer": 2,
+          "explanation": "Gagal lebih awal.",
+          "remedial": "Kunci lemah membuat semua token bisa dipalsukan. Pemeriksaan saat mulai mencegah aplikasi berjalan dalam keadaan tidak aman."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Fitur keamanan tambahan apa yang umum di sistem login sungguhan?",
+      "options": [
+        "Menyimpan password di cookie",
+        "Mematikan HTTPS supaya cepat",
+        "Mengirim password lewat email setiap minggu",
+        "Verifikasi email, lupa password, pembatas percobaan login, dan 2FA"
+      ],
+      "answer": 3,
+      "explanation": "Lapisan perlindungan tambahan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi periksaKunci(kunci) yang melempar Error berpesan JWT_SECRET wajib diisi, minimal 32 karakter kalau kunci kosong atau kurang dari 32 karakter, atau mengembalikan true. Panggil dengan 'pendek' di try/catch dan cetak pesannya, lalu panggil dengan 'a'.repeat(32) dan cetak hasilnya: pesan error lalu true",
+      "starterCode": "function periksaKunci(kunci) {}\n",
+      "solution": "function periksaKunci(kunci) {\n  if (!kunci || kunci.length < 32) throw new Error('JWT_SECRET wajib diisi, minimal 32 karakter');\n  return true;\n}\ntry {\n  periksaKunci('pendek');\n} catch (e) {\n  console.log(e.message);\n}\nconsole.log(periksaKunci('a'.repeat(32)));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "JWT_SECRET wajib diisi, minimal 32 karakter\ntrue\n"
+        }
+      ],
+      "hints": [
+        "if (!kunci || kunci.length < 32) throw new Error('...');",
+        "return true; lalu cetak kedua hasil."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Sistem akun: daftar, masuk, profil, rute admin.",
+        "Hash bcrypt, validasi Zod, JWT dengan masa berlaku.",
+        "Middleware mengambil data pengguna terbaru.",
+        "Buang hashPassword dari semua respons.",
+        "Periksa JWT_SECRET saat aplikasi mulai."
+      ]
+    }
+  ]
+}

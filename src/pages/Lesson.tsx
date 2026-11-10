@@ -311,7 +311,7 @@ export default function LessonPage() {
                   }
                   if (match && isRun) {
                     const matchedLang = match[1];
-                    const explicitLang = (matchedLang === 'js' || matchedLang === 'javascript') ? 'javascript' : (matchedLang === 'ts' || matchedLang === 'typescript') ? 'typescript' : (matchedLang === 'java' ? 'java' : language);
+                    const explicitLang = (matchedLang === 'js' || matchedLang === 'javascript') ? (language === 'nodejs' ? 'nodejs' : 'javascript') : (matchedLang === 'ts' || matchedLang === 'typescript') ? 'typescript' : (matchedLang === 'java' ? 'java' : language);
                     return (
                       <RunnableCardComponent
                         card={{

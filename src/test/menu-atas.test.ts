@@ -13,8 +13,8 @@ describe('Pencarian menu atas', () => {
     expect(idx.some((h) => h.jenis === 'kelas' && h.id === 'java')).toBe(true);
     expect(idx.some((h) => h.jenis === 'modul' && h.id === 'generics')).toBe(true);
     expect(idx.some((h) => h.jenis === 'materi')).toBe(true);
-    // Kelas yang belum siap tidak ikut
-    expect(idx.some((h) => h.jenis === 'kelas' && h.id === 'nodejs')).toBe(false);
+    expect(idx.some((h) => h.jenis === 'kelas' && h.id === 'nodejs')).toBe(true);
+    expect(idx.some((h) => h.jenis === 'modul' && h.id === 'node-express')).toBe(true);
   });
 
   it('mencari tanpa peduli huruf besar-kecil, semua kata harus ada', () => {

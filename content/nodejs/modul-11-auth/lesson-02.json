@@ -1,0 +1,201 @@
+{
+  "id": "node-auth-02",
+  "moduleId": "node-auth",
+  "order": 2,
+  "title": "Endpoint Pendaftaran",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pendaftaran (*register*) menerima email dan password, memeriksa, lalu menyimpan pengguna baru:\n\n```js\napp.post('/auth/daftar', async (req, res) => {\n  const { email, password } = Daftar.parse(req.body);\n  if (await repo.cariEmail(email)) throw new AppError(409, 'EMAIL_SUDAH_DIPAKAI', 'Email sudah terdaftar');\n  const hashPassword = await bcrypt.hash(password, 10);\n  const p = await repo.tambah({ email, hashPassword, peran: 'pelanggan' });\n  res.status(201).json({ data: { id: p.id, email: p.email } }); // tanpa hash\n});\n```\n\nIbarat membuka rekening bank: petugas memeriksa identitas dan aturan, memastikan belum punya rekening yang sama, lalu memberi buku tabungan tanpa pernah mencatat PIN-mu di buku itu."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nAturan pendaftaran yang umum:\n\n| Aturan | Alasan |\n|---|---|\n| email divalidasi dan dikecilkan (`toLowerCase`) | `Sari@Toko.id` dan `sari@toko.id` dianggap sama |\n| password minimal 8 karakter | standar keamanan dasar |\n| peran tidak dari body | klien tidak boleh mendaftar sebagai admin |\n| email sudah ada: **409** | konflik dengan data yang ada |\n| respons tanpa `hashPassword` | hash tidak untuk klien |\n\nDengan Zod:\n\n```js\nconst Daftar = z.object({\n  email: z.email().toLowerCase(),\n  password: z.string().min(8),\n});\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nimport { z } from 'zod';\n\nconst pengguna = [];\nconst Daftar = z.object({ email: z.email().toLowerCase(), password: z.string().min(8) });\nconst app = express();\napp.use(express.json());\napp.post('/auth/daftar', async (req, res) => {\n  const h = Daftar.safeParse(req.body);\n  if (!h.success) return res.status(400).json({ error: h.error.issues.map((i) => i.path.join('.')) });\n  const { email, password } = h.data;\n  if (pengguna.some((p) => p.email === email)) return res.status(409).json({ error: 'Email sudah terdaftar' });\n  const baru = { id: pengguna.length + 1, email, hashPassword: await bcrypt.hash(password, 10), peran: 'pelanggan' };\n  pengguna.push(baru);\n  res.status(201).json({ id: baru.id, email: baru.email, peran: baru.peran });\n});\nconst server = app.listen(3000);\n\nconst daftar = async (body) => {\n  const r = await fetch('http://localhost:3000/auth/daftar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\n  console.log(r.status, await r.json());\n};\nawait daftar({ email: 'Sari@Toko.id', password: 'kopiSusu123', peran: 'admin' });\nawait daftar({ email: 'sari@toko.id', password: 'lainLagi123' });\nawait daftar({ email: 'bukan-email', password: '123' });\nconsole.log(pengguna[0].hashPassword.startsWith('$2b$'), pengguna.length);\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "201 { id: 1, email: 'Sari@Toko.id', peran: 'admin' }",
+          "201 { id: 1, email: 'sari@toko.id', peran: 'pelanggan' }",
+          "201 { id: 1, email: 'sari@toko.id', peran: 'admin' }",
+          "201 { id: 1, email: 'Sari@Toko.id', peran: 'pelanggan' }"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Validasi email lalu kecilkan huruf."
+        },
+        {
+          "line": 13,
+          "note": "Email sudah ada: 409."
+        },
+        {
+          "line": 14,
+          "note": "Simpan hash, bukan password."
+        },
+        {
+          "line": 14,
+          "note": "Peran ditentukan server, bukan klien."
+        },
+        {
+          "line": 16,
+          "note": "Respons tanpa hash."
+        }
+      ],
+      "explanation": "Email dikecilkan oleh Zod, peran admin dari body diabaikan karena peran ditentukan server, dan respons tidak memuat hash password.",
+      "tryThis": [
+        {
+          "task": "Daftar lagi dengan email SARI@TOKO.ID. Apa statusnya?",
+          "hint": null
+        },
+        {
+          "task": "Cetak pengguna[0] seluruhnya. Apakah password asli tersimpan?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan `req.body` apa adanya**\n\nKlien bisa menyelipkan `peran: 'admin'`. Ambil hanya email dan password.\n\n**2. Mengirim objek pengguna lengkap di respons**\n\n`res.json(pengguna)` ikut mengirim `hashPassword`. Pilih kolom yang dikirim.\n\n**3. Email tidak diseragamkan**\n\nTanpa `toLowerCase`, satu orang bisa punya dua akun dengan huruf berbeda, dan login bisa gagal karena huruf besar."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pendaftaran sungguhan biasanya disertai **verifikasi email**: server mengirim tautan atau kode, dan akun baru aktif setelah dikonfirmasi.\n- Database diberi aturan **unik** pada kolom email sebagai pengaman terakhir, karena dua pendaftaran bersamaan bisa lolos pemeriksaan di kode.\n- Beberapa tim menghindari pesan \"email sudah terdaftar\" di halaman publik supaya penyerang tidak bisa menebak email siapa saja yang punya akun. Sebagai gantinya, selalu kirim email konfirmasi."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Login API 2: Pintu Pendaftaran",
+      "pembuka": "Pelanggan toko bisa mendaftar akun dengan email dan password.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Endpoint pendaftaran menyimpan data dari body apa adanya.",
+          "jawaban": "import express from 'express';\nconst pengguna = [];\nconst app = express();\napp.use(express.json());\napp.post('/auth/daftar', (req, res) => {\n  pengguna.push(req.body);\n  res.status(201).json(req.body);\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/auth/daftar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'rina@toko.id', password: 'rahasia123' }) });\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "201 { email: 'rina@toko.id', password: 'rahasia123' }",
+          "otomatis": true
+        },
+        {
+          "arahan": "Perbaiki: simpan `{ id, email, hashPassword }` dengan `bcrypt.hash(password, 10)`, dan jawab hanya `{ id, email }`. Cetak `201 { id: 1, email: 'rina@toko.id' }`.",
+          "jawaban": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nconst pengguna = [];\nconst app = express();\napp.use(express.json());\napp.post('/auth/daftar', async (req, res) => {\n  const { email, password } = req.body;\n  const baru = { id: pengguna.length + 1, email, hashPassword: await bcrypt.hash(password, 10) };\n  pengguna.push(baru);\n  res.status(201).json({ id: baru.id, email: baru.email });\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/auth/daftar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'rina@toko.id', password: 'rahasia123' }) });\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "201 { id: 1, email: 'rina@toko.id' }",
+          "wajib": [
+            {
+              "pola": "bcrypt\\.hash\\(\\s*password\\s*,\\s*10\\s*\\)",
+              "pesan": "hash dengan `bcrypt.hash(password, 10)`."
+            },
+            {
+              "pola": "hashPassword",
+              "pesan": "simpan di `hashPassword`."
+            }
+          ],
+          "petunjuk": "Penangan async; hashPassword: await bcrypt.hash(password, 10); respons hanya id dan email."
+        },
+        {
+          "arahan": "Tambahkan validasi Zod (`email: z.email().toLowerCase()`, `password: z.string().min(8)`, jawab 400 kalau gagal) dan tolak email yang sudah terdaftar dengan 409. Daftarkan `RINA@toko.id` lagi setelah yang pertama, dan cetak `409` di baris terakhir.",
+          "jawaban": "import express from 'express';\nimport bcrypt from 'bcryptjs';\nimport { z } from 'zod';\nconst Daftar = z.object({ email: z.email().toLowerCase(), password: z.string().min(8) });\nconst pengguna = [];\nconst app = express();\napp.use(express.json());\napp.post('/auth/daftar', async (req, res) => {\n  const h = Daftar.safeParse(req.body);\n  if (!h.success) return res.status(400).json({ error: 'Data tidak valid' });\n  const { email, password } = h.data;\n  if (pengguna.some((p) => p.email === email)) return res.status(409).json({ error: 'Email sudah terdaftar' });\n  const baru = { id: pengguna.length + 1, email, hashPassword: await bcrypt.hash(password, 10) };\n  pengguna.push(baru);\n  res.status(201).json({ id: baru.id, email: baru.email });\n});\nconst server = app.listen(3000);\nconst daftar = (email) => fetch('http://localhost:3000/auth/daftar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: 'rahasia123' }) });\nconst r = await daftar('rina@toko.id');\nconsole.log(r.status, await r.json());\nconsole.log((await daftar('RINA@toko.id')).status);\nserver.close();",
+          "keluaran": "201 { id: 1, email: 'rina@toko.id' }\n409",
+          "wajib": [
+            {
+              "pola": "toLowerCase\\(\\)",
+              "pesan": "kecilkan email dengan `toLowerCase()`."
+            },
+            {
+              "pola": "status\\(\\s*409\\s*\\)",
+              "pesan": "tolak email ganda dengan `status(409)`."
+            }
+          ],
+          "petunjuk": "Daftar.safeParse(req.body); lalu pengguna.some((p) => p.email === email) untuk 409.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Pendaftaran pelanggan kini aman: data divalidasi, password di-hash, email tidak bisa ganda, dan hash tidak pernah dikirim."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa peran pengguna tidak diambil dari body pendaftaran?",
+          "options": [
+            "Supaya klien tidak bisa mendaftarkan dirinya sebagai admin",
+            "Supaya pendaftaran lebih cepat",
+            "Karena peran disimpan di browser",
+            "Karena body tidak bisa berisi teks"
+          ],
+          "answer": 0,
+          "explanation": "Server yang menentukan.",
+          "remedial": "Data dari klien tidak bisa dipercaya. Peran awal selalu ditentukan server, dan diubah hanya oleh admin."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { z } from 'zod';\nconst h = z.object({ email: z.email().toLowerCase() }).safeParse({ email: 'Sari@Toko.ID' });\nconsole.log(h.data.email);\nconsole.log(h.success);",
+          "options": [
+            "Sari@Toko.ID / false",
+            "sari@toko.id / false",
+            "sari@toko.id / true",
+            "Sari@Toko.ID / true"
+          ],
+          "answer": 2,
+          "explanation": "toLowerCase di skema.",
+          "remedial": "Zod memvalidasi email lalu mengubahnya menjadi huruf kecil."
+        },
+        {
+          "question": "Status apa yang tepat kalau email sudah terdaftar?",
+          "options": [
+            "401 Unauthorized",
+            "409 Conflict",
+            "404 Not Found",
+            "400 Bad Request"
+          ],
+          "answer": 1,
+          "explanation": "Konflik dengan data yang ada.",
+          "remedial": "Data yang dikirim sah, tapi berbenturan dengan pengguna yang sudah ada."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pengaman terakhir apa di database supaya email tidak tersimpan ganda?",
+      "options": [
+        "Menyimpan email di file terpisah",
+        "Kolom email bertipe angka",
+        "Indeks pada kolom password",
+        "Aturan unik pada kolom email"
+      ],
+      "answer": 3,
+      "explanation": "Dua pendaftaran bersamaan bisa lolos pemeriksaan di kode."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi tampilkan(pengguna) yang mengembalikan objek tanpa properti hashPassword (pakai destrukturisasi dengan sisa ...lain). Cetak hasil untuk { id: 1, email: 'a@b.id', hashPassword: 'x', peran: 'pelanggan' }: { id: 1, email: 'a@b.id', peran: 'pelanggan' }",
+      "starterCode": "function tampilkan(pengguna) {}\n",
+      "solution": "function tampilkan(pengguna) {\n  const { hashPassword, ...lain } = pengguna;\n  return lain;\n}\nconsole.log(tampilkan({ id: 1, email: 'a@b.id', hashPassword: 'x', peran: 'pelanggan' }));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "{ id: 1, email: 'a@b.id', peran: 'pelanggan' }\n"
+        }
+      ],
+      "hints": [
+        "const { hashPassword, ...lain } = pengguna;",
+        "return lain;"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Pendaftaran: validasi, cek email ganda, hash password, simpan.",
+        "Email diseragamkan dengan toLowerCase.",
+        "Peran ditentukan server, bukan dari body.",
+        "Email sudah ada: 409.",
+        "Respons tidak pernah berisi hash password."
+      ]
+    }
+  ]
+}

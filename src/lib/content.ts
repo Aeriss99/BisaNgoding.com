@@ -16,8 +16,9 @@ import reactModules from '../../content/react/modules.json';
 import excelModules from '../../content/excel/modules.json';
 import pythonModules from '../../content/python/modules.json';
 import typescriptModules from '../../content/typescript/modules.json';
+import nodejsModules from '../../content/nodejs/modules.json';
 
-export const modulesData = [...javaModules, ...jsModules, ...englishModules, ...gitModules, ...mysqlModules, ...linuxModules, ...htmlCssModules, ...restApiModules, ...springBootModules, ...devopsModules, ...tailwindModules, ...reactModules, ...excelModules, ...pythonModules, ...typescriptModules] as Module[];
+export const modulesData = [...javaModules, ...jsModules, ...englishModules, ...gitModules, ...mysqlModules, ...linuxModules, ...htmlCssModules, ...restApiModules, ...springBootModules, ...devopsModules, ...tailwindModules, ...reactModules, ...excelModules, ...pythonModules, ...typescriptModules, ...nodejsModules] as Module[];
 export const coursesData = coursesJson as Course[];
 
 /**

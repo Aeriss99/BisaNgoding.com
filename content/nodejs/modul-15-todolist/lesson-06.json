@@ -1,0 +1,190 @@
+{
+  "id": "node-todolist-06",
+  "moduleId": "node-todolist",
+  "order": 6,
+  "title": "Uji Coba Akhir dan Langkah Berikutnya",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Semua bagian sudah lengkap. Materi terakhir ini menjalankan **alur pengguna utuh** dari awal sampai akhir, seperti yang dilakukan tim QA sebelum rilis:\n\n1. Daftar dan masuk.\n2. Tambah beberapa todo.\n3. Tandai selesai, ubah judul.\n4. Lihat daftar dengan saringan.\n5. Hapus todo.\n6. Coba akses tanpa login dan akses todo orang lain.\n\nIbarat uji coba restoran sebelum buka (*soft opening*): semua alur dicoba dari pintu masuk sampai pembayaran, supaya masalah ketahuan sebelum pelanggan sungguhan datang."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nYang sudah kamu bangun di kelas ini dan **langkah berikutnya** di laptop:\n\n| Sudah | Berikutnya |\n|---|---|\n| Repository memori | `buatTodoRepoPrisma(prisma)` dengan PostgreSQL (modul Database) |\n| Uji manual dengan fetch | tes otomatis dengan `node:test` dan Supertest (modul Testing) |\n| Kunci rahasia di kode | `.env`, log JSON, helmet, cors, rate limit (modul Produksi) |\n| Jalan di editor | deploy ke server atau platform hosting (modul Produksi) |\n\nLengkapi juga **README** proyek: cara menjalankan, daftar variabel lingkungan, dan daftar rute API. README yang rapi membuat proyek layak masuk portofolio."
+    },
+    {
+      "type": "runnable",
+      "code": "// === src/errors.js ===\nexport class AppError extends Error {\n  constructor(status, kode, pesan) { super(pesan); Object.assign(this, { status, kode }); }\n}\n// === src/repositories/todo.js ===\nexport function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async semuaMilik(penggunaId) { return data.filter((t) => t.penggunaId === penggunaId).map((t) => ({ ...t })); },\n    async cari(id) { const t = data.find((x) => x.id === id); return t ? { ...t } : null; },\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async ubah(id, perubahan) { const t = data.find((x) => x.id === id); Object.assign(t, perubahan); return { ...t }; },\n    async hapus(id) { data.splice(data.findIndex((x) => x.id === id), 1); },\n  };\n}\n// === src/services/todo.js ===\nimport { z } from 'zod';\nimport { AppError } from '../errors.js';\nconst TodoBaru = z.object({ judul: z.string().trim().min(1).max(100), prioritas: z.enum(['rendah', 'sedang', 'tinggi']).default('sedang') });\nconst TodoUbah = z.object({ judul: z.string().trim().min(1).max(100), selesai: z.boolean(), prioritas: z.enum(['rendah', 'sedang', 'tinggi']) }).partial();\nfunction periksa(skema, data) {\n  const h = skema.safeParse(data);\n  if (!h.success) throw new AppError(400, 'VALIDASI_GAGAL', h.error.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; '));\n  return h.data;\n}\nconst QueryTodo = z.object({\n  q: z.string().default(''),\n  selesai: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),\n  urut: z.enum(['terbaru', 'prioritas']).default('terbaru'),\n  halaman: z.coerce.number().int().min(1).default(1),\n  per: z.coerce.number().int().min(1).max(50).default(10),\n});\nexport function buatTodoService(repo) {\n  async function milik(penggunaId, id) {\n    const t = await repo.cari(id);\n    if (!t || t.penggunaId !== penggunaId) throw new AppError(404, 'TODO_TIDAK_ADA', `Todo ${id} tidak ada`);\n    return t;\n  }\n  return {\n    async daftar(penggunaId, query = {}) {\n      const { q, selesai, urut, halaman, per } = periksa(QueryTodo, query);\n      let hasil = (await repo.semuaMilik(penggunaId)).filter((t) => t.judul.toLowerCase().includes(q.toLowerCase()) && (selesai === undefined || t.selesai === selesai));\n      const bobot = { tinggi: 0, sedang: 1, rendah: 2 };\n      hasil = hasil.toSorted(urut === 'prioritas' ? (a, b) => bobot[a.prioritas] - bobot[b.prioritas] || a.id - b.id : (a, b) => b.id - a.id);\n      const mulai = (halaman - 1) * per;\n      return { data: hasil.slice(mulai, mulai + per), meta: { total: hasil.length, halaman, per, jumlahHalaman: Math.ceil(hasil.length / per) } };\n    },\n    detail: milik,\n    async tambah(penggunaId, masukan) { return repo.tambah({ ...periksa(TodoBaru, masukan), penggunaId }); },\n    async ubah(penggunaId, id, masukan) { await milik(penggunaId, id); return repo.ubah(id, periksa(TodoUbah, masukan)); },\n    async hapus(penggunaId, id) { await milik(penggunaId, id); await repo.hapus(id); },\n  };\n}\n// === src/routes/todo.js ===\nimport { Router } from 'express';\nexport function buatTodoRouter(todoService) {\n  const r = Router();\n  r.get('/', async (req, res) => res.json(await todoService.daftar(req.pengguna.id, req.query)));\n  r.post('/', async (req, res) => {\n    const t = await todoService.tambah(req.pengguna.id, req.body);\n    res.status(201).location(`${req.baseUrl}/${t.id}`).json({ data: t });\n  });\n  r.get('/:id', async (req, res) => res.json({ data: await todoService.detail(req.pengguna.id, Number(req.params.id)) }));\n  r.patch('/:id', async (req, res) => res.json({ data: await todoService.ubah(req.pengguna.id, Number(req.params.id), req.body) }));\n  r.delete('/:id', async (req, res) => {\n    await todoService.hapus(req.pengguna.id, Number(req.params.id));\n    res.sendStatus(204);\n  });\n  return r;\n}\n// === src/auth.js ===\nimport { Router } from 'express';\nimport bcrypt from 'bcryptjs';\nimport jwt from 'jsonwebtoken';\nimport { z } from 'zod';\nimport { AppError } from './errors.js';\nconst Akun = z.object({ email: z.email().toLowerCase(), password: z.string().min(8) });\nexport function buatAuth({ rahasia }) {\n  const pengguna = [];\n  const router = Router();\n  router.post('/daftar', async (req, res) => {\n    const h = Akun.safeParse(req.body);\n    if (!h.success) throw new AppError(400, 'VALIDASI_GAGAL', 'Email atau password tidak valid');\n    if (pengguna.some((p) => p.email === h.data.email)) throw new AppError(409, 'EMAIL_SUDAH_ADA', 'Email sudah terdaftar');\n    const p = { id: pengguna.length + 1, email: h.data.email, hashPassword: await bcrypt.hash(h.data.password, 10) };\n    pengguna.push(p);\n    res.status(201).json({ data: { id: p.id, email: p.email } });\n  });\n  router.post('/masuk', async (req, res) => {\n    const p = pengguna.find((x) => x.email === String(req.body.email).toLowerCase());\n    if (!p || !(await bcrypt.compare(String(req.body.password), p.hashPassword))) throw new AppError(401, 'LOGIN_GAGAL', 'Email atau password salah');\n    res.json({ data: { token: jwt.sign({ sub: String(p.id) }, rahasia, { expiresIn: '15m' }) } });\n  });\n  function butuhLogin(req, res, next) {\n    const [jenis, token] = (req.get('authorization') ?? '').split(' ');\n    try {\n      if (jenis !== 'Bearer') throw new Error();\n      req.pengguna = { id: Number(jwt.verify(token, rahasia, { algorithms: ['HS256'] }).sub) };\n    } catch {\n      throw new AppError(401, 'PERLU_LOGIN', 'Perlu login');\n    }\n    next();\n  }\n  return { router, butuhLogin };\n}\n// === src/app.js ===\nimport express from 'express';\nimport { AppError } from './errors.js';\nimport { buatTodoRouter } from './routes/todo.js';\nimport { buatAuth } from './auth.js';\nexport function buatApp({ todoService, rahasia }) {\n  const auth = buatAuth({ rahasia });\n  const app = express();\n  app.use(express.json());\n  app.get('/health', (req, res) => res.json({ status: 'ok' }));\n  app.use('/api/v1/auth', auth.router);\n  app.use('/api/v1/todos', auth.butuhLogin, buatTodoRouter(todoService));\n  app.use((req, res) => res.status(404).json({ error: { kode: 'JALUR_TIDAK_ADA', pesan: 'Jalur tidak ditemukan' } }));\n  app.use((err, req, res, next) => {\n    if (!(err instanceof AppError)) err = new AppError(500, 'KESALAHAN_SERVER', 'Terjadi kesalahan di server');\n    res.status(err.status).json({ error: { kode: err.kode, pesan: err.message } });\n  });\n  return app;\n}\n// === main.js ===\nimport { buatTodoRepo } from './src/repositories/todo.js';\nimport { buatTodoService } from './src/services/todo.js';\nimport { buatApp } from './src/app.js';\nconst app = buatApp({ todoService: buatTodoService(buatTodoRepo()), rahasia: 'kunci-todolist-di-editor-minimal-32-karakter' });\nconst server = app.listen(3000);\nconst u = 'http://localhost:3000/api/v1';\nconst kirim = async (method, jalur, body, token) => {\n  const r = await fetch(u + jalur, { method, headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) }, body: body && JSON.stringify(body) });\n  return { status: r.status, isi: r.status === 204 ? null : await r.json() };\n};\nawait kirim('POST', '/auth/daftar', { email: 'sari@toko.id', password: 'rahasia123' });\nconst { isi: { data: { token } } } = await kirim('POST', '/auth/masuk', { email: 'sari@toko.id', password: 'rahasia123' });\nfor (const [judul, prioritas] of [['Stok kopi', 'tinggi'], ['Bayar sewa', 'sedang'], ['Promo akhir pekan', 'rendah']]) {\n  await kirim('POST', '/todos', { judul, prioritas }, token);\n}\nawait kirim('PATCH', '/todos/2', { selesai: true }, token);\nawait kirim('PATCH', '/todos/3', { judul: 'Promo gajian' }, token);\nconst daftar = await kirim('GET', '/todos?selesai=false&urut=prioritas', undefined, token);\nconsole.log(daftar.isi.data.map((t) => `${t.judul} (${t.prioritas})`), daftar.isi.meta.total);\nconsole.log((await kirim('DELETE', '/todos/1', undefined, token)).status);\nconsole.log((await kirim('GET', '/todos', undefined, token)).isi.meta.total);\nconsole.log((await kirim('GET', '/todos')).isi.error.kode);\nconsole.log((await kirim('GET', '/health')).isi.status);\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "0",
+          "2",
+          "3",
+          "1"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 59,
+          "note": "Daftar dengan query: data dan meta."
+        },
+        {
+          "line": 130,
+          "note": "Semua lapisan dirakit di satu tempat."
+        },
+        {
+          "line": 144,
+          "note": "Saringan dan urutan."
+        },
+        {
+          "line": 148,
+          "note": "Tanpa token: PERLU_LOGIN."
+        }
+      ],
+      "explanation": "Ada 3 todo, lalu todo 1 (Stok kopi) dihapus. Tersisa 2 todo: Bayar sewa (sudah selesai) dan Promo gajian.",
+      "tryThis": [
+        {
+          "task": "Tambahkan pengguna kedua dan pastikan ia tidak melihat todo Sari.",
+          "hint": null
+        },
+        {
+          "task": "Coba PATCH dengan { selesai: \"ya\" }. Apa kodenya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Hanya menguji jalur bahagia**\n\nAlur yang berhasil saja tidak cukup. Uji juga tanpa login, data salah, dan data milik orang lain, karena di situlah celah biasanya bersembunyi.\n\n**2. Proyek tanpa README**\n\nOrang lain (dan kamu sendiri beberapa bulan lagi) tidak tahu cara menjalankannya.\n\n**3. Rahasia ikut masuk Git**\n\nSebelum mengunggah ke GitHub, pastikan `.env` ada di `.gitignore` dan tidak ada kunci di kode."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Alur uji seperti di atas biasanya diubah menjadi **tes integrasi otomatis** yang dijalankan setiap kali ada perubahan (CI), sehingga masalah ketahuan sebelum rilis.\n- Proyek portofolio backend yang kuat biasanya punya: API terdokumentasi, autentikasi, validasi, database, tes otomatis, dan alamat demo yang bisa dicoba.\n- Kamu sudah memakai pola yang sama dengan proyek profesional: arsitektur berlapis, dependency injection, error seragam, JWT, dan otorisasi kepemilikan."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Todolist API 6: Uji Coba Akhir",
+      "pembuka": "Kita uji alur pengguna utuh pada API Todolist yang sudah jadi, termasuk jalur yang gagal.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. API Todolist kecil dengan login dan todo.",
+          "jawaban": "import express from 'express';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-todolist-latihan-minimal-32-karakter';\nconst todo = [];\nconst butuhLogin = (req, res, next) => {\n  try {\n    req.penggunaId = Number(jwt.verify((req.get('authorization') ?? '').replace('Bearer ', ''), RAHASIA).sub);\n    next();\n  } catch {\n    res.status(401).json({ error: { kode: 'PERLU_LOGIN' } });\n  }\n};\nconst app = express();\napp.use(express.json());\napp.post('/todos', butuhLogin, (req, res) => {\n  const t = { id: todo.length + 1, penggunaId: req.penggunaId, judul: req.body.judul, selesai: false };\n  todo.push(t);\n  res.status(201).json({ data: t });\n});\napp.get('/todos', butuhLogin, (req, res) => res.json({ data: todo.filter((t) => t.penggunaId === req.penggunaId) }));\nconst server = app.listen(3000);\nconst token = jwt.sign({ sub: '1' }, RAHASIA);\nconst h = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };\nconst r = await fetch('http://localhost:3000/todos', { method: 'POST', headers: h, body: JSON.stringify({ judul: 'Stok kopi' }) });\nconsole.log(r.status);\nserver.close();",
+          "keluaran": "201",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan uji: ambil daftar todo dengan token yang sama dan cetak judulnya (`[ 'Stok kopi' ]`), lalu ambil daftar **tanpa** token dan cetak kode errornya: `PERLU_LOGIN`.",
+          "jawaban": "import express from 'express';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-todolist-latihan-minimal-32-karakter';\nconst todo = [];\nconst butuhLogin = (req, res, next) => {\n  try {\n    req.penggunaId = Number(jwt.verify((req.get('authorization') ?? '').replace('Bearer ', ''), RAHASIA).sub);\n    next();\n  } catch {\n    res.status(401).json({ error: { kode: 'PERLU_LOGIN' } });\n  }\n};\nconst app = express();\napp.use(express.json());\napp.post('/todos', butuhLogin, (req, res) => {\n  const t = { id: todo.length + 1, penggunaId: req.penggunaId, judul: req.body.judul, selesai: false };\n  todo.push(t);\n  res.status(201).json({ data: t });\n});\napp.get('/todos', butuhLogin, (req, res) => res.json({ data: todo.filter((t) => t.penggunaId === req.penggunaId) }));\nconst server = app.listen(3000);\nconst token = jwt.sign({ sub: '1' }, RAHASIA);\nconst h = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };\nconst r = await fetch('http://localhost:3000/todos', { method: 'POST', headers: h, body: JSON.stringify({ judul: 'Stok kopi' }) });\nconsole.log(r.status);\nconsole.log((await (await fetch('http://localhost:3000/todos', { headers: h })).json()).data.map((t) => t.judul));\nconst tanpa = await (await fetch('http://localhost:3000/todos')).json();\nconsole.log(tanpa.error.kode);\nserver.close();",
+          "keluaran": "201\n[ 'Stok kopi' ]\nPERLU_LOGIN",
+          "wajib": [
+            {
+              "pola": "\\.error\\.kode",
+              "pesan": "cetak `error.kode` dari respons tanpa token."
+            }
+          ],
+          "petunjuk": "Dua fetch GET: dengan headers h, lalu tanpa headers (simpan hasilnya di variabel tanpa)."
+        },
+        {
+          "arahan": "Uji keamanan antar pengguna: buat token pengguna 2, ambil daftar todo dengan token itu, dan cetak jumlahnya: `0` di baris terakhir. Todo milik pengguna 1 tidak boleh terlihat.",
+          "jawaban": "import express from 'express';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-todolist-latihan-minimal-32-karakter';\nconst todo = [];\nconst butuhLogin = (req, res, next) => {\n  try {\n    req.penggunaId = Number(jwt.verify((req.get('authorization') ?? '').replace('Bearer ', ''), RAHASIA).sub);\n    next();\n  } catch {\n    res.status(401).json({ error: { kode: 'PERLU_LOGIN' } });\n  }\n};\nconst app = express();\napp.use(express.json());\napp.post('/todos', butuhLogin, (req, res) => {\n  const t = { id: todo.length + 1, penggunaId: req.penggunaId, judul: req.body.judul, selesai: false };\n  todo.push(t);\n  res.status(201).json({ data: t });\n});\napp.get('/todos', butuhLogin, (req, res) => res.json({ data: todo.filter((t) => t.penggunaId === req.penggunaId) }));\nconst server = app.listen(3000);\nconst token = jwt.sign({ sub: '1' }, RAHASIA);\nconst h = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };\nconst r = await fetch('http://localhost:3000/todos', { method: 'POST', headers: h, body: JSON.stringify({ judul: 'Stok kopi' }) });\nconsole.log(r.status);\nconsole.log((await (await fetch('http://localhost:3000/todos', { headers: h })).json()).data.map((t) => t.judul));\nconst tanpa = await (await fetch('http://localhost:3000/todos')).json();\nconsole.log(tanpa.error.kode);\nconst token2 = jwt.sign({ sub: '2' }, RAHASIA);\nconst h2 = { Authorization: `Bearer ${token2}` };\nconsole.log((await (await fetch('http://localhost:3000/todos', { headers: h2 })).json()).data.length);\nserver.close();",
+          "keluaran": "201\n[ 'Stok kopi' ]\nPERLU_LOGIN\n0",
+          "wajib": [
+            {
+              "pola": "sub\\s*:\\s*'2'",
+              "pesan": "buat token dengan `sub: '2'`."
+            }
+          ],
+          "petunjuk": "const token2 = jwt.sign({ sub: '2' }, RAHASIA); lalu fetch dengan header Authorization token2.",
+          "tantangan": true,
+          "benar": "API Todolist lolos uji akhir: alur utama berjalan, akses tanpa login ditolak, dan todo antar pengguna terpisah."
+        }
+      ],
+      "penutup": "API Todolist selesai dan lolos uji alur utuh: daftar, masuk, kelola todo, saringan, dan keamanan antar pengguna."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa uji coba akhir juga mencoba akses tanpa login dan data orang lain?",
+          "options": [
+            "Supaya tes lebih lama",
+            "Supaya server lebih cepat",
+            "Karena celah keamanan biasanya ada di jalur yang gagal, bukan di jalur bahagia",
+            "Karena jalur bahagia tidak perlu diuji"
+          ],
+          "answer": 2,
+          "explanation": "Uji jalur gagal.",
+          "remedial": "API yang hanya diuji untuk alur berhasil bisa lolos dengan celah seperti IDOR atau rute tanpa login."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "let todo = [{ id: 1, selesai: false }, { id: 2, selesai: true }, { id: 3, selesai: false }];\nconst belum = () => todo.filter((t) => !t.selesai).length;\nconsole.log(belum());\ntodo = todo.filter((t) => t.id !== 1);\nconsole.log(belum());",
+          "options": [
+            "2 / 2",
+            "3 / 0",
+            "3 / 1",
+            "2 / 1"
+          ],
+          "answer": 3,
+          "explanation": "Saring lalu hitung.",
+          "remedial": "Ada 3 todo, satu sudah selesai. Total yang belum selesai 2. Todo pertama dihapus, sehingga yang belum selesai tinggal 1."
+        },
+        {
+          "question": "Apa langkah berikutnya untuk mengganti penyimpanan memori Todolist ke PostgreSQL?",
+          "options": [
+            "Menghapus Zod",
+            "Memindahkan semua kode ke satu file",
+            "Membuat repository Prisma dengan fungsi yang sama lalu merakitnya di server.js",
+            "Menulis ulang semua service dan router"
+          ],
+          "answer": 2,
+          "explanation": "Colokan yang sama.",
+          "remedial": "Karena service menerima repository dari luar, cukup buat buatTodoRepoPrisma(prisma) dengan fungsi yang sama dan ganti di bagian perakitan."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa isi README yang baik untuk proyek API?",
+      "options": [
+        "Isi file .env lengkap dengan kuncinya",
+        "Riwayat chat pengembang",
+        "Hanya nama proyek",
+        "Cara menjalankan, daftar variabel lingkungan, dan daftar rute API"
+      ],
+      "answer": 3,
+      "explanation": "Supaya orang lain bisa menjalankan dan memakainya."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi ringkasan(todo) yang mengembalikan teks <selesai>/<total> selesai, misalnya 1/3 selesai. Data: tiga todo dengan selesai true, false, false. Cetak hasilnya: 1/3 selesai",
+      "starterCode": "const todo = [{ selesai: true }, { selesai: false }, { selesai: false }];\n",
+      "solution": "const todo = [{ selesai: true }, { selesai: false }, { selesai: false }];\nfunction ringkasan(todo) {\n  const selesai = todo.filter((t) => t.selesai).length;\n  return `${selesai}/${todo.length} selesai`;\n}\nconsole.log(ringkasan(todo));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "1/3 selesai\n"
+        }
+      ],
+      "hints": [
+        "Hitung yang selesai dengan filter((t) => t.selesai).length.",
+        "Kembalikan template string."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Uji alur utuh: daftar, masuk, kelola todo, saringan, hapus.",
+        "Uji juga jalur gagal: tanpa login, data salah, data orang lain.",
+        "Berikutnya: Prisma, tes otomatis, dan deploy.",
+        "Lengkapi README: cara jalan, variabel lingkungan, daftar rute.",
+        "Pola yang dipakai sama dengan proyek profesional."
+      ]
+    }
+  ]
+}

@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+// @ts-expect-error modul JavaScript tanpa deklarasi tipe
+import { pluginNodeVite, pluginNodeDev } from './src/lib/nodeRuntime/peta.mjs';
 
 // Rilis dari tag memakai nama tag (v0.0.1); build lain memakai 7 huruf commit; lokal = 'lokal'.
 const versi =
@@ -21,6 +23,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    pluginNodeDev(process.cwd()),
     {
       name: 'version-file',
       generateBundle() {
@@ -35,9 +38,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],
       workbox: {
-        // Compiler TypeScript (sekitar 3 MB) tidak ikut diunduh semua pengguna saat aplikasi dipasang.
-        // Diunduh saat kelas TypeScript dipakai, lalu disimpan di cache 'compiler-ts' di bawah.
-        globIgnores: ['**/version.json', '**/tsWorker-*.js'],
+        // Compiler TypeScript (sekitar 3 MB) dan runtime Node.js tiruan tidak ikut diunduh semua pengguna saat
+        // aplikasi dipasang. Diunduh saat kelasnya dipakai, lalu disimpan di cache di bawah.
+        globIgnores: ['**/version.json', '**/tsWorker-*.js', '**/nodeWorker-*.js'],
         skipWaiting: true,
         clientsClaim: true,
         maximumFileSizeToCacheInBytes: 8000000,
@@ -47,6 +50,15 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'compiler-ts',
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: ({ url }) => /\/assets\/nodeWorker-[\w-]+\.js$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'runtime-node',
               expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 180 },
               cacheableResponse: { statuses: [0, 200] },
             },
@@ -89,7 +101,9 @@ export default defineConfig({
       },
     }),
   ],
-  worker: { format: 'es' },
+  worker: { format: 'es', plugins: () => [pluginNodeVite(process.cwd())] },
+  // Saat dev, paket npm runtime Node tiruan di-prebundle; modul bawaan Node-nya diarahkan ke pengganti browser.
+  optimizeDeps: { rolldownOptions: { plugins: [pluginNodeVite(process.cwd())] } },
   base: process.env.GITHUB_PAGES === 'true' ? '/BisaNgoding.com/' : '/',
   build: {
     rollupOptions: {

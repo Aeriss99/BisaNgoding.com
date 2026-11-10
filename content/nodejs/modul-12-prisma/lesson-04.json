@@ -1,0 +1,149 @@
+{
+  "id": "node-prisma-04",
+  "moduleId": "node-prisma",
+  "order": 4,
+  "title": "Prisma Client: Membuat, Membaca, Mengubah, Menghapus",
+  "estimatedMinutes": 15,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setelah skema dimigrasi, buat **Prisma Client** dengan:\n\n```bash\nnpx prisma generate\n```\n\nClient dibuat di folder `generated/prisma` (sesuai `output` di skema). Di Prisma 7, client dihubungkan ke PostgreSQL lewat **driver adapter**:\n\n```js\n// src/db.js\nimport { PrismaPg } from '@prisma/adapter-pg';\nimport { PrismaClient } from '../generated/prisma/client.ts';\n\nexport const prisma = new PrismaClient({\n  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),\n});\n```\n\nClient yang dibuat berupa file TypeScript. Node.js 26 bisa langsung mengimpor file `.ts` tanpa alat tambahan.\n\nIbarat kunci cadangan yang dicetak sesuai bentuk gembok: setiap kali gembok (skema) berubah, kuncinya (client) harus dicetak ulang dengan `generate`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n| Kode | SQL kira-kira |\n|---|---|\n| `prisma.produk.create({ data })` | `INSERT` |\n| `prisma.produk.findMany({ where, orderBy, select })` | `SELECT ... WHERE ... ORDER BY` |\n| `prisma.produk.findUnique({ where: { id } })` | `SELECT ... WHERE id = ...` |\n| `prisma.produk.update({ where, data })` | `UPDATE` |\n| `prisma.produk.delete({ where })` | `DELETE` |\n| `prisma.produk.count()` | `SELECT COUNT(*)` |\n\nSyarat di `where`: `{ harga: { lt: 16000 } }` (kurang dari), `gt`, `gte`, `contains`, dan lainnya. Untuk menambah angka langsung di database: `data: { stok: { decrement: 2 } }`.\n\nScript dijalankan dengan `.env`: `node --env-file=.env scripts/coba-crud.js`. Di akhir script, `prisma.$disconnect()` menutup koneksi."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `npx prisma generate` setelah mengubah skema**\n\nDi Prisma 7, `migrate dev` tidak lagi membuat client. Tanpa generate, client tidak mengenal kolom atau model baru.\n\n**2. Membuat `new PrismaClient()` di setiap permintaan**\n\nSetiap client membuka koneksi sendiri, dan database bisa kehabisan koneksi. Buat sekali di `src/db.js`, lalu impor di mana-mana.\n\n**3. Folder `generated/` masuk Git**\n\nClient bisa dibuat ulang kapan saja. Masukkan `generated/` ke `.gitignore`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- `select` dipakai untuk mengambil kolom yang dibutuhkan saja, supaya data yang dikirim lebih kecil dan kolom rahasia (seperti hash password) tidak ikut terbawa.\n- Prisma Studio (`npx prisma studio`) membuka tampilan tabel di browser untuk melihat dan mengubah data saat pengembangan.\n- Banyak tim menjalankan `prisma generate` otomatis di script `postinstall` atau sebelum `build`, supaya client selalu sesuai skema."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\nLingga sudah menambahkan:\n\n- `src/db.js` berisi Prisma Client seperti di atas,\n- `scripts/coba-crud.js` yang membuat 3 produk, membaca, mengubah stok, dan menghapus satu produk,\n- baris `generated/` di `.gitignore`.\n\nKamu akan membuat client, menjalankan script, lalu memeriksa isi tabel dengan psql."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Database Toko 4: Kelola Produk",
+      "folder": "~/toko-api",
+      "pembuka": "Kita pakai Prisma Client untuk mengelola produk dari JavaScript.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini file penghubung Prisma Client.",
+          "terima": [
+            "cat src/db.js"
+          ],
+          "keluaran": "import { PrismaPg } from '@prisma/adapter-pg';\nimport { PrismaClient } from '../generated/prisma/client.ts';\n\nexport const prisma = new PrismaClient({\n  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),\n});",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat Prisma Client dari skema.",
+          "terima": [
+            "npx prisma generate"
+          ],
+          "keluaran": "Loaded Prisma config from prisma7.config.ts.\n\nPrisma schema loaded from prisma/schema.prisma.\n\n✔ Generated Prisma Client (7.10.1) to ./generated/prisma in 63ms",
+          "petunjuk": "npx prisma generate"
+        },
+        {
+          "arahan": "Jalankan script coba-crud dengan membaca file .env.",
+          "terima": [
+            "node --env-file=.env scripts/coba-crud.js"
+          ],
+          "keluaran": "Dibuat: 1 Kopi Susu\nDi bawah 16000: [\n  { nama: 'Teh Tarik', harga: 12000 },\n  { nama: 'Roti Bakar', harga: 15000 }\n]\nSisa stok Kopi Susu: 3\nJumlah produk: 2",
+          "petunjuk": "node --env-file=.env scripts/coba-crud.js"
+        },
+        {
+          "arahan": "Lihat isi tabel Produk langsung dengan psql. Nama tabel ditulis dengan kutip ganda.",
+          "terima": [
+            "psql \"$DATABASE_URL\" -c \"SELECT id, nama, harga, stok FROM \\\"Produk\\\";\"",
+            "psql $DATABASE_URL -c \"SELECT id, nama, harga, stok FROM \\\"Produk\\\";\"",
+            "psql \"$DATABASE_URL\" -c 'SELECT id, nama, harga, stok FROM \"Produk\";'",
+            "psql $DATABASE_URL -c 'SELECT id, nama, harga, stok FROM \"Produk\";'"
+          ],
+          "keluaran": " id |   nama    | harga | stok \n----+-----------+-------+------\n  2 | Teh Tarik | 12000 |   10\n  1 | Kopi Susu | 18000 |    3\n(2 rows)",
+          "petunjuk": "psql \"$DATABASE_URL\" -c \"SELECT id, nama, harga, stok FROM \\\"Produk\\\";\"",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Produk dibuat, dibaca, diubah, dan dihapus lewat Prisma Client, dan hasilnya terlihat di PostgreSQL."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kapan npx prisma generate perlu dijalankan?",
+          "options": [
+            "Hanya sekali seumur proyek",
+            "Setiap kali server menerima permintaan",
+            "Setiap kali skema Prisma berubah, supaya client sesuai skema",
+            "Sebelum setiap npm install"
+          ],
+          "answer": 2,
+          "explanation": "Cetak ulang kuncinya.",
+          "remedial": "Client dibuat dari skema. Model atau kolom baru baru bisa dipakai setelah client dibuat ulang."
+        },
+        {
+          "question": "Kenapa PrismaClient dibuat sekali di src/db.js?",
+          "options": [
+            "Supaya koneksi database tidak dibuka berulang-ulang",
+            "Karena Express mewajibkannya",
+            "Supaya data tersimpan di file",
+            "Karena PrismaClient hanya boleh diimpor sekali"
+          ],
+          "answer": 0,
+          "explanation": "Satu client, banyak pemakai.",
+          "remedial": "Setiap PrismaClient membuka kumpulan koneksi sendiri. Membuatnya berulang kali bisa menghabiskan batas koneksi database."
+        },
+        {
+          "question": "Apa arti where: { harga: { lt: 16000 } }?",
+          "options": [
+            "Harga lebih dari 16000",
+            "Harga sama dengan 16000",
+            "Ambil data yang harganya kurang dari 16000",
+            "Ubah harga menjadi 16000"
+          ],
+          "answer": 2,
+          "explanation": "lt = less than.",
+          "remedial": "lt berarti kurang dari. Pasangannya: gt (lebih dari), lte dan gte (dengan sama dengan)."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Fungsi Prisma apa yang menutup koneksi database di akhir script?",
+      "options": [
+        "prisma.end()",
+        "prisma.close()",
+        "prisma.stop()",
+        "prisma.$disconnect()"
+      ],
+      "answer": 3,
+      "explanation": "Supaya script bisa selesai."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi untuk mengambil semua produk.",
+      "code": "const semua = await prisma.produk.___();",
+      "answers": [
+        "findMany"
+      ],
+      "explanation": "findMany mengambil banyak baris, bisa dengan where, orderBy, dan select."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "npx prisma generate membuat client di generated/prisma.",
+        "Prisma 7 memakai driver adapter: new PrismaPg({ connectionString }).",
+        "CRUD: create, findMany, findUnique, update, delete, count.",
+        "Buat PrismaClient sekali, impor di mana-mana.",
+        "Jalankan ulang generate setiap skema berubah."
+      ]
+    }
+  ]
+}

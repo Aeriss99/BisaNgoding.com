@@ -160,9 +160,9 @@ describe('syaratSertifikat', () => {
     expect(res?.lulus).toBe(false);
   });
 
-  it('kelas nodejs (soon) → null', () => {
+  it('kelas yang tidak ada → null', () => {
     const p = buatProgresLengkap('java');
-    const res = syaratSertifikat('nodejs', p);
+    const res = syaratSertifikat('tidak-ada', p);
     expect(res).toBeNull();
   });
 });

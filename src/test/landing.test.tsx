@@ -44,8 +44,8 @@ describe('Landing Page "Hujan Stiker"', () => {
   it('kelas soon tidak berupa link', () => {
     renderLanding();
 
+    // Semua kelas bisa saja sudah siap; kalau ada yang soon, ia tidak boleh berupa link.
     const soonCourses = coursesData.filter((c) => c.status === 'soon');
-    expect(soonCourses.length).toBeGreaterThan(0);
 
     const laptopSection = document.getElementById('kelas');
     expect(laptopSection).toBeInTheDocument();

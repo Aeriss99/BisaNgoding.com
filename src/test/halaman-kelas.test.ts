@@ -24,7 +24,6 @@ describe('formatDurasi', () => {
 describe('ringkasanKelas', () => {
   it('kelas yang tidak ada atau belum siap menghasilkan null', () => {
     expect(ringkasanKelas('tidak-ada', progres())).toBeNull();
-    expect(ringkasanKelas('nodejs', progres())).toBeNull();
   });
 
   it('pengguna baru: modul 1 sedang, materi pertama sekarang, sisanya terkunci', () => {

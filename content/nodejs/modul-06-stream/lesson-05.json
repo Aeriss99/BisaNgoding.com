@@ -1,0 +1,186 @@
+{
+  "id": "node-stream-05",
+  "moduleId": "node-stream",
+  "order": 5,
+  "title": "Backpressure: Saat Tujuan Lebih Lambat",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Bagaimana kalau sumber data lebih cepat daripada tujuannya? Misalnya membaca dari disk cepat, tapi mengirim ke jaringan lambat. Data akan menumpuk di memori.\n\nStream mengatasinya dengan **backpressure** (tekanan balik):\n\n- `write()` mengembalikan **`false`** kalau penampung (*buffer*) tujuan sudah penuh.\n- Penulis seharusnya **berhenti** menulis dan menunggu event **`drain`**.\n- Ukuran penampung diatur `highWaterMark` (bawaannya 16 KB untuk byte, 16 objek untuk objectMode).\n\nIbarat menuang air ke corong: kalau corong hampir penuh, kamu berhenti menuang sampai airnya turun, bukan terus menuang sampai tumpah."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMenulis banyak data sambil menghormati backpressure:\n\n```js\nimport { once } from 'node:events';\n\nfor (const baris of semuaBaris) {\n  if (!out.write(baris)) {\n    await once(out, 'drain'); // tunggu penampung kosong\n  }\n}\nout.end();\n```\n\nKabar baiknya: `pipeline` dan `for await` **sudah menangani backpressure otomatis**. Kamu hanya perlu memikirkannya saat memanggil `write()` sendiri di dalam loop."
+    },
+    {
+      "type": "runnable",
+      "code": "import { Writable } from 'node:stream';\nimport { once } from 'node:events';\n\nlet diterima = 0;\nconst lambat = new Writable({\n  highWaterMark: 4,\n  write(potongan, enc, cb) {\n    diterima += potongan.length;\n    setTimeout(cb, 2);\n  },\n});\nconsole.log(lambat.write('ab'), lambat.write('cd'), lambat.write('ef'));\nawait once(lambat, 'drain');\nconsole.log('drain, diterima', diterima);\n\nlet tunggu = 0;\nfor (const s of ['gh', 'ij', 'kl', 'mn', 'op']) {\n  if (!lambat.write(s)) {\n    tunggu++;\n    await once(lambat, 'drain');\n  }\n}\nlambat.end();\nawait once(lambat, 'finish');\nconsole.log('selesai, diterima', diterima, 'menunggu', tunggu, 'kali');",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "true true false",
+          "true true true",
+          "true false false",
+          "false false false"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Penampung hanya 4 byte."
+        },
+        {
+          "line": 9,
+          "note": "Tujuan yang lambat."
+        },
+        {
+          "line": 13,
+          "note": "Tunggu penampung kosong."
+        }
+      ],
+      "explanation": "Penampung berukuran 4 byte. Setelah ab (2 byte), masih di bawah batas: true. Setelah cd, isinya mencapai 4 byte: false. ef tetap diterima, tapi write mengembalikan false juga.",
+      "tryThis": [
+        {
+          "task": "Ganti highWaterMark menjadi 100. Apa yang dicetak baris pertama?",
+          "hint": null
+        },
+        {
+          "task": "Hapus pengecekan write di loop. Apakah data hilang?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengabaikan nilai kembalian `write()`**\n\nData tidak hilang, tapi menumpuk di memori. Untuk jutaan baris, server bisa kehabisan memori.\n\n**2. Menunggu `drain` padahal `write()` mengembalikan true**\n\n`drain` hanya dikirim setelah write mengembalikan false. Menunggunya tanpa alasan membuat program menggantung.\n\n**3. Menulis loop sendiri padahal ada pipeline**\n\nKalau sumbernya bisa dijadikan stream (atau async generator), `pipeline` sudah mengurus backpressure."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Backpressure adalah alasan server Node.js bisa mengirim file berukuran gigabyte ke klien yang koneksinya lambat tanpa memakan memori besar.\n- Saat memproses antrean pesan atau impor data, pola yang sama dipakai: jangan ambil data baru lebih cepat daripada kemampuan memprosesnya.\n- Gejala backpressure yang diabaikan: pemakaian memori server terus naik saat ekspor atau unduhan besar berjalan."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Log Toko 5: Penulis Log Sabar",
+      "pembuka": "Log ditulis ke tujuan yang lambat. Kita tulis dengan sabar supaya memori tidak menumpuk.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Tujuan lambat dengan penampung kecil.",
+          "jawaban": "import { Writable } from 'node:stream';\nconst tujuan = new Writable({\n  highWaterMark: 6,\n  write(potongan, enc, cb) {\n    setTimeout(cb, 2);\n  },\n});\nconsole.log(tujuan.write('log1\\n'));\nconsole.log(tujuan.write('log2\\n'));",
+          "keluaran": "true\nfalse",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tulis 5 baris `log1` sampai `log5` dalam loop. Kalau `write` mengembalikan false, tambah `jeda` dan `await once(tujuan, 'drain')`. Setelah loop, cetak `Jeda: <jeda>` (impor `once` dari `node:events`).",
+          "jawaban": "import { Writable } from 'node:stream';\nimport { once } from 'node:events';\nconst tujuan = new Writable({\n  highWaterMark: 6,\n  write(potongan, enc, cb) {\n    setTimeout(cb, 2);\n  },\n});\nlet jeda = 0;\nfor (let i = 1; i <= 5; i++) {\n  if (!tujuan.write(`log${i}\\n`)) {\n    jeda++;\n    await once(tujuan, 'drain');\n  }\n}\nconsole.log('Jeda:', jeda);",
+          "kodeAwal": "import { Writable } from 'node:stream';\nconst tujuan = new Writable({\n  highWaterMark: 6,\n  write(potongan, enc, cb) {\n    setTimeout(cb, 2);\n  },\n});",
+          "keluaran": "Jeda: 2",
+          "wajib": [
+            {
+              "pola": "once\\(\\s*tujuan\\s*,\\s*'drain'\\s*\\)",
+              "pesan": "tunggu `once(tujuan, 'drain')`."
+            }
+          ],
+          "petunjuk": "if (!tujuan.write(...)) { jeda++; await once(tujuan, 'drain'); }"
+        },
+        {
+          "arahan": "Hitung byte yang benar-benar diterima di `write` (tambahkan `potongan.length` ke `diterima`). Setelah loop, panggil `tujuan.end()`, tunggu `finish`, lalu cetak `Diterima: 25 byte` di baris terakhir.",
+          "jawaban": "import { Writable } from 'node:stream';\nimport { once } from 'node:events';\nlet diterima = 0;\nconst tujuan = new Writable({\n  highWaterMark: 6,\n  write(potongan, enc, cb) {\n    diterima += potongan.length;\n    setTimeout(cb, 2);\n  },\n});\nlet jeda = 0;\nfor (let i = 1; i <= 5; i++) {\n  if (!tujuan.write(`log${i}\\n`)) {\n    jeda++;\n    await once(tujuan, 'drain');\n  }\n}\nconsole.log('Jeda:', jeda);\ntujuan.end();\nawait once(tujuan, 'finish');\nconsole.log(`Diterima: ${diterima} byte`);",
+          "keluaran": "Jeda: 2\nDiterima: 25 byte",
+          "wajib": [
+            {
+              "pola": "once\\(\\s*tujuan\\s*,\\s*'finish'\\s*\\)",
+              "pesan": "tunggu `once(tujuan, 'finish')`."
+            }
+          ],
+          "petunjuk": "diterima += potongan.length di write; tujuan.end(); await once(tujuan, 'finish').",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Log kini ditulis dengan sabar: berhenti saat penampung penuh, dan semua 25 byte sampai tanpa menumpuk."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti write() mengembalikan false?",
+          "options": [
+            "Stream sudah ditutup",
+            "Data terlalu besar dan ditolak",
+            "Penampung tujuan sudah penuh; sebaiknya tunggu event drain",
+            "Data gagal ditulis dan hilang"
+          ],
+          "answer": 2,
+          "explanation": "Data tetap diterima.",
+          "remedial": "false adalah sinyal untuk berhenti sementara. Data yang baru ditulis tetap masuk antrean, tapi menulis lebih banyak membuat memori menumpuk."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { Writable } from 'node:stream';\nconst w = new Writable({ highWaterMark: 3, write(c, e, cb) { setTimeout(cb, 1); } });\nconsole.log(w.write('a'));\nconsole.log(w.write('bcd'));",
+          "options": [
+            "false / false",
+            "true / true",
+            "true / false",
+            "false / true"
+          ],
+          "answer": 2,
+          "explanation": "Penampung 3 byte.",
+          "remedial": "Setelah a, isi penampung 1 byte, masih di bawah batas 3: true. a belum selesai diproses, jadi setelah bcd isinya 4 byte, melewati batas: false."
+        },
+        {
+          "question": "Kapan kamu perlu menangani backpressure sendiri?",
+          "options": [
+            "Setiap kali memakai for await",
+            "Saat memanggil write() sendiri di dalam loop",
+            "Tidak pernah, Node.js selalu mengurusnya",
+            "Setiap kali memakai pipeline"
+          ],
+          "answer": 1,
+          "explanation": "pipeline sudah mengurusnya.",
+          "remedial": "pipeline dan for await sudah menghormati backpressure otomatis. Hanya loop write manual yang perlu memeriksa nilai kembalian dan menunggu drain."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa gejala backpressure yang diabaikan di server?",
+      "options": [
+        "File yang ditulis menjadi kosong",
+        "CPU selalu 0 persen",
+        "Pemakaian memori terus naik saat ekspor atau unduhan besar berjalan",
+        "Server langsung menolak semua permintaan"
+      ],
+      "answer": 2,
+      "explanation": "Data menumpuk di penampung."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Writable w punya highWaterMark 2 dan memproses setiap potongan dengan setTimeout 1 ms. Tulis potongan x, y, z berurutan; setiap kali write mengembalikan false, tunggu drain. Setelah itu panggil end, tunggu finish, lalu cetak: Selesai",
+      "starterCode": "import { Writable } from 'node:stream';\nimport { once } from 'node:events';\nconst w = new Writable({ highWaterMark: 2, write(c, e, cb) { setTimeout(cb, 1); } });\n",
+      "solution": "import { Writable } from 'node:stream';\nimport { once } from 'node:events';\nconst w = new Writable({ highWaterMark: 2, write(c, e, cb) { setTimeout(cb, 1); } });\nfor (const s of ['x', 'y', 'z']) {\n  if (!w.write(s)) await once(w, 'drain');\n}\nw.end();\nawait once(w, 'finish');\nconsole.log('Selesai');\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Selesai\n"
+        }
+      ],
+      "hints": [
+        "for (const s of [...]) { if (!w.write(s)) await once(w, 'drain'); }",
+        "w.end(); await once(w, 'finish')."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Backpressure: tujuan memberi tahu sumber untuk melambat.",
+        "write() mengembalikan false saat penampung penuh.",
+        "Tunggu event drain sebelum menulis lagi.",
+        "highWaterMark mengatur ukuran penampung.",
+        "pipeline dan for await mengurus backpressure otomatis."
+      ]
+    }
+  ]
+}

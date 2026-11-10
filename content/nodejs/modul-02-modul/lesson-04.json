@@ -1,0 +1,190 @@
+{
+  "id": "node-modul-04",
+  "moduleId": "node-modul",
+  "order": 4,
+  "title": "Fitur ESM: import.meta, Top-level await, dan import()",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "ESM di Node.js punya beberapa fitur yang tidak ada di CommonJS:\n\n| Fitur | Untuk |\n|---|---|\n| `import.meta.dirname`, `import.meta.filename` | folder dan lokasi file ini (pengganti `__dirname`) |\n| top-level `await` | memakai `await` langsung di luar fungsi |\n| `import()` | memuat module saat dibutuhkan (dinamis) |\n\n```js\nimport path from 'node:path';\nconst fileData = path.join(import.meta.dirname, 'data', 'menu.json');\n\nconst res = await fetch('http://localhost:3000/menu'); // tanpa fungsi async\n\nif (pakaiDiskon) {\n  const { hitungDiskon } = await import('./diskon.js');\n}\n```\n\nIbarat pesan antar makanan: import biasa seperti menyiapkan semua bahan sebelum restoran buka, sedangkan import() seperti memesan bahan tertentu hanya ketika ada pelanggan yang memintanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`import()` mengembalikan Promise berisi object module. Default export ada di properti `default`:\n\n```js\nconst modul = await import('./config.js');\nconsole.log(modul.default.tema);\n\nconst { default: config } = await import('./config.js'); // sama, dengan destructuring\n```\n\nJalur di `import()` boleh berupa variabel, misalnya memilih file bahasa sesuai pengaturan pengguna:\n\n```js\nconst bahasa = 'id';\nconst teks = await import(`./teks-${bahasa}.js`);\n```\n\nTop-level await membuat file lain yang mengimpor file ini ikut **menunggu** sampai await-nya selesai."
+    },
+    {
+      "type": "runnable",
+      "code": "// === config.js ===\nexport default { tema: 'gelap', bahasa: 'id' };\n// === main.js ===\nimport path from 'node:path';\nconsole.log(path.basename(import.meta.filename));\nconsole.log(import.meta.dirname);\nconst tunggu = (ms) => new Promise((r) => setTimeout(r, ms));\nawait tunggu(10);\nconsole.log('setelah await di level atas');\nconst { default: config } = await import('./config.js');\nconsole.log(config.tema);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "config.js",
+          "/home/sari/proyek/main.js",
+          "undefined",
+          "main.js"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 5,
+          "note": "Lokasi lengkap file ini."
+        },
+        {
+          "line": 8,
+          "note": "await langsung di level atas module."
+        },
+        {
+          "line": 10,
+          "note": "Memuat module saat dibutuhkan."
+        },
+        {
+          "line": 10,
+          "note": "Default export ada di properti default."
+        }
+      ],
+      "explanation": "import.meta.filename berisi lokasi lengkap /home/sari/proyek/main.js, dan path.basename mengambil nama filenya saja: main.js.",
+      "tryThis": [
+        {
+          "task": "Ganti import.meta.dirname menjadi __dirname. Baca error-nya.",
+          "hint": null
+        },
+        {
+          "task": "Ganti destructuring menjadi const config = await import('./config.js'). Apa isi config.tema?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai `__dirname` di ESM**\n\nHasilnya `ReferenceError: __dirname is not defined in ES module scope`. Pakai `import.meta.dirname`. Kode lama memakai `path.dirname(fileURLToPath(import.meta.url))` untuk hal yang sama.\n\n**2. Lupa `.default` pada `import()`**\n\n`const config = await import('./config.js')` berisi object module. Default export-nya di `config.default`.\n\n**3. Top-level await yang lama**\n\nFile yang menunggu lama (misalnya koneksi lambat) membuat semua file yang mengimpornya ikut tertahan. Pakai seperlunya, misalnya untuk memuat konfigurasi saat awal."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- `import.meta.dirname` (Node 20.11 ke atas) dipakai untuk menyusun jalur ke file data, template, atau folder upload yang letaknya relatif terhadap file kode, bukan terhadap folder tempat perintah dijalankan.\n- `import()` dipakai untuk memuat fitur yang jarang dipakai atau plugin, supaya aplikasi mulai lebih cepat.\n- Top-level await umum di script kecil dan file awal aplikasi, misalnya menunggu koneksi database sebelum server mulai menerima permintaan."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Modul Toko 4: Muat Saat Perlu",
+      "pembuka": "Program toko memuat data saat mulai, lalu memuat modul promo hanya kalau ada promo.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Lokasi file data disusun dari folder file ini.",
+          "jawaban": "import path from 'node:path';\nconst fileMenu = path.join(import.meta.dirname, 'data', 'menu.json');\nconsole.log('Data:', fileMenu);",
+          "keluaran": "Data: /home/sari/proyek/data/menu.json",
+          "otomatis": true
+        },
+        {
+          "arahan": "Simulasikan memuat data yang butuh waktu: buat `const muat = () => new Promise((r) => setTimeout(() => r(['Kopi Susu', 'Teh Tarik']), 20));`, lalu `const menu = await muat();` langsung di level atas dan cetak `Menu: 2`.",
+          "jawaban": "import path from 'node:path';\nconst fileMenu = path.join(import.meta.dirname, 'data', 'menu.json');\nconsole.log('Data:', fileMenu);\nconst muat = () => new Promise((r) => setTimeout(() => r(['Kopi Susu', 'Teh Tarik']), 20));\nconst menu = await muat();\nconsole.log('Menu:', menu.length);",
+          "keluaran": "Data: /home/sari/proyek/data/menu.json\nMenu: 2",
+          "wajib": [
+            {
+              "pola": "^const\\s+menu\\s*=\\s*await\\s+muat\\(\\)",
+              "pesan": "pakai `const menu = await muat();` di level atas."
+            }
+          ],
+          "petunjuk": "await boleh dipakai langsung di level atas file ESM."
+        },
+        {
+          "arahan": "Buat file `// === promo.js ===` yang meng-export default `function (harga) { return harga * 0.8; }`. Di main.js, kalau `const adaPromo = true`, muat dengan `await import('./promo.js')` dan cetak `Harga promo: 14400` untuk 18000.",
+          "jawaban": "// === promo.js ===\nexport default function (harga) {\n  return harga * 0.8;\n}\n// === main.js ===\nimport path from 'node:path';\nconst fileMenu = path.join(import.meta.dirname, 'data', 'menu.json');\nconsole.log('Data:', fileMenu);\nconst muat = () => new Promise((r) => setTimeout(() => r(['Kopi Susu', 'Teh Tarik']), 20));\nconst menu = await muat();\nconsole.log('Menu:', menu.length);\nconst adaPromo = true;\nif (adaPromo) {\n  const { default: promo } = await import('./promo.js');\n  console.log('Harga promo:', promo(18000));\n}",
+          "keluaran": "Data: /home/sari/proyek/data/menu.json\nMenu: 2\nHarga promo: 14400",
+          "wajib": [
+            {
+              "pola": "await\\s+import\\(\\s*'\\./promo\\.js'\\s*\\)",
+              "pesan": "muat dengan `await import('./promo.js')`."
+            }
+          ],
+          "petunjuk": "const { default: promo } = await import('./promo.js');",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Program toko memakai fitur ESM: jalur relatif file, await di level atas, dan modul yang dimuat saat perlu."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa pengganti __dirname di ES Module?",
+          "options": [
+            "process.cwd()",
+            "globalThis.__dirname",
+            "import.meta.dirname",
+            "module.dirname"
+          ],
+          "answer": 2,
+          "explanation": "import.meta berisi info file ini.",
+          "remedial": "import.meta.dirname berisi folder file yang sedang dijalankan. process.cwd() berbeda: itu folder tempat perintah node diketik."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "// === angka.js ===\nexport default 5;\n// === main.js ===\nconst m = await import('./angka.js');\nconsole.log(typeof m);\nconsole.log(m.default);",
+          "options": [
+            "object / undefined",
+            "object / 5",
+            "function / 5",
+            "number / 5"
+          ],
+          "answer": 1,
+          "explanation": "import() memberi object module.",
+          "remedial": "import() menghasilkan object module. Default export-nya, yaitu angka 5, ada di properti default."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini dijalankan sebagai ES Module?",
+          "code": "import os from 'node:os';\nconsole.log(os.EOL.length);\nconsole.log(__dirname);",
+          "options": [
+            "Mencetak folder file",
+            "Mencetak undefined",
+            "Mencetak folder kerja",
+            "Error, __dirname tidak ada di ES Module"
+          ],
+          "answer": 3,
+          "explanation": "ESM tidak punya __dirname.",
+          "remedial": "Di ES Module tidak ada variabel __dirname dan __filename. Node berhenti dengan ReferenceError. Pakai import.meta.dirname."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kapan import() dinamis paling berguna?",
+      "options": [
+        "Untuk semua modul supaya lebih cepat",
+        "Untuk memuat modul yang hanya kadang-kadang dibutuhkan",
+        "Untuk membaca file JSON tanpa await",
+        "Untuk menggantikan export"
+      ],
+      "answer": 1,
+      "explanation": "Modul yang jarang dipakai tidak perlu dimuat saat aplikasi mulai."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat file teks-id.js dan teks-en.js yang masing-masing meng-export default salam (Halo dan Hello). Di main.js, pilih bahasa dari const bahasa = en lalu muat file yang sesuai dengan import() dan template string. Cetak salamnya: Hello",
+      "starterCode": "// === teks-id.js ===\nexport default 'Halo';\n// === teks-en.js ===\nexport default 'Hello';\n// === main.js ===\nconst bahasa = 'en';\nconsole.log('Halo');\n",
+      "solution": "// === teks-id.js ===\nexport default 'Halo';\n// === teks-en.js ===\nexport default 'Hello';\n// === main.js ===\nconst bahasa = 'en';\nconst { default: salam } = await import(`./teks-${bahasa}.js`);\nconsole.log(salam);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Hello\n"
+        }
+      ],
+      "hints": [
+        "Jalur import() boleh template string: `./teks-${bahasa}.js`.",
+        "Ambil default export dengan destructuring { default: salam }."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "import.meta.dirname dan import.meta.filename menggantikan __dirname dan __filename.",
+        "await boleh dipakai langsung di level atas file ESM.",
+        "import() memuat module saat dibutuhkan dan mengembalikan Promise.",
+        "Default export hasil import() ada di properti default.",
+        "Top-level await menahan file yang mengimpornya; pakai seperlunya."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "id": "node-todolist-05",
+  "moduleId": "node-todolist",
+  "order": 5,
+  "title": "Pencarian, Saringan, dan Halaman",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pengguna yang aktif bisa punya ratusan todo. Daftar todo diberi query:\n\n| Query | Contoh | Arti |\n|---|---|---|\n| `q` | `?q=kopi` | cari di judul |\n| `selesai` | `?selesai=false` | hanya yang belum selesai |\n| `urut` | `?urut=prioritas` | tinggi dulu, atau `terbaru` (bawaan) |\n| `halaman`, `per` | `?halaman=2&per=10` | halaman, maksimal 50 per halaman |\n\nRespons membawa `data` dan `meta`:\n\n```json\n{ \"data\": [...], \"meta\": { \"total\": 23, \"halaman\": 2, \"per\": 10, \"jumlahHalaman\": 3 } }\n```\n\nIbarat aplikasi catatan di HP: kamu mencari kata, menyembunyikan yang sudah dicentang, dan mengurutkan yang penting di atas."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nQuery `selesai` datang sebagai teks `'true'` atau `'false'`. `z.coerce.boolean()` **tidak** cocok, karena teks `'false'` tidak kosong sehingga menjadi `true`. Pakai enum lalu ubah:\n\n```js\nselesai: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),\n```\n\nPengurutan prioritas memakai **bobot**:\n\n```js\nconst bobot = { tinggi: 0, sedang: 1, rendah: 2 };\nhasil.toSorted((a, b) => bobot[a.prioritas] - bobot[b.prioritas] || a.id - b.id);\n```\n\nValidasi query ada di **service**, sehingga aturan yang sama berlaku walau service dipanggil dari tempat lain."
+    },
+    {
+      "type": "runnable",
+      "code": "// === src/errors.js ===\nexport class AppError extends Error {\n  constructor(status, kode, pesan) { super(pesan); Object.assign(this, { status, kode }); }\n}\n// === src/repositories/todo.js ===\nexport function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async semuaMilik(penggunaId) { return data.filter((t) => t.penggunaId === penggunaId).map((t) => ({ ...t })); },\n    async cari(id) { const t = data.find((x) => x.id === id); return t ? { ...t } : null; },\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async ubah(id, perubahan) { const t = data.find((x) => x.id === id); Object.assign(t, perubahan); return { ...t }; },\n    async hapus(id) { data.splice(data.findIndex((x) => x.id === id), 1); },\n  };\n}\n// === src/services/todo.js ===\nimport { z } from 'zod';\nimport { AppError } from '../errors.js';\nconst TodoBaru = z.object({ judul: z.string().trim().min(1).max(100), prioritas: z.enum(['rendah', 'sedang', 'tinggi']).default('sedang') });\nconst TodoUbah = z.object({ judul: z.string().trim().min(1).max(100), selesai: z.boolean(), prioritas: z.enum(['rendah', 'sedang', 'tinggi']) }).partial();\nfunction periksa(skema, data) {\n  const h = skema.safeParse(data);\n  if (!h.success) throw new AppError(400, 'VALIDASI_GAGAL', h.error.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; '));\n  return h.data;\n}\nconst QueryTodo = z.object({\n  q: z.string().default(''),\n  selesai: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),\n  urut: z.enum(['terbaru', 'prioritas']).default('terbaru'),\n  halaman: z.coerce.number().int().min(1).default(1),\n  per: z.coerce.number().int().min(1).max(50).default(10),\n});\nexport function buatTodoService(repo) {\n  async function milik(penggunaId, id) {\n    const t = await repo.cari(id);\n    if (!t || t.penggunaId !== penggunaId) throw new AppError(404, 'TODO_TIDAK_ADA', `Todo ${id} tidak ada`);\n    return t;\n  }\n  return {\n    async daftar(penggunaId, query = {}) {\n      const { q, selesai, urut, halaman, per } = periksa(QueryTodo, query);\n      let hasil = (await repo.semuaMilik(penggunaId)).filter((t) => t.judul.toLowerCase().includes(q.toLowerCase()) && (selesai === undefined || t.selesai === selesai));\n      const bobot = { tinggi: 0, sedang: 1, rendah: 2 };\n      hasil = hasil.toSorted(urut === 'prioritas' ? (a, b) => bobot[a.prioritas] - bobot[b.prioritas] || a.id - b.id : (a, b) => b.id - a.id);\n      const mulai = (halaman - 1) * per;\n      return { data: hasil.slice(mulai, mulai + per), meta: { total: hasil.length, halaman, per, jumlahHalaman: Math.ceil(hasil.length / per) } };\n    },\n    detail: milik,\n    async tambah(penggunaId, masukan) { return repo.tambah({ ...periksa(TodoBaru, masukan), penggunaId }); },\n    async ubah(penggunaId, id, masukan) { await milik(penggunaId, id); return repo.ubah(id, periksa(TodoUbah, masukan)); },\n    async hapus(penggunaId, id) { await milik(penggunaId, id); await repo.hapus(id); },\n  };\n}\n// === main.js ===\nimport { buatTodoRepo } from './src/repositories/todo.js';\nimport { buatTodoService } from './src/services/todo.js';\nconst todo = buatTodoService(buatTodoRepo());\nfor (const [judul, prioritas] of [['Beli kopi', 'rendah'], ['Bayar listrik', 'tinggi'], ['Kopi darat komunitas', 'sedang'], ['Rapat tim', 'tinggi'], ['Cuci motor', 'rendah']]) {\n  await todo.tambah(1, { judul, prioritas });\n}\nawait todo.ubah(1, 2, { selesai: true });\nconst judul = (h) => h.data.map((t) => t.judul);\nconsole.log(judul(await todo.daftar(1, { q: 'kopi' })));\nconsole.log(judul(await todo.daftar(1, { selesai: 'false', urut: 'prioritas', per: '2' })));\nconsole.log((await todo.daftar(1, { per: '2', halaman: '3' })).meta);\ntry {\n  await todo.daftar(1, { per: '500' });\n} catch (e) {\n  console.log(e.status, e.kode);\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "[ 'Beli kopi', 'Cuci motor' ]",
+          "[ 'Bayar listrik', 'Rapat tim' ]",
+          "[ 'Rapat tim', 'Kopi darat komunitas' ]",
+          "[ 'Rapat tim', 'Bayar listrik' ]"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 29,
+          "note": "Teks true/false menjadi boolean."
+        },
+        {
+          "line": 32,
+          "note": "Batas per halaman."
+        },
+        {
+          "line": 44,
+          "note": "Prioritas tinggi diurutkan lebih dulu."
+        },
+        {
+          "line": 47,
+          "note": "Informasi halaman."
+        }
+      ],
+      "explanation": "Bayar listrik sudah selesai sehingga disaring. Dari yang belum selesai, prioritas tertinggi adalah Rapat tim, lalu Kopi darat komunitas (sedang). Hanya 2 per halaman.",
+      "tryThis": [
+        {
+          "task": "Coba { selesai: 'true' }. Todo apa yang muncul?",
+          "hint": null
+        },
+        {
+          "task": "Cari dengan q yang tidak ada. Berapa jumlahHalaman?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `z.coerce.boolean()` untuk query**\n\n`Boolean('false')` bernilai `true`, sehingga `?selesai=false` justru menampilkan yang sudah selesai.\n\n**2. Mengurutkan array asli**\n\n`hasil.sort(...)` mengubah array aslinya. `toSorted` membuat salinan yang sudah diurutkan.\n\n**3. `meta.total` dihitung sebelum disaring**\n\nTotal harus jumlah data setelah disaring, supaya jumlah halaman benar."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di database, semua ini menjadi satu query: `where` untuk saringan, `orderBy` untuk urutan, `skip` dan `take` untuk halaman (dengan Prisma). Bentuk respons API tetap sama.\n- Untuk pencarian teks yang besar dan cerdas (salah ketik, sinonim), dipakai fitur *full-text search* PostgreSQL atau layanan seperti Meilisearch dan Elasticsearch.\n- Frontend biasanya menyimpan query di URL halaman, sehingga pengguna bisa membagikan atau menyimpan tampilan yang sedang dilihat."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Todolist API 5: Saring dan Cari",
+      "pembuka": "Daftar todo kini bisa dicari, disaring, dan dibagi per halaman.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Semua todo dikembalikan tanpa saringan.",
+          "jawaban": "const todo = [\n  { id: 1, judul: 'Beli kopi', selesai: true },\n  { id: 2, judul: 'Bayar listrik', selesai: false },\n  { id: 3, judul: 'Kopi darat', selesai: false },\n];\nfunction daftar(query) {\n  return todo.map((t) => t.judul);\n}\nconsole.log(daftar({}));",
+          "keluaran": "[ 'Beli kopi', 'Bayar listrik', 'Kopi darat' ]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Validasi query dengan Zod: `q` teks (bawaan `''`) dan `selesai` dengan `z.enum(['true', 'false']).transform((v) => v === 'true').optional()`. Saring todo sesuai keduanya. Cetak hasil `daftar({ q: 'kopi', selesai: 'false' })`: `[ 'Kopi darat' ]`.",
+          "jawaban": "import { z } from 'zod';\nconst todo = [\n  { id: 1, judul: 'Beli kopi', selesai: true },\n  { id: 2, judul: 'Bayar listrik', selesai: false },\n  { id: 3, judul: 'Kopi darat', selesai: false },\n];\nconst Query = z.object({\n  q: z.string().default(''),\n  selesai: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),\n});\nfunction daftar(query) {\n  const { q, selesai } = Query.parse(query);\n  return todo\n    .filter((t) => t.judul.toLowerCase().includes(q.toLowerCase()) && (selesai === undefined || t.selesai === selesai))\n    .map((t) => t.judul);\n}\nconsole.log(daftar({ q: 'kopi', selesai: 'false' }));",
+          "keluaran": "[ 'Kopi darat' ]",
+          "wajib": [
+            {
+              "pola": "\\.transform\\(",
+              "pesan": "ubah teks dengan `.transform`."
+            },
+            {
+              "pola": "selesai\\s*===\\s*undefined",
+              "pesan": "loloskan semua kalau `selesai === undefined`."
+            }
+          ],
+          "petunjuk": "Query.parse(query), lalu filter dengan includes dan selesai === undefined || t.selesai === selesai."
+        },
+        {
+          "arahan": "Tambahkan halaman: `halaman` dan `per` dengan `z.coerce.number().int().min(1)` (bawaan 1 dan 2, `per` maksimal 50), lalu kembalikan `{ data, meta: { total, jumlahHalaman } }`. Cetak `meta` dari `daftar({ per: '2', halaman: '2' })`: `{ total: 3, jumlahHalaman: 2 }`.",
+          "jawaban": "import { z } from 'zod';\nconst todo = [\n  { id: 1, judul: 'Beli kopi', selesai: true },\n  { id: 2, judul: 'Bayar listrik', selesai: false },\n  { id: 3, judul: 'Kopi darat', selesai: false },\n];\nconst Query = z.object({\n  q: z.string().default(''),\n  selesai: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),\n  halaman: z.coerce.number().int().min(1).default(1),\n  per: z.coerce.number().int().min(1).max(50).default(2),\n});\nfunction daftar(query) {\n  const { q, selesai, halaman, per } = Query.parse(query);\n  const hasil = todo\n    .filter((t) => t.judul.toLowerCase().includes(q.toLowerCase()) && (selesai === undefined || t.selesai === selesai))\n    .map((t) => t.judul);\n  const mulai = (halaman - 1) * per;\n  return { data: hasil.slice(mulai, mulai + per), meta: { total: hasil.length, jumlahHalaman: Math.ceil(hasil.length / per) } };\n}\nconsole.log(daftar({ q: 'kopi', selesai: 'false' }).data);\nconsole.log(daftar({ per: '2', halaman: '2' }).meta);",
+          "keluaran": "[ 'Kopi darat' ]\n{ total: 3, jumlahHalaman: 2 }",
+          "wajib": [
+            {
+              "pola": "max\\(\\s*50\\s*\\)",
+              "pesan": "batasi `per` dengan `.max(50)`."
+            },
+            {
+              "pola": "Math\\.ceil\\(",
+              "pesan": "hitung jumlah halaman dengan `Math.ceil`."
+            }
+          ],
+          "petunjuk": "mulai = (halaman - 1) * per; total dari hasil setelah disaring.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Daftar todo kini bisa dicari, disaring berdasarkan status, dan dibagi per halaman dengan aman."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa z.coerce.boolean() tidak cocok untuk query ?selesai=false?",
+          "options": [
+            "Karena query tidak bisa berisi teks",
+            "Karena false selalu diabaikan",
+            "Teks 'false' tidak kosong sehingga diubah menjadi true",
+            "Karena z.coerce.boolean tidak ada"
+          ],
+          "answer": 2,
+          "explanation": "Boolean(teks tidak kosong) = true.",
+          "remedial": "Coerce memakai Boolean(nilai). Semua teks yang tidak kosong, termasuk 'false', menjadi true."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { z } from 'zod';\nconst S = z.enum(['true', 'false']).transform((v) => v === 'true');\nconsole.log(S.parse('true'));\nconsole.log(S.parse('false'));",
+          "options": [
+            "false / false",
+            "true / true",
+            "true / false",
+            "false / true"
+          ],
+          "answer": 2,
+          "explanation": "enum lalu transform.",
+          "remedial": "Teks 'true' diubah menjadi true, dan teks 'false' menjadi false."
+        },
+        {
+          "question": "Kenapa meta.total dihitung setelah data disaring?",
+          "options": [
+            "Karena total sebelum disaring selalu nol",
+            "Supaya jumlah halaman sesuai dengan data yang benar-benar bisa ditampilkan",
+            "Supaya halaman selalu genap",
+            "Supaya lebih cepat"
+          ],
+          "answer": 1,
+          "explanation": "Total dari hasil.",
+          "remedial": "Klien memakai total untuk menampilkan jumlah hasil dan tombol halaman. Total sebelum disaring membuat halaman kosong muncul."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa beda sort dan toSorted pada array?",
+      "options": [
+        "Tidak ada bedanya",
+        "toSorted lebih lambat",
+        "sort mengubah array asli, toSorted mengembalikan salinan yang terurut",
+        "sort hanya untuk angka"
+      ],
+      "answer": 2,
+      "explanation": "Hindari mengubah data asli."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Urutkan todo berdasarkan prioritas dengan bobot { tinggi: 0, sedang: 1, rendah: 2 } memakai toSorted, lalu cetak judulnya. Data: Cuci (rendah), Rapat (tinggi), Belanja (sedang). Keluaran: [ 'Rapat', 'Belanja', 'Cuci' ]",
+      "starterCode": "const todo = [{ judul: 'Cuci', prioritas: 'rendah' }, { judul: 'Rapat', prioritas: 'tinggi' }, { judul: 'Belanja', prioritas: 'sedang' }];\n",
+      "solution": "const todo = [{ judul: 'Cuci', prioritas: 'rendah' }, { judul: 'Rapat', prioritas: 'tinggi' }, { judul: 'Belanja', prioritas: 'sedang' }];\nconst bobot = { tinggi: 0, sedang: 1, rendah: 2 };\nconsole.log(todo.toSorted((a, b) => bobot[a.prioritas] - bobot[b.prioritas]).map((t) => t.judul));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "[ 'Rapat', 'Belanja', 'Cuci' ]\n"
+        }
+      ],
+      "hints": [
+        "const bobot = { tinggi: 0, sedang: 1, rendah: 2 };",
+        "toSorted((a, b) => bobot[a.prioritas] - bobot[b.prioritas])."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Query daftar todo: q, selesai, urut, halaman, per.",
+        "selesai: z.enum(['true', 'false']).transform(...), bukan coerce.boolean.",
+        "Urutkan prioritas dengan bobot dan toSorted.",
+        "Respons { data, meta } dengan total setelah disaring.",
+        "Batasi per halaman maksimal 50."
+      ]
+    }
+  ]
+}

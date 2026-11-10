@@ -1,0 +1,150 @@
+{
+  "id": "node-produksi-03",
+  "moduleId": "node-produksi",
+  "order": 3,
+  "title": "Keamanan HTTP: helmet, cors, Pembatas",
+  "estimatedMinutes": 14,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tiga paket keamanan yang hampir selalu ada di API Express produksi:\n\n```js\nimport helmet from 'helmet';\nimport cors from 'cors';\nimport { rateLimit } from 'express-rate-limit';\n\napp.use(helmet());                               // header keamanan\napp.use(cors({ origin: config.CORS_ORIGIN }));   // asal yang diizinkan browser\nconst batasTulis = rateLimit({ windowMs: 60_000, limit: 5, skip: (req) => req.method === 'GET' });\napp.use('/api/v1/produk', batasTulis, produkRouter);\n```\n\nJuga: `express.json({ limit: '100kb' })` membatasi ukuran body.\n\nIbarat rumah yang aman: pagar dan gembok (helmet), daftar tamu yang boleh masuk (cors), dan batas berapa kali bel boleh ditekan (pembatas)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n| Header dari helmet | Fungsi singkat |\n|---|---|\n| `Content-Security-Policy` | membatasi sumber script dan gambar |\n| `Strict-Transport-Security` | memaksa browser memakai HTTPS |\n| `X-Content-Type-Options: nosniff` | browser tidak menebak jenis file |\n| `X-Frame-Options: SAMEORIGIN` | halaman tidak bisa dibingkai situs lain |\n\nhelmet juga menghapus header `X-Powered-By: Express`.\n\nCORS dengan `origin` tertentu membuat API menjawab `Access-Control-Allow-Origin: http://localhost:5173`, sehingga hanya halaman dari asal itu yang boleh membaca respons di browser.\n\nPembatas menjawab **429** setelah batas terlampaui. Contoh di atas membatasi permintaan tulis (POST) 5 kali per menit."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `cors()` tanpa opsi**\n\nTanpa opsi, semua situs diizinkan (`*`). Untuk API pribadi, sebutkan asal yang diizinkan dari konfigurasi.\n\n**2. Pembatas di memori untuk banyak server**\n\nBawaan express-rate-limit menyimpan hitungan di memori satu proses. Kalau API berjalan di beberapa server, pakai penyimpanan bersama seperti Redis.\n\n**3. Mengira paket ini cukup**\n\nHeader dan pembatas hanya satu lapis. Validasi, autentikasi, otorisasi, dan pembaruan paket tetap wajib."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Daftar **OWASP API Security Top 10** sering dipakai sebagai daftar periksa keamanan API: otorisasi data, autentikasi, pembatasan sumber daya, dan lainnya.\n- Pembatas biasanya paling ketat di rute login, daftar, dan lupa password.\n- Di belakang proxy atau load balancer, atur `app.set('trust proxy', 1)` supaya pembatas membaca IP asli pengguna."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\nLingga sudah mengubah `src/app.js` supaya memakai helmet, cors, pino-http, dan pembatas untuk permintaan tulis (5 per menit), serta `src/server.js` supaya memakai `config` dan logger.\n\nSetelah kamu memasang paketnya, server dijalankan ulang di terminal lain dengan `npm start`."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Rilis API 3: Pagar Rumah",
+      "folder": "~/toko-api",
+      "pembuka": "Kita pasang lapisan keamanan HTTP di API toko dan mengujinya dengan curl.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini bagian awal src/app.js yang baru.",
+          "terima": [
+            "sed -n 1,16p src/app.js"
+          ],
+          "keluaran": "import express from 'express';\nimport helmet from 'helmet';\nimport cors from 'cors';\nimport { rateLimit } from 'express-rate-limit';\nimport { pinoHttp } from 'pino-http';\nimport { AppError } from './errors.js';\nimport { buatProdukRouter } from './routes/produk.js';\n\nexport function buatApp({ produkService, log, corsOrigin = 'http://localhost:5173', cekDatabase }) {\n  const app = express();\n  app.use(helmet());\n  app.use(cors({ origin: corsOrigin }));\n  if (log) app.use(pinoHttp({ logger: log }));\n  app.use(express.json({ limit: '100kb' }));\n\n  app.get('/health', (req, res) => res.json({ status: 'ok' }));",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Pasang helmet, cors, dan express-rate-limit.",
+          "terima": [
+            "npm install helmet cors express-rate-limit",
+            "npm i helmet cors express-rate-limit"
+          ],
+          "keluaran": "\nadded 5 packages, and audited 278 packages in 2s\n\n62 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities\nnpm warn install-scripts 2 packages have install scripts not yet covered by allowScripts:\nnpm warn install-scripts   @prisma/engines@7.10.1 (postinstall: node scripts/postinstall.js)\nnpm warn install-scripts   prisma@7.10.1 (preinstall: node scripts/preinstall-entry.js)\nnpm warn install-scripts\nnpm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.",
+          "petunjuk": "npm install helmet cors express-rate-limit"
+        },
+        {
+          "arahan": "Server sudah dijalankan ulang. Lihat header respons /health dengan curl -sI.",
+          "terima": [
+            "curl -sI localhost:3000/health",
+            "curl -I localhost:3000/health",
+            "curl -sI http://localhost:3000/health"
+          ],
+          "keluaran": "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests\nCross-Origin-Opener-Policy: same-origin\nCross-Origin-Resource-Policy: same-origin\nOrigin-Agent-Cluster: ?1\nReferrer-Policy: no-referrer\nStrict-Transport-Security: max-age=31536000; includeSubDomains\nX-Content-Type-Options: nosniff\nX-DNS-Prefetch-Control: off\nX-Download-Options: noopen\nX-Frame-Options: SAMEORIGIN\nX-Permitted-Cross-Domain-Policies: none\nX-XSS-Protection: 0\nAccess-Control-Allow-Origin: http://localhost:5173\nVary: Origin\nContent-Type: application/json; charset=utf-8\nContent-Length: 15\nETag: W/\"f-VaSQ4oDUiZblZNAEkkN+sX+q3Sg\"\nDate: Tue, 10 Nov 2026 19:43:45 GMT\nConnection: keep-alive\nKeep-Alive: timeout=5",
+          "petunjuk": "curl -sI localhost:3000/health"
+        },
+        {
+          "arahan": "Kirim 7 permintaan POST produk Donat berturut-turut dan cetak kode statusnya saja.",
+          "terima": [
+            "for i in 1 2 3 4 5 6 7; do curl -s -o /dev/null -w \"%{http_code} \" -X POST localhost:3000/api/v1/produk -H \"Content-Type: application/json\" -d '{\"nama\":\"Donat\",\"harga\":7000}'; done; echo",
+            "for i in 1 2 3 4 5 6 7; do curl -s -o /dev/null -w \"%{http_code} \" -X POST localhost:3000/api/v1/produk -H \"Content-Type: application/json\" -d '{\"nama\":\"Donat\",\"harga\":7000}'; done"
+          ],
+          "keluaran": "201 409 409 409 409 429 429 ",
+          "petunjuk": "for i in 1 2 3 4 5 6 7; do curl -s -o /dev/null -w \"%{http_code} \" -X POST localhost:3000/api/v1/produk -H \"Content-Type: application/json\" -d '{\"nama\":\"Donat\",\"harga\":7000}'; done; echo",
+          "tantangan": true
+        }
+      ],
+      "penutup": "API toko kini mengirim header keamanan, hanya mengizinkan asal yang ditentukan, dan menahan permintaan tulis yang terlalu sering."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi helmet()?",
+          "options": [
+            "Membatasi jumlah permintaan",
+            "Menambahkan header keamanan HTTP dan menghapus X-Powered-By",
+            "Memeriksa password",
+            "Mengenkripsi database"
+          ],
+          "answer": 1,
+          "explanation": "Header keamanan.",
+          "remedial": "helmet memasang belasan header seperti Content-Security-Policy dan Strict-Transport-Security dalam satu baris."
+        },
+        {
+          "question": "Kenapa permintaan ke-6 dan ke-7 dijawab 429?",
+          "options": [
+            "Karena body JSON rusak",
+            "Karena server mati",
+            "Karena produk Donat sudah ada",
+            "Batas 5 permintaan tulis per menit sudah terlampaui"
+          ],
+          "answer": 3,
+          "explanation": "Too Many Requests.",
+          "remedial": "Permintaan pertama membuat Donat (201), empat berikutnya ditolak karena nama sudah ada (409), lalu setelah 5 permintaan, pembatas menjawab 429."
+        },
+        {
+          "question": "Apa akibat cors() tanpa opsi origin?",
+          "options": [
+            "Tidak ada situs yang diizinkan",
+            "API menolak semua permintaan",
+            "Hanya localhost yang diizinkan",
+            "Semua situs diizinkan membaca respons API dari browser"
+          ],
+          "answer": 3,
+          "explanation": "Bawaannya bintang.",
+          "remedial": "Tanpa origin, cors menjawab Access-Control-Allow-Origin: *. Untuk API pribadi, sebutkan asal yang diizinkan."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Daftar periksa keamanan apa yang sering dipakai untuk API?",
+      "options": [
+        "ISO 9001",
+        "OWASP API Security Top 10",
+        "SemVer",
+        "Twelve-Factor App"
+      ],
+      "answer": 1,
+      "explanation": "Dari komunitas keamanan OWASP."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi supaya API memasang header keamanan.",
+      "code": "app.use(___());",
+      "answers": [
+        "helmet"
+      ],
+      "explanation": "helmet() memasang header keamanan HTTP."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "helmet memasang header keamanan dan menghapus X-Powered-By.",
+        "cors dengan origin tertentu membatasi siapa yang boleh membaca dari browser.",
+        "express-rate-limit menjawab 429 saat batas terlampaui.",
+        "Batasi ukuran body dengan express.json({ limit }).",
+        "Keamanan berlapis: tetap butuh validasi, autentikasi, otorisasi."
+      ]
+    }
+  ]
+}

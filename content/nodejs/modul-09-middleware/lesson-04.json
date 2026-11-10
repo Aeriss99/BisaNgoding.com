@@ -1,0 +1,201 @@
+{
+  "id": "node-middleware-04",
+  "moduleId": "node-middleware",
+  "order": 4,
+  "title": "Penanganan Error Terpusat",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Express punya jenis middleware khusus untuk error, dengan **empat** parameter:\n\n```js\napp.use((err, req, res, next) => {\n  console.error(err);\n  res.status(err.status ?? 500).json({ error: err.message });\n});\n```\n\nPenangan error ini dipasang **paling bawah**, setelah semua rute. Error sampai ke sini kalau:\n\n- rute atau middleware melempar error (`throw`),\n- fungsi async di rute ditolak (sejak **Express 5** otomatis diteruskan),\n- ada yang memanggil `next(err)`.\n\nIbarat meja pengaduan di mal: setiap toko tidak perlu punya petugas pengaduan sendiri, semua masalah diarahkan ke satu meja yang menangani dengan cara yang sama."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKelas error dengan status membuat rute cukup melempar:\n\n```js\nclass HttpError extends Error {\n  constructor(status, message) {\n    super(message);\n    this.status = status;\n  }\n}\n\napp.get('/menu/:id', async (req, res) => {\n  const m = await cariMenu(req.params.id);\n  if (!m) throw new HttpError(404, 'Menu tidak ada');\n  res.json(m);\n});\n```\n\nPenangan 404 untuk jalur yang tidak dikenal juga dipasang di bawah semua rute (tapi di atas penangan error):\n\n```js\napp.use((req, res) => res.status(404).json({ error: 'Jalur tidak ditemukan' }));\n```\n\nUntuk error 500, kirim pesan umum ke klien dan catat detailnya di log."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\nimport { z } from 'zod';\n\nclass HttpError extends Error {\n  constructor(status, message) {\n    super(message);\n    this.status = status;\n  }\n}\nconst menu = [{ id: 1, nama: 'Kopi' }];\nconst app = express();\napp.use(express.json());\napp.get('/menu/:id', async (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) throw new HttpError(404, 'Menu tidak ada');\n  res.json(m);\n});\napp.post('/menu', (req, res) => {\n  const data = z.object({ nama: z.string() }).parse(req.body);\n  res.status(201).json(data);\n});\napp.get('/bug', () => {\n  null.nama;\n});\napp.use((req, res) => res.status(404).json({ error: 'Jalur tidak ditemukan' }));\napp.use((err, req, res, next) => {\n  if (err instanceof z.ZodError) return res.status(400).json({ error: 'Data tidak valid' });\n  if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });\n  res.status(500).json({ error: 'Terjadi kesalahan di server' });\n});\nconst server = app.listen(3000);\n\nconst u = 'http://localhost:3000';\nfor (const [method, jalur, body] of [['GET', '/menu/9'], ['POST', '/menu', {}], ['GET', '/bug'], ['GET', '/kasir'], ['POST', '/menu', '{rusak']]) {\n  const r = await fetch(u + jalur, { method, headers: { 'Content-Type': 'application/json' }, body: typeof body === 'string' ? body : body && JSON.stringify(body) });\n  console.log(method, jalur, r.status, (await r.json()).error);\n}\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "GET /bug 404 Jalur tidak ditemukan",
+          "GET /bug 500 Cannot read properties of null (reading 'nama')",
+          "GET /bug 200 undefined",
+          "GET /bug 500 Terjadi kesalahan di server"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Error yang membawa status."
+        },
+        {
+          "line": 15,
+          "note": "Rute cukup melempar."
+        },
+        {
+          "line": 19,
+          "note": "parse melempar ZodError kalau salah."
+        },
+        {
+          "line": 25,
+          "note": "Penangan jalur tidak dikenal."
+        },
+        {
+          "line": 26,
+          "note": "Penangan error: empat parameter."
+        }
+      ],
+      "explanation": "Kode di /bug membaca properti dari null sehingga muncul TypeError tanpa status. Penangan error menjawab 500 dengan pesan umum, tanpa membocorkan detailnya.",
+      "tryThis": [
+        {
+          "task": "Kenapa POST dengan body {rusak dijawab 400? Cetak err.status di penangan error.",
+          "hint": null
+        },
+        {
+          "task": "Hapus parameter next dari penangan error. Apa yang terjadi?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Penangan error dengan tiga parameter**\n\nExpress mengenali penangan error dari **jumlah parameternya**. Tanpa `next`, fungsi dianggap middleware biasa dan tidak pernah menerima error.\n\n**2. Penangan error dipasang di atas rute**\n\nError dari rute yang didaftarkan setelahnya tidak akan sampai ke sana.\n\n**3. Mengirim `err.message` untuk semua error**\n\nPesan error internal (misalnya dari database) bisa membocorkan detail aplikasi. Pesan asli hanya untuk error yang memang ditujukan ke klien (4xx)."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di Express 4, error dari fungsi async **tidak** diteruskan otomatis, sehingga banyak kode lama memakai `try/catch` + `next(err)` atau paket `express-async-errors`. Di Express 5 ini tidak perlu lagi.\n- Error 500 dikirim ke layanan pelacak error seperti **Sentry**, lengkap dengan stack trace dan data permintaan, supaya tim segera tahu.\n- Bentuk respons error yang konsisten di semua rute adalah salah satu ciri API yang dirawat dengan baik."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Pengaman API 4: Meja Pengaduan",
+      "pembuka": "Semua masalah di API toko diarahkan ke satu penangan error.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Rute melempar error, dan Express menjawab dengan halaman error bawaan.",
+          "jawaban": "import express from 'express';\nconst app = express();\napp.get('/menu/:id', (req, res) => {\n  throw new Error('Menu tidak ada');\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/menu/9');\nconsole.log(r.status, r.headers.get('content-type'));\nserver.close();",
+          "keluaran": "500 text/html; charset=utf-8",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat `class HttpError extends Error` dengan properti `status`, lempar `new HttpError(404, 'Menu tidak ada')` dari rute, dan pasang penangan error `(err, req, res, next)` yang menjawab `res.status(err.status ?? 500).json({ error: err.message })`. Cetak `404 Menu tidak ada`.",
+          "jawaban": "import express from 'express';\nclass HttpError extends Error {\n  constructor(status, message) {\n    super(message);\n    this.status = status;\n  }\n}\nconst app = express();\napp.get('/menu/:id', (req, res) => {\n  throw new HttpError(404, 'Menu tidak ada');\n});\napp.use((err, req, res, next) => {\n  res.status(err.status ?? 500).json({ error: err.message });\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/menu/9');\nconsole.log(r.status, (await r.json()).error);\nserver.close();",
+          "keluaran": "404 Menu tidak ada",
+          "wajib": [
+            {
+              "pola": "class\\s+HttpError\\s+extends\\s+Error",
+              "pesan": "buat `class HttpError extends Error`."
+            },
+            {
+              "pola": "\\(\\s*err\\s*,\\s*req\\s*,\\s*res\\s*,\\s*next\\s*\\)",
+              "pesan": "penangan error dengan `(err, req, res, next)`."
+            }
+          ],
+          "petunjuk": "Penangan error wajib punya empat parameter: (err, req, res, next)."
+        },
+        {
+          "arahan": "Tambahkan rute async `GET /laporan` yang melempar `new Error('database mati')`, dan ubah penangan error supaya error tanpa status dijawab 500 dengan pesan umum `Kesalahan server`. Cetak `500 Kesalahan server` di baris terakhir.",
+          "jawaban": "import express from 'express';\nclass HttpError extends Error {\n  constructor(status, message) {\n    super(message);\n    this.status = status;\n  }\n}\nconst app = express();\napp.get('/menu/:id', (req, res) => {\n  throw new HttpError(404, 'Menu tidak ada');\n});\napp.get('/laporan', async (req, res) => {\n  throw new Error('database mati');\n});\napp.use((err, req, res, next) => {\n  if (err.status) return res.status(err.status).json({ error: err.message });\n  res.status(500).json({ error: 'Kesalahan server' });\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/menu/9');\nconsole.log(r.status, (await r.json()).error);\nconst r2 = await fetch('http://localhost:3000/laporan');\nconsole.log(r2.status, (await r2.json()).error);\nserver.close();",
+          "keluaran": "404 Menu tidak ada\n500 Kesalahan server",
+          "wajib": [
+            {
+              "pola": "app\\.get\\(\\s*'/laporan'\\s*,\\s*async",
+              "pesan": "buat rute async `'/laporan'`."
+            },
+            {
+              "pola": "status\\(\\s*500\\s*\\)",
+              "pesan": "jawab `status(500)`."
+            }
+          ],
+          "petunjuk": "if (err.status) return ...; lalu res.status(500).json({ error: ... }).",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Semua error di API toko kini ditangani di satu tempat, dengan pesan yang aman untuk klien."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Bagaimana Express mengenali middleware penangan error?",
+          "options": [
+            "Dari namanya yang diawali error",
+            "Dari app.error()",
+            "Dari jumlah parameternya: empat (err, req, res, next)",
+            "Dari posisinya di file"
+          ],
+          "answer": 2,
+          "explanation": "Empat parameter.",
+          "remedial": "Express memeriksa jumlah parameter fungsi. Fungsi dengan empat parameter dianggap penangan error."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import express from 'express';\nconst app = express();\napp.get('/', async () => {\n  throw Object.assign(new Error('teko'), { status: 418 });\n});\napp.use((err, req, res, next) => res.sendStatus(err.status ?? 500));\nconst s = app.listen(3000);\nconsole.log((await fetch('http://localhost:3000/')).status);\ns.close();",
+          "options": [
+            "200",
+            "418",
+            "500",
+            "404"
+          ],
+          "answer": 1,
+          "explanation": "Error async diteruskan otomatis di Express 5.",
+          "remedial": "Rute async melempar error berstatus 418. Express 5 meneruskannya ke penangan error, yang memakai err.status."
+        },
+        {
+          "question": "Kenapa pesan asli error 500 tidak dikirim ke klien?",
+          "options": [
+            "Klien tidak bisa membaca pesan panjang",
+            "Status 500 tidak boleh punya isi",
+            "Pesan error selalu kosong",
+            "Pesan internal bisa membocorkan detail aplikasi seperti struktur database"
+          ],
+          "answer": 3,
+          "explanation": "Keamanan.",
+          "remedial": "Error tak terduga sering berisi detail teknis. Kirim pesan umum ke klien dan catat detailnya di log atau layanan pelacak error."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Di mana penangan error dipasang?",
+      "options": [
+        "Paling atas, sebelum express.json()",
+        "Paling bawah, setelah semua rute dan penangan 404",
+        "Di file package.json",
+        "Di dalam setiap rute"
+      ],
+      "answer": 1,
+      "explanation": "Error mengalir ke bawah."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat rute GET /bagi/:a/:b yang melempar error berstatus 400 dengan pesan Tidak bisa dibagi nol kalau b bernilai 0, atau menjawab JSON { hasil: a / b }. Pasang penangan error yang menjawab status err.status dengan JSON { error: err.message }. Fetch /bagi/6/0 dan cetak status serta pesannya: 400 Tidak bisa dibagi nol",
+      "starterCode": "import express from 'express';\nconst app = express();\n",
+      "solution": "import express from 'express';\nconst app = express();\napp.get('/bagi/:a/:b', (req, res) => {\n  const a = Number(req.params.a);\n  const b = Number(req.params.b);\n  if (b === 0) throw Object.assign(new Error('Tidak bisa dibagi nol'), { status: 400 });\n  res.json({ hasil: a / b });\n});\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: err.message }));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/bagi/6/0');\nconsole.log(r.status, (await r.json()).error);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "400 Tidak bisa dibagi nol\n"
+        }
+      ],
+      "hints": [
+        "throw Object.assign(new Error('...'), { status: 400 }) atau kelas HttpError.",
+        "app.use((err, req, res, next) => ...) setelah rute."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Penangan error: middleware dengan empat parameter, dipasang paling bawah.",
+        "Rute cukup throw; Express 5 juga meneruskan error async.",
+        "Kelas HttpError membawa status ke penangan error.",
+        "Penangan 404 dipasang setelah semua rute.",
+        "Error 500: pesan umum ke klien, detail ke log."
+      ]
+    }
+  ]
+}

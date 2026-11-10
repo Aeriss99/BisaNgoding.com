@@ -1,0 +1,197 @@
+{
+  "id": "node-rest-03",
+  "moduleId": "node-rest",
+  "order": 3,
+  "title": "Arsitektur Berlapis: Route, Controller, Service",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saat aplikasi tumbuh, kode dibagi menjadi **lapisan** dengan tugas masing-masing:\n\n| Lapisan | Tugas | Tahu soal HTTP? |\n|---|---|---|\n| **Route** | jalur, method, middleware | ya |\n| **Controller** | baca `req`, panggil service, kirim `res` | ya |\n| **Service** | aturan bisnis (stok cukup? harga valid?) | tidak |\n| **Repository** | simpan dan ambil data | tidak |\n\nAturannya: lapisan atas boleh memanggil lapisan di bawahnya, tidak sebaliknya.\n\nIbarat restoran: pelayan (controller) menerima pesanan dari tamu, koki (service) memasak sesuai resep, dan petugas gudang (repository) mengambil bahan. Koki tidak perlu tahu meja nomor berapa tamunya duduk."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nStruktur folder yang umum:\n\n```text\nsrc/\n  routes/produk.routes.js\n  controllers/produk.controller.js\n  services/produk.service.js\n  repositories/produk.repository.js\n  errors.js\n  app.js\n  server.js\n```\n\nService **melempar error** dengan arti bisnis (`TidakDitemukanError`, `KonflikError`), dan penangan error Express menerjemahkannya menjadi status HTTP. Dengan begitu service bisa dipakai ulang oleh hal lain selain HTTP: script, antrean, atau tes."
+    },
+    {
+      "type": "runnable",
+      "code": "// === src/errors.js ===\nexport class AppError extends Error {\n  constructor(status, message) { super(message); this.status = status; }\n}\n// === src/repositories/produk.repository.js ===\nconst data = [{ id: 1, nama: 'Kopi Susu', stok: 3 }];\nexport const produkRepo = {\n  cari: (id) => data.find((p) => p.id === id) ?? null,\n  simpan: (p) => { Object.assign(data.find((x) => x.id === p.id), p); return p; },\n};\n// === src/services/produk.service.js ===\nimport { produkRepo } from '../repositories/produk.repository.js';\nimport { AppError } from '../errors.js';\nexport function kurangiStok(id, jumlah) {\n  const p = produkRepo.cari(id);\n  if (!p) throw new AppError(404, 'Produk tidak ada');\n  if (p.stok < jumlah) throw new AppError(409, `Stok ${p.nama} tinggal ${p.stok}`);\n  return produkRepo.simpan({ ...p, stok: p.stok - jumlah });\n}\n// === src/controllers/produk.controller.js ===\nimport * as produkService from '../services/produk.service.js';\nexport function beli(req, res) {\n  const hasil = produkService.kurangiStok(Number(req.params.id), req.body.jumlah);\n  res.json(hasil);\n}\n// === src/app.js ===\nimport express from 'express';\nimport { beli } from './controllers/produk.controller.js';\nexport const app = express();\napp.use(express.json());\napp.post('/produk/:id/beli', beli);\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: err.message }));\n// === main.js ===\nimport { app } from './src/app.js';\nconst server = app.listen(3000);\nconst beli = (id, jumlah) => fetch(`http://localhost:3000/produk/${id}/beli`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jumlah }) });\nfor (const [id, jumlah] of [[1, 2], [1, 2], [9, 1]]) {\n  const r = await beli(id, jumlah);\n  console.log(r.status, await r.json());\n}\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "200 { id: 1, nama: 'Kopi Susu', stok: -1 }",
+          "409 { error: 'Stok Kopi Susu tinggal 3' }",
+          "404 { error: 'Produk tidak ada' }",
+          "409 { error: 'Stok Kopi Susu tinggal 1' }"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Repository: hanya simpan dan ambil."
+        },
+        {
+          "line": 14,
+          "note": "Service: aturan bisnis, tanpa req dan res."
+        },
+        {
+          "line": 17,
+          "note": "Konflik: stok tidak cukup."
+        },
+        {
+          "line": 22,
+          "note": "Controller: penghubung HTTP dan service."
+        },
+        {
+          "line": 31,
+          "note": "Route: jalur dan method."
+        }
+      ],
+      "explanation": "Pembelian pertama mengurangi stok dari 3 menjadi 1. Pembelian kedua meminta 2, padahal stok tinggal 1, jadi service melempar AppError 409.",
+      "tryThis": [
+        {
+          "task": "Panggil produkService.kurangiStok langsung dari main.js tanpa HTTP.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan aturan: jumlah harus lebih dari 0.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Service yang memakai `req` atau `res`**\n\nService jadi tidak bisa dipakai di luar HTTP dan sulit diuji. Kirim data biasa ke service, bukan objek `req`.\n\n**2. Semua logika di controller**\n\nController yang panjang (*fat controller*) mencampur HTTP dan aturan bisnis. Pindahkan aturan ke service.\n\n**3. Terlalu banyak lapisan untuk proyek kecil**\n\nUntuk script atau API dengan dua rute, satu file sudah cukup. Lapisan bermanfaat saat aplikasi dan timnya tumbuh."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola route → controller → service → repository dipakai di banyak proyek Express dan menjadi bawaan di **NestJS**.\n- Status **409 Conflict** dipakai untuk benturan dengan keadaan data: stok tidak cukup, email sudah terdaftar, versi data sudah berubah.\n- Variasi lain yang akan kamu dengar: *clean architecture*, *hexagonal*, pembagian per fitur (`src/produk/`, `src/pesanan/`). Intinya sama: pisahkan HTTP, aturan bisnis, dan penyimpanan."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "API Produk 3: Bagi Tugas",
+      "pembuka": "Kode API produk dipecah ke lapisan supaya aturan bisnis bisa dipakai ulang.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Semua kode masih di satu rute.",
+          "jawaban": "import express from 'express';\nconst produk = [{ id: 1, nama: 'Kopi', harga: 18000 }];\nconst app = express();\napp.use(express.json());\napp.patch('/produk/:id/harga', (req, res) => {\n  const p = produk.find((x) => x.id === Number(req.params.id));\n  if (!p) return res.status(404).json({ error: 'Produk tidak ada' });\n  if (req.body.harga <= 0) return res.status(400).json({ error: 'Harga harus positif' });\n  p.harga = req.body.harga;\n  res.json(p);\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/produk/1/harga', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ harga: 20000 }) });\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "200 { id: 1, nama: 'Kopi', harga: 20000 }",
+          "otomatis": true
+        },
+        {
+          "arahan": "Pindahkan aturan ke file `service.js` berisi `export function ubahHarga(id, harga)` yang melempar error berstatus 404 atau 400 (pakai `Object.assign(new Error(pesan), { status })`) dan mengembalikan produk. Rute cukup memanggil service, lalu pasang penangan error. Kirim juga harga 0 dan cetak `400 Harga harus positif` di baris terakhir.",
+          "jawaban": "// === service.js ===\nconst produk = [{ id: 1, nama: 'Kopi', harga: 18000 }];\nconst galat = (status, pesan) => Object.assign(new Error(pesan), { status });\nexport function ubahHarga(id, harga) {\n  const p = produk.find((x) => x.id === id);\n  if (!p) throw galat(404, 'Produk tidak ada');\n  if (harga <= 0) throw galat(400, 'Harga harus positif');\n  p.harga = harga;\n  return p;\n}\n// === main.js ===\nimport express from 'express';\nimport { ubahHarga } from './service.js';\nconst app = express();\napp.use(express.json());\napp.patch('/produk/:id/harga', (req, res) => {\n  res.json(ubahHarga(Number(req.params.id), req.body.harga));\n});\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: err.message }));\nconst server = app.listen(3000);\nconst ubah = (harga) => fetch('http://localhost:3000/produk/1/harga', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ harga }) });\nconst r = await ubah(20000);\nconsole.log(r.status, await r.json());\nconst r2 = await ubah(0);\nconsole.log(r2.status, (await r2.json()).error);\nserver.close();",
+          "keluaran": "200 { id: 1, nama: 'Kopi', harga: 20000 }\n400 Harga harus positif",
+          "wajib": [
+            {
+              "pola": "export\\s+function\\s+ubahHarga\\s*\\(\\s*id\\s*,\\s*harga\\s*\\)",
+              "pesan": "buat `export function ubahHarga(id, harga)` di service."
+            },
+            {
+              "pola": "from\\s+'\\./service\\.js'",
+              "pesan": "impor dari `./service.js`."
+            }
+          ],
+          "petunjuk": "service.js tidak mengimpor express; rute: res.json(ubahHarga(Number(req.params.id), req.body.harga))."
+        },
+        {
+          "arahan": "Buktikan service bisa dipakai tanpa HTTP: di akhir main.js, panggil `ubahHarga(1, -5)` langsung di dalam try/catch dan cetak `<status> <pesan>`: `400 Harga harus positif`.",
+          "jawaban": "// === service.js ===\nconst produk = [{ id: 1, nama: 'Kopi', harga: 18000 }];\nconst galat = (status, pesan) => Object.assign(new Error(pesan), { status });\nexport function ubahHarga(id, harga) {\n  const p = produk.find((x) => x.id === id);\n  if (!p) throw galat(404, 'Produk tidak ada');\n  if (harga <= 0) throw galat(400, 'Harga harus positif');\n  p.harga = harga;\n  return p;\n}\n// === main.js ===\nimport express from 'express';\nimport { ubahHarga } from './service.js';\nconst app = express();\napp.use(express.json());\napp.patch('/produk/:id/harga', (req, res) => {\n  res.json(ubahHarga(Number(req.params.id), req.body.harga));\n});\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: err.message }));\nconst server = app.listen(3000);\nconst ubah = (harga) => fetch('http://localhost:3000/produk/1/harga', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ harga }) });\nconst r = await ubah(20000);\nconsole.log(r.status, await r.json());\nconst r2 = await ubah(0);\nconsole.log(r2.status, (await r2.json()).error);\nserver.close();\ntry {\n  ubahHarga(1, -5);\n} catch (e) {\n  console.log(e.status, e.message);\n}",
+          "keluaran": "200 { id: 1, nama: 'Kopi', harga: 20000 }\n400 Harga harus positif\n400 Harga harus positif",
+          "wajib": [
+            {
+              "pola": "ubahHarga\\(\\s*1\\s*,\\s*-5\\s*\\)",
+              "pesan": "panggil `ubahHarga(1, -5)` langsung."
+            }
+          ],
+          "petunjuk": "try { ubahHarga(1, -5); } catch (e) { console.log(e.status, e.message); }",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Aturan harga produk kini ada di service yang bisa dipakai lewat HTTP maupun langsung."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Lapisan mana yang berisi aturan bisnis seperti stok harus cukup?",
+          "options": [
+            "Route",
+            "Service",
+            "Controller",
+            "Repository"
+          ],
+          "answer": 1,
+          "explanation": "Bukan HTTP, bukan penyimpanan.",
+          "remedial": "Service berisi aturan bisnis dan tidak tahu soal HTTP. Controller menghubungkan HTTP dengan service, repository mengurus penyimpanan."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const pengguna = ['sari@toko.id'];\nfunction daftar(email) {\n  if (pengguna.includes(email)) throw Object.assign(new Error('Email sudah dipakai'), { status: 409 });\n  pengguna.push(email);\n}\ntry {\n  daftar('sari@toko.id');\n} catch (e) {\n  console.log(e.status);\n  console.log(e.message);\n}",
+          "options": [
+            "400 / Email sudah dipakai",
+            "500 / Email sudah dipakai",
+            "409 / Email sudah dipakai",
+            "409 / undefined"
+          ],
+          "answer": 2,
+          "explanation": "Error dari service membawa status.",
+          "remedial": "Service melempar error berstatus 409 tanpa tahu soal HTTP. Pemanggil membaca status dan pesannya."
+        },
+        {
+          "question": "Kenapa service sebaiknya tidak menerima objek req?",
+          "options": [
+            "Supaya service bisa dipakai di luar HTTP dan mudah diuji",
+            "Supaya respons lebih cepat",
+            "Karena Express melarangnya",
+            "Karena req terlalu besar untuk dikirim"
+          ],
+          "answer": 0,
+          "explanation": "Lepas dari HTTP.",
+          "remedial": "Service yang menerima data biasa bisa dipanggil dari rute, script, antrean, atau tes tanpa perlu membuat objek req palsu."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Status apa yang tepat saat permintaan berbenturan dengan keadaan data, misalnya email sudah terdaftar?",
+      "options": [
+        "404 Not Found",
+        "401 Unauthorized",
+        "409 Conflict",
+        "500 Internal Server Error"
+      ],
+      "answer": 2,
+      "explanation": "Konflik dengan data yang ada."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat service hitungTotal(items) yang melempar error berstatus 400 dan pesan Keranjang kosong kalau items kosong, atau mengembalikan jumlah harga * jumlah. Panggil dengan [{ harga: 5000, jumlah: 2 }, { harga: 3000, jumlah: 1 }] lalu dengan [], dan cetak 13000 lalu 400 Keranjang kosong",
+      "starterCode": "function hitungTotal(items) {}\n",
+      "solution": "function hitungTotal(items) {\n  if (items.length === 0) throw Object.assign(new Error('Keranjang kosong'), { status: 400 });\n  return items.reduce((t, i) => t + i.harga * i.jumlah, 0);\n}\nconsole.log(hitungTotal([{ harga: 5000, jumlah: 2 }, { harga: 3000, jumlah: 1 }]));\ntry {\n  hitungTotal([]);\n} catch (e) {\n  console.log(e.status, e.message);\n}\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "13000\n400 Keranjang kosong\n"
+        }
+      ],
+      "hints": [
+        "if (items.length === 0) throw Object.assign(new Error('Keranjang kosong'), { status: 400 });",
+        "reduce((t, i) => t + i.harga * i.jumlah, 0)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Lapisan: route, controller, service, repository.",
+        "Service berisi aturan bisnis tanpa req dan res.",
+        "Service melempar error bermakna; penangan error memberi status HTTP.",
+        "409 Conflict untuk benturan dengan keadaan data.",
+        "Lapisan bermanfaat saat aplikasi tumbuh; proyek kecil cukup satu file."
+      ]
+    }
+  ]
+}

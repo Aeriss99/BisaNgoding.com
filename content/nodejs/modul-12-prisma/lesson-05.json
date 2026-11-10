@@ -1,0 +1,154 @@
+{
+  "id": "node-prisma-05",
+  "moduleId": "node-prisma",
+  "order": 5,
+  "title": "Relasi, Seed, dan Query Lanjutan",
+  "estimatedMinutes": 15,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Produk dikelompokkan dalam **kategori**. Satu kategori punya banyak produk: relasi **satu ke banyak**.\n\n```prisma\nmodel Kategori {\n  id     Int      @id @default(autoincrement())\n  nama   String   @unique\n  produk Produk[]\n}\n\nmodel Produk {\n  // kolom lama ...\n  kategori   Kategori? @relation(fields: [kategoriId], references: [id])\n  kategoriId Int?\n}\n```\n\n`kategoriId` adalah kolom sungguhan di tabel (kunci asing). `kategori` dan `produk` adalah *field relasi* yang dipakai saat query.\n\nIbarat rak di toko: setiap produk ditaruh di satu rak (kategori), dan satu rak berisi banyak produk."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**Seed** adalah script yang mengisi data awal untuk pengembangan. Di Prisma 7, perintahnya ditulis di `prisma7.config.ts`:\n\n```ts\nmigrations: {\n  path: \"prisma/migrations\",\n  seed: \"node --env-file=.env prisma/seed.js\",\n},\n```\n\nLalu dijalankan dengan `npx prisma db seed`.\n\nQuery dengan relasi:\n\n```js\n// kategori beserta produknya\nawait prisma.kategori.findMany({ include: { produk: true } });\n\n// ringkasan\nawait prisma.produk.aggregate({ _sum: { stok: true }, _avg: { harga: true } });\n```\n\nData bertingkat juga bisa dibuat sekaligus dengan `create` di dalam `create`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Query di dalam loop**\n\nMengambil kategori lalu, untuk setiap kategori, mengambil produknya satu per satu membuat banyak query (*masalah N+1*). Pakai `include`.\n\n**2. Seed yang tidak bisa diulang**\n\nSeed yang hanya menambah data akan gagal atau membuat data ganda saat dijalankan lagi. Kosongkan dulu atau pakai `upsert`.\n\n**3. Lupa generate setelah migrasi relasi**\n\nTanpa generate, `include: { produk: true }` ditolak karena client belum mengenal relasinya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Relasi yang umum di aplikasi: pengguna punya banyak pesanan, pesanan punya banyak item, produk punya banyak ulasan. Relasi banyak ke banyak (produk dan tag) memakai tabel penghubung.\n- Seed dipakai supaya setiap anggota tim langsung punya data contoh yang sama setelah memasang proyek.\n- Untuk query yang sangat rumit, Prisma menyediakan `prisma.$queryRaw` untuk menulis SQL sendiri dengan aman."
+    },
+    {
+      "type": "theory",
+      "content": "### Persiapan praktik\n\nLingga sudah:\n\n- menambahkan model `Kategori` dan relasinya ke skema,\n- membuat `prisma/seed.js` yang mengosongkan tabel lalu mengisi 2 kategori dan 4 produk,\n- menambahkan baris `seed` di `prisma7.config.ts`,\n- membuat `scripts/laporan.js` yang menampilkan produk per kategori.\n\nKamu akan menjalankan migrasi relasi, membuat ulang client, mengisi data, dan menjalankan laporan."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Database Toko 5: Rak Kategori",
+      "folder": "~/toko-api",
+      "pembuka": "Kita tambahkan kategori produk, isi data awal, dan buat laporan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Ini model Kategori dan Produk yang baru.",
+          "terima": [
+            "sed -n 10,25p prisma/schema.prisma"
+          ],
+          "keluaran": "model Kategori {\n  id     Int      @id @default(autoincrement())\n  nama   String   @unique\n  produk Produk[]\n}\n\nmodel Produk {\n  id         Int       @id @default(autoincrement())\n  nama       String    @unique\n  harga      Int\n  stok       Int       @default(0)\n  dibuatPada DateTime  @default(now())\n  kategori   Kategori? @relation(fields: [kategoriId], references: [id])\n  kategoriId Int?\n}",
+          "petunjuk": "",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat migrasi bernama tambah-kategori.",
+          "terima": [
+            "npx prisma migrate dev --name tambah-kategori"
+          ],
+          "keluaran": "Loaded Prisma config from prisma7.config.ts.\n\nPrisma schema loaded from prisma/schema.prisma.\nDatasource \"db\": PostgreSQL database \"toko\", schema \"public\" at \"localhost:5432\"\n\nApplying migration `20261110193648_tambah_kategori`\n\nThe following migration(s) have been created and applied from new schema changes:\n\nprisma/migrations/\n  └─ 20261110193648_tambah_kategori/\n    └─ migration.sql\n\nYour database is now in sync with your schema.",
+          "petunjuk": "npx prisma migrate dev --name tambah-kategori"
+        },
+        {
+          "arahan": "Buat ulang Prisma Client supaya mengenal relasi baru.",
+          "terima": [
+            "npx prisma generate"
+          ],
+          "keluaran": "Loaded Prisma config from prisma7.config.ts.\n\nPrisma schema loaded from prisma/schema.prisma.\n\n✔ Generated Prisma Client (7.10.1) to ./generated/prisma in 83ms",
+          "petunjuk": "npx prisma generate"
+        },
+        {
+          "arahan": "Isi data awal dengan seed.",
+          "terima": [
+            "npx prisma db seed"
+          ],
+          "keluaran": "Loaded Prisma config from prisma7.config.ts.\n\nRunning seed command `node --env-file=.env prisma/seed.js` ...\nSeed selesai: 4 produk\n\n🌱  The seed command has been executed.",
+          "petunjuk": "npx prisma db seed"
+        },
+        {
+          "arahan": "Jalankan script laporan dengan .env.",
+          "terima": [
+            "node --env-file=.env scripts/laporan.js"
+          ],
+          "keluaran": "Makanan (1 produk)\n  - Roti Bakar: 15000\nMinuman (3 produk)\n  - Kopi Susu: 18000\n  - Es Kopi: 15000\n  - Teh Tarik: 12000\nStok habis: [ 'Es Kopi' ]\nTotal stok: 40 | Rata-rata harga: 15000",
+          "petunjuk": "node --env-file=.env scripts/laporan.js",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Produk kini berkategori, data awal terisi lewat seed, dan laporan per kategori bisa dibuat dengan satu query."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kolom apa yang benar-benar tersimpan di tabel Produk untuk relasi ke Kategori?",
+          "options": [
+            "kategori",
+            "Kategori[]",
+            "kategoriId",
+            "produk"
+          ],
+          "answer": 2,
+          "explanation": "Kunci asing.",
+          "remedial": "kategoriId menyimpan id kategori. Field kategori dan produk hanya dipakai Prisma untuk query relasi."
+        },
+        {
+          "question": "Apa fungsi include: { produk: true }?",
+          "options": [
+            "Menghapus produk tanpa kategori",
+            "Mengambil kategori beserta produk-produknya dalam satu query",
+            "Menambah produk baru",
+            "Menghitung jumlah kategori"
+          ],
+          "answer": 1,
+          "explanation": "Ikut sertakan relasi.",
+          "remedial": "include menyertakan data relasi, sehingga tidak perlu query tambahan untuk setiap kategori."
+        },
+        {
+          "question": "Apa itu masalah N+1?",
+          "options": [
+            "Error karena id ganda",
+            "Migrasi yang dijalankan dua kali",
+            "Database dengan N tabel",
+            "Satu query untuk daftar lalu satu query lagi untuk setiap item, sehingga query sangat banyak"
+          ],
+          "answer": 3,
+          "explanation": "Query di dalam loop.",
+          "remedial": "Mengambil 100 kategori lalu produk setiap kategori satu per satu menghasilkan 101 query. include menyelesaikannya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Perintah apa yang menjalankan script seed Prisma?",
+      "options": [
+        "npx prisma seed run",
+        "npx prisma db seed",
+        "npx prisma migrate seed",
+        "npm run seed-prisma"
+      ],
+      "answer": 1,
+      "explanation": "Perintahnya diatur di prisma7.config.ts."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi supaya kategori diambil beserta produknya.",
+      "code": "await prisma.kategori.findMany({ ___: { produk: true } });",
+      "answers": [
+        "include"
+      ],
+      "explanation": "include menyertakan data relasi di hasil query."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Relasi satu ke banyak: Kategori punya banyak Produk lewat kategoriId.",
+        "Seed mengisi data awal; perintahnya di prisma7.config.ts.",
+        "include mengambil data relasi dalam satu query.",
+        "aggregate menghitung jumlah, rata-rata, dan lainnya.",
+        "Hindari query di dalam loop (N+1)."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,201 @@
+{
+  "id": "node-rest-04",
+  "moduleId": "node-rest",
+  "order": 4,
+  "title": "Repository dan Dependency Injection",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Repository** menyembunyikan cara data disimpan. Service hanya tahu fungsi seperti `cari`, `semua`, `tambah`, bukan apakah datanya di array, file, atau PostgreSQL.\n\n**Dependency injection** artinya bagian yang dibutuhkan **diberikan dari luar**, bukan diimpor langsung:\n\n```js\nexport function buatProdukService(repo) {\n  return {\n    async tambah(data) {\n      if (await repo.cariNama(data.nama)) throw new AppError(409, 'Nama sudah ada');\n      return repo.tambah(data);\n    },\n  };\n}\n\nconst service = buatProdukService(repoMemori);     // untuk tes\nconst service2 = buatProdukService(repoPostgres);  // untuk produksi\n```\n\nIbarat colokan listrik standar: alat elektronik (service) cukup punya steker yang cocok, tidak peduli listriknya dari PLN, genset, atau panel surya (repository)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nRepository dibuat **async** sejak awal, walau versi memorinya tidak perlu menunggu. Database sungguhan selalu async, jadi service tidak perlu diubah saat repository diganti:\n\n```js\nexport function buatRepoMemori(awal = []) {\n  const data = [...awal];\n  let nextId = data.length + 1;\n  return {\n    async semua() { return [...data]; },\n    async cariNama(nama) { return data.find((p) => p.nama === nama) ?? null; },\n    async tambah(p) { const baru = { id: nextId++, ...p }; data.push(baru); return baru; },\n  };\n}\n```\n\nMengembalikan salinan (`[...data]`) mencegah lapisan lain mengubah isi repository diam-diam."
+    },
+    {
+      "type": "runnable",
+      "code": "// === repo.js ===\nexport function buatRepoMemori(awal = []) {\n  const data = awal.map((p) => ({ ...p }));\n  let nextId = data.length + 1;\n  return {\n    async semua() { return data.map((p) => ({ ...p })); },\n    async cariNama(nama) { return data.find((p) => p.nama.toLowerCase() === nama.toLowerCase()) ?? null; },\n    async tambah(p) { const baru = { id: nextId++, ...p }; data.push(baru); return { ...baru }; },\n  };\n}\n// === service.js ===\nexport function buatProdukService(repo) {\n  return {\n    async tambah({ nama, harga }) {\n      if (await repo.cariNama(nama)) throw Object.assign(new Error(`${nama} sudah ada`), { status: 409 });\n      return repo.tambah({ nama, harga });\n    },\n    async daftar() {\n      return (await repo.semua()).map((p) => p.nama);\n    },\n  };\n}\n// === main.js ===\nimport { buatRepoMemori } from './repo.js';\nimport { buatProdukService } from './service.js';\n\nconst tokoA = buatProdukService(buatRepoMemori([{ id: 1, nama: 'Kopi', harga: 18000 }]));\nconst tokoB = buatProdukService(buatRepoMemori());\n\nconsole.log(await tokoA.tambah({ nama: 'Teh', harga: 12000 }));\ntry {\n  await tokoA.tambah({ nama: 'KOPI', harga: 1 });\n} catch (e) {\n  console.log(e.status, e.message);\n}\nawait tokoB.tambah({ nama: 'Kopi', harga: 20000 });\nconsole.log(await tokoA.daftar(), await tokoB.daftar());\n\nconst semua = await buatRepoMemori([{ id: 1, nama: 'Roti' }]).semua();\nsemua[0].nama = 'Diubah dari luar';",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "[ 'Kopi', 'Teh' ] [ 'Kopi', 'Teh' ]",
+          "[ 'Kopi', 'Teh', 'Kopi' ] [ 'Kopi' ]",
+          "[ 'Kopi', 'Teh', 'KOPI' ] [ 'Kopi' ]",
+          "[ 'Kopi', 'Teh' ] [ 'Kopi' ]"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Pabrik repository: data di memori."
+        },
+        {
+          "line": 6,
+          "note": "Async sejak awal, seperti database."
+        },
+        {
+          "line": 12,
+          "note": "Service menerima repository dari luar."
+        },
+        {
+          "line": 27,
+          "note": "Setiap service mendapat repository sendiri."
+        }
+      ],
+      "explanation": "Toko A dan toko B memakai repository yang berbeda, sehingga datanya terpisah. KOPI ditolak di toko A karena nama dibandingkan tanpa membedakan huruf besar kecil.",
+      "tryThis": [
+        {
+          "task": "Buat tokoC yang memakai repository yang sama dengan tokoA. Apa yang terjadi?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan fungsi hapus(id) di repository dan service.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Service mengimpor database langsung**\n\nService jadi terikat ke satu database dan sulit diuji tanpa database sungguhan.\n\n**2. Repository sinkron yang kemudian diganti async**\n\nSemua pemanggil harus diubah menambahkan `await`. Buat async dari awal.\n\n**3. Repository berisi aturan bisnis**\n\n\"Nama tidak boleh dobel\" adalah aturan bisnis: tempatnya di service. Repository cukup menyimpan dan mengambil (walau database juga bisa diberi aturan unik sebagai pengaman terakhir)."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Dependency injection membuat **unit test** cepat: service diuji dengan repository memori, tanpa menyalakan database (modul Testing).\n- NestJS punya sistem dependency injection bawaan. Di Express, pola fungsi pabrik seperti `buatProdukService(repo)` sudah cukup.\n- Dengan Prisma, repository sering berupa fungsi tipis di atas `prisma.produk.findMany()` dan sejenisnya, atau dilewati sama sekali di proyek kecil."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "API Produk 4: Ganti Gudang",
+      "pembuka": "Service produk dibuat bisa memakai gudang data apa pun yang punya fungsi yang sama.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Service langsung memakai array miliknya sendiri.",
+          "jawaban": "const data = [{ id: 1, nama: 'Kopi' }];\nconst service = {\n  async daftar() {\n    return data.map((p) => p.nama);\n  },\n};\nconsole.log(await service.daftar());",
+          "keluaran": "[ 'Kopi' ]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat `function buatRepo(awal)` yang mengembalikan `{ async semua() }` (salinan data), dan `function buatService(repo)` dengan `daftar()` yang memakai `repo.semua()`. Buat service dari repo berisi Kopi dan Teh, lalu cetak `[ 'Kopi', 'Teh' ]`.",
+          "jawaban": "function buatRepo(awal) {\n  const data = [...awal];\n  return {\n    async semua() {\n      return [...data];\n    },\n  };\n}\nfunction buatService(repo) {\n  return {\n    async daftar() {\n      return (await repo.semua()).map((p) => p.nama);\n    },\n  };\n}\nconst service = buatService(buatRepo([{ id: 1, nama: 'Kopi' }, { id: 2, nama: 'Teh' }]));\nconsole.log(await service.daftar());",
+          "keluaran": "[ 'Kopi', 'Teh' ]",
+          "wajib": [
+            {
+              "pola": "function\\s+buatRepo\\s*\\(",
+              "pesan": "buat `function buatRepo`."
+            },
+            {
+              "pola": "function\\s+buatService\\s*\\(\\s*repo\\s*\\)",
+              "pesan": "buat `function buatService(repo)`."
+            },
+            {
+              "pola": "repo\\.semua\\(\\)",
+              "pesan": "pakai `repo.semua()` di service."
+            }
+          ],
+          "petunjuk": "buatService(repo) memakai repo.semua(), bukan array langsung."
+        },
+        {
+          "arahan": "Buat repository kedua tanpa array: `repoTetap` adalah objek dengan `async semua()` yang selalu mengembalikan `[{ id: 9, nama: 'Menu Spesial' }]`. Buat service kedua dengan `repoTetap` (tanpa mengubah `buatService`) dan cetak `[ 'Menu Spesial' ]` di baris terakhir.",
+          "jawaban": "function buatRepo(awal) {\n  const data = [...awal];\n  return {\n    async semua() {\n      return [...data];\n    },\n  };\n}\nfunction buatService(repo) {\n  return {\n    async daftar() {\n      return (await repo.semua()).map((p) => p.nama);\n    },\n  };\n}\nconst service = buatService(buatRepo([{ id: 1, nama: 'Kopi' }, { id: 2, nama: 'Teh' }]));\nconsole.log(await service.daftar());\nconst repoTetap = {\n  async semua() {\n    return [{ id: 9, nama: 'Menu Spesial' }];\n  },\n};\nconsole.log(await buatService(repoTetap).daftar());",
+          "keluaran": "[ 'Kopi', 'Teh' ]\n[ 'Menu Spesial' ]",
+          "wajib": [
+            {
+              "pola": "const\\s+repoTetap\\s*=",
+              "pesan": "buat `const repoTetap = { ... }`."
+            },
+            {
+              "pola": "buatService\\(\\s*repoTetap\\s*\\)",
+              "pesan": "pakai `buatService(repoTetap)`."
+            }
+          ],
+          "petunjuk": "Objek apa pun yang punya async semua() bisa dipakai sebagai repository.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Service produk kini bisa memakai gudang data apa pun, cukup dengan fungsi yang sama."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa maksud dependency injection pada buatProdukService(repo)?",
+          "options": [
+            "Service membuat database sendiri",
+            "Service tidak butuh data",
+            "Repository diberikan dari luar, sehingga bisa diganti tanpa mengubah service",
+            "Repository disuntikkan ke dalam HTML"
+          ],
+          "answer": 2,
+          "explanation": "Diberikan dari luar.",
+          "remedial": "Service tidak memilih sendiri sumber datanya. Pemanggil yang menentukan: repository memori untuk tes, database untuk produksi."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const data = ['a'];\nconst repo = { semua: () => [...data] };\nconst salinan = repo.semua();\nconsole.log(salinan);\nsalinan.push('b');\nconsole.log(repo.semua());",
+          "options": [
+            "[ 'a', 'b' ] / [ 'a', 'b' ]",
+            "[ 'a' ] / [ 'a' ]",
+            "[ 'a', 'b' ] / [ 'a' ]",
+            "[ 'a' ] / [ 'a', 'b' ]"
+          ],
+          "answer": 1,
+          "explanation": "Repository mengembalikan salinan.",
+          "remedial": "semua() mengembalikan salinan array. Menambah b ke salinan tidak mengubah data di dalam repository."
+        },
+        {
+          "question": "Kenapa repository memori dibuat async walau tidak perlu menunggu?",
+          "options": [
+            "Karena fungsi sinkron dilarang di Node.js",
+            "Supaya lebih cepat",
+            "Karena array hanya bisa dibaca async",
+            "Supaya service tidak perlu diubah saat diganti repository database yang pasti async"
+          ],
+          "answer": 3,
+          "explanation": "Bentuknya sama dengan database.",
+          "remedial": "Repository database selalu mengembalikan Promise. Dengan bentuk yang sama sejak awal, service yang memakai await tetap bekerja."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa manfaat utama dependency injection untuk testing?",
+      "options": [
+        "Tes tidak perlu ditulis",
+        "Service bisa diuji dengan repository memori tanpa menyalakan database",
+        "Kode menjadi lebih pendek",
+        "Database otomatis terisi"
+      ],
+      "answer": 1,
+      "explanation": "Tes cepat dan terpisah."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat function buatPenghitung(simpan) yang mengembalikan objek dengan async tambah(n) yang menambahkan n ke nilai di simpan (objek dengan async ambil() dan async tulis(n)), lalu mengembalikan nilai baru. Pakai simpan memori yang mulai dari 10, panggil tambah(5), dan cetak hasilnya: 15",
+      "starterCode": "function buatPenghitung(simpan) {}\n",
+      "solution": "function buatPenghitung(simpan) {\n  return {\n    async tambah(n) {\n      const baru = (await simpan.ambil()) + n;\n      await simpan.tulis(baru);\n      return baru;\n    },\n  };\n}\nlet nilai = 10;\nconst simpanMemori = {\n  async ambil() { return nilai; },\n  async tulis(n) { nilai = n; },\n};\nconsole.log(await buatPenghitung(simpanMemori).tambah(5));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "15\n"
+        }
+      ],
+      "hints": [
+        "simpan memori: let nilai = 10; { async ambil() { return nilai; }, async tulis(n) { nilai = n; } }.",
+        "tambah: ambil, tambahkan n, tulis, lalu kembalikan."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Repository menyembunyikan cara data disimpan.",
+        "Dependency injection: bagian yang dibutuhkan diberikan dari luar.",
+        "Buat repository async sejak awal.",
+        "Kembalikan salinan supaya data tidak diubah diam-diam.",
+        "Repository memori membuat tes service cepat."
+      ]
+    }
+  ]
+}

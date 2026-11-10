@@ -1,0 +1,201 @@
+{
+  "id": "node-rest-02",
+  "moduleId": "node-rest",
+  "order": 2,
+  "title": "Halaman, Penyaringan, dan Pengurutan",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Daftar data yang panjang tidak dikirim sekaligus. API memberi **halaman** (*pagination*), **penyaringan**, dan **pengurutan** lewat query:\n\n```text\nGET /produk?q=kopi&kategori=minuman&urut=-harga&halaman=2&per=10\n```\n\n| Query | Arti |\n|---|---|\n| `q` | kata kunci pencarian |\n| `kategori` | saring berdasarkan kolom |\n| `urut=harga` / `urut=-harga` | urutkan naik / turun (tanda minus) |\n| `halaman`, `per` | halaman ke berapa, berapa per halaman |\n\nRespons membawa data **dan** informasi halamannya:\n\n```json\n{ \"data\": [...], \"meta\": { \"total\": 57, \"halaman\": 2, \"per\": 10, \"jumlahHalaman\": 6 } }\n```\n\nIbarat katalog belanja online: kamu menyaring kategori, mengurutkan dari termurah, lalu melihat halaman demi halaman, bukan seribu produk sekaligus."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nRumus potongan untuk halaman:\n\n```js\nconst mulai = (halaman - 1) * per;\nconst isi = daftar.slice(mulai, mulai + per);\nconst jumlahHalaman = Math.ceil(total / per);\n```\n\nBatasi nilai dari klien supaya server aman:\n\n```js\nconst Query = z.object({\n  halaman: z.coerce.number().int().min(1).default(1),\n  per: z.coerce.number().int().min(1).max(50).default(10),\n});\n```\n\nTanpa batas `max`, klien bisa meminta `per=1000000` dan membebani server."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\nimport { z } from 'zod';\n\nconst produk = [\n  { id: 1, nama: 'Kopi Susu', kategori: 'minuman', harga: 18000 },\n  { id: 2, nama: 'Teh Tarik', kategori: 'minuman', harga: 12000 },\n  { id: 3, nama: 'Roti Bakar', kategori: 'makanan', harga: 15000 },\n  { id: 4, nama: 'Es Kopi', kategori: 'minuman', harga: 15000 },\n  { id: 5, nama: 'Kopi Hitam', kategori: 'minuman', harga: 10000 },\n];\nconst Query = z.object({\n  q: z.string().default(''),\n  kategori: z.string().optional(),\n  urut: z.enum(['harga', '-harga', 'nama']).default('nama'),\n  halaman: z.coerce.number().int().min(1).default(1),\n  per: z.coerce.number().int().min(1).max(50).default(2),\n});\nconst app = express();\napp.get('/produk', (req, res) => {\n  const h = Query.safeParse(req.query);\n  if (!h.success) return res.status(400).json({ error: 'Query tidak valid' });\n  const { q, kategori, urut, halaman, per } = h.data;\n  let hasil = produk.filter((p) => p.nama.toLowerCase().includes(q.toLowerCase()) && (!kategori || p.kategori === kategori));\n  const kolom = urut.replace('-', '');\n  const arah = urut.startsWith('-') ? -1 : 1;\n  hasil = hasil.toSorted((a, b) => (a[kolom] > b[kolom] ? 1 : a[kolom] < b[kolom] ? -1 : 0) * arah);\n  const mulai = (halaman - 1) * per;\n  res.json({ data: hasil.slice(mulai, mulai + per).map((p) => p.nama), meta: { total: hasil.length, halaman, per, jumlahHalaman: Math.ceil(hasil.length / per) } });\n});\nconst server = app.listen(3000);\n\nfor (const query of ['?q=kopi&urut=harga', '?q=kopi&urut=harga&halaman=2', '?kategori=minuman&urut=-harga&per=3', '?per=500']) {\n  const r = await fetch('http://localhost:3000/produk' + query);\n  const d = await r.json();\n  console.log(r.status, d.data ?? d.error, d.meta?.total);\n}\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "200 [ 'Es Kopi', 'Kopi Susu' ] 3",
+          "200 [ 'Kopi Susu' ] 3",
+          "200 [ 'Kopi Hitam', 'Es Kopi' ] 3",
+          "200 [] 3"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 11,
+          "note": "Skema query dengan nilai bawaan dan batas."
+        },
+        {
+          "line": 16,
+          "note": "Klien tidak boleh meminta terlalu banyak."
+        },
+        {
+          "line": 25,
+          "note": "Tanda minus: urutan turun."
+        },
+        {
+          "line": 27,
+          "note": "Rumus awal halaman."
+        },
+        {
+          "line": 28,
+          "note": "Informasi halaman untuk klien."
+        }
+      ],
+      "explanation": "Ada 3 produk mengandung kopi. Diurutkan dari harga termurah: Kopi Hitam, Es Kopi, Kopi Susu. Dua per halaman, jadi halaman 2 hanya berisi Kopi Susu.",
+      "tryThis": [
+        {
+          "task": "Tambahkan &per=3 di query kedua. Apa isi halaman 2?",
+          "hint": null
+        },
+        {
+          "task": "Coba ?urut=stok. Apa jawabannya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tanpa batas `per`**\n\nKlien bisa meminta seluruh tabel sekaligus. Selalu beri batas maksimal.\n\n**2. Halaman mulai dari 0 di satu tempat, 1 di tempat lain**\n\nTentukan satu aturan (umumnya mulai dari 1) dan tulis di dokumentasi API.\n\n**3. Urutan berdasarkan kolom bebas dari klien**\n\n`urut` yang langsung dipakai sebagai nama kolom database bisa menjadi celah keamanan. Batasi dengan daftar pilihan (`z.enum`)."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di database, penyaringan, pengurutan, dan halaman dikerjakan oleh query SQL (`WHERE`, `ORDER BY`, `LIMIT`, `OFFSET`), bukan di JavaScript. Prisma menyebutnya `where`, `orderBy`, `skip`, `take` (modul Database).\n- Untuk data yang sangat besar atau terus bertambah (seperti linimasa), dipakai **cursor pagination** (`?setelah=<id terakhir>`) yang lebih cepat dari `OFFSET`.\n- Nama query berbeda antar perusahaan (`page`/`limit`, `offset`/`limit`, `cursor`). Yang penting konsisten dan terdokumentasi."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "API Produk 2: Katalog Berhalaman",
+      "pembuka": "Katalog produk mulai panjang. Kita beri halaman dan pengurutan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Daftar produk dikirim seluruhnya.",
+          "jawaban": "import express from 'express';\nconst produk = ['Kopi', 'Teh', 'Roti', 'Jus', 'Susu'].map((nama, i) => ({ id: i + 1, nama }));\nconst app = express();\napp.get('/produk', (req, res) => res.json(produk.map((p) => p.nama)));\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/produk')).json());\nserver.close();",
+          "keluaran": "[ 'Kopi', 'Teh', 'Roti', 'Jus', 'Susu' ]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan halaman: baca `halaman` (bawaan 1) dan `per` (bawaan 2) dari query sebagai angka, lalu kirim `{ data, total }`. Fetch `/produk?halaman=2` dan cetak `{ data: [ 'Roti', 'Jus' ], total: 5 }`.",
+          "jawaban": "import express from 'express';\nconst produk = ['Kopi', 'Teh', 'Roti', 'Jus', 'Susu'].map((nama, i) => ({ id: i + 1, nama }));\nconst app = express();\napp.get('/produk', (req, res) => {\n  const halaman = Number(req.query.halaman ?? 1);\n  const per = Number(req.query.per ?? 2);\n  const mulai = (halaman - 1) * per;\n  res.json({ data: produk.slice(mulai, mulai + per).map((p) => p.nama), total: produk.length });\n});\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/produk?halaman=2')).json());\nserver.close();",
+          "keluaran": "{ data: [ 'Roti', 'Jus' ], total: 5 }",
+          "wajib": [
+            {
+              "pola": "\\(\\s*halaman\\s*-\\s*1\\s*\\)\\s*\\*\\s*per",
+              "pesan": "hitung `(halaman - 1) * per`."
+            },
+            {
+              "pola": "\\.slice\\(",
+              "pesan": "potong dengan `.slice`."
+            }
+          ],
+          "petunjuk": "mulai = (halaman - 1) * per; lalu slice(mulai, mulai + per)."
+        },
+        {
+          "arahan": "Validasi query dengan Zod: `halaman` minimal 1, `per` minimal 1 dan maksimal 3 (keduanya `z.coerce.number().int()` dengan nilai bawaan 1 dan 2). Jawab 400 kalau tidak valid. Fetch `/produk?per=10` dan cetak status `400` di baris terakhir.",
+          "jawaban": "import express from 'express';\nimport { z } from 'zod';\nconst produk = ['Kopi', 'Teh', 'Roti', 'Jus', 'Susu'].map((nama, i) => ({ id: i + 1, nama }));\nconst Query = z.object({\n  halaman: z.coerce.number().int().min(1).default(1),\n  per: z.coerce.number().int().min(1).max(3).default(2),\n});\nconst app = express();\napp.get('/produk', (req, res) => {\n  const h = Query.safeParse(req.query);\n  if (!h.success) return res.status(400).json({ error: 'Query tidak valid' });\n  const { halaman, per } = h.data;\n  const mulai = (halaman - 1) * per;\n  res.json({ data: produk.slice(mulai, mulai + per).map((p) => p.nama), total: produk.length });\n});\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/produk?halaman=2')).json());\nconsole.log((await fetch('http://localhost:3000/produk?per=10')).status);\nserver.close();",
+          "keluaran": "{ data: [ 'Roti', 'Jus' ], total: 5 }\n400",
+          "wajib": [
+            {
+              "pola": "max\\(\\s*3\\s*\\)",
+              "pesan": "batasi `per` dengan `.max(3)`."
+            },
+            {
+              "pola": "safeParse\\(\\s*req\\.query\\s*\\)",
+              "pesan": "periksa `safeParse(req.query)`."
+            }
+          ],
+          "petunjuk": "z.coerce.number().int().min(1).max(3).default(2) untuk per.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Katalog produk kini berhalaman, dengan batas aman untuk jumlah per halaman."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa query per perlu batas maksimal?",
+          "options": [
+            "Supaya klien tidak bisa meminta data dalam jumlah besar sekaligus dan membebani server",
+            "Supaya data terurut",
+            "Karena slice tidak bisa memotong lebih dari 50",
+            "Supaya halaman selalu genap"
+          ],
+          "answer": 0,
+          "explanation": "Lindungi server.",
+          "remedial": "Tanpa batas, satu permintaan dengan per sangat besar bisa membaca seluruh tabel dan menghabiskan memori atau waktu server."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const data = ['a', 'b', 'c', 'd', 'e', 'f'];\nconst halaman = 3, per = 2;\nconst mulai = (halaman - 1) * per;\nconsole.log(data.slice(mulai, mulai + per));\nconsole.log(Math.ceil(data.length / per));",
+          "options": [
+            "[ 'f' ] / 3",
+            "[ 'e', 'f' ] / 2",
+            "[ 'e', 'f' ] / 3",
+            "[ 'c', 'd' ] / 3"
+          ],
+          "answer": 2,
+          "explanation": "(halaman - 1) * per.",
+          "remedial": "Halaman 3 dengan 2 per halaman dimulai dari indeks 4: e dan f. Ada 6 data, jadi 3 halaman."
+        },
+        {
+          "question": "Kenapa nilai urut dibatasi dengan z.enum?",
+          "options": [
+            "Karena z.string tidak bisa dipakai",
+            "Supaya klien hanya bisa memilih kolom yang diizinkan",
+            "Supaya hasil selalu naik",
+            "Supaya urutan lebih cepat"
+          ],
+          "answer": 1,
+          "explanation": "Daftar pilihan.",
+          "remedial": "Kolom urut dari klien yang dipakai langsung bisa membuka celah, terutama saat diteruskan ke database. Daftar pilihan menutupnya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Cara halaman apa yang lebih cepat untuk data yang terus bertambah, seperti linimasa?",
+      "options": [
+        "Mengacak urutan data",
+        "Mengirim seluruh data",
+        "OFFSET yang sangat besar",
+        "Cursor pagination dengan ?setelah=id terakhir"
+      ],
+      "answer": 3,
+      "explanation": "Tidak perlu melewati ribuan baris."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi halaman(data, nomor, per) yang mengembalikan objek { isi, jumlahHalaman }. Panggil dengan data angka 1 sampai 7, nomor 4, per 2, lalu cetak hasilnya: { isi: [ 7 ], jumlahHalaman: 4 }",
+      "starterCode": "const data = [1, 2, 3, 4, 5, 6, 7];\n",
+      "solution": "const data = [1, 2, 3, 4, 5, 6, 7];\nfunction halaman(data, nomor, per) {\n  const mulai = (nomor - 1) * per;\n  return { isi: data.slice(mulai, mulai + per), jumlahHalaman: Math.ceil(data.length / per) };\n}\nconsole.log(halaman(data, 4, 2));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "{ isi: [ 7 ], jumlahHalaman: 4 }\n"
+        }
+      ],
+      "hints": [
+        "mulai = (nomor - 1) * per; isi = data.slice(mulai, mulai + per).",
+        "jumlahHalaman = Math.ceil(data.length / per)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Daftar panjang dikirim per halaman dengan query halaman dan per.",
+        "Respons membawa data dan meta: total, halaman, jumlahHalaman.",
+        "Batasi per dengan nilai maksimal.",
+        "Urut: nama kolom naik, -kolom turun, dari daftar pilihan.",
+        "Di database, pekerjaan ini dilakukan oleh query SQL."
+      ]
+    }
+  ]
+}

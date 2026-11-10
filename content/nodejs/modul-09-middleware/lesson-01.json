@@ -1,0 +1,197 @@
+{
+  "id": "node-middleware-01",
+  "moduleId": "node-middleware",
+  "order": 1,
+  "title": "Konsep Middleware",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Middleware** adalah fungsi yang dijalankan **di antara** permintaan masuk dan penangan rute. Bentuknya:\n\n```js\nfunction catatPermintaan(req, res, next) {\n  console.log(req.method, req.url);\n  next(); // lanjut ke middleware atau rute berikutnya\n}\napp.use(catatPermintaan);\n```\n\nMiddleware bisa melakukan tiga hal:\n\n1. Membaca atau menambah data di `req` (misalnya `req.pengguna`).\n2. Mengakhiri permintaan dengan mengirim respons sendiri (misalnya 401).\n3. Memanggil `next()` untuk meneruskan ke langkah berikutnya.\n\n`express.json()` yang sudah kamu pakai adalah middleware: ia membaca body lalu memanggil `next()`.\n\nIbarat pos-pos pemeriksaan di bandara: penumpang melewati pemeriksaan tiket, bagasi, dan paspor berurutan. Setiap pos bisa meloloskan (next) atau menahan penumpang (kirim respons)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMiddleware dijalankan **sesuai urutan** `app.use` dan rute ditulis:\n\n```js\napp.use(a);          // 1\napp.use(b);          // 2\napp.get('/x', c);    // 3\n```\n\nUntuk mencatat status respons, dengarkan event `finish` pada `res`, karena status baru diketahui setelah rute membalas:\n\n```js\napp.use((req, res, next) => {\n  res.on('finish', () => console.log(req.method, req.originalUrl, res.statusCode));\n  next();\n});\n```\n\nKalau middleware lupa memanggil `next()` dan juga tidak membalas, permintaan menggantung."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\n\nconst app = express();\napp.use((req, res, next) => {\n  console.log('1. masuk:', req.method, req.url);\n  res.on('finish', () => console.log('4. selesai:', res.statusCode));\n  next();\n});\napp.use((req, res, next) => {\n  req.waktuMasuk = '08:00';\n  console.log('2. tambah data ke req');\n  next();\n});\napp.get('/menu', (req, res) => {\n  console.log('3. rute, waktu masuk', req.waktuMasuk);\n  res.json(['Kopi']);\n});\nconst server = app.listen(3000);\nawait fetch('http://localhost:3000/menu');\nawait fetch('http://localhost:3000/kasir');\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "3. rute, waktu masuk 08:00",
+          "4. selesai: 404",
+          "2. tambah data ke req",
+          "4. selesai: 200"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Bentuk middleware: tiga parameter."
+        },
+        {
+          "line": 6,
+          "note": "Catat setelah respons terkirim."
+        },
+        {
+          "line": 7,
+          "note": "Teruskan ke langkah berikutnya."
+        },
+        {
+          "line": 10,
+          "note": "Data tambahan untuk rute."
+        }
+      ],
+      "explanation": "Permintaan ke /kasir melewati kedua middleware, tapi tidak ada rute yang cocok. Express menjawab 404, lalu event finish mencetak statusnya.",
+      "tryThis": [
+        {
+          "task": "Hapus next() di middleware kedua. Apa yang terjadi?",
+          "hint": null
+        },
+        {
+          "task": "Pindahkan app.get ke atas semua app.use. Apa yang berubah?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `next()`**\n\nPermintaan tidak pernah sampai ke rute, dan klien menunggu sampai waktu habis.\n\n**2. Memanggil `next()` setelah mengirim respons**\n\nRute berikutnya ikut mencoba membalas, sehingga muncul `Cannot set headers after they are sent`. Pakai `return res.status(...)...`.\n\n**3. Urutan salah**\n\n`app.use(express.json())` yang ditulis setelah rute membuat `req.body` di rute itu kosong. Daftarkan middleware umum di atas."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hampir setiap fitur lintas rute dibuat sebagai middleware: log permintaan, membaca body, CORS, header keamanan, pembatas jumlah permintaan, dan pemeriksaan login.\n- Library middleware yang umum di proyek Express: `morgan` atau `pino-http` (log), `cors`, `helmet` (header keamanan), `express-rate-limit`, `cookie-parser`.\n- Data yang ditambahkan middleware (seperti `req.pengguna` setelah login) adalah cara standar meneruskan informasi ke rute."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Pengaman API 1: Buku Tamu",
+      "pembuka": "API toko mencatat setiap permintaan yang masuk, seperti buku tamu di pintu depan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Middleware mencatat setiap permintaan sebelum masuk ke rute.",
+          "jawaban": "import express from 'express';\nconst app = express();\napp.use((req, res, next) => {\n  console.log('Tamu:', req.method, req.url);\n  next();\n});\napp.get('/menu', (req, res) => res.json(['Kopi']));\nconst server = app.listen(3000);\nawait fetch('http://localhost:3000/menu');\nserver.close();",
+          "keluaran": "Tamu: GET /menu",
+          "otomatis": true
+        },
+        {
+          "arahan": "Ubah middleware supaya mencatat status respons setelah selesai dengan `res.on('finish', ...)`, berformat `GET /menu 200`. Kirim permintaan ke `/menu` dan `/kasir`, sehingga baris terakhir `GET /kasir 404`.",
+          "jawaban": "import express from 'express';\nconst app = express();\napp.use((req, res, next) => {\n  res.on('finish', () => console.log(req.method, req.url, res.statusCode));\n  next();\n});\napp.get('/menu', (req, res) => res.json(['Kopi']));\nconst server = app.listen(3000);\nawait fetch('http://localhost:3000/menu');\nawait fetch('http://localhost:3000/kasir');\nserver.close();",
+          "keluaran": "GET /menu 200\nGET /kasir 404",
+          "wajib": [
+            {
+              "pola": "res\\.on\\(\\s*'finish'",
+              "pesan": "dengarkan `res.on('finish', ...)`."
+            }
+          ],
+          "petunjuk": "res.on('finish', () => console.log(req.method, req.url, res.statusCode)); lalu next()."
+        },
+        {
+          "arahan": "Simpan middleware itu di fungsi bernama `catat`, lalu tambahkan middleware kedua `nomorAntrean` yang mengisi `req.nomor` dengan penghitung yang naik setiap permintaan. Rute `/menu` menjawab `{ nomor: req.nomor }`. Cetak isi respons kedua ke `/menu`: `{ nomor: 3 }`.",
+          "jawaban": "import express from 'express';\nlet hitung = 0;\nfunction catat(req, res, next) {\n  res.on('finish', () => console.log(req.method, req.url, res.statusCode));\n  next();\n}\nfunction nomorAntrean(req, res, next) {\n  hitung++;\n  req.nomor = hitung;\n  next();\n}\nconst app = express();\napp.use(catat);\napp.use(nomorAntrean);\napp.get('/menu', (req, res) => res.json({ nomor: req.nomor }));\nconst server = app.listen(3000);\nawait fetch('http://localhost:3000/menu');\nawait fetch('http://localhost:3000/kasir');\nconsole.log(await (await fetch('http://localhost:3000/menu')).json());\nserver.close();",
+          "keluaran": "GET /menu 200\nGET /kasir 404\nGET /menu 200\n{ nomor: 3 }",
+          "wajib": [
+            {
+              "pola": "function\\s+catat\\s*\\(\\s*req\\s*,\\s*res\\s*,\\s*next\\s*\\)",
+              "pesan": "buat `function catat(req, res, next)`."
+            },
+            {
+              "pola": "function\\s+nomorAntrean",
+              "pesan": "buat `function nomorAntrean`."
+            },
+            {
+              "pola": "app\\.use\\(\\s*nomorAntrean\\s*\\)",
+              "pesan": "pasang dengan `app.use(nomorAntrean)`."
+            }
+          ],
+          "petunjuk": "function nomorAntrean(req, res, next) { hitung++; req.nomor = hitung; next(); }",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Setiap permintaan ke API toko kini tercatat beserta statusnya, dan diberi nomor antrean."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi next() di dalam middleware?",
+          "options": [
+            "Meneruskan permintaan ke middleware atau rute berikutnya",
+            "Mengirim respons ke klien",
+            "Mengulang middleware dari awal",
+            "Menutup server"
+          ],
+          "answer": 0,
+          "explanation": "next = lanjut.",
+          "remedial": "Tanpa next(), Express tidak melanjutkan ke langkah berikutnya. Middleware harus memanggil next() atau mengirim respons sendiri."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import express from 'express';\nconst app = express();\napp.use((req, res, next) => { console.log('A'); next(); });\napp.use((req, res, next) => { console.log('B'); next(); });\napp.get('/', (req, res) => { console.log('C'); res.end(); });\nconst s = app.listen(3000);\nawait fetch('http://localhost:3000/');\ns.close();",
+          "options": [
+            "B / A / C",
+            "C / A / B",
+            "A / B / C",
+            "A / C / B"
+          ],
+          "answer": 2,
+          "explanation": "Middleware dijalankan sesuai urutan.",
+          "remedial": "Kedua middleware didaftarkan sebelum rute, jadi A dan B dicetak dulu, lalu C di rute."
+        },
+        {
+          "question": "Kenapa status respons dicatat di dalam res.on('finish')?",
+          "options": [
+            "Status baru diketahui setelah rute membalas",
+            "finish dipanggil sebelum rute",
+            "Supaya log lebih cepat",
+            "res.statusCode tidak ada sebelum finish"
+          ],
+          "answer": 0,
+          "explanation": "Middleware jalan sebelum rute.",
+          "remedial": "Saat middleware jalan, rute belum membalas. Event finish terjadi setelah respons terkirim, sehingga res.statusCode sudah berisi status akhir."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa yang terjadi kalau middleware tidak memanggil next() dan tidak mengirim respons?",
+      "options": [
+        "Permintaan menggantung sampai waktu habis",
+        "Express menjawab 404",
+        "Server berhenti",
+        "Express otomatis memanggil next()"
+      ],
+      "answer": 0,
+      "explanation": "Tidak ada yang melanjutkan atau menjawab."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat middleware yang menambahkan header X-Toko bernilai Sari ke setiap respons (res.set), lalu rute GET / yang mengirim teks ok. Fetch / dan cetak nilai header x-toko. Keluaran: Sari",
+      "starterCode": "import express from 'express';\nconst app = express();\n",
+      "solution": "import express from 'express';\nconst app = express();\napp.use((req, res, next) => {\n  res.set('X-Toko', 'Sari');\n  next();\n});\napp.get('/', (req, res) => res.send('ok'));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/');\nconsole.log(r.headers.get('x-toko'));\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Sari\n"
+        }
+      ],
+      "hints": [
+        "app.use((req, res, next) => { res.set('X-Toko', 'Sari'); next(); }).",
+        "r.headers.get('x-toko')."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Middleware: fungsi (req, res, next) di antara permintaan dan rute.",
+        "Middleware bisa menambah data ke req, membalas, atau memanggil next().",
+        "Urutan app.use menentukan urutan jalan.",
+        "Catat status di res.on('finish').",
+        "Log, CORS, keamanan, dan login dibuat sebagai middleware."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,190 @@
+{
+  "id": "node-stream-04",
+  "moduleId": "node-stream",
+  "order": 4,
+  "title": "Writable Stream dan pipeline",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Writable stream** adalah tujuan data: file, respons HTTP, atau koneksi jaringan.\n\n```js\nimport { createWriteStream } from 'node:fs';\nconst out = createWriteStream('laporan.txt');\nout.write('baris 1\\n');\nout.write('baris 2\\n');\nout.end('baris terakhir\\n'); // tutup stream\nout.on('finish', () => console.log('selesai ditulis'));\n```\n\nUntuk menyambungkan sumber, pengolah, dan tujuan, pakai **`pipeline`** dari `node:stream/promises`:\n\n```js\nawait pipeline(sumber, pengolah, tujuan);\n```\n\nIbarat pipa air di rumah: air dari tandon (Readable) lewat saringan (Transform) lalu keluar di keran (Writable). pipeline memasang semua sambungannya dan memberi tahu kalau ada yang bocor."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**Transform** stream mengubah setiap potongan yang lewat:\n\n```js\nimport { Transform } from 'node:stream';\nconst besar = new Transform({\n  objectMode: true,\n  transform(potongan, encoding, callback) {\n    callback(null, potongan.toUpperCase()); // kirim hasilnya\n  },\n});\n```\n\n`pipeline` lebih aman daripada `.pipe()` lama: kalau salah satu bagian gagal, semua stream ditutup dan Promise-nya ditolak dengan error itu.\n\n`objectMode: true` berarti setiap potongan adalah nilai JavaScript utuh (teks, objek), bukan byte."
+    },
+    {
+      "type": "runnable",
+      "code": "import { createWriteStream } from 'node:fs';\nimport { readFile } from 'node:fs/promises';\nimport { Readable, Transform } from 'node:stream';\nimport { pipeline } from 'node:stream/promises';\n\nconst pesanan = [\n  { menu: 'Kopi', harga: 18000 },\n  { menu: 'Teh', harga: 12000 },\n  { menu: 'Roti', harga: 15000 },\n];\nconst keCsv = new Transform({\n  objectMode: true,\n  transform(p, enc, cb) {\n    cb(null, `${p.menu},${p.harga}\\n`);\n  },\n});\nconst out = createWriteStream('pesanan.csv');\nout.write('menu,harga\\n');\nawait pipeline(Readable.from(pesanan), keCsv, out);\n\nconst isi = await readFile('pesanan.csv', 'utf8');\nconsole.log(isi.trim().split('\\n').length);\nconsole.log(isi.split('\\n')[2]);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "menu,harga",
+          "Kopi,18000",
+          "Roti,15000",
+          "Teh,12000"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 11,
+          "note": "Pengolah: objek menjadi baris CSV."
+        },
+        {
+          "line": 17,
+          "note": "Tujuan: file."
+        },
+        {
+          "line": 19,
+          "note": "Sambungkan sumber, pengolah, tujuan."
+        }
+      ],
+      "explanation": "Baris pertama file adalah judul kolom (indeks 0), lalu Kopi (indeks 1), lalu Teh (indeks 2).",
+      "tryThis": [
+        {
+          "task": "Tambahkan pesanan keempat.",
+          "hint": null
+        },
+        {
+          "task": "Ubah transform supaya harga ditulis dalam ribuan (18 untuk 18000).",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `end()`**\n\nTanpa `end`, event `finish` tidak pernah terjadi dan file bisa belum lengkap tertulis.\n\n**2. `.pipe()` tanpa penanganan error**\n\nKalau satu stream gagal, `.pipe()` tidak menutup stream lain dan tidak meneruskan error. Pakai `pipeline`.\n\n**3. Lupa memanggil `callback` di transform**\n\nStream berhenti menunggu dan program terlihat macet tanpa pesan."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Ekspor laporan besar (misalnya CSV pesanan setahun) dibuat dengan stream langsung ke respons HTTP, supaya pengguna mulai mengunduh tanpa menunggu seluruh file dibuat.\n- Kompresi dengan `zlib.createGzip()` adalah Transform stream yang sering diselipkan di pipeline.\n- Library populer untuk CSV (`csv-parse`, `csv-stringify`) dan unggahan file (`busboy`) semuanya berbasis stream."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Log Toko 4: Ekspor Penjualan",
+      "pembuka": "Toko mengekspor data penjualan ke file CSV memakai stream.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Data ditulis ke file dengan createWriteStream.",
+          "jawaban": "import { createWriteStream } from 'node:fs';\nimport { readFile } from 'node:fs/promises';\nconst out = createWriteStream('jual.csv');\nout.write('menu,jumlah\\n');\nout.end('Kopi,3\\n');\nout.on('finish', async () => {\n  console.log(await readFile('jual.csv', 'utf8'));\n});",
+          "keluaran": "menu,jumlah\nKopi,3",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat Transform `keCsv` (objectMode) yang mengubah `{ menu, jumlah }` menjadi baris `menu,jumlah\\n`. Sambungkan `Readable.from(data)`, `keCsv`, dan `createWriteStream('jual.csv')` dengan `await pipeline(...)`, lalu cetak isi file.",
+          "jawaban": "import { createWriteStream } from 'node:fs';\nimport { readFile } from 'node:fs/promises';\nimport { Readable, Transform } from 'node:stream';\nimport { pipeline } from 'node:stream/promises';\nconst data = [{ menu: 'Kopi', jumlah: 3 }, { menu: 'Teh', jumlah: 5 }];\nconst keCsv = new Transform({\n  objectMode: true,\n  transform(x, enc, cb) {\n    cb(null, `${x.menu},${x.jumlah}\\n`);\n  },\n});\nawait pipeline(Readable.from(data), keCsv, createWriteStream('jual.csv'));\nconsole.log(await readFile('jual.csv', 'utf8'));",
+          "kodeAwal": "import { createWriteStream } from 'node:fs';\nimport { readFile } from 'node:fs/promises';\nimport { Readable, Transform } from 'node:stream';\nimport { pipeline } from 'node:stream/promises';\nconst data = [{ menu: 'Kopi', jumlah: 3 }, { menu: 'Teh', jumlah: 5 }];",
+          "keluaran": "Kopi,3\nTeh,5",
+          "wajib": [
+            {
+              "pola": "new\\s+Transform",
+              "pesan": "buat dengan `new Transform`."
+            },
+            {
+              "pola": "await\\s+pipeline\\(",
+              "pesan": "sambungkan dengan `await pipeline(...)`."
+            }
+          ],
+          "petunjuk": "new Transform({ objectMode: true, transform(x, enc, cb) { cb(null, ...) } })."
+        },
+        {
+          "arahan": "Tambahkan Transform kedua `saring` (objectMode) di antara sumber dan `keCsv` yang hanya meneruskan data dengan jumlah lebih dari 3 (panggil `cb()` tanpa data untuk membuang). Cetak isi file: hanya `Teh,5`.",
+          "jawaban": "import { createWriteStream } from 'node:fs';\nimport { readFile } from 'node:fs/promises';\nimport { Readable, Transform } from 'node:stream';\nimport { pipeline } from 'node:stream/promises';\nconst data = [{ menu: 'Kopi', jumlah: 3 }, { menu: 'Teh', jumlah: 5 }];\nconst saring = new Transform({\n  objectMode: true,\n  transform(x, enc, cb) {\n    if (x.jumlah > 3) cb(null, x);\n    else cb();\n  },\n});\nconst keCsv = new Transform({\n  objectMode: true,\n  transform(x, enc, cb) {\n    cb(null, `${x.menu},${x.jumlah}\\n`);\n  },\n});\nawait pipeline(Readable.from(data), saring, keCsv, createWriteStream('jual.csv'));\nconsole.log(await readFile('jual.csv', 'utf8'));",
+          "keluaran": "Teh,5",
+          "wajib": [
+            {
+              "pola": "pipeline\\(\\s*Readable\\.from\\(data\\)\\s*,\\s*saring\\s*,\\s*keCsv",
+              "pesan": "urutan pipeline: sumber, `saring`, `keCsv`, tujuan."
+            }
+          ],
+          "petunjuk": "cb(null, x) meneruskan, cb() tanpa argumen membuang.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Data penjualan kini diekspor lewat pipeline: disaring, diubah ke CSV, dan ditulis ke file."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa pipeline lebih dianjurkan daripada .pipe()?",
+          "options": [
+            "pipeline lebih cepat dua kali lipat",
+            "pipeline tidak butuh Readable",
+            "pipeline menutup semua stream dan meneruskan error kalau ada bagian yang gagal",
+            ".pipe() sudah dihapus dari Node.js"
+          ],
+          "answer": 2,
+          "explanation": "Penanganan error.",
+          "remedial": "Dengan .pipe(), error di satu stream tidak diteruskan dan stream lain bisa tetap terbuka. pipeline menangani keduanya dan bisa di-await."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { Readable, Transform, Writable } from 'node:stream';\nimport { pipeline } from 'node:stream/promises';\nconst hasil = [];\nawait pipeline(\n  Readable.from(['a', 'b']),\n  new Transform({ objectMode: true, transform(c, e, cb) { cb(null, c.toUpperCase()); } }),\n  new Writable({ objectMode: true, write(c, e, cb) { hasil.push(c); cb(); } }),\n);\nconsole.log(hasil);",
+          "options": [
+            "[ 'AB' ]",
+            "[ 'A', 'B' ]",
+            "[ 'a', 'b' ]",
+            "[]"
+          ],
+          "answer": 1,
+          "explanation": "Transform mengubah setiap potongan.",
+          "remedial": "Setiap potongan diubah menjadi huruf besar, lalu Writable menyimpannya satu per satu ke array."
+        },
+        {
+          "question": "Apa akibat lupa memanggil callback di fungsi transform?",
+          "options": [
+            "Data dilewati otomatis",
+            "Muncul error sintaks",
+            "Data dikirim dua kali",
+            "Stream berhenti menunggu dan program terlihat macet"
+          ],
+          "answer": 3,
+          "explanation": "callback = sinyal selesai.",
+          "remedial": "Stream menunggu callback sebelum memproses potongan berikutnya. Tanpa callback, aliran berhenti di potongan itu."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa arti objectMode: true pada stream?",
+      "options": [
+        "Stream hanya menerima objek kosong",
+        "Setiap potongan adalah nilai JavaScript utuh, bukan byte",
+        "Stream otomatis mengubah objek menjadi JSON",
+        "Stream menjadi lebih cepat"
+      ],
+      "answer": 1,
+      "explanation": "Cocok untuk data berupa objek."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat pipeline dari Readable.from([1, 2, 3]) melalui Transform objectMode yang mengalikan setiap angka dengan 10, ke Writable objectMode yang menjumlahkannya ke variabel total. Setelah pipeline selesai, cetak: Total: 60",
+      "starterCode": "import { Readable, Transform, Writable } from 'node:stream';\nimport { pipeline } from 'node:stream/promises';\nlet total = 0;\n",
+      "solution": "import { Readable, Transform, Writable } from 'node:stream';\nimport { pipeline } from 'node:stream/promises';\nlet total = 0;\nawait pipeline(\n  Readable.from([1, 2, 3]),\n  new Transform({ objectMode: true, transform(n, e, cb) { cb(null, n * 10); } }),\n  new Writable({ objectMode: true, write(n, e, cb) { total += n; cb(); } }),\n);\nconsole.log('Total:', total);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Total: 60\n"
+        }
+      ],
+      "hints": [
+        "Transform: cb(null, n * 10).",
+        "Writable: write(n, e, cb) { total += n; cb(); }."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Writable stream: write untuk menulis, end untuk menutup.",
+        "Transform mengubah setiap potongan yang lewat.",
+        "pipeline menyambung stream dan menangani error.",
+        "Selalu panggil callback di transform dan write.",
+        "objectMode: setiap potongan adalah nilai utuh."
+      ]
+    }
+  ]
+}

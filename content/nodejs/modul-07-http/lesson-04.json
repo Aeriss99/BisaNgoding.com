@@ -1,0 +1,201 @@
+{
+  "id": "node-http-04",
+  "moduleId": "node-http",
+  "order": 4,
+  "title": "Membaca Body: POST dan JSON",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Data yang dikirim klien dengan POST, PUT, atau PATCH ada di **body**. Di `node:http`, `req` adalah Readable stream, jadi body dibaca per potongan:\n\n```js\nasync function bacaBody(req) {\n  let isi = '';\n  for await (const potongan of req) isi += potongan;\n  return isi;\n}\n\nconst data = JSON.parse(await bacaBody(req));\n```\n\nKlien mengirim JSON dengan header `Content-Type: application/json`:\n\n```js\nawait fetch(url, {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ menu: 'Kopi', jumlah: 2 }),\n});\n```\n\nIbarat paket kiriman: surat pengantarnya (header) menyebut isinya apa, lalu isi paket (body) dibuka dan diperiksa setelah sampai."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBody dari klien **tidak bisa dipercaya**. Periksa tiga hal:\n\n1. JSON-nya sah: kalau `JSON.parse` gagal, jawab **400 Bad Request**.\n2. Isinya lengkap dan benar jenisnya: kalau tidak, jawab **400** (atau 422) dengan pesan yang jelas.\n3. Ukurannya wajar: body raksasa bisa menghabiskan memori. Batasi, misalnya 100 KB, dan jawab **413 Payload Too Large**.\n\n```js\nlet data;\ntry {\n  data = JSON.parse(await bacaBody(req));\n} catch {\n  return kirimJson(res, 400, { error: 'Body bukan JSON yang sah' });\n}\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import http from 'node:http';\n\nconst pesanan = [];\nasync function bacaBody(req) {\n  let isi = '';\n  for await (const potongan of req) isi += potongan;\n  return isi;\n}\nfunction kirimJson(res, status, data) {\n  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify(data));\n}\nconst server = http.createServer(async (req, res) => {\n  if (req.method !== 'POST') return kirimJson(res, 405, { error: 'Hanya POST' });\n  let data;\n  try {\n    data = JSON.parse(await bacaBody(req));\n  } catch {\n    return kirimJson(res, 400, { error: 'Body bukan JSON yang sah' });\n  }\n  if (typeof data.menu !== 'string' || !Number.isInteger(data.jumlah) || data.jumlah < 1) {\n    return kirimJson(res, 400, { error: 'menu (teks) dan jumlah (bilangan bulat >= 1) wajib' });\n  }\n  const baru = { id: pesanan.length + 1, menu: data.menu, jumlah: data.jumlah };\n  pesanan.push(baru);\n  kirimJson(res, 201, baru);\n});\nserver.listen(3000);\n\nconst kirim = (body) => fetch('http://localhost:3000/pesanan', {\n  method: 'POST', headers: { 'Content-Type': 'application/json' }, body,\n});\nlet r = await kirim(JSON.stringify({ menu: 'Kopi', jumlah: 2 }));\nconsole.log(r.status, await r.json());\nr = await kirim('{ menu: Kopi }');\nconsole.log(r.status, await r.json());\nr = await kirim(JSON.stringify({ menu: 'Teh', jumlah: 0 }));\nconsole.log(r.status, (await r.json()).error);\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa status pada baris kedua?",
+        "options": [
+          "500 { error: 'Body bukan JSON yang sah' }",
+          "201 { error: 'Body bukan JSON yang sah' }",
+          "200 { menu: 'Kopi' }",
+          "400 { error: 'Body bukan JSON yang sah' }"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "req adalah stream: baca per potongan."
+        },
+        {
+          "line": 17,
+          "note": "Ubah teks body menjadi objek."
+        },
+        {
+          "line": 18,
+          "note": "JSON rusak: 400."
+        },
+        {
+          "line": 21,
+          "note": "Periksa jenis dan nilai data."
+        },
+        {
+          "line": 26,
+          "note": "Berhasil dibuat: 201."
+        }
+      ],
+      "explanation": "Teks { menu: Kopi } bukan JSON yang sah (kunci dan teks harus berkutip ganda), jadi JSON.parse gagal dan server menjawab 400.",
+      "tryThis": [
+        {
+          "task": "Kirim jumlah sebagai teks \"2\". Apa jawabannya?",
+          "hint": null
+        },
+        {
+          "task": "Kirim permintaan GET. Apa jawabannya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. JSON.parse tanpa try/catch**\n\nSatu klien yang mengirim JSON rusak membuat penangan melempar error. Tangkap dan jawab 400.\n\n**2. Menyimpan body apa adanya**\n\n`pesanan.push(data)` menyimpan semua properti kiriman klien, termasuk yang tidak seharusnya (misalnya `harga: 0` atau `isAdmin: true`). Ambil hanya properti yang dibutuhkan.\n\n**3. Tanpa batas ukuran**\n\nBody tanpa batas ukuran bisa dipakai untuk menghabiskan memori server."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Express menyediakan `express.json({ limit: '100kb' })` yang membaca body, memeriksa Content-Type, membatasi ukuran, dan menjawab 400 untuk JSON rusak.\n- Pemeriksaan isi data (*validasi*) di dunia kerja biasanya memakai library skema seperti **Zod** (modul Middleware).\n- Menyimpan hanya properti yang diizinkan (*allowlist*) mencegah celah keamanan *mass assignment*."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Server Toko 4: Terima Pesanan",
+      "pembuka": "Server toko menerima pesanan baru dari aplikasi kasir dalam bentuk JSON.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Body permintaan dibaca dan dikirim balik.",
+          "jawaban": "import http from 'node:http';\nasync function bacaBody(req) {\n  let isi = '';\n  for await (const potongan of req) isi += potongan;\n  return isi;\n}\nconst server = http.createServer(async (req, res) => {\n  const isi = await bacaBody(req);\n  res.end(`Diterima: ${isi}`);\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/pesanan', { method: 'POST', body: '{\"menu\":\"Kopi\"}' });\nconsole.log(await r.text());\nserver.close();",
+          "keluaran": "Diterima: {\"menu\":\"Kopi\"}",
+          "otomatis": true
+        },
+        {
+          "arahan": "Ubah isi body menjadi objek dengan `JSON.parse`, lalu jawab status 201 dengan JSON `{ id: 1, menu }`. Cetak `201 { id: 1, menu: 'Kopi' }`.",
+          "jawaban": "import http from 'node:http';\nasync function bacaBody(req) {\n  let isi = '';\n  for await (const potongan of req) isi += potongan;\n  return isi;\n}\nconst server = http.createServer(async (req, res) => {\n  const data = JSON.parse(await bacaBody(req));\n  res.writeHead(201, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify({ id: 1, menu: data.menu }));\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/pesanan', { method: 'POST', body: '{\"menu\":\"Kopi\"}' });\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "201 { id: 1, menu: 'Kopi' }",
+          "wajib": [
+            {
+              "pola": "JSON\\.parse\\(",
+              "pesan": "ubah dengan `JSON.parse`."
+            },
+            {
+              "pola": "writeHead\\(\\s*201",
+              "pesan": "jawab dengan status 201."
+            }
+          ],
+          "petunjuk": "JSON.parse(await bacaBody(req)), lalu writeHead(201, ...)."
+        },
+        {
+          "arahan": "Bungkus `JSON.parse` dengan try/catch: kalau gagal, jawab 400 dengan `{ error: 'JSON rusak' }`. Kirim permintaan kedua berisi `{rusak` dan cetak `400 { error: 'JSON rusak' }` di baris terakhir.",
+          "jawaban": "import http from 'node:http';\nasync function bacaBody(req) {\n  let isi = '';\n  for await (const potongan of req) isi += potongan;\n  return isi;\n}\nconst server = http.createServer(async (req, res) => {\n  let data;\n  try {\n    data = JSON.parse(await bacaBody(req));\n  } catch {\n    res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });\n    return res.end(JSON.stringify({ error: 'JSON rusak' }));\n  }\n  res.writeHead(201, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify({ id: 1, menu: data.menu }));\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/pesanan', { method: 'POST', body: '{\"menu\":\"Kopi\"}' });\nconsole.log(r.status, await r.json());\nconst r2 = await fetch('http://localhost:3000/pesanan', { method: 'POST', body: '{rusak' });\nconsole.log(r2.status, await r2.json());\nserver.close();",
+          "keluaran": "201 { id: 1, menu: 'Kopi' }\n400 { error: 'JSON rusak' }",
+          "wajib": [
+            {
+              "pola": "catch",
+              "pesan": "tangkap dengan try/catch."
+            },
+            {
+              "pola": "400",
+              "pesan": "jawab dengan status 400."
+            }
+          ],
+          "petunjuk": "try { data = JSON.parse(...) } catch { writeHead(400...); return res.end(...) }",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Server toko kini menerima pesanan JSON dan menolak kiriman yang rusak dengan sopan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa body di node:http dibaca dengan for await (const potongan of req)?",
+          "options": [
+            "Karena body selalu berupa array",
+            "Karena fetch mengirim body per huruf",
+            "Karena req adalah Readable stream",
+            "Karena body ada di req.body"
+          ],
+          "answer": 2,
+          "explanation": "Permintaan adalah stream.",
+          "remedial": "Body bisa besar dan datang bertahap, jadi req berupa Readable stream. Potongannya digabung dulu sebelum di-parse."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import http from 'node:http';\nconst s = http.createServer(async (req, res) => {\n  let isi = '';\n  for await (const p of req) isi += p;\n  try {\n    JSON.parse(isi);\n    res.statusCode = 201;\n  } catch {\n    res.statusCode = 400;\n  }\n  res.end();\n});\ns.listen(3000);\nconst r = await fetch('http://localhost:3000', { method: 'POST', body: 'halo' });\nconsole.log(r.status);\ns.close();",
+          "options": [
+            "500",
+            "400",
+            "201",
+            "200"
+          ],
+          "answer": 1,
+          "explanation": "JSON tidak sah.",
+          "remedial": "Teks halo bukan JSON yang sah. JSON.parse gagal, catch menjawab 400."
+        },
+        {
+          "question": "Kenapa pesanan.push(data) dengan seluruh body klien berbahaya?",
+          "options": [
+            "push terlalu lambat untuk server",
+            "Body selalu kosong",
+            "Array tidak bisa menyimpan objek",
+            "Klien bisa menyelipkan properti yang tidak seharusnya, seperti harga atau isAdmin"
+          ],
+          "answer": 3,
+          "explanation": "Mass assignment.",
+          "remedial": "Ambil hanya properti yang diizinkan. Kalau seluruh body disimpan, klien bisa mengubah data yang seharusnya ditentukan server."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Status apa yang tepat kalau body yang dikirim klien bukan JSON yang sah?",
+      "options": [
+        "500 Internal Server Error",
+        "400 Bad Request",
+        "201 Created",
+        "404 Not Found"
+      ],
+      "answer": 1,
+      "explanation": "Kesalahan dari sisi klien."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat server yang membaca body JSON berisi angka a dan b, lalu menjawab JSON { hasil: a * b }. Kirim POST dengan body {\"a\":6,\"b\":7}, cetak r.json(), lalu tutup server. Keluaran: { hasil: 42 }",
+      "starterCode": "import http from 'node:http';\n",
+      "solution": "import http from 'node:http';\nconst server = http.createServer(async (req, res) => {\n  let isi = '';\n  for await (const p of req) isi += p;\n  const { a, b } = JSON.parse(isi);\n  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify({ hasil: a * b }));\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000', { method: 'POST', body: JSON.stringify({ a: 6, b: 7 }) });\nconsole.log(await r.json());\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "{ hasil: 42 }\n"
+        }
+      ],
+      "hints": [
+        "Penangan async: for await (const p of req) isi += p.",
+        "JSON.parse(isi), lalu res.end(JSON.stringify({ hasil: a * b }))."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Body dibaca dari req (Readable stream) dengan for await.",
+        "JSON.parse body di dalam try/catch; gagal berarti 400.",
+        "Periksa jenis dan nilai setiap properti.",
+        "Simpan hanya properti yang diizinkan.",
+        "Batasi ukuran body; Express punya express.json({ limit })."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,201 @@
+{
+  "id": "node-express-04",
+  "moduleId": "node-express",
+  "order": 4,
+  "title": "express.Router dan Memecah File",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saat rute bertambah, satu file `server.js` menjadi terlalu panjang. **`express.Router()`** membuat kelompok rute yang bisa ditaruh di file sendiri:\n\n```js\n// routes/menu.js\nimport { Router } from 'express';\nconst router = Router();\nrouter.get('/', (req, res) => { ... });    // GET /menu\nrouter.get('/:id', (req, res) => { ... }); // GET /menu/:id\nexport default router;\n```\n\n```js\n// app.js\nimport menuRouter from './routes/menu.js';\napp.use('/menu', menuRouter);\n```\n\nJalur di dalam router **relatif** terhadap awalan saat dipasang (`/menu`).\n\nIbarat gedung kantor dengan beberapa lantai: resepsionis di lobi (app) hanya mengarahkan tamu ke lantai yang tepat (router), dan setiap lantai mengatur ruangannya sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nStruktur folder yang umum:\n\n```text\nsrc/\n  app.js          membuat app dan memasang router\n  server.js       menjalankan app.listen\n  routes/\n    menu.js\n    pesanan.js\n```\n\nMemisahkan `app.js` (membuat aplikasi) dari `server.js` (menjalankan listen) adalah pola penting: saat **testing**, `app` bisa diimpor tanpa menyalakan server sungguhan (modul Testing).\n\nAPI sering diberi awalan versi: `app.use('/api/v1/menu', menuRouter)`, supaya perubahan besar bisa dibuat di `/api/v2` tanpa merusak aplikasi lama."
+    },
+    {
+      "type": "runnable",
+      "code": "// === routes/menu.js ===\nimport { Router } from 'express';\nconst menu = [{ id: 1, nama: 'Kopi Susu' }, { id: 2, nama: 'Teh Tarik' }];\nconst router = Router();\nrouter.get('/', (req, res) => res.json(menu));\nrouter.get('/:id', (req, res) => {\n  const m = menu.find((x) => x.id === Number(req.params.id));\n  if (!m) return res.status(404).json({ error: 'Menu tidak ada' });\n  res.json(m);\n});\nexport default router;\n// === routes/pesanan.js ===\nimport { Router } from 'express';\nconst router = Router();\nrouter.get('/', (req, res) => res.json({ jalur: req.baseUrl + req.path, pesanan: [] }));\nexport default router;\n// === app.js ===\nimport express from 'express';\nimport menuRouter from './routes/menu.js';\nimport pesananRouter from './routes/pesanan.js';\nexport const app = express();\napp.use(express.json());\napp.use('/api/v1/menu', menuRouter);\napp.use('/api/v1/pesanan', pesananRouter);\n// === main.js ===\nimport { app } from './app.js';\nconst server = app.listen(3000);\nconst u = 'http://localhost:3000/api/v1';\nconsole.log((await (await fetch(u + '/menu')).json()).length);\nconsole.log(await (await fetch(u + '/menu/2')).json());\nconsole.log(await (await fetch(u + '/pesanan')).json());\nconsole.log((await fetch('http://localhost:3000/menu')).status);\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "301",
+          "200",
+          "500",
+          "404"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Kelompok rute."
+        },
+        {
+          "line": 6,
+          "note": "Menjadi /api/v1/menu/:id."
+        },
+        {
+          "line": 23,
+          "note": "Pasang router dengan awalan."
+        },
+        {
+          "line": 26,
+          "note": "Server dan app dipisah."
+        }
+      ],
+      "explanation": "Router menu dipasang di /api/v1/menu, bukan di /menu. Jadi /menu tidak cocok dengan rute mana pun dan dijawab 404.",
+      "tryThis": [
+        {
+          "task": "Pasang menuRouter juga di '/menu'. Apa hasil baris terakhir?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan router baru untuk /api/v1/kasir.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis awalan dua kali**\n\n`router.get('/menu/:id')` lalu dipasang di `'/menu'` menghasilkan jalur `/menu/menu/:id`.\n\n**2. Lupa `export default router`**\n\n`app.use('/menu', undefined)` memunculkan error saat aplikasi dijalankan.\n\n**3. Lupa ekstensi `.js` saat impor**\n\nDi ESM Node.js, `import x from './routes/menu'` gagal. Tulis `./routes/menu.js`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Proyek Express di tempat kerja hampir selalu dipecah per fitur atau per sumber data: `routes/`, `controllers/`, `services/` (modul REST API membahas lapisan-lapisan ini).\n- Pola `app.js` terpisah dari `server.js` dipakai supaya aplikasi bisa diuji dengan Supertest tanpa membuka port.\n- Versi API di jalur (`/api/v1`) adalah pola yang umum; ada juga yang memakai header untuk versi."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Express Toko 4: Rapikan Rute",
+      "pembuka": "Rute toko mulai banyak. Kita pindahkan ke router di file terpisah.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Router menu di file sendiri, dipasang di /menu.",
+          "jawaban": "// === routes/menu.js ===\nimport { Router } from 'express';\nconst router = Router();\nrouter.get('/', (req, res) => res.json(['Kopi Susu', 'Teh Tarik']));\nexport default router;\n// === main.js ===\nimport express from 'express';\nimport menuRouter from './routes/menu.js';\nconst app = express();\napp.use('/menu', menuRouter);\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/menu')).json());\nserver.close();",
+          "keluaran": "[ 'Kopi Susu', 'Teh Tarik' ]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat file `routes/pesanan.js` berisi router dengan `GET /` yang menjawab `{ jumlah: 0 }`, pasang di `/pesanan`, lalu fetch `/pesanan` dan cetak `{ jumlah: 0 }` di baris terakhir.",
+          "jawaban": "// === routes/menu.js ===\nimport { Router } from 'express';\nconst router = Router();\nrouter.get('/', (req, res) => res.json(['Kopi Susu', 'Teh Tarik']));\nexport default router;\n// === routes/pesanan.js ===\nimport { Router } from 'express';\nconst router = Router();\nrouter.get('/', (req, res) => res.json({ jumlah: 0 }));\nexport default router;\n// === main.js ===\nimport express from 'express';\nimport menuRouter from './routes/menu.js';\nimport pesananRouter from './routes/pesanan.js';\nconst app = express();\napp.use('/menu', menuRouter);\napp.use('/pesanan', pesananRouter);\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/menu')).json());\nconsole.log(await (await fetch('http://localhost:3000/pesanan')).json());\nserver.close();",
+          "keluaran": "[ 'Kopi Susu', 'Teh Tarik' ]\n{ jumlah: 0 }",
+          "wajib": [
+            {
+              "pola": "from\\s+'\\./routes/pesanan\\.js'",
+              "pesan": "impor router dari `./routes/pesanan.js`."
+            },
+            {
+              "pola": "app\\.use\\(\\s*'/pesanan'",
+              "pesan": "pasang di `'/pesanan'`."
+            }
+          ],
+          "petunjuk": "Router baru dengan export default, lalu app.use('/pesanan', pesananRouter)."
+        },
+        {
+          "arahan": "Pindahkan pembuatan app ke file `app.js` yang meng-export `app`, dan biarkan main.js hanya mengimpor `app`, menjalankan listen, dan menguji. Pasang kedua router dengan awalan `/api/v1`. Fetch `/api/v1/menu` dan `/api/v1/pesanan`, lalu cetak status jalur lama `/pesanan` di baris terakhir: `404`.",
+          "jawaban": "// === routes/menu.js ===\nimport { Router } from 'express';\nconst router = Router();\nrouter.get('/', (req, res) => res.json(['Kopi Susu', 'Teh Tarik']));\nexport default router;\n// === routes/pesanan.js ===\nimport { Router } from 'express';\nconst router = Router();\nrouter.get('/', (req, res) => res.json({ jumlah: 0 }));\nexport default router;\n// === app.js ===\nimport express from 'express';\nimport menuRouter from './routes/menu.js';\nimport pesananRouter from './routes/pesanan.js';\nexport const app = express();\napp.use('/api/v1/menu', menuRouter);\napp.use('/api/v1/pesanan', pesananRouter);\n// === main.js ===\nimport { app } from './app.js';\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/api/v1/menu')).json());\nconsole.log(await (await fetch('http://localhost:3000/api/v1/pesanan')).json());\nconsole.log((await fetch('http://localhost:3000/pesanan')).status);\nserver.close();",
+          "keluaran": "[ 'Kopi Susu', 'Teh Tarik' ]\n{ jumlah: 0 }\n404",
+          "wajib": [
+            {
+              "pola": "from\\s+'\\./app\\.js'",
+              "pesan": "impor `app` dari `./app.js`."
+            },
+            {
+              "pola": "export\\s+const\\s+app",
+              "pesan": "export `app` dari app.js."
+            },
+            {
+              "pola": "'/api/v1/pesanan'",
+              "pesan": "pasang dengan awalan `/api/v1`."
+            }
+          ],
+          "petunjuk": "app.js: export const app = express(); main.js: import { app } from './app.js'.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Rute toko kini tersusun rapi per file, dengan app terpisah dari server dan awalan versi API."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Router berisi router.get('/:id') dipasang dengan app.use('/menu', router). Jalur apa yang ditangani?",
+          "options": [
+            "/:id",
+            "/menu/menu/:id",
+            "/menu/:id",
+            "/menu"
+          ],
+          "answer": 2,
+          "explanation": "Jalur router relatif.",
+          "remedial": "Jalur di dalam router digabung dengan awalan saat dipasang: /menu + /:id menjadi /menu/:id."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import express from 'express';\nconst r = express.Router();\nr.get('/a', (req, res) => res.send('ok'));\nconst app = express();\napp.use('/api', r);\nconst s = app.listen(3000);\nconsole.log((await fetch('http://localhost:3000/api/a')).status);\nconsole.log((await fetch('http://localhost:3000/a')).status);\ns.close();",
+          "options": [
+            "404 / 200",
+            "200 / 404",
+            "200 / 200",
+            "404 / 404"
+          ],
+          "answer": 1,
+          "explanation": "Awalan router.",
+          "remedial": "Router dipasang di /api. Jalur /api/a cocok, sedangkan /a tidak cocok dengan rute mana pun."
+        },
+        {
+          "question": "Kenapa app.js dipisah dari server.js yang memanggil listen?",
+          "options": [
+            "Supaya server lebih cepat",
+            "Karena Express melarang listen di file yang sama",
+            "Supaya router tidak perlu diimpor",
+            "Supaya app bisa diimpor dan diuji tanpa menyalakan server sungguhan"
+          ],
+          "answer": 3,
+          "explanation": "Untuk testing.",
+          "remedial": "Alat uji seperti Supertest bisa memakai app langsung. Kalau listen ada di file yang sama, mengimpor app akan ikut menyalakan server."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa API sering diberi awalan seperti /api/v1?",
+      "options": [
+        "Supaya jalur lebih pendek",
+        "Supaya perubahan besar bisa dibuat di versi baru tanpa merusak aplikasi lama",
+        "Supaya server lebih aman dari serangan",
+        "Karena Express mewajibkannya"
+      ],
+      "answer": 1,
+      "explanation": "Versi API."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat router dengan rute GET /ping yang menjawab teks pong, lalu pasang di app dengan awalan /api. Fetch /api/ping, cetak teksnya, lalu tutup server. Keluaran: pong",
+      "starterCode": "import express from 'express';\n",
+      "solution": "import express from 'express';\nconst router = express.Router();\nrouter.get('/ping', (req, res) => res.send('pong'));\nconst app = express();\napp.use('/api', router);\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/api/ping')).text());\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "pong\n"
+        }
+      ],
+      "hints": [
+        "const router = express.Router(); router.get('/ping', ...).",
+        "app.use('/api', router)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "express.Router() membuat kelompok rute.",
+        "Jalur di router relatif terhadap awalan app.use.",
+        "Pisahkan router per file dengan export default.",
+        "Pisahkan app.js dari server.js supaya mudah diuji.",
+        "Awalan versi seperti /api/v1 umum dipakai."
+      ]
+    }
+  ]
+}

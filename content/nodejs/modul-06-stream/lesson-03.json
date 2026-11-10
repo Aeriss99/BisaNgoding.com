@@ -1,0 +1,185 @@
+{
+  "id": "node-stream-03",
+  "moduleId": "node-stream",
+  "order": 3,
+  "title": "Readable Stream: Membaca Sedikit demi Sedikit",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`readFile` memuat **seluruh** file ke memori. Untuk file log 2 GB, server bisa kehabisan memori. **Stream** membaca data dalam potongan (*chunk*) kecil dan memprosesnya satu per satu.\n\n```js\nimport { createReadStream } from 'node:fs';\n\nfor await (const potongan of createReadStream('besar.log')) {\n  // potongan: Buffer, bawaannya 64 KB\n}\n```\n\nUntuk membaca **per baris**, gabungkan dengan `node:readline`:\n\n```js\nimport readline from 'node:readline';\nconst rl = readline.createInterface({ input: createReadStream('akses.log') });\nfor await (const baris of rl) { ... }\n```\n\nIbarat minum dari keran dibanding mengangkut seluruh isi tangki air: air mengalir sedikit demi sedikit, jadi tidak perlu wadah sebesar tangki."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nStream dari daftar biasa dengan `Readable.from`, cocok untuk latihan dan pengujian:\n\n```js\nimport { Readable } from 'node:stream';\nfor await (const menu of Readable.from(['Kopi', 'Teh'])) console.log(menu);\n```\n\nReadable stream juga EventEmitter. Gaya lamanya memakai event:\n\n```js\nconst s = createReadStream('a.txt', 'utf8');\ns.on('data', (potongan) => { ... });\ns.on('end', () => console.log('selesai'));\ns.on('error', (e) => console.error(e.code));\n```\n\nGaya `for await` lebih mudah dibaca dan error-nya tertangkap oleh try/catch biasa."
+    },
+    {
+      "type": "runnable",
+      "code": "// === akses.log ===\nGET /produk 200\nPOST /pesanan 201\nGET /produk/99 404\nGET /produk 200\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport { writeFile } from 'node:fs/promises';\nimport readline from 'node:readline';\n\nawait writeFile('besar.txt', 'x'.repeat(200000));\nlet potongan = 0;\nfor await (const p of createReadStream('besar.txt')) potongan++;\nconsole.log('Potongan:', potongan);\n\nconst hitung = {};\nconst rl = readline.createInterface({ input: createReadStream('akses.log') });\nfor await (const baris of rl) {\n  const status = baris.split(' ')[2];\n  hitung[status] = (hitung[status] || 0) + 1;\n}\nconsole.log(hitung);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "Potongan: 1",
+          "Potongan: 200000",
+          "Potongan: 2",
+          "Potongan: 4"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 13,
+          "note": "Baca per potongan, bukan sekaligus."
+        },
+        {
+          "line": 17,
+          "note": "Ubah potongan menjadi baris."
+        },
+        {
+          "line": 18,
+          "note": "Proses baris satu per satu."
+        }
+      ],
+      "explanation": "File berukuran 200.000 byte dibaca per 64 KB (65.536 byte). Butuh 4 potongan: tiga potongan penuh dan satu sisa.",
+      "tryThis": [
+        {
+          "task": "Tambahkan opsi { highWaterMark: 1000 } di createReadStream('besar.txt', ...). Berapa potongannya?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan baris log baru dengan status 500.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. readFile untuk file yang sangat besar**\n\nMemori server ikut membengkak sebesar file. Pakai stream untuk file yang ukurannya tidak bisa diperkirakan.\n\n**2. Mengira satu potongan = satu baris**\n\nBatas potongan bisa jatuh di tengah baris, bahkan di tengah satu huruf. Untuk teks per baris, pakai readline.\n\n**3. Lupa menangani error**\n\nDengan gaya event, tanpa `on('error')` file yang tidak ada membuat program berhenti. Dengan `for await`, bungkus dengan try/catch."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Stream dipakai untuk memproses log besar, mengimpor CSV berisi jutaan baris, mengunggah dan mengunduh file, serta mengalirkan video.\n- Permintaan HTTP yang diterima server Node.js (`req`) adalah Readable stream, dan respons (`res`) adalah Writable stream.\n- Mengimpor data besar ke database biasanya dilakukan dengan membaca stream per baris lalu menyimpan dalam kelompok (*batch*), misalnya per 1000 baris."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Log Toko 3: Membaca Log",
+      "pembuka": "Toko menyimpan log akses. Kita baca per baris tanpa memuat seluruh file.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Log dibaca per baris dengan readline.",
+          "jawaban": "// === akses.log ===\nGET /menu 200\nGET /menu/7 404\nPOST /pesanan 201\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport readline from 'node:readline';\nconst rl = readline.createInterface({ input: createReadStream('akses.log') });\nfor await (const baris of rl) console.log('>', baris);",
+          "keluaran": "> GET /menu 200\n> GET /menu/7 404\n> POST /pesanan 201",
+          "otomatis": true
+        },
+        {
+          "arahan": "Hitung jumlah baris dengan variabel `jumlah`, lalu cetak `Total baris: 3` setelah loop selesai.",
+          "jawaban": "// === akses.log ===\nGET /menu 200\nGET /menu/7 404\nPOST /pesanan 201\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport readline from 'node:readline';\nconst rl = readline.createInterface({ input: createReadStream('akses.log') });\nlet jumlah = 0;\nfor await (const baris of rl) {\n  console.log('>', baris);\n  jumlah++;\n}\nconsole.log('Total baris:', jumlah);",
+          "keluaran": "> GET /menu 200\n> GET /menu/7 404\n> POST /pesanan 201\nTotal baris: 3",
+          "wajib": [
+            {
+              "pola": "jumlah\\+\\+|jumlah\\s*\\+=\\s*1",
+              "pesan": "tambah `jumlah` di dalam loop."
+            }
+          ],
+          "petunjuk": "let jumlah = 0; jumlah++ di dalam loop; cetak setelah loop."
+        },
+        {
+          "arahan": "Hitung juga baris yang statusnya diawali angka 4 (error dari sisi pengguna) dengan variabel `gagal`, dan cetak `Error klien: 1` di baris terakhir.",
+          "jawaban": "// === akses.log ===\nGET /menu 200\nGET /menu/7 404\nPOST /pesanan 201\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport readline from 'node:readline';\nconst rl = readline.createInterface({ input: createReadStream('akses.log') });\nlet jumlah = 0;\nlet gagal = 0;\nfor await (const baris of rl) {\n  console.log('>', baris);\n  jumlah++;\n  if (baris.split(' ')[2].startsWith('4')) gagal++;\n}\nconsole.log('Total baris:', jumlah);\nconsole.log('Error klien:', gagal);",
+          "keluaran": "> GET /menu 200\n> GET /menu/7 404\n> POST /pesanan 201\nTotal baris: 3\nError klien: 1",
+          "wajib": [
+            {
+              "pola": "startsWith\\(",
+              "pesan": "periksa status dengan `startsWith`."
+            }
+          ],
+          "petunjuk": "baris.split(' ')[2] adalah status; periksa dengan startsWith('4').",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Log toko kini dibaca per baris, sehingga tetap ringan walau filenya membesar."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa stream dipakai untuk file yang sangat besar?",
+          "options": [
+            "Stream membaca file lebih cepat dari disk",
+            "Data diproses per potongan sehingga memori tidak perlu menampung seluruh file",
+            "readFile tidak bisa membaca file teks",
+            "Stream otomatis mengecilkan file"
+          ],
+          "answer": 1,
+          "explanation": "Sedikit demi sedikit.",
+          "remedial": "readFile memuat seluruh isi file ke memori sekaligus. Stream hanya menyimpan satu potongan pada satu waktu."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { Readable } from 'node:stream';\nlet n = 0;\nfor await (const m of Readable.from(['Kopi', 'Teh'])) {\n  console.log(m);\n  n++;\n}\nconsole.log(n);",
+          "options": [
+            "Kopi,Teh / 2",
+            "2 / Kopi / Teh",
+            "Kopi / Teh / 2",
+            "Kopi / Teh / 0"
+          ],
+          "answer": 2,
+          "explanation": "Readable.from memberi setiap elemen sebagai satu potongan.",
+          "remedial": "Setiap elemen array menjadi satu potongan. Loop mencetak keduanya lalu jumlahnya."
+        },
+        {
+          "question": "Kenapa readline dipakai untuk membaca teks per baris?",
+          "options": [
+            "Batas potongan stream bisa jatuh di tengah baris",
+            "Supaya baris diurutkan",
+            "readline lebih kecil dari stream",
+            "Stream tidak bisa membaca teks"
+          ],
+          "answer": 0,
+          "explanation": "Potongan tidak mengenal baris.",
+          "remedial": "Potongan dipotong berdasarkan ukuran byte, bukan baris. readline menyambung potongan dan memecahnya tepat di setiap baris baru."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Objek apa di server HTTP Node.js yang merupakan Readable stream?",
+      "options": [
+        "Respons yang dikirim server (res)",
+        "Port server",
+        "Permintaan yang diterima server (req)",
+        "Nama host server"
+      ],
+      "answer": 2,
+      "explanation": "res adalah Writable stream."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "File nilai.txt berisi satu angka per baris. Baca per baris dengan readline, jumlahkan semua angkanya, lalu cetak: Jumlah: 15",
+      "starterCode": "// === nilai.txt ===\n4\n5\n6\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport readline from 'node:readline';\n",
+      "solution": "// === nilai.txt ===\n4\n5\n6\n// === main.js ===\nimport { createReadStream } from 'node:fs';\nimport readline from 'node:readline';\nconst rl = readline.createInterface({ input: createReadStream('nilai.txt') });\nlet jumlah = 0;\nfor await (const baris of rl) jumlah += Number(baris);\nconsole.log('Jumlah:', jumlah);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Jumlah: 15\n"
+        }
+      ],
+      "hints": [
+        "readline.createInterface({ input: createReadStream(...) }).",
+        "for await (const baris of rl) jumlah += Number(baris)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Stream memproses data per potongan, hemat memori.",
+        "createReadStream membaca file per 64 KB.",
+        "readline mengubah potongan menjadi baris.",
+        "for await membaca stream dan error-nya bisa ditangkap try/catch.",
+        "req di server HTTP adalah Readable stream."
+      ]
+    }
+  ]
+}
