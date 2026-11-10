@@ -103,13 +103,26 @@ export function pecahFile(kode) {
   return { files, utama };
 }
 
-const urlModul = (src) => (globalThis.__pakaiDataUrl ? 'data:text/javascript;base64,' + Buffer.from(src).toString('base64') : URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+const namaUrl = new Map();
+const urlModul = (src, nama) => {
+  const u = globalThis.__pakaiDataUrl ? 'data:text/javascript;base64,' + Buffer.from(src).toString('base64') : URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+  if (nama) namaUrl.set(u, nama);
+  return u;
+};
+// alamat blob/data di pesan error diganti nama file seperti di Node ('./menu.js')
+const gantiUrl = (t) => (namaUrl.size ? t.replace(/(blob:[^\s'")]+|data:text\/javascript;base64,[A-Za-z0-9+/=]+)/g, (u) => namaUrl.get(u) || u) : t);
 const CADANGAN = new Set('default static package private protected public implements interface let yield await enum class const function var new delete typeof void in instanceof this super import export extends return if else for while do switch case break continue throw try catch finally with debugger null true false arguments eval'.split(' '));
 // ditulis lewat RegExp supaya Vite tidak mengira modul ini memakai meta-impor milik Vite
 // import() dinamis lewat Function supaya bundler tidak membungkusnya (alamat blob/data dibuat saat jalan)
 const imporUrl = new Function('u', 'return import(u)');
 const META = (k) => new RegExp('\\bimport\\s*\\.\\s*meta\\s*\\.\\s*' + k + '\\b', 'g');
 const POLA_ESM = /^[ \t]*(import\s*[\w{*'"]|export\s)/m;
+// seperti deteksi sintaks Node 22+: file tanpa import/export tapi gagal dibaca sebagai CommonJS karena
+// top-level await atau import.meta dianggap ES Module
+function esm(src) {
+  if (POLA_ESM.test(src)) return true;
+  try { new Function(src); return false; } catch (e) { return e instanceof SyntaxError && /\bawait\b|\bimport\s*\.\s*meta\b/.test(src); }
+}
 const resolve = (dari, spes) => pth.normalize(pth.join(pth.dirname(dari), spes));
 
 function jalankanCjs(files, nama, cache) {
@@ -133,6 +146,7 @@ function jalankanCjs(files, nama, cache) {
 
 async function jalankanEsm(files, utama) {
   const url = {};
+  const cacheCjs = {};
   const bawaan = {};
   function blobBawaan(spes) {
     if (bawaan[spes]) return bawaan[spes];
@@ -140,7 +154,7 @@ async function jalankanEsm(files, utama) {
     const nama = Object.keys(x.ns).filter((k) => /^[A-Za-z_$][\w$]*$/.test(k) && !CADANGAN.has(k));
     const src = `const m = self.__nodeModul(${JSON.stringify(spes)});\nexport default m.def;\n` +
       (nama.length ? `export const { ${nama.join(', ')} } = m.ns;\n` : '');
-    return (bawaan[spes] = urlModul(src));
+    return (bawaan[spes] = urlModul(src, spes));
   }
   function buat(nama, jalur = []) {
     if (url[nama]) return url[nama];
@@ -151,6 +165,14 @@ async function jalankanEsm(files, utama) {
         if (files[t] === undefined) { const e = new Error(`Cannot find module '${CWD}/${t}' imported from ${CWD}/${nama}`); e.code = 'ERR_MODULE_NOT_FOUND'; throw e; }
         if (t.endsWith('.json')) {
           return urlModul('export default ' + files[t]);
+        }
+        if (t.endsWith('.cjs') || (t.endsWith('.js') && !esm(files[t]))) {
+          // modul CommonJS diimpor dari ESM: default = module.exports, nama = kunci-kuncinya
+          const ex = jalankanCjs(files, t, cacheCjs);
+          const nama = ex && typeof ex === 'object' ? Object.keys(ex).filter((k) => /^[A-Za-z_$][\w$]*$/.test(k) && !CADANGAN.has(k)) : [];
+          self.__cjsEkspor = self.__cjsEkspor || {};
+          self.__cjsEkspor[t] = ex;
+          return urlModul(`const m = self.__cjsEkspor[${JSON.stringify(t)}];\nexport default m;\n` + (nama.length ? `export const { ${nama.join(', ')} } = m;\n` : ''));
         }
         return buat(t, [...jalur, nama]);
       }
@@ -165,7 +187,7 @@ async function jalankanEsm(files, utama) {
       .replace(/(^|[;\s])import(\s*)(["'])([^"']+)\3/g, (_, a, sp, q, s) => a + 'import' + sp + q + ganti(s) + q)
       .replace(/\bimport\s*\(/g, '__imporNode(');
     if (/__imporNode\(/.test(src)) src = `const __imporNode = (s) => self.__imporNode(${JSON.stringify(nama)}, s);\n` + src;
-    const u = urlModul(src + '\n//# sourceURL=' + nama);
+    const u = urlModul(src + '\n//# sourceURL=' + nama, './' + nama);
     return (url[nama] = u);
   }
   self.__imporNode = async (dari, spes) => {
@@ -177,7 +199,7 @@ async function jalankanEsm(files, utama) {
 
 function tulisUncaught(e) {
   if (e instanceof KeluarProses) return;
-  const teks = e instanceof Error ? (e.stack && e.stack.startsWith(e.name) ? e.name + ': ' + e.message : inspect(e)) : 'Uncaught ' + inspect(e);
+  const teks = gantiUrl(e instanceof Error ? (e.stack && e.stack.startsWith(e.name) ? e.name + ': ' + e.message : inspect(e)) : 'Uncaught ' + inspect(e));
   let tambahan = '';
   if (e && typeof e === 'object') {
     const extra = Object.keys(e).filter((k) => k !== 'stack' && k !== 'message');
@@ -211,6 +233,7 @@ function pasangGlobal() {
 export async function jalankanNode(kode, { batasMs = 5000, env = {}, argv = [] } = {}) {
   pasangGlobal();
   st.out = ''; st.err = ''; st.keluar = null; st.hidup = 0; st.kodeSelesai = false;
+  namaUrl.clear();
   bersihkanTick();
   hitung.clear(); waktu.clear(); indent = '';
   aturUlangProcess(env);
@@ -250,7 +273,7 @@ export async function jalankanNode(kode, { batasMs = 5000, env = {}, argv = [] }
     const batas = globalThis.__asliSetTimeout(() => akhiri(`\n[dihentikan: program masih berjalan setelah ${batasMs / 1000} detik. Lupa server.close() atau clearInterval()?]\n`), batasMs);
     const mulai = async () => {
       try {
-        if (POLA_ESM.test(files[utama]) || utama.endsWith('.mjs')) await jalankanEsm(files, utama);
+        if (!utama.endsWith('.cjs') && (esm(files[utama]) || utama.endsWith('.mjs'))) await jalankanEsm(files, utama);
         else jalankanCjs(files, utama, {});
       } catch (e) { tulisUncaught(e); }
       st.kodeSelesai = true;

@@ -1,0 +1,191 @@
+{
+  "id": "node-modul-03",
+  "moduleId": "node-modul",
+  "order": 3,
+  "title": "CommonJS: require dan module.exports",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sebelum ESM ada, Node.js memakai sistem module sendiri bernama **CommonJS** (CJS). Sampai sekarang masih banyak ditemui di proyek lama, contoh di internet, dan file konfigurasi.\n\n```js\n// harga.js\nconst PAJAK = 0.11;\nfunction denganPajak(n) {\n  return Math.round(n * (1 + PAJAK));\n}\nmodule.exports = { PAJAK, denganPajak };\n\n// main.js\nconst { denganPajak } = require('./harga.js');\n```\n\n| | ESM | CommonJS |\n|---|---|---|\n| Mengambil | `import` | `require()` |\n| Menyediakan | `export` | `module.exports` / `exports.x` |\n| Kapan dimuat | sebelum kode jalan | saat `require` dipanggil |\n| Ada `__dirname` | tidak (pakai `import.meta.dirname`) | ya |\n| Ekstensi khusus | `.mjs` | `.cjs` |\n\nIbarat dua sistem antrean di kantor pos: kantor baru memakai sistem modern, tapi banyak cabang lama masih memakai sistem lama, jadi pegawai baru tetap perlu bisa membacanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`require` juga bisa membaca file JSON langsung:\n\n```js\nconst config = require('./config.json');\n```\n\nHasil `require` **disimpan (cache)**: memanggil `require('./stok.js')` dua kali mengembalikan object yang sama, dan isi file hanya dijalankan sekali.\n\n`exports` hanyalah jalan pintas ke `module.exports`:\n\n```js\nexports.ambil = () => {};          // benar: menambah ke module.exports\nmodule.exports = { ambil };        // benar: mengganti seluruh isi\nexports = { ambil };               // SALAH: hanya mengganti variabel lokal\n```\n\nDi file ESM, module CommonJS bisa diimpor: `import harga from './harga.cjs'` memberi isi `module.exports`."
+    },
+    {
+      "type": "runnable",
+      "code": "// === data.json ===\n{ \"toko\": \"Kopi Rina\", \"menu\": [\"Kopi Susu\", \"Teh Tarik\"] }\n// === stok.js ===\nlet jumlah = 10;\nexports.ambil = (n) => {\n  jumlah -= n;\n  return jumlah;\n};\nexports.sisa = () => jumlah;\n// === main.js ===\nconst data = require('./data.json');\nconst stok = require('./stok.js');\nconsole.log(data.toko, data.menu.length);\nstok.ambil(3);\nconsole.log(stok.sisa());\nconsole.log(require('./stok.js') === stok);\nconsole.log(typeof __dirname, typeof require);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "false",
+          "10",
+          "undefined",
+          "true"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 5,
+          "note": "Menambah fungsi ke module.exports."
+        },
+        {
+          "line": 11,
+          "note": "JSON langsung menjadi object."
+        },
+        {
+          "line": 16,
+          "note": "require kedua memakai cache: object yang sama."
+        },
+        {
+          "line": 17,
+          "note": "CommonJS punya __dirname dan require."
+        }
+      ],
+      "explanation": "require menyimpan hasilnya. Pemanggilan kedua mengembalikan object stok yang sama, jadi perbandingannya true dan sisa stok tetap 7.",
+      "tryThis": [
+        {
+          "task": "Ganti exports.sisa = ... menjadi exports = { sisa }. Apa yang terjadi?",
+          "hint": null
+        },
+        {
+          "task": "Ubah main.js memakai import. Kenapa require lalu error?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `exports = { ... }`**\n\nIni hanya mengganti variabel lokal `exports`. File pemakai menerima object kosong, lalu muncul `TypeError: ... is not a function`. Pakai `module.exports = { ... }`.\n\n**2. Mencampur `require` dan `import` di satu file**\n\nSatu file memakai satu sistem. Di file ESM, `require` tidak ada.\n\n**3. Menyalin contoh lama mentah-mentah**\n\nBanyak tutorial Express lama memakai CommonJS. Saat menulis proyek baru dengan ESM, ubah `require` menjadi `import` dan `module.exports` menjadi `export`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Kode CommonJS masih sangat banyak: proyek Express lama, paket npm lama, dan file konfigurasi alat (`.eslintrc.cjs`, `jest.config.cjs`). Developer Node perlu bisa membaca keduanya.\n- Migrasi ke ESM biasanya dilakukan bertahap: menambah `\"type\": \"module\"`, mengganti `require` menjadi `import`, dan mengganti `__dirname` menjadi `import.meta.dirname`.\n- Node.js versi baru juga bisa `require()` file ESM (selama tanpa top-level await), sehingga perpindahan dari CommonJS ke ESM makin mudah."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Modul Toko 3: Gaya Lama",
+      "pembuka": "Kita mewarisi kode toko lama yang memakai CommonJS. Ada bug yang harus diperbaiki.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. kasir.js memakai module.exports, main.js memakai require.",
+          "jawaban": "// === kasir.js ===\nfunction hitung(harga, jumlah) {\n  return harga * jumlah;\n}\nmodule.exports = { hitung };\n// === main.js ===\nconst { hitung } = require('./kasir.js');\nconsole.log('Kopi Susu x2:', hitung(18000, 2));",
+          "keluaran": "Kopi Susu x2: 36000",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode lama ini error: `exports = { ... }` tidak mengubah `module.exports`, sehingga `diskon` tidak ditemukan. Ganti menjadi `module.exports = { hitung, diskon };`. Baris terakhir harus `Setelah diskon: 32400`.",
+          "jawaban": "// === kasir.js ===\nfunction hitung(harga, jumlah) {\n  return harga * jumlah;\n}\nfunction diskon(total, persen) {\n  return total - (total * persen) / 100;\n}\nmodule.exports = { hitung, diskon };\n// === main.js ===\nconst { hitung, diskon } = require('./kasir.js');\nconsole.log('Kopi Susu x2:', hitung(18000, 2));\nconsole.log('Setelah diskon:', diskon(hitung(18000, 2), 10));",
+          "kodeAwal": "// === kasir.js ===\nfunction hitung(harga, jumlah) {\n  return harga * jumlah;\n}\nfunction diskon(total, persen) {\n  return total - (total * persen) / 100;\n}\nexports = { hitung, diskon };\n// === main.js ===\nconst { hitung, diskon } = require('./kasir.js');\nconsole.log('Kopi Susu x2:', hitung(18000, 2));\nconsole.log('Setelah diskon:', diskon(hitung(18000, 2), 10));",
+          "keluaran": "Kopi Susu x2: 36000\nSetelah diskon: 32400",
+          "wajib": [
+            {
+              "pola": "module\\.exports\\s*=\\s*\\{",
+              "pesan": "pakai `module.exports = { ... }`."
+            }
+          ],
+          "petunjuk": "module.exports = { hitung, diskon }; menggantikan exports = { ... }."
+        },
+        {
+          "arahan": "Pindahkan persen diskon ke file `// === config.json ===` berisi `{ \"diskon\": 15 }` dan baca dengan `require('./config.json')`. Baris terakhir harus `Setelah diskon: 30600`.",
+          "jawaban": "// === config.json ===\n{ \"diskon\": 15 }\n// === kasir.js ===\nfunction hitung(harga, jumlah) {\n  return harga * jumlah;\n}\nfunction diskon(total, persen) {\n  return total - (total * persen) / 100;\n}\nmodule.exports = { hitung, diskon };\n// === main.js ===\nconst { hitung, diskon } = require('./kasir.js');\nconst config = require('./config.json');\nconsole.log('Kopi Susu x2:', hitung(18000, 2));\nconsole.log('Setelah diskon:', diskon(hitung(18000, 2), config.diskon));",
+          "keluaran": "Kopi Susu x2: 36000\nSetelah diskon: 30600",
+          "wajib": [
+            {
+              "pola": "require\\(\\s*'\\./config\\.json'\\s*\\)",
+              "pesan": "baca dengan `require('./config.json')`."
+            }
+          ],
+          "petunjuk": "const config = require('./config.json'); lalu pakai config.diskon.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Kode CommonJS sudah bisa dibaca dan diperbaiki. Pola ini akan sering kamu temui di proyek lama."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa bedanya exports.x = 1 dengan exports = { x: 1 }?",
+          "options": [
+            "Keduanya sama persis",
+            "exports.x menambah ke module.exports, exports = {...} hanya mengganti variabel lokal",
+            "exports = {...} lebih modern",
+            "exports.x hanya untuk angka"
+          ],
+          "answer": 1,
+          "explanation": "exports adalah jalan pintas ke module.exports.",
+          "remedial": "exports awalnya menunjuk object yang sama dengan module.exports. Menambah properti ikut mengubahnya, tapi mengganti exports dengan object baru memutus hubungan itu."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "// === hitung.js ===\nlet n = 0;\nn++;\nmodule.exports = { n };\n// === main.js ===\nconst a = require('./hitung.js');\nconst b = require('./hitung.js');\nconsole.log(a.n);\nconsole.log(b.n);",
+          "options": [
+            "1 / 2",
+            "2 / 2",
+            "1 / 1",
+            "Error"
+          ],
+          "answer": 2,
+          "explanation": "require memakai cache.",
+          "remedial": "Isi hitung.js hanya dijalankan sekali. require kedua mengembalikan object yang sama, jadi penghitung tetap 1."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini dijalankan?",
+          "code": "export const nama = 'toko';\nconst path = require('node:path');\nconsole.log(path.sep);",
+          "options": [
+            "Error, require tidak ada di file ES Module",
+            "Mencetak undefined",
+            "require otomatis diubah menjadi import",
+            "Mencetak isi path"
+          ],
+          "answer": 0,
+          "explanation": "Satu file memakai satu sistem module.",
+          "remedial": "File ini memakai export, jadi diperlakukan sebagai ESM. Di ESM tidak ada require, sehingga muncul ReferenceError."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Di mana kamu paling mungkin bertemu CommonJS saat bekerja?",
+      "options": [
+        "Hanya di browser lama",
+        "Di file CSS",
+        "Proyek Node.js lama dan file konfigurasi .cjs",
+        "Tidak pernah, sudah dihapus"
+      ],
+      "answer": 2,
+      "explanation": "Kode lama dan konfigurasi alat masih banyak memakai CommonJS."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Ubah kode CommonJS di bawah menjadi ES Module: alat.js meng-export fungsi luas dengan export, dan main.js mengimpornya dengan import. Keluarannya tetap: 50",
+      "starterCode": "// === alat.js ===\nfunction luas(p, l) {\n  return p * l;\n}\nmodule.exports = { luas };\n// === main.js ===\nconst { luas } = require('./alat.js');\nconsole.log(luas(10, 5));\nconsole.log('masih CommonJS');\n",
+      "solution": "// === alat.js ===\nexport function luas(p, l) {\n  return p * l;\n}\n// === main.js ===\nimport { luas } from './alat.js';\nconsole.log(luas(10, 5));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "50\n"
+        }
+      ],
+      "hints": [
+        "Ganti module.exports dengan export di depan function.",
+        "Ganti require dengan import { luas } from './alat.js', lalu hapus baris masih CommonJS."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "CommonJS: require() untuk mengambil, module.exports untuk menyediakan.",
+        "exports.x = ... boleh; exports = {...} memutus hubungan.",
+        "require bisa membaca JSON dan hasilnya di-cache.",
+        "CommonJS punya __dirname; ESM memakai import.meta.dirname.",
+        "Proyek baru memakai ESM, tapi CommonJS tetap perlu bisa dibaca."
+      ]
+    }
+  ]
+}
