@@ -1,0 +1,205 @@
+{
+  "id": "node-rest-05",
+  "moduleId": "node-rest",
+  "order": 5,
+  "title": "Respons dan Error yang Konsisten",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Klien API (frontend, aplikasi HP, tim lain) senang kalau semua respons punya **bentuk yang sama**. Contoh kesepakatan yang umum:\n\n```json\n// berhasil\n{ \"data\": { \"id\": 1, \"nama\": \"Kopi\" } }\n\n// daftar\n{ \"data\": [...], \"meta\": { \"total\": 57, \"halaman\": 1 } }\n\n// gagal\n{ \"error\": { \"kode\": \"STOK_KURANG\", \"pesan\": \"Stok Kopi tinggal 1\", \"detail\": [] } }\n```\n\n**Kode error** berupa teks tetap (`STOK_KURANG`, `VALIDASI_GAGAL`) memudahkan klien bereaksi tanpa membaca pesan, karena pesan bisa berubah atau diterjemahkan.\n\nIbarat formulir resmi di kantor pemerintahan: bentuknya selalu sama, jadi petugas langsung tahu di mana mencari nomor, tanggal, dan keterangannya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKelas error dengan status dan kode:\n\n```js\nclass AppError extends Error {\n  constructor(status, kode, pesan, detail) {\n    super(pesan);\n    Object.assign(this, { status, kode, detail });\n  }\n}\n```\n\nPenangan error menerjemahkan semua jenis error ke bentuk yang sama, termasuk `ZodError`:\n\n```js\napp.use((err, req, res, next) => {\n  if (err instanceof z.ZodError) err = new AppError(400, 'VALIDASI_GAGAL', 'Data tidak valid', ...);\n  if (!(err instanceof AppError)) err = new AppError(500, 'KESALAHAN_SERVER', 'Terjadi kesalahan di server');\n  res.status(err.status).json({ error: { kode: err.kode, pesan: err.message, detail: err.detail } });\n});\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\nimport { z } from 'zod';\n\nclass AppError extends Error {\n  constructor(status, kode, pesan, detail) {\n    super(pesan);\n    Object.assign(this, { status, kode, detail });\n  }\n}\nconst stok = { 1: 1 };\nconst app = express();\napp.use(express.json());\napp.post('/produk/:id/beli', (req, res) => {\n  const { jumlah } = z.object({ jumlah: z.number().int().positive() }).parse(req.body);\n  const id = req.params.id;\n  if (!(id in stok)) throw new AppError(404, 'PRODUK_TIDAK_ADA', `Produk ${id} tidak ada`);\n  if (stok[id] < jumlah) throw new AppError(409, 'STOK_KURANG', `Stok tinggal ${stok[id]}`);\n  stok[id] -= jumlah;\n  res.json({ data: { id: Number(id), sisa: stok[id] } });\n});\napp.use((err, req, res, next) => {\n  if (err instanceof z.ZodError) {\n    err = new AppError(400, 'VALIDASI_GAGAL', 'Data tidak valid', err.issues.map((i) => i.path.join('.')));\n  } else if (!(err instanceof AppError)) {\n    err = new AppError(500, 'KESALAHAN_SERVER', 'Terjadi kesalahan di server');\n  }\n  res.status(err.status).json({ error: { kode: err.kode, pesan: err.message, detail: err.detail ?? [] } });\n});\nconst server = app.listen(3000);\n\nconst beli = async (id, body) => {\n  const r = await fetch(`http://localhost:3000/produk/${id}/beli`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\n  const isi = await r.json();\n  console.log(r.status, isi.data ?? isi.error.kode);\n};\nawait beli(1, { jumlah: 1 });\nawait beli(1, { jumlah: 1 });\nawait beli(7, { jumlah: 1 });\nawait beli(1, { jumlah: 'dua' });\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "400 VALIDASI_GAGAL",
+          "200 { id: 1, sisa: -1 }",
+          "409 STOK_KURANG",
+          "404 PRODUK_TIDAK_ADA"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Error dengan status, kode, dan detail."
+        },
+        {
+          "line": 17,
+          "note": "Kode tetap yang mudah dibaca klien."
+        },
+        {
+          "line": 19,
+          "note": "Respons berhasil dibungkus data."
+        },
+        {
+          "line": 22,
+          "note": "Error validasi diterjemahkan ke bentuk yang sama."
+        },
+        {
+          "line": 27,
+          "note": "Respons gagal dibungkus error."
+        }
+      ],
+      "explanation": "Pembelian pertama menghabiskan stok produk 1 (dari 1 menjadi 0). Pembelian kedua melebihi stok, sehingga dijawab 409 dengan kode STOK_KURANG.",
+      "tryThis": [
+        {
+          "task": "Cetak isi.error.detail untuk pembelian keempat.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan rute yang melempar Error biasa. Apa kodenya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Setiap rute punya bentuk error sendiri**\n\nSatu rute `{ error: '...' }`, lainnya `{ message: '...' }`, lainnya teks biasa. Frontend harus menulis banyak pengecualian.\n\n**2. Klien membandingkan pesan error**\n\n`if (pesan === 'Stok tinggal 1')` rusak begitu pesannya berubah. Bandingkan kode error.\n\n**3. Kode error terlalu umum**\n\n`ERROR` atau `GAGAL` tidak membantu. Kode yang baik menjelaskan penyebab: `EMAIL_SUDAH_DIPAKAI`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Kontrak respons ini biasanya ditulis di dokumentasi **OpenAPI** (Swagger), yang bisa ditampilkan sebagai halaman dokumentasi interaktif untuk tim lain.\n- Ada standar **RFC 9457** (*Problem Details for HTTP APIs*) dengan bentuk `{ type, title, status, detail }` yang dipakai sebagian perusahaan.\n- Kode error juga dipakai untuk menerjemahkan pesan ke bahasa pengguna di sisi frontend."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "API Produk 5: Satu Bentuk Jawaban",
+      "pembuka": "Semua jawaban API produk dibuat seragam, baik berhasil maupun gagal.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Jawaban gagal dan berhasil bentuknya berbeda-beda.",
+          "jawaban": "import express from 'express';\nconst produk = [{ id: 1, nama: 'Kopi' }];\nconst app = express();\napp.get('/produk/:id', (req, res) => {\n  const p = produk.find((x) => x.id === Number(req.params.id));\n  if (!p) return res.status(404).send('tidak ada');\n  res.json(p);\n});\nconst server = app.listen(3000);\nfor (const id of [1, 9]) {\n  const r = await fetch(`http://localhost:3000/produk/${id}`);\n  console.log(r.status, await r.text());\n}\nserver.close();",
+          "keluaran": "200 {\"id\":1,\"nama\":\"Kopi\"}\n404 tidak ada",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat `class AppError extends Error` dengan `status` dan `kode`. Rute melempar `new AppError(404, 'PRODUK_TIDAK_ADA', 'Produk tidak ada')`, dan penangan error menjawab `{ error: { kode, pesan } }`. Rute berhasil menjawab `{ data: p }`. Cetak status dan `r.json()` untuk id 1 dan 9.",
+          "jawaban": "import express from 'express';\nclass AppError extends Error {\n  constructor(status, kode, pesan) {\n    super(pesan);\n    this.status = status;\n    this.kode = kode;\n  }\n}\nconst produk = [{ id: 1, nama: 'Kopi' }];\nconst app = express();\napp.get('/produk/:id', (req, res) => {\n  const p = produk.find((x) => x.id === Number(req.params.id));\n  if (!p) throw new AppError(404, 'PRODUK_TIDAK_ADA', 'Produk tidak ada');\n  res.json({ data: p });\n});\napp.use((err, req, res, next) => {\n  res.status(err.status ?? 500).json({ error: { kode: err.kode, pesan: err.message } });\n});\nconst server = app.listen(3000);\nfor (const id of [1, 9]) {\n  const r = await fetch(`http://localhost:3000/produk/${id}`);\n  console.log(r.status, await r.json());\n}\nserver.close();",
+          "keluaran": "200 { data: { id: 1, nama: 'Kopi' } }\n404 { error: { kode: 'PRODUK_TIDAK_ADA', pesan: 'Produk tidak ada' } }",
+          "wajib": [
+            {
+              "pola": "class\\s+AppError\\s+extends\\s+Error",
+              "pesan": "buat `class AppError extends Error`."
+            },
+            {
+              "pola": "'PRODUK_TIDAK_ADA'",
+              "pesan": "pakai kode `'PRODUK_TIDAK_ADA'`."
+            },
+            {
+              "pola": "data\\s*:\\s*p",
+              "pesan": "bungkus respons berhasil dengan `{ data: p }`."
+            }
+          ],
+          "petunjuk": "class AppError dengan status dan kode; penangan error: { error: { kode: err.kode, pesan: err.message } }."
+        },
+        {
+          "arahan": "Ubah penangan error supaya error yang bukan `AppError` dijawab 500 dengan kode `KESALAHAN_SERVER` dan pesan `Terjadi kesalahan`. Tambahkan rute `GET /rusak` yang melempar `new Error('rahasia internal')`, fetch, dan cetak `500 { error: { kode: 'KESALAHAN_SERVER', pesan: 'Terjadi kesalahan' } }` di baris terakhir.",
+          "jawaban": "import express from 'express';\nclass AppError extends Error {\n  constructor(status, kode, pesan) {\n    super(pesan);\n    this.status = status;\n    this.kode = kode;\n  }\n}\nconst produk = [{ id: 1, nama: 'Kopi' }];\nconst app = express();\napp.get('/produk/:id', (req, res) => {\n  const p = produk.find((x) => x.id === Number(req.params.id));\n  if (!p) throw new AppError(404, 'PRODUK_TIDAK_ADA', 'Produk tidak ada');\n  res.json({ data: p });\n});\napp.get('/rusak', () => {\n  throw new Error('rahasia internal');\n});\napp.use((err, req, res, next) => {\n  if (!(err instanceof AppError)) err = new AppError(500, 'KESALAHAN_SERVER', 'Terjadi kesalahan');\n  res.status(err.status).json({ error: { kode: err.kode, pesan: err.message } });\n});\nconst server = app.listen(3000);\nfor (const id of [1, 9]) {\n  const r = await fetch(`http://localhost:3000/produk/${id}`);\n  console.log(r.status, await r.json());\n}\nconst r = await fetch('http://localhost:3000/rusak');\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "200 { data: { id: 1, nama: 'Kopi' } }\n404 { error: { kode: 'PRODUK_TIDAK_ADA', pesan: 'Produk tidak ada' } }\n500 { error: { kode: 'KESALAHAN_SERVER', pesan: 'Terjadi kesalahan' } }",
+          "wajib": [
+            {
+              "pola": "instanceof\\s+AppError",
+              "pesan": "periksa `instanceof AppError`."
+            },
+            {
+              "pola": "'KESALAHAN_SERVER'",
+              "pesan": "pakai kode `'KESALAHAN_SERVER'`."
+            }
+          ],
+          "petunjuk": "if (!(err instanceof AppError)) err = new AppError(500, 'KESALAHAN_SERVER', 'Terjadi kesalahan');",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Semua jawaban API produk kini seragam: data untuk berhasil, error dengan kode tetap untuk gagal."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa klien sebaiknya membandingkan kode error, bukan pesan error?",
+          "options": [
+            "Pesan tidak pernah dikirim ke klien",
+            "Kode error dibuat otomatis oleh Express",
+            "Pesan bisa berubah atau diterjemahkan, sedangkan kode tetap",
+            "Kode lebih pendek untuk dikirim"
+          ],
+          "answer": 2,
+          "explanation": "Kode = kontrak.",
+          "remedial": "Pesan ditujukan untuk manusia dan boleh diperbaiki kapan saja. Kode error adalah bagian kontrak API yang tidak berubah."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "class AppError extends Error {\n  constructor(status, kode, pesan) { super(pesan); Object.assign(this, { status, kode }); }\n}\nfunction terjemahkan(err) {\n  return err instanceof AppError ? err : new AppError(500, 'KESALAHAN_SERVER', 'Terjadi kesalahan');\n}\nconst e = terjemahkan(new Error('db mati'));\nconsole.log(e.kode);\nconsole.log(e.status);",
+          "options": [
+            "Error / 500",
+            "undefined / 500",
+            "KESALAHAN_SERVER / 500",
+            "KESALAHAN_SERVER / undefined"
+          ],
+          "answer": 2,
+          "explanation": "Error biasa diterjemahkan.",
+          "remedial": "Error biasa bukan AppError, jadi diganti AppError 500 dengan kode KESALAHAN_SERVER."
+        },
+        {
+          "question": "Apa manfaat respons berhasil dibungkus { data } dan daftar dengan { data, meta }?",
+          "options": [
+            "Supaya JSON lebih cepat diparse",
+            "Klien selalu tahu di mana data dan informasi tambahannya berada",
+            "Wajib menurut aturan HTTP",
+            "Respons menjadi lebih kecil"
+          ],
+          "answer": 1,
+          "explanation": "Bentuk yang bisa ditebak.",
+          "remedial": "Dengan bentuk yang sama di semua rute, frontend bisa memakai satu fungsi untuk membaca semua respons."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Standar apa yang mendefinisikan bentuk respons error HTTP dengan type, title, status, dan detail?",
+      "options": [
+        "REST Level 3",
+        "OpenAPI 3",
+        "RFC 9457 Problem Details",
+        "JSON Schema"
+      ],
+      "answer": 2,
+      "explanation": "Problem Details for HTTP APIs."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi jawabError(err) yang mengembalikan objek { status, isi } dengan isi berbentuk { error: { kode, pesan } }. Kalau err punya kode, pakai status dan kodenya; kalau tidak, status 500 dan kode KESALAHAN_SERVER dengan pesan Terjadi kesalahan. Cetak hasil untuk error biasa: { status: 500, isi: { error: { kode: 'KESALAHAN_SERVER', pesan: 'Terjadi kesalahan' } } }",
+      "starterCode": "function jawabError(err) {}\n",
+      "solution": "function jawabError(err) {\n  if (err.kode) return { status: err.status, isi: { error: { kode: err.kode, pesan: err.message } } };\n  return { status: 500, isi: { error: { kode: 'KESALAHAN_SERVER', pesan: 'Terjadi kesalahan' } } };\n}\nconsole.log(jawabError(new Error('x')));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "{\n  status: 500,\n  isi: { error: { kode: 'KESALAHAN_SERVER', pesan: 'Terjadi kesalahan' } }\n}\n"
+        }
+      ],
+      "hints": [
+        "if (err.kode) return { status: err.status, isi: ... }.",
+        "Selain itu: { status: 500, isi: { error: { kode: 'KESALAHAN_SERVER', pesan: 'Terjadi kesalahan' } } }."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Bentuk respons yang sama di semua rute: data, meta, error.",
+        "Error berisi kode tetap, pesan, dan detail.",
+        "Klien membandingkan kode, bukan pesan.",
+        "Penangan error menerjemahkan semua jenis error ke bentuk yang sama.",
+        "Kontrak respons ditulis di dokumentasi OpenAPI."
+      ]
+    }
+  ]
+}

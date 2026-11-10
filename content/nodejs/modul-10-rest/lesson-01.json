@@ -1,0 +1,189 @@
+{
+  "id": "node-rest-01",
+  "moduleId": "node-rest",
+  "order": 1,
+  "title": "Prinsip REST",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**REST** adalah gaya merancang API yang paling umum. Prinsip utamanya:\n\n1. **Sumber daya** (*resource*) diberi alamat berupa **kata benda jamak**: `/produk`, `/pesanan`, `/pengguna`.\n2. **Method** menyatakan tindakan, bukan jalurnya: `POST /produk`, bukan `/tambahProduk`.\n3. **Status** menyatakan hasil: 200, 201, 204, 400, 404, 409, dan seterusnya.\n4. Setiap permintaan berdiri sendiri (*stateless*): server tidak bergantung pada permintaan sebelumnya.\n\nHubungan antar sumber daya ditulis bertingkat: `/toko/3/produk` (produk milik toko 3).\n\nIbarat perpustakaan dengan rak berlabel: setiap jenis buku punya rak sendiri (sumber daya), dan semua pengunjung memakai cara yang sama untuk meminjam, mengembalikan, atau mencari (method)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n| Kurang tepat | REST |\n|---|---|\n| `GET /ambilSemuaProduk` | `GET /produk` |\n| `POST /hapusProduk?id=3` | `DELETE /produk/3` |\n| `GET /produk/3/ubahHarga?h=5` | `PATCH /produk/3` dengan body `{ \"harga\": 5 }` |\n\n**Idempoten** artinya diulang berkali-kali hasil akhirnya sama:\n\n| Method | Idempoten? |\n|---|---|\n| GET, PUT, DELETE | ya |\n| POST | tidak (setiap POST membuat data baru) |\n| PATCH | tergantung isinya |\n\nKarena itu klien boleh mengulang GET atau PUT yang gagal karena jaringan, tapi harus hati-hati mengulang POST."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\n\nconst produk = [];\nlet nextId = 1;\nconst app = express();\napp.use(express.json());\napp.post('/produk', (req, res) => {\n  const p = { id: nextId++, nama: req.body.nama };\n  produk.push(p);\n  res.status(201).json(p);\n});\napp.put('/produk/:id', (req, res) => {\n  const id = Number(req.params.id);\n  const i = produk.findIndex((p) => p.id === id);\n  const data = { id, nama: req.body.nama };\n  if (i === -1) produk.push(data); else produk[i] = data;\n  res.json(data);\n});\napp.delete('/produk/:id', (req, res) => {\n  const i = produk.findIndex((p) => p.id === Number(req.params.id));\n  if (i !== -1) produk.splice(i, 1);\n  res.sendStatus(204);\n});\nconst server = app.listen(3000);\n\nconst kirim = (method, jalur, body) => fetch('http://localhost:3000' + jalur, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });\nfor (let i = 0; i < 2; i++) await kirim('POST', '/produk', { nama: 'Kopi' });\nconsole.log('setelah 2x POST:', produk.length);\nfor (let i = 0; i < 2; i++) await kirim('PUT', '/produk/1', { nama: 'Kopi Susu' });\nconsole.log('setelah 2x PUT:', produk.length, produk[0].nama);\nfor (let i = 0; i < 2; i++) await kirim('DELETE', '/produk/2');\nconsole.log('setelah 2x DELETE:', produk.length);\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "setelah 2x POST: 1",
+          "setelah 2x POST: 2",
+          "setelah 2x POST: 4",
+          "setelah 2x POST: 0"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "POST: membuat data baru setiap kali."
+        },
+        {
+          "line": 12,
+          "note": "PUT: hasil akhirnya sama walau diulang."
+        },
+        {
+          "line": 19,
+          "note": "DELETE: sekali terhapus, tetap terhapus."
+        }
+      ],
+      "explanation": "POST tidak idempoten: dua kali POST membuat dua produk. Sebaliknya, PUT dua kali tetap satu produk dengan nama yang sama, dan DELETE dua kali tetap menghapus satu.",
+      "tryThis": [
+        {
+          "task": "Ulangi POST tiga kali. Berapa jumlah produk?",
+          "hint": null
+        },
+        {
+          "task": "Bandingkan jumlah produk setelah PUT dan setelah DELETE.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Kata kerja di jalur**\n\n`/buatPesanan`, `/hapusUser` membuat API tidak konsisten. Kata kerja cukup dari method.\n\n**2. Semua lewat POST**\n\nAPI yang memakai POST untuk mengambil data kehilangan manfaat cache dan idempoten.\n\n**3. Format jalur campur aduk**\n\n`/Produk`, `/produk_list`, `/produks`. Pilih satu gaya: huruf kecil, kata benda jamak, pemisah tanda hubung (`/kategori-produk`)."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hampir semua API publik (pembayaran, ekspedisi, marketplace) memakai gaya REST, sehingga pola ini langsung terpakai saat integrasi.\n- Alternatif lain: **GraphQL** (klien memilih kolom yang diminta) dan **gRPC** (komunikasi cepat antar layanan). REST tetap yang paling umum.\n- Untuk POST yang tidak boleh terjadi dua kali (misalnya pembayaran), API besar memakai header **Idempotency-Key** supaya permintaan ulang tidak membuat transaksi ganda."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "API Produk 1: Alamat yang Rapi",
+      "pembuka": "API produk toko dirancang ulang supaya mengikuti gaya REST.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. API lama memakai kata kerja di jalur.",
+          "jawaban": "import express from 'express';\nconst produk = [{ id: 1, nama: 'Kopi' }];\nconst app = express();\napp.get('/ambilSemuaProduk', (req, res) => res.json(produk));\nconst server = app.listen(3000);\nconsole.log((await fetch('http://localhost:3000/ambilSemuaProduk')).status);\nserver.close();",
+          "keluaran": "200",
+          "otomatis": true
+        },
+        {
+          "arahan": "Ganti rute menjadi gaya REST: `GET /produk` untuk daftar dan `GET /produk/:id` untuk detail (404 kalau tidak ada). Fetch `/produk` dan `/produk/1`, lalu cetak jumlah produk dan nama produk 1: `1` lalu `Kopi`.",
+          "jawaban": "import express from 'express';\nconst produk = [{ id: 1, nama: 'Kopi' }];\nconst app = express();\napp.get('/produk', (req, res) => res.json(produk));\napp.get('/produk/:id', (req, res) => {\n  const p = produk.find((x) => x.id === Number(req.params.id));\n  if (!p) return res.status(404).json({ error: 'Produk tidak ada' });\n  res.json(p);\n});\nconst server = app.listen(3000);\nconsole.log((await (await fetch('http://localhost:3000/produk')).json()).length);\nconsole.log((await (await fetch('http://localhost:3000/produk/1')).json()).nama);\nserver.close();",
+          "keluaran": "1\nKopi",
+          "wajib": [
+            {
+              "pola": "app\\.get\\(\\s*'/produk'",
+              "pesan": "buat `app.get('/produk', ...)`."
+            },
+            {
+              "pola": "app\\.get\\(\\s*'/produk/:id'",
+              "pesan": "buat `app.get('/produk/:id', ...)`."
+            }
+          ],
+          "petunjuk": "app.get('/produk', ...) dan app.get('/produk/:id', ...)."
+        },
+        {
+          "arahan": "Tambahkan sumber daya bertingkat `GET /kategori/:nama/produk` yang mengembalikan produk dengan kategori itu. Beri produk 1 kategori `minuman` dan tambah `{ id: 2, nama: 'Roti', kategori: 'makanan' }`. Fetch `/kategori/makanan/produk` dan cetak nama-namanya: `[ 'Roti' ]`.",
+          "jawaban": "import express from 'express';\nconst produk = [{ id: 1, nama: 'Kopi', kategori: 'minuman' }, { id: 2, nama: 'Roti', kategori: 'makanan' }];\nconst app = express();\napp.get('/produk', (req, res) => res.json(produk));\napp.get('/produk/:id', (req, res) => {\n  const p = produk.find((x) => x.id === Number(req.params.id));\n  if (!p) return res.status(404).json({ error: 'Produk tidak ada' });\n  res.json(p);\n});\napp.get('/kategori/:nama/produk', (req, res) => {\n  res.json(produk.filter((p) => p.kategori === req.params.nama));\n});\nconst server = app.listen(3000);\nconsole.log((await (await fetch('http://localhost:3000/produk')).json()).length);\nconsole.log((await (await fetch('http://localhost:3000/produk/1')).json()).nama);\nconsole.log((await (await fetch('http://localhost:3000/kategori/makanan/produk')).json()).map((p) => p.nama));\nserver.close();",
+          "keluaran": "2\nKopi\n[ 'Roti' ]",
+          "wajib": [
+            {
+              "pola": "'/kategori/:nama/produk'",
+              "pesan": "buat rute `'/kategori/:nama/produk'`."
+            }
+          ],
+          "petunjuk": "app.get('/kategori/:nama/produk', ...) dengan filter p.kategori === req.params.nama.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "API produk kini memakai alamat REST yang rapi, termasuk sumber daya bertingkat."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Jalur mana yang mengikuti gaya REST untuk menghapus pesanan nomor 5?",
+          "options": [
+            "DELETE /pesanan/5",
+            "POST /hapusPesanan/5",
+            "GET /pesanan/5/hapus",
+            "DELETE /hapus-pesanan?id=5"
+          ],
+          "answer": 0,
+          "explanation": "Kata benda + method.",
+          "remedial": "Sumber dayanya pesanan nomor 5, dan tindakannya dinyatakan oleh method DELETE."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const data = new Map();\nconst put = (id, v) => data.set(id, v);\nput(1, 'a');\nconsole.log(data.size);\nput(1, 'a');\nconsole.log(data.size);",
+          "options": [
+            "2 / 2",
+            "2 / 1",
+            "1 / 1",
+            "1 / 2"
+          ],
+          "answer": 2,
+          "explanation": "PUT idempoten.",
+          "remedial": "PUT ke id yang sama dua kali tetap menghasilkan satu data, dengan nilai terakhir."
+        },
+        {
+          "question": "Kenapa POST tidak idempoten?",
+          "options": [
+            "Setiap POST membuat data baru, jadi diulang hasilnya bertambah",
+            "POST tidak bisa membawa body",
+            "POST hanya untuk login",
+            "POST selalu gagal kalau diulang"
+          ],
+          "answer": 0,
+          "explanation": "Diulang = data dobel.",
+          "remedial": "Dua kali POST yang sama membuat dua data. Karena itu klien tidak boleh mengulang POST sembarangan."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Header apa yang dipakai API pembayaran supaya POST yang diulang tidak membuat transaksi ganda?",
+      "options": [
+        "Idempotency-Key",
+        "Accept",
+        "Cache-Control",
+        "Content-Type"
+      ],
+      "answer": 0,
+      "explanation": "Kunci unik per transaksi."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat rute REST GET /pengguna/:id/pesanan yang mengembalikan pesanan milik pengguna itu dari array pesanan (bandingkan penggunaId dengan Number(req.params.id)). Fetch /pengguna/2/pesanan dan cetak jumlahnya: 2",
+      "starterCode": "import express from 'express';\nconst pesanan = [{ id: 1, penggunaId: 1 }, { id: 2, penggunaId: 2 }, { id: 3, penggunaId: 2 }];\nconst app = express();\n",
+      "solution": "import express from 'express';\nconst pesanan = [{ id: 1, penggunaId: 1 }, { id: 2, penggunaId: 2 }, { id: 3, penggunaId: 2 }];\nconst app = express();\napp.get('/pengguna/:id/pesanan', (req, res) => {\n  res.json(pesanan.filter((p) => p.penggunaId === Number(req.params.id)));\n});\nconst server = app.listen(3000);\nconsole.log((await (await fetch('http://localhost:3000/pengguna/2/pesanan')).json()).length);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "2\n"
+        }
+      ],
+      "hints": [
+        "Rute '/pengguna/:id/pesanan'.",
+        "filter((p) => p.penggunaId === Number(req.params.id))."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "REST: sumber daya dengan kata benda jamak, tindakan dari method.",
+        "Hubungan antar sumber daya ditulis bertingkat: /toko/3/produk.",
+        "GET, PUT, DELETE idempoten; POST tidak.",
+        "Gaya jalur konsisten: huruf kecil, jamak, tanda hubung.",
+        "Idempotency-Key mencegah POST ganda untuk transaksi penting."
+      ]
+    }
+  ]
+}
