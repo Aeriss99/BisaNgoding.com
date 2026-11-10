@@ -1,0 +1,192 @@
+{
+  "id": "ts-async-02",
+  "moduleId": "ts-async",
+  "order": 2,
+  "title": "fetch Bertipe dan unknown",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Data dari server baru diketahui saat program berjalan. TypeScript tidak bisa memeriksanya saat compile, dan `res.json()` bertipe `Promise<any>`:\n\n```ts\nconst res = await fetch(\"https://api.toko.contoh/products/P01\");\nconst data = await res.json();      // any: semua pemeriksaan mati\nconsole.log(data.nama.toUpperCase()); // lolos pemeriksaan, tapi gagal saat jalan\n```\n\nCara yang aman: simpan sebagai **unknown**, lalu periksa bentuknya sebelum dipakai.\n\n```ts\ntype Produk = { id: string; name: string; price: number };\nconst data: unknown = await res.json();\nconsole.log(data.name); // error TS18046: 'data' is of type 'unknown'.\n```\n\nIbarat paket kiriman dari luar: label di kardus (tipe) ditulis pengirim, belum tentu sesuai isinya. unknown adalah paket yang belum dibuka. Kita wajib membuka dan memeriksanya sebelum isinya dipakai."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nPemeriksaan dibungkus dalam **type guard** (fungsi dengan tipe kembalian `x is Tipe`):\n\n```ts\nfunction isProduk(x: unknown): x is Produk {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"name\" in x && typeof x.name === \"string\" &&\n    \"price\" in x && typeof x.price === \"number\"\n  );\n}\n\nconst data: unknown = await res.json();\nif (!isProduk(data)) throw new Error(\"Data produk tidak valid\");\nconsole.log(data.name); // di sini data sudah bertipe Produk\n```\n\nServer latihan di materi ini: `https://api.toko.contoh/products`, `/products/P01` sampai `P04`, `/users/U1` sampai `U3`, `/orders?userId=U1`, dan `/error` (selalu 500)."
+    },
+    {
+      "type": "runnable",
+      "code": "type Produk = { id: string; name: string; price: number };\n\nfunction isProduk(x: unknown): x is Produk {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"name\" in x && typeof x.name === \"string\" &&\n    \"price\" in x && typeof x.price === \"number\"\n  );\n}\nasync function ambilProduk(id: string): Promise<Produk> {\n  const res = await fetch(\"https://api.toko.contoh/products/\" + id);\n  if (!res.ok) throw new Error(\"HTTP \" + res.status);\n  const data: unknown = await res.json();\n  if (!isProduk(data)) throw new Error(\"Data produk tidak valid\");\n  return data;\n}\nconst kopi = await ambilProduk(\"P01\");\nconsole.log(kopi.name, kopi.price);\ntry {\n  await ambilProduk(\"P99\");\n} catch (e) {\n  if (e instanceof Error) console.log(\"Gagal:\", e.message);\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "Gagal: Data produk tidak valid",
+          "Gagal: HTTP 404",
+          "Gagal: HTTP 500",
+          "undefined undefined"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 3,
+          "note": "Type guard: kalau true, x dianggap Produk."
+        },
+        {
+          "line": 13,
+          "note": "fetch tidak melempar error untuk 404, jadi diperiksa sendiri."
+        },
+        {
+          "line": 14,
+          "note": "Belum dipercaya sampai diperiksa."
+        }
+      ],
+      "explanation": "Produk P99 tidak ada, jadi server membalas 404. res.ok bernilai false, sehingga fungsi melempar Error HTTP 404 sebelum sempat memeriksa isi data.",
+      "tryThis": [
+        {
+          "task": "Ganti const data: unknown menjadi const data. Lalu tulis data.nama. Apakah ditolak?",
+          "hint": null
+        },
+        {
+          "task": "Ambil https://api.toko.contoh/users/U1 dengan ambilProduk. Pesan apa yang keluar?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membiarkan `any` dari `json()`**\n\nDengan any, salah ketik seperti `data.nama` (padahal kolomnya `name`) tidak tertangkap. Simpan sebagai `unknown`.\n\n**2. Mengira `as Produk` memeriksa data**\n\n`const p = data as Produk` hanya janji kepada TypeScript, tanpa pemeriksaan apa pun. Kalau servernya berubah, error muncul di tempat lain yang jauh dari sumbernya.\n\n**3. Lupa memeriksa `res.ok`**\n\nfetch hanya gagal kalau jaringan putus. Respons 404 atau 500 tetap dianggap berhasil, jadi `res.ok` harus diperiksa sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Prinsip yang dipakai luas: **validasi di perbatasan**. Data dari luar (API, form, localStorage) diperiksa sekali saat masuk, setelah itu seluruh aplikasi bisa memercayai tipenya.\n- Menulis type guard sendiri cocok untuk data kecil. Untuk data besar, tim memakai library validasi seperti Zod atau Valibot: `const p = SkemaProduk.parse(await res.json())`, yang sekaligus menghasilkan tipe.\n- Banyak API menyediakan dokumen OpenAPI, sehingga tipe respons bisa dibuat otomatis dengan alat seperti openapi-typescript."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "API TS 2: Ambil Produk",
+      "pembuka": "Kita ambil data produk dari server latihan dan memastikan bentuknya benar sebelum dipakai.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Data dari server disimpan sebagai unknown.",
+          "jawaban": "type Produk = { id: string; name: string; price: number };\nconst res = await fetch(\"https://api.toko.contoh/products/P03\");\nconst data: unknown = await res.json();\nconsole.log(typeof data);",
+          "keluaran": "object",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak karena `data` masih `unknown`. Buat type guard `isProduk(x: unknown): x is Produk` yang memeriksa `id`, `name`, dan `price`, lalu cetak nama dan harga hanya kalau lolos. Baris terakhir harus `Roti Bakar 15000`.",
+          "jawaban": "type Produk = { id: string; name: string; price: number };\nfunction isProduk(x: unknown): x is Produk {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"name\" in x && typeof x.name === \"string\" &&\n    \"price\" in x && typeof x.price === \"number\"\n  );\n}\nconst res = await fetch(\"https://api.toko.contoh/products/P03\");\nconst data: unknown = await res.json();\nconsole.log(typeof data);\nif (isProduk(data)) console.log(data.name, data.price);",
+          "kodeAwal": "type Produk = { id: string; name: string; price: number };\nconst res = await fetch(\"https://api.toko.contoh/products/P03\");\nconst data: unknown = await res.json();\nconsole.log(typeof data);\nconsole.log(data.name, data.price);",
+          "keluaran": "object\nRoti Bakar 15000",
+          "wajib": [
+            {
+              "pola": "x\\s+is\\s+Produk",
+              "pesan": "tipe kembalian type guard `x is Produk`."
+            }
+          ],
+          "petunjuk": "Periksa typeof x === \"object\", x !== null, lalu setiap kolom dengan \"kolom\" in x dan typeof."
+        },
+        {
+          "arahan": "Bungkus pengambilan dalam `async function ambil(id: string): Promise<Produk>` yang melempar `Error(\"HTTP \" + res.status)` kalau `res.ok` false. Panggil `ambil(\"P09\")` di dalam `try` dan cetak `Gagal: HTTP 404` di `catch`.",
+          "jawaban": "type Produk = { id: string; name: string; price: number };\nfunction isProduk(x: unknown): x is Produk {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"name\" in x && typeof x.name === \"string\" &&\n    \"price\" in x && typeof x.price === \"number\"\n  );\n}\nconst res = await fetch(\"https://api.toko.contoh/products/P03\");\nconst data: unknown = await res.json();\nconsole.log(typeof data);\nif (isProduk(data)) console.log(data.name, data.price);\nasync function ambil(id: string): Promise<Produk> {\n  const r = await fetch(\"https://api.toko.contoh/products/\" + id);\n  if (!r.ok) throw new Error(\"HTTP \" + r.status);\n  const d: unknown = await r.json();\n  if (!isProduk(d)) throw new Error(\"Data tidak valid\");\n  return d;\n}\ntry {\n  await ambil(\"P09\");\n} catch (e) {\n  if (e instanceof Error) console.log(\"Gagal:\", e.message);\n}",
+          "keluaran": "object\nRoti Bakar 15000\nGagal: HTTP 404",
+          "wajib": [
+            {
+              "pola": "Promise<Produk>",
+              "pesan": "tipe kembalian `Promise<Produk>`."
+            },
+            {
+              "pola": "\\.ok",
+              "pesan": "periksa `ok` pada respons."
+            }
+          ],
+          "petunjuk": "Di dalam ambil: fetch, periksa ok, lalu periksa dengan isProduk sebelum return.",
+          "tantangan": true,
+          "benar": "Data dari luar kini selalu diperiksa: status HTTP dan bentuk isinya."
+        }
+      ],
+      "penutup": "Data dari server tidak lagi dipercaya begitu saja: disimpan sebagai unknown, lalu diperiksa dengan type guard."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa tipe hasil await res.json() di deklarasi bawaan?",
+          "options": [
+            "any",
+            "string",
+            "object",
+            "unknown"
+          ],
+          "answer": 0,
+          "explanation": "json() mengembalikan Promise<any>.",
+          "remedial": "Deklarasi bawaan json() adalah Promise<any>. any mematikan pemeriksaan, jadi sebaiknya hasilnya disimpan ke variabel bertipe unknown lalu diperiksa."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "const data: unknown = JSON.parse('{\"nama\":\"Rina\"}');\nconsole.log(data.nama);",
+          "options": [
+            "Lolos tanpa error",
+            "Mencetak undefined",
+            "Error, data bertipe unknown",
+            "Mencetak Rina"
+          ],
+          "answer": 2,
+          "explanation": "unknown harus diperiksa sebelum dipakai.",
+          "remedial": "data bertipe unknown, jadi propertinya tidak boleh diakses sebelum diperiksa (TS18046)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "function isAngka(x: unknown): x is number {\n  return typeof x === \"number\" && !Number.isNaN(x);\n}\nconst daftar: unknown[] = [5, \"7\", 3, null, NaN];\nconst angka = daftar.filter(isAngka);\nconsole.log(angka.length, angka.reduce((a, b) => a + b, 0));",
+          "options": [
+            "4 8",
+            "2 8",
+            "Error tipe",
+            "3 15"
+          ],
+          "answer": 1,
+          "explanation": "Hanya number yang bukan NaN yang lolos.",
+          "remedial": "Teks \"7\", null, dan NaN tidak lolos isAngka. Yang tersisa 5 dan 3: dua angka, jumlahnya 8."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa bedanya data as Produk dengan if (isProduk(data))?",
+      "options": [
+        "isProduk hanya bekerja untuk class",
+        "as lebih aman karena diperiksa compiler",
+        "Keduanya memeriksa data saat program jalan",
+        "as hanya janji tanpa pemeriksaan, isProduk benar-benar memeriksa saat program jalan"
+      ],
+      "answer": 3,
+      "explanation": "Tipe hilang saat compile; hanya kode pemeriksa yang bekerja saat program berjalan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat type Pengguna = { id: string; name: string; city: string } dan type guard isPengguna(x: unknown): x is Pengguna. Ambil https://api.toko.contoh/users/U2, simpan hasil json ke variabel bertipe unknown, lalu cetak nama dan kota kalau lolos pemeriksaan: Budi Malang",
+      "starterCode": "const res = await fetch(\"https://api.toko.contoh/users/U2\");\nconst data = await res.json();\n",
+      "solution": "type Pengguna = { id: string; name: string; city: string };\nfunction isPengguna(x: unknown): x is Pengguna {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"name\" in x && typeof x.name === \"string\" &&\n    \"city\" in x && typeof x.city === \"string\"\n  );\n}\nconst res = await fetch(\"https://api.toko.contoh/users/U2\");\nconst data: unknown = await res.json();\nif (isPengguna(data)) console.log(data.name, data.city);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Budi Malang\n"
+        }
+      ],
+      "hints": [
+        "Type guard memeriksa object tidak null, lalu setiap kolom dengan in dan typeof.",
+        "Setelah if (isPengguna(data)), data.name dan data.city boleh dipakai."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "res.json() bertipe any: simpan hasilnya sebagai unknown.",
+        "unknown wajib diperiksa sebelum dipakai (TS18046).",
+        "Type guard x is T memeriksa bentuk data saat program jalan.",
+        "as T hanya janji, bukan pemeriksaan.",
+        "fetch tidak gagal untuk 404/500: periksa res.ok."
+      ]
+    }
+  ]
+}

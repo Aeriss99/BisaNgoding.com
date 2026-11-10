@@ -8,6 +8,7 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 | --- | --- |
 | **Java** | Java Dasar, Proyek Todolist, OOP, Collection, Record & Sealed Class, Standard Classes, Generics, Lambda, Stream, Date & Time |
 | **JavaScript** | JavaScript Dasar, Proyek Todolist, JavaScript OOP, JavaScript DOM, Standard Library, Async, dan Modules |
+| **TypeScript** | Tipe dasar, object dan interface, fungsi, union dan narrowing, generics, class, utility types, async dan module, tooling (tsc, tsconfig, npm) dan proyek Todolist; kode diperiksa compiler TypeScript asli (strict) di browser |
 | **Git & GitHub** | Git di laptop sampai GitHub: tag dan versi rilis, pull request, code review, manajemen proyek, keamanan, CI/CD, memperbaiki riwayat (amend, revert, reset, rebase), dan alur kerja tim |
 | **Tailwind CSS** | Tailwind v4: warna, spacing, flexbox, grid, responsif mobile-first, state, group/peer, dark mode, nilai bebas, tema dengan @theme, @apply, dan proyek tampilan Todolist (pratinjau jalan di browser) |
 | **React** | React 19: komponen dan JSX, props, render bersyarat, daftar dan key, state dan event, form terkendali, useRef, useEffect (dependency, cleanup, ambil data, localStorage, StrictMode), Context, useReducer, custom hook, React Router 7, dan proyek Todolist sampai build dan terbit (kode React jalan di browser) |
@@ -20,7 +21,7 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 
 ## Fitur
 
-- **Kode berjalan di browser.** Java dijalankan dengan [CheerpJ](https://cheerpj.com/), JavaScript dengan Web Worker. Tidak perlu server.
+- **Kode berjalan di browser.** Java dijalankan dengan [CheerpJ](https://cheerpj.com/), JavaScript dengan Web Worker, dan TypeScript diperiksa compiler TypeScript asli sebelum dijalankan. Tidak perlu server.
 - **Latihan bertahap.** Setiap pelajaran berisi teori, contoh yang bisa dijalankan, cek pemahaman, soal isian, dan tantangan kode. Setiap modul ditutup quiz dengan pilihan jawaban yang diacak.
 - **Progres tersimpan.** Masuk dengan Google, lalu XP, streak, dan pelajaran yang selesai tersinkron lewat Supabase. Kalau offline, progres tetap tersimpan di perangkat.
 - **Bisa dipasang di HP** sebagai aplikasi (PWA).
@@ -67,7 +68,7 @@ content/              materi, satu folder per kelas
   courses.json        daftar kelas
   jalur-karier.json   jalur karier di beranda
   roadmap.json        rencana belajar per peran
-  <kelas>/            java, javascript, git, mysql, linux, html-css, tailwind, rest-api, english, excel, python
+  <kelas>/            java, javascript, typescript, git, mysql, linux, html-css, tailwind, rest-api, english, excel, python
     modules.json      daftar modul kelas itu
     <modul>/          lesson-XX.json + quiz.json
 public/               gambar, ilustrasi, audio English, ikon PWA, dan tools.jar untuk CheerpJ

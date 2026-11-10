@@ -1,0 +1,192 @@
+{
+  "id": "ts-async-03",
+  "moduleId": "ts-async",
+  "order": 3,
+  "title": "Error yang Bertipe",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di mode strict, variabel di `catch` bertipe **unknown**, karena JavaScript membolehkan apa pun dilempar (`throw \"teks\"`, `throw 42`):\n\n```ts\ntry {\n  JSON.parse(\"{rusak\");\n} catch (e) {\n  console.log(e.message); // error TS18046: 'e' is of type 'unknown'.\n  if (e instanceof Error) console.log(e.message); // aman\n}\n```\n\nUntuk membedakan jenis kegagalan, buat **class error khusus** dengan `extends Error`:\n\n```ts\nclass StokHabisError extends Error {\n  constructor(public kode: string) {\n    super(`Stok ${kode} habis`);\n    this.name = \"StokHabisError\";\n  }\n}\n```\n\nIbarat lampu peringatan di dasbor mobil: lampu umum \"ada masalah\" kurang membantu. Lampu khusus untuk bensin, oli, dan rem langsung memberi tahu apa yang harus dilakukan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`instanceof` menyaring jenis error, dan TypeScript ikut mempersempit tipenya:\n\n```ts\ntry {\n  pesan(\"P02\", 1);\n} catch (e) {\n  if (e instanceof StokHabisError) {\n    console.log(\"Tawarkan produk lain selain\", e.kode); // e.kode dikenal\n  } else if (e instanceof Error) {\n    console.log(\"Error lain:\", e.message);\n  } else {\n    throw e; // bukan Error: lempar lagi\n  }\n}\n```\n\nSaat membungkus error lain, simpan penyebab aslinya dengan `cause`:\n\n```ts\nthrow new Error(\"Gagal menyimpan pesanan\", { cause: e });\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "class StokHabisError extends Error {\n  constructor(public kode: string) {\n    super(`Stok ${kode} habis`);\n    this.name = \"StokHabisError\";\n  }\n}\nclass JumlahSalahError extends Error {\n  constructor(public jumlah: number) {\n    super(`Jumlah ${jumlah} tidak valid`);\n    this.name = \"JumlahSalahError\";\n  }\n}\nconst stok: Record<string, number> = { P01: 12, P02: 0 };\nfunction pesan(kode: string, jumlah: number): string {\n  if (jumlah <= 0) throw new JumlahSalahError(jumlah);\n  if ((stok[kode] ?? 0) < jumlah) throw new StokHabisError(kode);\n  stok[kode] -= jumlah;\n  return `OK ${kode} x${jumlah}`;\n}\nfor (const [kode, jumlah] of [[\"P01\", 2], [\"P02\", 1], [\"P01\", 0]] as const) {\n  try {\n    console.log(pesan(kode, jumlah));\n  } catch (e) {\n    if (e instanceof StokHabisError) console.log(\"Habis:\", e.kode);\n    else if (e instanceof Error) console.log(e.name);\n  }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "StokHabisError",
+          "OK P02 x1",
+          "Stok P02 habis",
+          "Habis: P02"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "Error khusus dengan data tambahan kode."
+        },
+        {
+          "line": 4,
+          "note": "Nama jenis error, terlihat di log."
+        },
+        {
+          "line": 24,
+          "note": "Menyaring jenis error; e.kode jadi dikenal."
+        }
+      ],
+      "explanation": "Pesanan kedua meminta P02 yang stoknya 0, sehingga StokHabisError dilempar. catch mengenalinya lewat instanceof dan mencetak kodenya.",
+      "tryThis": [
+        {
+          "task": "Hapus if (e instanceof Error) dan cetak e.name langsung. Baca error TS18046.",
+          "hint": null
+        },
+        {
+          "task": "Hapus baris this.name di JumlahSalahError. Apa yang dicetak di baris ketiga?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai `e.message` tanpa pemeriksaan**\n\nDi mode strict ditolak (TS18046). Periksa dengan `e instanceof Error` dulu.\n\n**2. Lupa mengisi `this.name`**\n\nTanpa itu, `e.name` tetap `\"Error\"`, sehingga di log semua error terlihat sama.\n\n**3. Menelan error**\n\n`catch (e) {}` yang kosong membuat masalah hilang tanpa jejak. Tangani error yang dikenal, dan lempar lagi yang tidak dikenal."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di backend, class error khusus dipetakan ke status HTTP: `TidakDitemukanError` menjadi 404, `ValidasiError` menjadi 422. Framework seperti NestJS punya class bawaan seperti `NotFoundException`.\n- Layanan pemantau error (misalnya Sentry) mengelompokkan error berdasarkan `name` dan pesannya. Nama yang jelas membuat masalah mudah dilacak.\n- `cause` (ES2022) menyimpan rantai penyebab, sehingga saat error dibungkus ulang, penyebab aslinya tidak hilang."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "API TS 3: Error Pembayaran",
+      "pembuka": "Pembayaran bisa gagal karena saldo kurang. Kita tangani error-nya dengan aman dan jelas.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. bayar melempar Error kalau saldo kurang.",
+          "jawaban": "function bayar(saldo: number, total: number): number {\n  if (total > saldo) throw new Error(\"Saldo kurang\");\n  return saldo - total;\n}\nconsole.log(\"Sisa:\", bayar(100000, 80000));",
+          "keluaran": "Sisa: 20000",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak karena `e.message` dipakai tanpa pemeriksaan. Tambahkan `if (e instanceof Error)` sebelum mencetak. Baris terakhir harus `Gagal: Saldo kurang`.",
+          "jawaban": "function bayar(saldo: number, total: number): number {\n  if (total > saldo) throw new Error(\"Saldo kurang\");\n  return saldo - total;\n}\nconsole.log(\"Sisa:\", bayar(100000, 80000));\ntry {\n  console.log(\"Sisa:\", bayar(50000, 80000));\n} catch (e) {\n  if (e instanceof Error) console.log(\"Gagal:\", e.message);\n}",
+          "kodeAwal": "function bayar(saldo: number, total: number): number {\n  if (total > saldo) throw new Error(\"Saldo kurang\");\n  return saldo - total;\n}\nconsole.log(\"Sisa:\", bayar(100000, 80000));\ntry {\n  console.log(\"Sisa:\", bayar(50000, 80000));\n} catch (e) {\n  console.log(\"Gagal:\", e.message);\n}",
+          "keluaran": "Sisa: 20000\nGagal: Saldo kurang",
+          "wajib": [
+            {
+              "pola": "e\\s+instanceof\\s+Error",
+              "pesan": "periksa `e instanceof Error`."
+            }
+          ],
+          "petunjuk": "Di mode strict, e bertipe unknown (TS18046). instanceof Error mempersempitnya."
+        },
+        {
+          "arahan": "Buat `class SaldoKurangError extends Error` dengan parameter property `public kurang: number`, pesan `\"Saldo kurang \" + kurang`, dan `this.name`. Lempar error ini dari `bayar`, lalu di `catch` cetak `Kurang: 30000` kalau `e instanceof SaldoKurangError`.",
+          "jawaban": "class SaldoKurangError extends Error {\n  constructor(public kurang: number) {\n    super(\"Saldo kurang \" + kurang);\n    this.name = \"SaldoKurangError\";\n  }\n}\nfunction bayar(saldo: number, total: number): number {\n  if (total > saldo) throw new SaldoKurangError(total - saldo);\n  return saldo - total;\n}\nconsole.log(\"Sisa:\", bayar(100000, 80000));\ntry {\n  console.log(\"Sisa:\", bayar(50000, 80000));\n} catch (e) {\n  if (e instanceof SaldoKurangError) console.log(\"Kurang:\", e.kurang);\n  else if (e instanceof Error) console.log(\"Gagal:\", e.message);\n}",
+          "keluaran": "Sisa: 20000\nKurang: 30000",
+          "wajib": [
+            {
+              "pola": "class\\s+SaldoKurangError\\s+extends\\s+Error",
+              "pesan": "buat `class SaldoKurangError extends Error`."
+            },
+            {
+              "pola": "instanceof\\s+SaldoKurangError",
+              "pesan": "periksa `instanceof SaldoKurangError`."
+            }
+          ],
+          "petunjuk": "Lempar new SaldoKurangError(total - saldo). Di catch, cek instanceof SaldoKurangError sebelum instanceof Error.",
+          "tantangan": true,
+          "benar": "Sekarang aplikasi tahu persis berapa kekurangannya, bukan sekadar \"ada masalah\"."
+        }
+      ],
+      "penutup": "Error kini bertipe jelas: diperiksa dengan instanceof dan membawa data yang berguna."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa e di catch (e) bertipe unknown di mode strict?",
+          "options": [
+            "Karena catch tidak boleh punya tipe",
+            "Karena apa pun bisa dilempar, tidak hanya Error",
+            "Karena e selalu berupa string",
+            "Karena error baru dibuat saat program jalan"
+          ],
+          "answer": 1,
+          "explanation": "JavaScript membolehkan throw nilai apa saja.",
+          "remedial": "JavaScript membolehkan throw \"teks\" atau throw 42. Karena itu TypeScript tidak bisa menjamin e adalah Error, sehingga tipenya unknown sampai diperiksa."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "class TidakAdaError extends Error {\n  constructor(public id: string) {\n    super(\"Tidak ada: \" + id);\n    this.name = \"TidakAdaError\";\n  }\n}\ntry {\n  throw new TidakAdaError(\"U9\");\n} catch (e) {\n  if (e instanceof TidakAdaError) console.log(e.name, e.id);\n  if (e instanceof Error) console.log(e.message);\n}",
+          "options": [
+            "Error U9 / Tidak ada: U9",
+            "TidakAdaError U9",
+            "TidakAdaError U9 / Tidak ada: U9",
+            "Tidak ada: U9"
+          ],
+          "answer": 2,
+          "explanation": "Error khusus juga instanceof Error.",
+          "remedial": "e adalah TidakAdaError, jadi kedua if terpenuhi: yang pertama mencetak name dan id, yang kedua mencetak message."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "try {\n  JSON.parse(\"{rusak\");\n} catch (e) {\n  console.log(e.message);\n}",
+          "options": [
+            "Error, e bertipe unknown",
+            "Error, JSON.parse tidak dikenal",
+            "Lolos tanpa error",
+            "Mencetak pesan error"
+          ],
+          "answer": 0,
+          "explanation": "e harus diperiksa sebelum dipakai.",
+          "remedial": "Di mode strict, e bertipe unknown. Mengakses e.message tanpa pemeriksaan ditolak (TS18046)."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa class error khusus sebaiknya mengisi this.name?",
+      "options": [
+        "Supaya instanceof bisa bekerja",
+        "Supaya error tidak bisa ditangkap",
+        "Supaya jenis error terlihat jelas di log dan pesan",
+        "Karena wajib di TypeScript"
+      ],
+      "answer": 2,
+      "explanation": "Tanpa this.name, semua error tercatat sebagai Error."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat class ValidasiError extends Error dengan parameter property public kolom: string, pesan kolom diikuti kata tidak valid, dan name ValidasiError. Buat fungsi cekEmail(email: string): string yang melempar ValidasiError(\"email\") kalau email tidak mengandung @, dan mengembalikan email kalau valid. Panggil untuk rina@contoh.id lalu rina.contoh.id di dalam try, cetak hasilnya, dan di catch cetak name serta kolom: rina@contoh.id lalu ValidasiError email",
+      "starterCode": "function cekEmail(email) {\n  return email;\n}\n",
+      "solution": "class ValidasiError extends Error {\n  constructor(public kolom: string) {\n    super(kolom + \" tidak valid\");\n    this.name = \"ValidasiError\";\n  }\n}\nfunction cekEmail(email: string): string {\n  if (!email.includes(\"@\")) throw new ValidasiError(\"email\");\n  return email;\n}\nfor (const email of [\"rina@contoh.id\", \"rina.contoh.id\"]) {\n  try {\n    console.log(cekEmail(email));\n  } catch (e) {\n    if (e instanceof ValidasiError) console.log(e.name, e.kolom);\n  }\n}\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "rina@contoh.id\nValidasiError email\n"
+        }
+      ],
+      "hints": [
+        "Constructor: super(kolom + \" tidak valid\") lalu this.name = \"ValidasiError\".",
+        "Di catch, periksa e instanceof ValidasiError sebelum memakai e.kolom."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Di mode strict, e di catch bertipe unknown.",
+        "Periksa dengan e instanceof Error sebelum memakai message.",
+        "Class error khusus: extends Error, isi this.name, tambahkan data.",
+        "instanceof menyaring jenis error dan mempersempit tipenya.",
+        "Jangan menelan error; simpan penyebab dengan cause."
+      ]
+    }
+  ]
+}

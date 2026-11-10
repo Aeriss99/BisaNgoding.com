@@ -1,0 +1,195 @@
+{
+  "id": "ts-async-06",
+  "moduleId": "ts-async",
+  "order": 6,
+  "title": "enum, Union Literal, dan Object as const",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "TypeScript punya fitur **enum** untuk sekumpulan nilai bernama:\n\n```ts\nenum Prioritas { Rendah, Sedang, Tinggi }          // angka: 0, 1, 2\nenum Warna { Merah = \"merah\", Hijau = \"hijau\" }     // teks\n\nconst p: Prioritas = Prioritas.Tinggi;\nconsole.log(p);              // 2\nconsole.log(Prioritas[p]);   // \"Tinggi\"\n```\n\nDua alternatif yang sering dipakai:\n\n```ts\n// union literal: hanya tipe, tidak ada saat jalan\ntype Status = \"baru\" | \"proses\" | \"selesai\";\n\n// object as const: ada saat jalan, tipenya diturunkan\nconst KATEGORI = { Kerja: \"kerja\", Rumah: \"rumah\" } as const;\ntype Kategori = (typeof KATEGORI)[keyof typeof KATEGORI]; // \"kerja\" | \"rumah\"\n```\n\nIbarat tiga cara memberi label rak gudang: nomor rak (enum angka), papan nama yang ditempel langsung (union teks), atau papan nama yang juga dicatat di satu buku katalog (object as const)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n| | enum | union literal | object as const |\n|---|---|---|---|\n| Ada saat program jalan | ya | tidak | ya |\n| Nilai di log atau JSON | angka atau teks | teks | teks |\n| Bisa diulang dengan `Object.values` | ya (enum angka berisi nama dan angka) | tidak | ya |\n| Lolos `erasableSyntaxOnly` | tidak | ya | ya |\n\nEnum tidak bisa dibandingkan dengan teks biasa:\n\n```ts\nif (p === \"Tinggi\") { ... }\n// error TS2367: This comparison appears to be unintentional because the types 'Prioritas' and 'string' have no overlap.\n```\n\nEnum menghasilkan kode JavaScript tambahan (sebuah object), bukan sekadar dihapus. Karena itu opsi `erasableSyntaxOnly` dan Node.js type stripping tidak menerimanya."
+    },
+    {
+      "type": "runnable",
+      "code": "enum Prioritas { Rendah, Sedang, Tinggi }\ntype Status = \"baru\" | \"proses\" | \"selesai\";\nconst KATEGORI = { Kerja: \"kerja\", Rumah: \"rumah\" } as const;\ntype Kategori = (typeof KATEGORI)[keyof typeof KATEGORI];\n\ntype Tugas = { judul: string; prioritas: Prioritas; status: Status; kategori: Kategori };\nconst t: Tugas = { judul: \"Laporan\", prioritas: Prioritas.Tinggi, status: \"proses\", kategori: KATEGORI.Kerja };\nconsole.log(t.prioritas, t.status, t.kategori);\nconsole.log(Prioritas[t.prioritas]);\nconsole.log(Object.values(KATEGORI).join(\",\"));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "2 proses Kerja",
+          "2 proses kerja",
+          "Tinggi proses kerja",
+          "3 proses kerja"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "Enum angka: Rendah 0, Sedang 1, Tinggi 2."
+        },
+        {
+          "line": 2,
+          "note": "Union literal: hanya ada di tipe."
+        },
+        {
+          "line": 3,
+          "note": "Object biasa yang nilainya dikunci."
+        },
+        {
+          "line": 9,
+          "note": "Enum angka bisa dibaca balik dari angka ke nama."
+        }
+      ],
+      "explanation": "Nilai enum angka Prioritas.Tinggi adalah 2, karena urutannya dimulai dari 0. status dan kategori berupa teks biasa.",
+      "tryThis": [
+        {
+          "task": "Tambahkan if (t.prioritas === \"Tinggi\"). Baca error TS2367.",
+          "hint": null
+        },
+        {
+          "task": "Cetak Object.values(Prioritas). Kenapa isinya enam?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Enum angka disimpan ke data**\n\nDi database atau log, nilai `2` sulit dibaca. Lebih buruk lagi, kalau anggota baru disisipkan di tengah, angka anggota sesudahnya bergeser dan data lama berubah arti. Pakai enum teks atau union literal.\n\n**2. Membandingkan enum dengan teks**\n\n`p === \"Tinggi\"` ditolak (TS2367). Bandingkan dengan `Prioritas.Tinggi`.\n\n**3. Mengulang enum angka**\n\n`Object.values(Prioritas)` berisi nama **dan** angka, karena enum angka menyimpan pemetaan dua arah."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Banyak tim baru memilih **union literal** atau **object as const**, karena lebih sederhana dan cocok dengan Node.js type stripping serta opsi `erasableSyntaxOnly`.\n- Enum masih umum di Angular, NestJS, dan kode yang lebih lama, jadi tetap perlu bisa dibaca.\n- Tipe hasil generate Supabase menuliskan enum database sebagai union literal, misalnya `Database[\"public\"][\"Enums\"][\"status_pesanan\"]`."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "API TS 6: Status Pesanan",
+      "pembuka": "Pesanan punya beberapa status. Kita kelola dengan object as const supaya ada saat program jalan dan aman tipe.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Status diturunkan dari object STATUS.",
+          "jawaban": "const STATUS = { Baru: \"baru\", Dikirim: \"dikirim\", Selesai: \"selesai\" } as const;\ntype Status = (typeof STATUS)[keyof typeof STATUS];\ntype Pesanan = { id: string; status: Status };\nconst p: Pesanan = { id: \"O1\", status: STATUS.Baru };\nconsole.log(p.id, p.status);",
+          "keluaran": "O1 baru",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak karena `\"dibatalkan\"` bukan status yang sah. Tambahkan `Batal: \"batal\"` ke `STATUS`, lalu ganti baris itu menjadi `p.status = STATUS.Batal;`. Baris terakhir harus `O1 batal`.",
+          "jawaban": "const STATUS = { Baru: \"baru\", Dikirim: \"dikirim\", Selesai: \"selesai\", Batal: \"batal\" } as const;\ntype Status = (typeof STATUS)[keyof typeof STATUS];\ntype Pesanan = { id: string; status: Status };\nconst p: Pesanan = { id: \"O1\", status: STATUS.Baru };\nconsole.log(p.id, p.status);\np.status = STATUS.Batal;\nconsole.log(p.id, p.status);",
+          "kodeAwal": "const STATUS = { Baru: \"baru\", Dikirim: \"dikirim\", Selesai: \"selesai\" } as const;\ntype Status = (typeof STATUS)[keyof typeof STATUS];\ntype Pesanan = { id: string; status: Status };\nconst p: Pesanan = { id: \"O1\", status: STATUS.Baru };\nconsole.log(p.id, p.status);\np.status = \"dibatalkan\";\nconsole.log(p.id, p.status);",
+          "keluaran": "O1 baru\nO1 batal",
+          "wajib": [
+            {
+              "pola": "Batal\\s*:\\s*\"batal\"",
+              "pesan": "tambahkan `Batal: \"batal\"` ke `STATUS`."
+            },
+            {
+              "pola": "p\\.status\\s*=\\s*STATUS\\.Batal",
+              "pesan": "tulis `p.status = STATUS.Batal`."
+            }
+          ],
+          "petunjuk": "Tipe Status ikut bertambah saat STATUS diberi anggota baru."
+        },
+        {
+          "arahan": "Buat `const LABEL: Record<Status, string>` berisi teks untuk pengguna: baru `\"Menunggu\"`, dikirim `\"Dalam perjalanan\"`, selesai `\"Diterima\"`, batal `\"Dibatalkan\"`. Cetak `Label: Dibatalkan` untuk pesanan p.",
+          "jawaban": "const STATUS = { Baru: \"baru\", Dikirim: \"dikirim\", Selesai: \"selesai\", Batal: \"batal\" } as const;\ntype Status = (typeof STATUS)[keyof typeof STATUS];\ntype Pesanan = { id: string; status: Status };\nconst p: Pesanan = { id: \"O1\", status: STATUS.Baru };\nconsole.log(p.id, p.status);\np.status = STATUS.Batal;\nconsole.log(p.id, p.status);\nconst LABEL: Record<Status, string> = {\n  baru: \"Menunggu\",\n  dikirim: \"Dalam perjalanan\",\n  selesai: \"Diterima\",\n  batal: \"Dibatalkan\",\n};\nconsole.log(\"Label:\", LABEL[p.status]);",
+          "keluaran": "O1 baru\nO1 batal\nLabel: Dibatalkan",
+          "wajib": [
+            {
+              "pola": "Record<\\s*Status\\s*,\\s*string\\s*>",
+              "pesan": "pakai `Record<Status, string>`."
+            }
+          ],
+          "petunjuk": "Record<Status, string> wajib berisi keempat status.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Status pesanan ada saat program jalan, aman tipe, dan setiap status wajib punya label."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dicetak console.log(Status.Dikirim) untuk enum Status { Baru, Dikirim, Selesai }?",
+          "options": [
+            "Dikirim",
+            "\"dikirim\"",
+            "1",
+            "2"
+          ],
+          "answer": 2,
+          "explanation": "Enum angka dimulai dari 0.",
+          "remedial": "Tanpa nilai yang ditulis, enum diberi angka mulai dari 0: Baru 0, Dikirim 1, Selesai 2."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "enum Prioritas { Rendah, Tinggi }\nconst p: Prioritas = Prioritas.Tinggi;\nif (p === \"Tinggi\") console.log(\"penting\");",
+          "options": [
+            "Lolos tanpa error",
+            "Error, enum harus diekspor",
+            "Mencetak penting",
+            "Error, Prioritas tidak bisa dibandingkan dengan teks"
+          ],
+          "answer": 3,
+          "explanation": "Enum dibandingkan dengan anggota enum, bukan teks.",
+          "remedial": "p bertipe Prioritas, sedangkan \"Tinggi\" adalah teks. Tipe keduanya tidak beririsan, jadi ditolak (TS2367)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const PERAN = { Admin: \"admin\", Tamu: \"tamu\" } as const;\ntype Peran = (typeof PERAN)[keyof typeof PERAN];\nconst semua: Peran[] = Object.values(PERAN);\nconsole.log(semua.length, semua.includes(\"tamu\"));",
+          "options": [
+            "4 true",
+            "Error tipe",
+            "2 true",
+            "2 false"
+          ],
+          "answer": 2,
+          "explanation": "Object as const berisi dua anggota.",
+          "remedial": "PERAN punya dua anggota, dan nilai tamu ada di dalamnya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa opsi erasableSyntaxOnly menolak enum?",
+      "options": [
+        "Enum sudah dihapus dari TypeScript",
+        "Enum hanya untuk class",
+        "Enum tidak bisa berisi teks",
+        "Enum menghasilkan kode JavaScript tambahan, tidak sekadar dihapus"
+      ],
+      "answer": 3,
+      "explanation": "Fitur yang hanya tipe bisa langsung dihapus; enum membuat object baru."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Ubah enum Ukuran di bawah menjadi object UKURAN dengan as const berisi Kecil \"S\", Sedang \"M\", dan Besar \"L\", lalu turunkan type Ukuran darinya. Buat fungsi harga(u: Ukuran): number memakai Record<Ukuran, number> (S 15000, M 18000, L 22000). Cetak harga ukuran Besar: 22000",
+      "starterCode": "enum Ukuran { Kecil, Sedang, Besar }\n",
+      "solution": "const UKURAN = { Kecil: \"S\", Sedang: \"M\", Besar: \"L\" } as const;\ntype Ukuran = (typeof UKURAN)[keyof typeof UKURAN];\nconst HARGA: Record<Ukuran, number> = { S: 15000, M: 18000, L: 22000 };\nfunction harga(u: Ukuran): number {\n  return HARGA[u];\n}\nconsole.log(harga(UKURAN.Besar));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "22000\n"
+        }
+      ],
+      "hints": [
+        "type Ukuran = (typeof UKURAN)[keyof typeof UKURAN] menghasilkan \"S\" | \"M\" | \"L\".",
+        "harga(UKURAN.Besar) mengirim \"L\"."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "enum angka mulai dari 0; enum teks memakai nilai yang ditulis.",
+        "Union literal hanya ada di tipe.",
+        "Object as const ada saat jalan, tipenya diturunkan dengan keyof typeof.",
+        "Enum menghasilkan kode tambahan, ditolak oleh erasableSyntaxOnly.",
+        "Jangan simpan enum angka ke data: pakai teks."
+      ]
+    }
+  ]
+}

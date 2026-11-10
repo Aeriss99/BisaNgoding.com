@@ -1,0 +1,184 @@
+{
+  "id": "ts-narrowing-06",
+  "moduleId": "ts-narrowing",
+  "order": 6,
+  "title": "Type Guard Buatan Sendiri",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pemeriksaan yang rumit sering dipakai berulang. Kita bisa membungkusnya dalam fungsi yang tipe kembaliannya **type predicate**: `nilai is Tipe`.\n\n```ts\ntype Produk = { nama: string; harga: number };\n\nfunction isProduk(x: unknown): x is Produk {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"nama\" in x && typeof x.nama === \"string\" &&\n    \"harga\" in x && typeof x.harga === \"number\"\n  );\n}\n```\n\nKalau `isProduk(data)` bernilai `true`, TypeScript memperlakukan `data` sebagai `Produk` di dalam blok `if`:\n\n```ts\nconst data: unknown = JSON.parse('{\"nama\":\"Kopi\",\"harga\":18000}');\nif (isProduk(data)) {\n  console.log(data.nama.toUpperCase()); // data: Produk\n}\n```\n\nBayangkan alat pemeriksa uang di kasir: setelah lembaran lolos pemeriksaan, kasir memperlakukannya sebagai uang asli."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nType guard sangat berguna bersama `filter`, karena hasilnya ikut dipersempit:\n\n```ts\nconst campur: (string | null)[] = [\"kopi\", null, \"teh\", null];\n\nconst a = campur.filter((x) => x !== null);\n// TypeScript 5.5 ke atas: a otomatis string[] (predicate disimpulkan)\n\nfunction adaIsi(x: string | null): x is string {\n  return x !== null;\n}\nconst b = campur.filter(adaIsi); // string[]\n```\n\n**Penting:** TypeScript **percaya** pada isi type guard-mu. Kalau isinya salah (misalnya lupa memeriksa `harga`), TypeScript tetap menganggap hasilnya `Produk`, dan bug baru muncul saat program jalan. Tulis pemeriksaannya dengan teliti."
+    },
+    {
+      "type": "runnable",
+      "code": "type Produk = { nama: string; harga: number };\nfunction isProduk(x: unknown): x is Produk {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"nama\" in x && typeof x.nama === \"string\" &&\n    \"harga\" in x && typeof x.harga === \"number\"\n  );\n}\nconst dariServer: unknown[] = [\n  { nama: \"Kopi\", harga: 18000 },\n  { nama: \"Teh\" },\n  \"rusak\",\n  { nama: \"Roti\", harga: 15000 },\n];\nconst valid = dariServer.filter(isProduk);\nconsole.log(valid.map((p) => p.nama));\nconsole.log(valid.reduce((a, p) => a + p.harga, 0));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "NaN",
+          "33000",
+          "18000",
+          "48000"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Type predicate: kalau true, x dianggap Produk."
+        },
+        {
+          "line": 6,
+          "note": "Periksa setiap properti beserta tipenya."
+        },
+        {
+          "line": 15,
+          "note": "Hasil filter langsung bertipe Produk[]."
+        }
+      ],
+      "explanation": "Hanya Kopi (18000) dan Roti (15000) yang lolos pemeriksaan. \"Teh\" tidak punya harga dan \"rusak\" bukan object. Totalnya 33000.",
+      "tryThis": [
+        {
+          "task": "Hapus pemeriksaan harga dari isProduk. Apa yang dicetak baris terakhir sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Ganti filter(isProduk) dengan filter((x) => typeof x === \"object\"). Kenapa p.nama ditolak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Type guard yang tidak memeriksa semua properti**\n\nTypeScript tidak memeriksa kebenaran isi type guard. Kalau ada properti yang lupa diperiksa, hasilnya \"bohong\" dan crash bisa terjadi di tempat lain.\n\n**2. Lupa memeriksa `x !== null`**\n\n`typeof null === \"object\"`, jadi tanpa `x !== null`, `\"nama\" in x` akan error saat program jalan untuk nilai `null`.\n\n**3. Menulis type guard manual untuk data yang rumit**\n\nUntuk object besar dan bersarang, type guard manual cepat menjadi panjang dan rawan salah. Di proyek sungguhan, pakai library validasi (lihat Di dunia kerja)."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Untuk memvalidasi data dari luar (API, form, file), tim biasanya memakai library seperti **Zod**, **Valibot**, atau **ArkType**. Skema ditulis sekali; library itu memeriksa data saat program jalan dan sekaligus menghasilkan tipe TypeScript-nya (`z.infer<typeof skema>`). Prinsipnya sama dengan type guard di materi ini, hanya jauh lebih lengkap.\n- Type guard kecil yang ditulis manual tetap umum untuk kasus sederhana: `isString`, `isDefined`, `isErrorWithCode`.\n- Sejak TypeScript 5.5, banyak callback sederhana seperti `(x) => x !== undefined` otomatis menjadi type predicate (inferred type predicates), sehingga `filter` langsung mempersempit tipe."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Pesanan TS 6: Saring Data Rusak",
+      "pembuka": "Data pesanan dari aplikasi lama kadang rusak. Kita saring hanya pesanan yang bentuknya benar.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. isPesanan memeriksa bentuk data sebelum dipakai.",
+          "jawaban": "type Pesanan = { menu: string; jumlah: number };\nfunction isPesanan(x: unknown): x is Pesanan {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"menu\" in x && typeof x.menu === \"string\" &&\n    \"jumlah\" in x && typeof x.jumlah === \"number\"\n  );\n}\nconst masuk: unknown[] = [{ menu: \"Kopi\", jumlah: 2 }, { menu: \"Teh\" }, null];\nconst valid = masuk.filter(isPesanan);\nconsole.log(valid.length, \"pesanan valid\");",
+          "keluaran": "1 pesanan valid",
+          "otomatis": true
+        },
+        {
+          "arahan": "Cetak total jumlah gelas dari pesanan yang valid. Tambahkan juga `{ menu: \"Jus\", jumlah: 3 }` ke `masuk`. Baris terakhir harus `Total gelas: 5`.",
+          "jawaban": "type Pesanan = { menu: string; jumlah: number };\nfunction isPesanan(x: unknown): x is Pesanan {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"menu\" in x && typeof x.menu === \"string\" &&\n    \"jumlah\" in x && typeof x.jumlah === \"number\"\n  );\n}\nconst masuk: unknown[] = [{ menu: \"Kopi\", jumlah: 2 }, { menu: \"Teh\" }, null, { menu: \"Jus\", jumlah: 3 }];\nconst valid = masuk.filter(isPesanan);\nconsole.log(valid.length, \"pesanan valid\");\nconsole.log(\"Total gelas:\", valid.reduce((a, p) => a + p.jumlah, 0));",
+          "keluaran": "2 pesanan valid\nTotal gelas: 5",
+          "petunjuk": "valid bertipe Pesanan[], jadi p.jumlah boleh langsung dijumlahkan."
+        },
+        {
+          "arahan": "Data rusak juga bisa punya jumlah negatif. Ubah `isPesanan` supaya `jumlah` harus **lebih dari 0**, lalu tambahkan `{ menu: \"Roti\", jumlah: -1 }` ke `masuk`. Hasilnya tetap `2 pesanan valid` dan `Total gelas: 5`, lalu cetak juga `Ditolak: 3` di baris terakhir.",
+          "jawaban": "type Pesanan = { menu: string; jumlah: number };\nfunction isPesanan(x: unknown): x is Pesanan {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"menu\" in x && typeof x.menu === \"string\" &&\n    \"jumlah\" in x && typeof x.jumlah === \"number\" && x.jumlah > 0\n  );\n}\nconst masuk: unknown[] = [{ menu: \"Kopi\", jumlah: 2 }, { menu: \"Teh\" }, null, { menu: \"Jus\", jumlah: 3 }, { menu: \"Roti\", jumlah: -1 }];\nconst valid = masuk.filter(isPesanan);\nconsole.log(valid.length, \"pesanan valid\");\nconsole.log(\"Total gelas:\", valid.reduce((a, p) => a + p.jumlah, 0));\nconsole.log(\"Ditolak:\", masuk.length - valid.length);",
+          "keluaran": "2 pesanan valid\nTotal gelas: 5\nDitolak: 3",
+          "wajib": [
+            {
+              "pola": "x\\.jumlah\\s*>\\s*0",
+              "pesan": "periksa `x.jumlah > 0`."
+            },
+            {
+              "pola": "\"Roti\"\\s*,\\s*jumlah\\s*:\\s*-1",
+              "pesan": "tambahkan pesanan Roti dengan jumlah -1."
+            }
+          ],
+          "petunjuk": "Tambahkan && x.jumlah > 0 di akhir pemeriksaan. Yang ditolak = masuk.length - valid.length.",
+          "tantangan": true,
+          "benar": "Type guard sekarang tidak hanya memeriksa tipe, tapi juga aturan bisnis sederhana."
+        }
+      ],
+      "penutup": "Type guard membuat data dari luar yang belum jelas berubah menjadi data bertipe yang aman dipakai."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti tipe kembalian x is Produk?",
+          "options": [
+            "Fungsi mengembalikan object Produk",
+            "Fungsi selalu melempar error",
+            "Kalau fungsi mengembalikan true, x dianggap Produk",
+            "x diubah menjadi Produk"
+          ],
+          "answer": 2,
+          "explanation": "Type predicate menghubungkan hasil boolean dengan tipe.",
+          "remedial": "Fungsi tetap mengembalikan boolean. Bedanya, saat hasilnya true, TypeScript mempersempit tipe x menjadi Produk di blok if atau di hasil filter."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "function adaIsi(x: string | null): x is string {\n  return x !== null;\n}\nconst a = [\"kopi\", null, \"teh\"].filter(adaIsi);\nconsole.log(a);",
+          "options": [
+            "2",
+            "[ null ]",
+            "[ kopi, null, teh ]",
+            "[ kopi, teh ]"
+          ],
+          "answer": 3,
+          "explanation": "filter dengan type guard membuang null.",
+          "remedial": "adaIsi mengembalikan true hanya untuk nilai yang bukan null, sehingga hasil filter berisi kopi dan teh dan bertipe string[]."
+        },
+        {
+          "question": "Apa bahaya type guard yang isinya kurang teliti?",
+          "options": [
+            "Fungsi tidak bisa dipakai di filter",
+            "Tipe x berubah menjadi any",
+            "TypeScript tetap percaya, sehingga bug muncul saat program jalan",
+            "TypeScript langsung menolak saat compile"
+          ],
+          "answer": 2,
+          "explanation": "TypeScript tidak memeriksa isi type guard.",
+          "remedial": "TypeScript menganggap type guard selalu benar. Kalau isinya lupa memeriksa satu properti, data rusak dianggap valid dan error baru terjadi saat properti itu dipakai."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Library apa yang umum dipakai di proyek sungguhan untuk memvalidasi data dari luar sekaligus menghasilkan tipenya?",
+      "options": [
+        "Lodash",
+        "Express",
+        "Moment",
+        "Zod"
+      ],
+      "answer": 3,
+      "explanation": "Zod (atau Valibot, ArkType) memeriksa data saat jalan dan menghasilkan tipe TypeScript."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Tulis type guard isEmail(x: unknown): x is string yang benar kalau x adalah string yang mengandung tanda @ dan titik setelahnya. Saring array [\"rina@toko.id\", 42, \"salah\", \"budi@mail.com\", null] dan cetak hasilnya dengan join(\", \").",
+      "starterCode": "function isEmail(x: unknown) {\n  return true;\n}\nconst data: unknown[] = [\"rina@toko.id\", 42, \"salah\", \"budi@mail.com\", null];\nconsole.log(data.filter(isEmail).join(\", \"));\n",
+      "solution": "function isEmail(x: unknown): x is string {\n  if (typeof x !== \"string\") return false;\n  const at = x.indexOf(\"@\");\n  return at > 0 && x.indexOf(\".\", at) > at + 1;\n}\nconst data: unknown[] = [\"rina@toko.id\", 42, \"salah\", \"budi@mail.com\", null];\nconsole.log(data.filter(isEmail).join(\", \"));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "rina@toko.id, budi@mail.com\n"
+        }
+      ],
+      "hints": [
+        "Periksa typeof x === \"string\" dulu, baru cari @.",
+        "indexOf(\".\", at) mencari titik setelah posisi @."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Type predicate (x is T) menghubungkan hasil true dengan tipe T.",
+        "Type guard cocok untuk data unknown dan untuk filter.",
+        "TypeScript percaya pada isi type guard: tulis pemeriksaannya dengan teliti.",
+        "Selalu periksa x !== null sebelum memakai in.",
+        "Untuk data besar dari luar, pakai library validasi seperti Zod."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,189 @@
+{
+  "id": "ts-todolist-05",
+  "moduleId": "ts-todolist",
+  "order": 5,
+  "title": "Simpan dan Muat dengan JSON",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Supaya todo tidak hilang, daftar disimpan sebagai teks JSON (di browser lewat `localStorage`, di Node.js lewat file). Menyimpan itu mudah:\n\n```ts\nconst teks = JSON.stringify(store.semua());\n```\n\nMemuat yang perlu hati-hati. `JSON.parse` bertipe `any`, dan teks simpanan bisa saja rusak, terpotong, atau dibuat oleh versi aplikasi yang lebih lama. Karena itu hasilnya diperlakukan seperti data dari server:\n\n1. `JSON.parse` di dalam `try/catch` (teks rusak melempar error),\n2. simpan sebagai `unknown`,\n3. periksa dengan type guard `isTodo`,\n4. kembalikan `Result<Todo[]>`.\n\nIbarat menyimpan barang di gudang sewaan: saat diambil kembali, barang diperiksa satu per satu, karena bisa saja ada yang rusak atau tertukar selama disimpan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```ts\nfunction muat(teks: string): Result<Todo[]> {\n  let data: unknown;\n  try {\n    data = JSON.parse(teks);\n  } catch {\n    return { ok: false, error: \"JSON rusak\" };\n  }\n  if (!Array.isArray(data) || !data.every(isTodo)) return { ok: false, error: \"Isi tidak valid\" };\n  return { ok: true, data };\n}\n```\n\n`data.every(isTodo)` memakai type guard sebagai predikat, sehingga setelah lolos, `data` dikenali sebagai `Todo[]`.\n\n`catch {` tanpa nama variabel boleh dipakai kalau error-nya tidak dibutuhkan."
+    },
+    {
+      "type": "runnable",
+      "code": "type Prioritas = \"rendah\" | \"sedang\" | \"tinggi\";\ntype Todo = { id: number; judul: string; selesai: boolean; prioritas: Prioritas };\ntype Result<T> = { ok: true; data: T } | { ok: false; error: string };\n\nconst PRIORITAS: readonly string[] = [\"rendah\", \"sedang\", \"tinggi\"];\nfunction isTodo(x: unknown): x is Todo {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"number\" &&\n    \"judul\" in x && typeof x.judul === \"string\" &&\n    \"selesai\" in x && typeof x.selesai === \"boolean\" &&\n    \"prioritas\" in x && typeof x.prioritas === \"string\" && PRIORITAS.includes(x.prioritas)\n  );\n}\nfunction muat(teks: string): Result<Todo[]> {\n  let data: unknown;\n  try {\n    data = JSON.parse(teks);\n  } catch {\n    return { ok: false, error: \"JSON rusak\" };\n  }\n  if (!Array.isArray(data) || !data.every(isTodo)) return { ok: false, error: \"Isi tidak valid\" };\n  return { ok: true, data };\n}\nconst simpanan = JSON.stringify([{ id: 1, judul: \"Belajar JSON\", selesai: false, prioritas: \"tinggi\" }]);\nfor (const teks of [simpanan, \"[{\", '[{\"id\":1}]']) {\n  const h = muat(teks);\n  console.log(h.ok ? `${h.data.length} todo dimuat` : h.error);\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "0 todo dimuat",
+          "JSON rusak",
+          "Isi tidak valid",
+          "1 todo dimuat"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Memeriksa setiap kolom, termasuk nilai prioritas."
+        },
+        {
+          "line": 16,
+          "note": "Belum dipercaya sampai diperiksa."
+        },
+        {
+          "line": 19,
+          "note": "Teks yang bukan JSON ditangkap di sini."
+        },
+        {
+          "line": 22,
+          "note": "Setiap isi array harus lolos."
+        }
+      ],
+      "explanation": "Teks ketiga adalah JSON yang sah, tapi object di dalamnya hanya punya id. isTodo menolaknya, sehingga hasilnya Isi tidak valid.",
+      "tryThis": [
+        {
+          "task": "Ganti prioritas di simpanan menjadi \"penting\". Apa hasil baris pertama?",
+          "hint": null
+        },
+        {
+          "task": "Hapus try/catch dan biarkan JSON.parse langsung. Apa yang terjadi pada teks \"[{\"?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `JSON.parse(teks) as Todo[]`**\n\nTidak ada yang diperiksa. Kalau simpanan rusak, error muncul jauh di tempat lain, misalnya saat `t.judul.toUpperCase()`.\n\n**2. Lupa `try/catch`**\n\nTeks yang terpotong membuat `JSON.parse` melempar error dan seluruh aplikasi berhenti saat dibuka.\n\n**3. Menyimpan `Date`**\n\nSetelah melewati JSON, `Date` berubah menjadi teks. Simpan sebagai teks ISO atau angka, lalu ubah kembali saat dimuat."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Data di `localStorage` sering berasal dari versi aplikasi yang lebih lama. Banyak tim menyimpan nomor versi, misalnya `{ versi: 2, todos: [...] }`, supaya data lama bisa dikenali dan diubah ke bentuk baru.\n- Untuk data yang lebih rumit, pemeriksaan biasanya ditulis dengan library validasi seperti Zod: `SkemaTodo.array().safeParse(JSON.parse(teks))`.\n- Aplikasi yang baik tidak berhenti total karena simpanan rusak: ia memakai data kosong atau bawaan, lalu memberi tahu pengguna."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Todolist TS 5: Simpan dan Muat",
+      "pembuka": "Kita simpan daftar todo ke teks JSON, lalu memuatnya kembali dengan aman. Penyimpanan ditiru dengan variabel `penyimpanan`.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. simpan mengubah daftar menjadi teks JSON.",
+          "jawaban": "type Prioritas = \"rendah\" | \"sedang\" | \"tinggi\";\ntype Todo = { id: number; judul: string; selesai: boolean; prioritas: Prioritas };\ntype Result<T> = { ok: true; data: T } | { ok: false; error: string };\n\nconst PRIORITAS: readonly string[] = [\"rendah\", \"sedang\", \"tinggi\"];\nfunction isTodo(x: unknown): x is Todo {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"number\" &&\n    \"judul\" in x && typeof x.judul === \"string\" &&\n    \"selesai\" in x && typeof x.selesai === \"boolean\" &&\n    \"prioritas\" in x && typeof x.prioritas === \"string\" && PRIORITAS.includes(x.prioritas)\n  );\n}\nlet penyimpanan = \"\";\nfunction simpan(daftar: readonly Todo[]): void {\n  penyimpanan = JSON.stringify(daftar);\n}\nsimpan([{ id: 1, judul: \"Belajar JSON\", selesai: false, prioritas: \"tinggi\" }]);\nconsole.log(penyimpanan);",
+          "keluaran": "[{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false,\"prioritas\":\"tinggi\"}]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat `function muat(teks: string): Result<Todo[]>`: `JSON.parse` di dalam `try/catch` (error `\"JSON rusak\"`), lalu periksa dengan `Array.isArray(data) && data.every(isTodo)` (error `\"Isi tidak valid\"`). Muat `penyimpanan` dan cetak `Dimuat: Belajar JSON`.",
+          "jawaban": "type Prioritas = \"rendah\" | \"sedang\" | \"tinggi\";\ntype Todo = { id: number; judul: string; selesai: boolean; prioritas: Prioritas };\ntype Result<T> = { ok: true; data: T } | { ok: false; error: string };\n\nconst PRIORITAS: readonly string[] = [\"rendah\", \"sedang\", \"tinggi\"];\nfunction isTodo(x: unknown): x is Todo {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"number\" &&\n    \"judul\" in x && typeof x.judul === \"string\" &&\n    \"selesai\" in x && typeof x.selesai === \"boolean\" &&\n    \"prioritas\" in x && typeof x.prioritas === \"string\" && PRIORITAS.includes(x.prioritas)\n  );\n}\nlet penyimpanan = \"\";\nfunction simpan(daftar: readonly Todo[]): void {\n  penyimpanan = JSON.stringify(daftar);\n}\nsimpan([{ id: 1, judul: \"Belajar JSON\", selesai: false, prioritas: \"tinggi\" }]);\nconsole.log(penyimpanan);\nfunction muat(teks: string): Result<Todo[]> {\n  let data: unknown;\n  try {\n    data = JSON.parse(teks);\n  } catch {\n    return { ok: false, error: \"JSON rusak\" };\n  }\n  if (!Array.isArray(data) || !data.every(isTodo)) return { ok: false, error: \"Isi tidak valid\" };\n  return { ok: true, data };\n}\nconst h = muat(penyimpanan);\nif (h.ok) console.log(\"Dimuat:\", h.data.map((t) => t.judul).join(\", \"));\nelse console.log(h.error);",
+          "keluaran": "[{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false,\"prioritas\":\"tinggi\"}]\nDimuat: Belajar JSON",
+          "wajib": [
+            {
+              "pola": "Result<\\s*Todo\\[\\]\\s*>",
+              "pesan": "tipe kembalian `Result<Todo[]>`."
+            },
+            {
+              "pola": "every\\(\\s*isTodo\\s*\\)",
+              "pesan": "periksa setiap isi dengan `every(isTodo)`."
+            }
+          ],
+          "petunjuk": "Simpan hasil JSON.parse ke variabel bertipe unknown, lalu periksa sebelum dikembalikan."
+        },
+        {
+          "arahan": "Uji dengan simpanan rusak. Isi `penyimpanan` dengan `'[{\"id\":\"satu\"}]'` lalu cetak hasil `muat`, kemudian isi dengan `\"{\"` dan cetak lagi. Dua baris terakhir harus `Isi tidak valid` dan `JSON rusak`.",
+          "jawaban": "type Prioritas = \"rendah\" | \"sedang\" | \"tinggi\";\ntype Todo = { id: number; judul: string; selesai: boolean; prioritas: Prioritas };\ntype Result<T> = { ok: true; data: T } | { ok: false; error: string };\n\nconst PRIORITAS: readonly string[] = [\"rendah\", \"sedang\", \"tinggi\"];\nfunction isTodo(x: unknown): x is Todo {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"number\" &&\n    \"judul\" in x && typeof x.judul === \"string\" &&\n    \"selesai\" in x && typeof x.selesai === \"boolean\" &&\n    \"prioritas\" in x && typeof x.prioritas === \"string\" && PRIORITAS.includes(x.prioritas)\n  );\n}\nlet penyimpanan = \"\";\nfunction simpan(daftar: readonly Todo[]): void {\n  penyimpanan = JSON.stringify(daftar);\n}\nsimpan([{ id: 1, judul: \"Belajar JSON\", selesai: false, prioritas: \"tinggi\" }]);\nconsole.log(penyimpanan);\nfunction muat(teks: string): Result<Todo[]> {\n  let data: unknown;\n  try {\n    data = JSON.parse(teks);\n  } catch {\n    return { ok: false, error: \"JSON rusak\" };\n  }\n  if (!Array.isArray(data) || !data.every(isTodo)) return { ok: false, error: \"Isi tidak valid\" };\n  return { ok: true, data };\n}\nconst h = muat(penyimpanan);\nif (h.ok) console.log(\"Dimuat:\", h.data.map((t) => t.judul).join(\", \"));\nelse console.log(h.error);\npenyimpanan = '[{\"id\":\"satu\"}]';\nconst h2 = muat(penyimpanan);\nconsole.log(h2.ok ? \"Dimuat\" : h2.error);\npenyimpanan = \"{\";\nconst h3 = muat(penyimpanan);\nconsole.log(h3.ok ? \"Dimuat\" : h3.error);",
+          "keluaran": "[{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false,\"prioritas\":\"tinggi\"}]\nDimuat: Belajar JSON\nIsi tidak valid\nJSON rusak",
+          "petunjuk": "Isi penyimpanan dengan teks rusak, panggil muat, lalu cetak error-nya.",
+          "tantangan": true,
+          "benar": "Aplikasi tidak berhenti walaupun simpanannya rusak. Pengguna bisa diberi tahu dengan pesan yang jelas."
+        }
+      ],
+      "penutup": "Daftar todo bisa disimpan dan dimuat kembali, dan simpanan yang rusak ditangani dengan tenang."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa hasil JSON.parse disimpan ke variabel bertipe unknown?",
+          "options": [
+            "Karena JSON.parse selalu mengembalikan string",
+            "Supaya hasilnya otomatis bertipe Todo",
+            "Supaya tidak bisa dipakai sebelum diperiksa",
+            "Supaya parse berjalan lebih cepat"
+          ],
+          "answer": 2,
+          "explanation": "any mematikan pemeriksaan, unknown memaksanya.",
+          "remedial": "JSON.parse bertipe any. Dengan menyimpannya sebagai unknown, TypeScript memaksa kita memeriksa bentuk datanya sebelum dipakai."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const asli = { judul: \"Rapat\", waktu: new Date(0) };\nconst balik = JSON.parse(JSON.stringify(asli));\nconsole.log(typeof asli.waktu, typeof balik.waktu);",
+          "options": [
+            "string string",
+            "object object",
+            "object string",
+            "Error tipe"
+          ],
+          "answer": 2,
+          "explanation": "JSON tidak mengenal Date.",
+          "remedial": "Date di object asli tetap object. Setelah stringify lalu parse, nilainya menjadi teks."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "const data: unknown = JSON.parse('[{\"id\":1}]');\nconsole.log(data.length);",
+          "options": [
+            "Mencetak undefined",
+            "Error, data bertipe unknown",
+            "Lolos tanpa error",
+            "Mencetak 1"
+          ],
+          "answer": 1,
+          "explanation": "unknown wajib diperiksa.",
+          "remedial": "data bertipe unknown, jadi data.length ditolak (TS18046) sebelum diperiksa, misalnya dengan Array.isArray."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa data simpanan sebaiknya diberi nomor versi, misalnya { versi: 2, todos: [...] }?",
+      "options": [
+        "Supaya JSON.parse tidak perlu try/catch",
+        "Supaya JSON lebih kecil",
+        "Supaya data dari versi lama bisa dikenali dan diubah ke bentuk baru",
+        "Karena localStorage mewajibkannya"
+      ],
+      "answer": 2,
+      "explanation": "Bentuk data berubah seiring aplikasi berkembang."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat type Pengaturan = { tema: \"terang\" | \"gelap\"; ukuran: number } dan fungsi muatPengaturan(teks: string): Pengaturan yang mengembalikan nilai bawaan tema terang dan ukuran 14 kalau JSON rusak atau isinya tidak valid. Cetak tema dan ukuran untuk teks {\"tema\":\"gelap\",\"ukuran\":16}, lalu untuk teks rusak {: gelap 16 lalu terang 14",
+      "starterCode": "function muatPengaturan(teks) {\n  return JSON.parse(teks);\n}\n",
+      "solution": "type Pengaturan = { tema: \"terang\" | \"gelap\"; ukuran: number };\nconst BAWAAN: Pengaturan = { tema: \"terang\", ukuran: 14 };\nfunction isPengaturan(x: unknown): x is Pengaturan {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"tema\" in x && (x.tema === \"terang\" || x.tema === \"gelap\") &&\n    \"ukuran\" in x && typeof x.ukuran === \"number\"\n  );\n}\nfunction muatPengaturan(teks: string): Pengaturan {\n  try {\n    const data: unknown = JSON.parse(teks);\n    return isPengaturan(data) ? data : BAWAAN;\n  } catch {\n    return BAWAAN;\n  }\n}\nfor (const teks of ['{\"tema\":\"gelap\",\"ukuran\":16}', \"{\"]) {\n  const p = muatPengaturan(teks);\n  console.log(p.tema, p.ukuran);\n}\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "gelap 16\nterang 14\n"
+        }
+      ],
+      "hints": [
+        "Buat type guard isPengaturan yang memeriksa tema (terang atau gelap) dan ukuran (number).",
+        "Bungkus JSON.parse dengan try/catch dan kembalikan nilai bawaan kalau gagal."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Simpan dengan JSON.stringify, muat dengan JSON.parse.",
+        "JSON.parse di dalam try/catch, karena teks rusak melempar error.",
+        "Hasil parse disimpan sebagai unknown, lalu diperiksa dengan type guard.",
+        "muat mengembalikan Result<Todo[]>.",
+        "Date berubah menjadi teks setelah melewati JSON."
+      ]
+    }
+  ]
+}

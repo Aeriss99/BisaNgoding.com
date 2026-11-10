@@ -1,0 +1,188 @@
+{
+  "id": "ts-tipe-lanjut-03",
+  "moduleId": "ts-tipe-lanjut",
+  "order": 3,
+  "title": "Partial, Required, Readonly",
+  "estimatedMinutes": 12,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Utility types** adalah tipe bawaan TypeScript yang mengubah tipe lain. Tiga yang paling sering dipakai:\n\n| Utility | Hasil |\n|---|---|\n| `Partial<T>` | semua properti menjadi opsional |\n| `Required<T>` | semua properti menjadi wajib |\n| `Readonly<T>` | semua properti tidak bisa diisi ulang |\n\n```ts\ntype Profil = { nama: string; email: string; kota?: string };\n\nfunction ubahProfil(lama: Profil, perubahan: Partial<Profil>): Profil {\n  return { ...lama, ...perubahan };\n}\nubahProfil(rina, { kota: \"Bandung\" }); // cukup kirim kolom yang berubah\n\ntype ProfilLengkap = Required<Profil>;  // kota juga wajib\nconst tetap: Readonly<Profil> = rina;\ntetap.nama = \"X\"; // error TS2540\n```\n\nIbarat mesin fotokopi formulir dengan tiga pengaturan: salinan yang semua kolomnya boleh dikosongkan, salinan yang semua kolomnya wajib diisi, dan salinan yang dilaminasi sehingga tidak bisa dicoret."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`Required` berguna setelah semua kolom opsional dilengkapi dengan nilai bawaan:\n\n```ts\ntype Opsi = { batas?: number; urut?: \"baru\" | \"lama\" };\nconst BAWAAN: Required<Opsi> = { batas: 10, urut: \"baru\" };\n\nfunction cari(opsi: Opsi = {}) {\n  const o: Required<Opsi> = { ...BAWAAN, ...opsi };\n  return `${o.batas} ${o.urut}`; // tidak perlu cek undefined lagi\n}\n```\n\n`Readonly` hanya **dangkal** (satu tingkat):\n\n```ts\nconst p: Readonly<{ alamat: { kota: string } }> = { alamat: { kota: \"Bandung\" } };\np.alamat = { kota: \"Jakarta\" }; // error TS2540\np.alamat.kota = \"Jakarta\";      // lolos: tingkat dalam tidak ikut terkunci\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "type Profil = { nama: string; email: string; kota?: string };\nfunction ubahProfil(lama: Profil, perubahan: Partial<Profil>): Profil {\n  return { ...lama, ...perubahan };\n}\nconst awal: Readonly<Profil> = { nama: \"Rina\", email: \"rina@contoh.id\" };\nconst baru = ubahProfil(awal, { kota: \"Bandung\" });\nconst baru2 = ubahProfil(baru, { email: \"rina.p@contoh.id\" });\nconsole.log(awal.kota ?? \"-\", baru.kota);\nconsole.log(baru2.nama, baru2.email, baru2.kota);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "Rina rina@contoh.id Bandung",
+          "Rina rina.p@contoh.id undefined",
+          "Rina rina.p@contoh.id -",
+          "Rina rina.p@contoh.id Bandung"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Cukup kirim kolom yang berubah."
+        },
+        {
+          "line": 5,
+          "note": "Data awal tidak bisa diisi ulang."
+        },
+        {
+          "line": 7,
+          "note": "Object baru dibuat, bukan mengubah yang lama."
+        }
+      ],
+      "explanation": "Setiap ubahProfil membuat object baru dari gabungan data lama dan perubahan. baru2 berasal dari baru yang sudah punya kota Bandung, lalu email-nya diganti.",
+      "tryThis": [
+        {
+          "task": "Tambahkan awal.nama = \"Budi\". Baca error TS2540.",
+          "hint": null
+        },
+        {
+          "task": "Ganti Partial<Profil> menjadi Profil. Kenapa pemanggilan ubahProfil ditolak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai `Partial` untuk data yang seharusnya lengkap**\n\n`function daftar(data: Partial<Pengguna>)` membuat semua kolom boleh kosong, termasuk email. Pakai `Partial` hanya untuk perubahan sebagian.\n\n**2. Mengira `Readonly` mengunci semua tingkat**\n\n`Readonly` hanya satu tingkat. Object di dalamnya tetap bisa diubah.\n\n**3. Kolom bernilai `undefined` di perubahan**\n\n`ubahProfil(rina, { kota: undefined })` lolos di `Partial`, dan spread akan **menimpa** kota menjadi undefined. Opsi `exactOptionalPropertyTypes` di tsconfig bisa menolak ini."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- `Partial<T>` dipakai untuk endpoint PATCH dan form edit: hanya kolom yang berubah yang dikirim.\n- Props komponen React dan state di Redux/Zustand diperlakukan sebagai read-only. Banyak tim menulis `Readonly<Props>` atau `readonly` di tipe state supaya tidak diubah langsung.\n- Tipe hasil generate Supabase punya tiga versi untuk setiap tabel: `Row`, `Insert`, dan `Update`. Versi `Update` pada dasarnya `Partial` dari kolom tabel."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Profil TS 3: Edit Profil",
+      "pembuka": "Saatnya membuat fitur edit profil: pengguna cukup mengirim kolom yang berubah.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Fungsi ubah menerima Partial<Profil>.",
+          "jawaban": "type Profil = { nama: string; email: string; kota: string };\nlet profil: Profil = { nama: \"Rina\", email: \"rina@contoh.id\", kota: \"Bandung\" };\nfunction ubah(perubahan: Partial<Profil>): void {\n  profil = { ...profil, ...perubahan };\n}\nubah({ kota: \"Jakarta\" });\nconsole.log(profil.nama, profil.kota);",
+          "keluaran": "Rina Jakarta",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak karena parameter `perubahan` bertipe `Profil`, sehingga semua kolom wajib dikirim. Ganti tipenya menjadi `Partial<Profil>`. Baris terakhir harus `rina.p@contoh.id`.",
+          "jawaban": "type Profil = { nama: string; email: string; kota: string };\nlet profil: Profil = { nama: \"Rina\", email: \"rina@contoh.id\", kota: \"Bandung\" };\nfunction ubah(perubahan: Partial<Profil>): void {\n  profil = { ...profil, ...perubahan };\n}\nubah({ kota: \"Jakarta\" });\nconsole.log(profil.nama, profil.kota);\nubah({ email: \"rina.p@contoh.id\" });\nconsole.log(profil.email);",
+          "kodeAwal": "type Profil = { nama: string; email: string; kota: string };\nlet profil: Profil = { nama: \"Rina\", email: \"rina@contoh.id\", kota: \"Bandung\" };\nfunction ubah(perubahan: Profil): void {\n  profil = { ...profil, ...perubahan };\n}\nubah({ kota: \"Jakarta\" });\nconsole.log(profil.nama, profil.kota);\nubah({ email: \"rina.p@contoh.id\" });\nconsole.log(profil.email);",
+          "keluaran": "Rina Jakarta\nrina.p@contoh.id",
+          "wajib": [
+            {
+              "pola": "perubahan\\s*:\\s*Partial<Profil>",
+              "pesan": "tipe parameter `Partial<Profil>`."
+            }
+          ],
+          "petunjuk": "Error TS2345 menyebut kolom yang hilang. Partial<Profil> membuat semua kolom opsional."
+        },
+        {
+          "arahan": "Simpan salinan profil **sebelum** diubah sebagai `const asli: Readonly<Profil> = { ...profil };` (letakkan sebelum `ubah` pertama). Di akhir, cetak `Asal: Bandung -> Jakarta` memakai `asli.kota` dan `profil.kota`.",
+          "jawaban": "type Profil = { nama: string; email: string; kota: string };\nlet profil: Profil = { nama: \"Rina\", email: \"rina@contoh.id\", kota: \"Bandung\" };\nconst asli: Readonly<Profil> = { ...profil };\nfunction ubah(perubahan: Partial<Profil>): void {\n  profil = { ...profil, ...perubahan };\n}\nubah({ kota: \"Jakarta\" });\nconsole.log(profil.nama, profil.kota);\nubah({ email: \"rina.p@contoh.id\" });\nconsole.log(profil.email);\nconsole.log(\"Asal:\", asli.kota, \"->\", profil.kota);",
+          "keluaran": "Rina Jakarta\nrina.p@contoh.id\nAsal: Bandung -> Jakarta",
+          "wajib": [
+            {
+              "pola": "asli\\s*:\\s*Readonly<Profil>",
+              "pesan": "beri tipe `Readonly<Profil>` pada `asli`."
+            }
+          ],
+          "petunjuk": "Salinan dibuat dengan spread sebelum profil diubah, lalu dicetak di baris terakhir.",
+          "tantangan": true,
+          "benar": "Data asli aman: Readonly mencegahnya ikut diubah, sehingga bisa dipakai untuk tombol batal."
+        }
+      ],
+      "penutup": "Edit profil kini cukup mengirim kolom yang berubah, dan data asli terjaga."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa hasil Partial<{ nama: string; umur: number }>?",
+          "options": [
+            "Semua properti menjadi readonly",
+            "Semua properti menjadi opsional",
+            "Hanya properti pertama yang tersisa",
+            "Semua properti menjadi string"
+          ],
+          "answer": 1,
+          "explanation": "Partial menambahkan tanda tanya.",
+          "remedial": "Partial<T> membuat setiap properti T opsional, sehingga { nama: \"Rina\" } saja sudah sah. Cocok untuk data perubahan sebagian."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "type Pesanan = { id: number; total: number };\nconst p: Readonly<Pesanan> = { id: 1, total: 50000 };\np.total = 0;",
+          "options": [
+            "Mencetak 0",
+            "Mencetak 50000",
+            "Error, total tidak bisa diisi ulang",
+            "Lolos tanpa error"
+          ],
+          "answer": 2,
+          "explanation": "Readonly mengunci setiap properti.",
+          "remedial": "p bertipe Readonly<Pesanan>, jadi semua propertinya read-only. Mengisi p.total ditolak (TS2540)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "type A = { x: number; y: number };\nconst awal: A = { x: 1, y: 2 };\nconst ubah: Partial<A> = { y: 5 };\nconst hasil = { ...awal, ...ubah };\nconsole.log(hasil.x, hasil.y);",
+          "options": [
+            "1 5",
+            "Error tipe",
+            "undefined 5",
+            "1 2"
+          ],
+          "answer": 0,
+          "explanation": "Spread menimpa kolom yang ada di perubahan saja.",
+          "remedial": "ubah hanya berisi y, jadi x tetap 1 dari awal dan y ditimpa menjadi 5."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Utility type apa yang membuat semua properti opsional menjadi wajib?",
+      "options": [
+        "Partial<T>",
+        "Readonly<T>",
+        "Required<T>",
+        "NonNullable<T>"
+      ],
+      "answer": 2,
+      "explanation": "Required adalah kebalikan dari Partial."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat type Pengaturan = { tema: string; bahasa: string; notifikasi: boolean } dan konstanta BAWAAN bertipe Readonly<Pengaturan> (tema terang, bahasa id, notifikasi true). Buat fungsi gabung(ubah: Partial<Pengaturan>): Pengaturan yang menimpa BAWAAN dengan ubah. Cetak tema, bahasa, dan notifikasi dari gabung dengan tema gelap: gelap id true",
+      "starterCode": "type Pengaturan = { tema: string; bahasa: string; notifikasi: boolean };\nfunction gabung(ubah) {\n  return ubah;\n}\n",
+      "solution": "type Pengaturan = { tema: string; bahasa: string; notifikasi: boolean };\nconst BAWAAN: Readonly<Pengaturan> = { tema: \"terang\", bahasa: \"id\", notifikasi: true };\nfunction gabung(ubah: Partial<Pengaturan>): Pengaturan {\n  return { ...BAWAAN, ...ubah };\n}\nconst p = gabung({ tema: \"gelap\" });\nconsole.log(p.tema, p.bahasa, p.notifikasi);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "gelap id true\n"
+        }
+      ],
+      "hints": [
+        "BAWAAN diberi tipe Readonly<Pengaturan>, parameter ubah bertipe Partial<Pengaturan>.",
+        "Isi gabung: return { ...BAWAAN, ...ubah }."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Partial<T>: semua properti opsional (cocok untuk data perubahan).",
+        "Required<T>: semua properti wajib.",
+        "Readonly<T>: semua properti tidak bisa diisi ulang (TS2540).",
+        "Readonly hanya dangkal, satu tingkat.",
+        "Spread { ...lama, ...perubahan } menggabungkan data tanpa mengubah yang lama."
+      ]
+    }
+  ]
+}

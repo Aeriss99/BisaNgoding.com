@@ -1,0 +1,186 @@
+{
+  "id": "ts-generics-04",
+  "moduleId": "ts-generics",
+  "order": 4,
+  "title": "Tipe Generic: interface dan type",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Bukan hanya fungsi: **interface dan type** juga bisa punya parameter tipe.\n\n```ts\ninterface Kotak<T> {\n  isi: T;\n  label: string;\n}\nconst k1: Kotak<number> = { isi: 12, label: \"stok\" };\nconst k2: Kotak<string[]> = { isi: [\"kopi\", \"teh\"], label: \"menu\" };\n```\n\nContoh yang paling sering ditemui: **bungkus respons API**. Semua respons punya bentuk sama, hanya isi datanya yang berbeda.\n\n```ts\ntype Respons<T> =\n  | { ok: true; data: T }\n  | { ok: false; pesan: string };\n\ntype ResponsProduk = Respons<Produk[]>;\ntype ResponsPengguna = Respons<{ id: number; nama: string }>;\n```\n\nIbarat formulir pengiriman paket: kolom pengirim, penerima, dan nomor resi selalu sama. Yang berbeda hanya isi paketnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nParameter tipe boleh punya **nilai default**:\n\n```ts\ntype Halaman<T, M = { total: number }> = {\n  isi: T[];\n  meta: M;\n};\nconst h: Halaman<string> = { isi: [\"a\"], meta: { total: 1 } }; // M memakai default\n```\n\nDan fungsi yang mengembalikan tipe generic:\n\n```ts\nfunction sukses<T>(data: T): Respons<T> {\n  return { ok: true, data };\n}\nfunction gagal<T = never>(pesan: string): Respons<T> {\n  return { ok: false, pesan };\n}\n```\n\nSaat membaca `Respons<T>`, cukup periksa `ok` (discriminated union) untuk tahu apakah `data` tersedia."
+    },
+    {
+      "type": "runnable",
+      "code": "type Produk = { nama: string; harga: number };\ntype Respons<T> = { ok: true; data: T } | { ok: false; pesan: string };\n\nfunction cariProduk(nama: string): Respons<Produk> {\n  if (nama === \"kopi\") return { ok: true, data: { nama: \"Kopi\", harga: 18000 } };\n  return { ok: false, pesan: `Produk ${nama} tidak ada` };\n}\nfor (const n of [\"kopi\", \"jus\"]) {\n  const r = cariProduk(n);\n  console.log(r.ok ? r.data.harga : r.pesan);\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "undefined",
+          "18000",
+          "Produk kopi tidak ada",
+          "Produk jus tidak ada"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Bentuk sama untuk semua respons; isi data mengikuti T."
+        },
+        {
+          "line": 4,
+          "note": "T diisi Produk."
+        },
+        {
+          "line": 10,
+          "note": "ok sebagai penanda: data hanya ada kalau ok true."
+        }
+      ],
+      "explanation": "jus tidak dikenali, jadi cariProduk mengembalikan { ok: false, pesan }. Karena r.ok bernilai false, yang dicetak adalah pesannya.",
+      "tryThis": [
+        {
+          "task": "Tanpa memeriksa r.ok, tulis console.log(r.data). Kenapa ditolak?",
+          "hint": null
+        },
+        {
+          "task": "Buat fungsi yang mengembalikan Respons<string[]> berisi daftar menu.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa mengisi parameter tipe**\n\n`const r: Respons = ...` ditolak (TS2314: Generic type 'Respons' requires 1 type argument). Tulis `Respons<Produk>`, atau beri default.\n\n**2. Membuat tipe terpisah untuk setiap respons**\n\n`ResponsProduk`, `ResponsPengguna`, `ResponsPesanan` yang isinya sama persis kecuali data: cukup satu `Respons<T>`.\n\n**3. Membaca `data` tanpa memeriksa `ok`**\n\nItulah gunanya union: TypeScript menolak sampai kamu memeriksa penandanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hampir setiap aplikasi punya tipe pembungkus seperti `ApiResponse<T>`, `Paginated<T>` (data per halaman dengan total dan nomor halaman), atau `Result<T, E>`.\n- Library pengambil data seperti TanStack Query (`useQuery<Produk[]>`) dan SWR memakai tipe generic, sehingga `data` di komponen langsung bertipe benar.\n- Default parameter tipe dipakai luas di library supaya pemakaian sederhana tetap ringkas, misalnya `React.ComponentProps<\"button\">` atau `Promise<void>`."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Gudang TS 4: Respons Gudang",
+      "pembuka": "Sistem gudang menjawab setiap permintaan dengan bentuk yang sama: berhasil dengan data, atau gagal dengan pesan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Respons<T> dipakai untuk mencari stok.",
+          "jawaban": "type Respons<T> = { ok: true; data: T } | { ok: false; pesan: string };\nconst stok: Record<string, number> = { gula: 5, beras: 12 };\nfunction cekStok(nama: string): Respons<number> {\n  const s = stok[nama];\n  if (s === undefined) return { ok: false, pesan: `${nama} tidak terdaftar` };\n  return { ok: true, data: s };\n}\nconst r = cekStok(\"gula\");\nconsole.log(r.ok ? r.data : r.pesan);",
+          "keluaran": "5",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat fungsi `daftarBarang(): Respons<string[]>` yang mengembalikan `{ ok: true, data: Object.keys(stok) }`. Cetak isinya kalau `ok`: `[ gula, beras ]`.",
+          "jawaban": "type Respons<T> = { ok: true; data: T } | { ok: false; pesan: string };\nconst stok: Record<string, number> = { gula: 5, beras: 12 };\nfunction cekStok(nama: string): Respons<number> {\n  const s = stok[nama];\n  if (s === undefined) return { ok: false, pesan: `${nama} tidak terdaftar` };\n  return { ok: true, data: s };\n}\nfunction daftarBarang(): Respons<string[]> {\n  return { ok: true, data: Object.keys(stok) };\n}\nconst r = cekStok(\"gula\");\nconsole.log(r.ok ? r.data : r.pesan);\nconst d = daftarBarang();\nif (d.ok) console.log(d.data);",
+          "keluaran": "5\n[ gula, beras ]",
+          "wajib": [
+            {
+              "pola": "daftarBarang\\s*\\(\\s*\\)\\s*:\\s*Respons\\s*<\\s*string\\[\\]\\s*>",
+              "pesan": "tulis `daftarBarang(): Respons<string[]>`."
+            }
+          ],
+          "petunjuk": "Respons<string[]> artinya data berupa array string. Periksa d.ok sebelum membaca d.data."
+        },
+        {
+          "arahan": "Kode ini ditolak karena `data` dibaca tanpa memeriksa `ok`. Bungkus dengan `if (r2.ok)` dan tambahkan `else` yang mencetak pesannya. Baris terakhir harus `kopi tidak terdaftar`.",
+          "jawaban": "type Respons<T> = { ok: true; data: T } | { ok: false; pesan: string };\nconst stok: Record<string, number> = { gula: 5, beras: 12 };\nfunction cekStok(nama: string): Respons<number> {\n  const s = stok[nama];\n  if (s === undefined) return { ok: false, pesan: `${nama} tidak terdaftar` };\n  return { ok: true, data: s };\n}\nfunction daftarBarang(): Respons<string[]> {\n  return { ok: true, data: Object.keys(stok) };\n}\nconst r = cekStok(\"gula\");\nconsole.log(r.ok ? r.data : r.pesan);\nconst d = daftarBarang();\nif (d.ok) console.log(d.data);\nconst r2 = cekStok(\"kopi\");\nif (r2.ok) {\n  console.log(r2.data);\n} else {\n  console.log(r2.pesan);\n}",
+          "kodeAwal": "type Respons<T> = { ok: true; data: T } | { ok: false; pesan: string };\nconst stok: Record<string, number> = { gula: 5, beras: 12 };\nfunction cekStok(nama: string): Respons<number> {\n  const s = stok[nama];\n  if (s === undefined) return { ok: false, pesan: `${nama} tidak terdaftar` };\n  return { ok: true, data: s };\n}\nfunction daftarBarang(): Respons<string[]> {\n  return { ok: true, data: Object.keys(stok) };\n}\nconst r = cekStok(\"gula\");\nconsole.log(r.ok ? r.data : r.pesan);\nconst d = daftarBarang();\nif (d.ok) console.log(d.data);\nconst r2 = cekStok(\"kopi\");\nconsole.log(r2.data);",
+          "keluaran": "5\n[ gula, beras ]\nkopi tidak terdaftar",
+          "wajib": [
+            {
+              "pola": "if\\s*\\(\\s*r2\\.ok\\s*\\)",
+              "pesan": "periksa `if (r2.ok)`."
+            }
+          ],
+          "petunjuk": "Periksa r2.ok dulu: kalau true baca r2.data, kalau false baca r2.pesan."
+        }
+      ],
+      "penutup": "Satu tipe Respons<T> untuk semua jawaban gudang. Isi datanya mengikuti T, dan penanda ok memaksa kita memeriksa sebelum membaca data."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa keuntungan tipe Respons<T> dibanding membuat ResponsProduk, ResponsPengguna, dan seterusnya?",
+          "options": [
+            "Respons<T> lebih cepat saat dijalankan",
+            "Respons<T> bisa dipakai tanpa TypeScript",
+            "Bentuk yang sama cukup ditulis sekali, isi data mengikuti T",
+            "Respons<T> tidak perlu diperiksa"
+          ],
+          "answer": 2,
+          "explanation": "Tipe generic menghindari pengulangan.",
+          "remedial": "Semua respons punya bentuk ok/data/pesan yang sama. Dengan parameter tipe, bentuk itu ditulis sekali dan dipakai untuk data apa pun."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "interface Kotak<T> { isi: T }\nconst k: Kotak = { isi: 5 };\nconsole.log(k.isi);",
+          "options": [
+            "Lolos, T otomatis any",
+            "Error, parameter tipe Kotak belum diisi",
+            "Mencetak 5",
+            "Error, isi harus string"
+          ],
+          "answer": 1,
+          "explanation": "Tipe generic tanpa default wajib diisi.",
+          "remedial": "Kotak<T> tidak punya default, jadi menulis Kotak saja ditolak (TS2314). Tulis Kotak<number>."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "type R<T> = { ok: true; data: T } | { ok: false; pesan: string };\nconst a: R<string[]> = { ok: true, data: [\"x\", \"y\"] };\nconst b: R<string[]> = { ok: false, pesan: \"kosong\" };\nfor (const r of [a, b]) console.log(r.ok ? r.data.length : \"gagal: \" + r.pesan);",
+          "options": [
+            "2 / undefined",
+            "undefined / gagal: kosong",
+            "Error tipe",
+            "2 / gagal: kosong"
+          ],
+          "answer": 3,
+          "explanation": "Periksa ok sebelum membaca data.",
+          "remedial": "Respons pertama ok dengan data array berisi 2 isi. Respons kedua gagal, sehingga yang dicetak pesannya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa arti type Halaman<T, M = { total: number }>?",
+      "options": [
+        "M wajib diisi",
+        "M punya nilai default kalau tidak diisi",
+        "T punya nilai default",
+        "M selalu bertipe number"
+      ],
+      "answer": 1,
+      "explanation": "Parameter tipe boleh punya default seperti parameter fungsi."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat type Halaman<T> = { isi: T[]; halaman: number; totalHalaman: number } dan fungsi pecah<T>(a: T[], ukuran: number, halaman: number): Halaman<T> yang mengambil potongan array untuk halaman tertentu (mulai dari 1). Untuk array angka 1 sampai 7 dengan ukuran 3, cetak isi halaman 3 dan totalHalaman: [ 7 ] lalu 3",
+      "starterCode": "function pecah(a: number[], ukuran: number, halaman: number) {\n  return { isi: a };\n}\nconst h = pecah([1, 2, 3, 4, 5, 6, 7], 3, 3);\nconsole.log(h.isi);\n",
+      "solution": "type Halaman<T> = { isi: T[]; halaman: number; totalHalaman: number };\nfunction pecah<T>(a: T[], ukuran: number, halaman: number): Halaman<T> {\n  const mulai = (halaman - 1) * ukuran;\n  return {\n    isi: a.slice(mulai, mulai + ukuran),\n    halaman,\n    totalHalaman: Math.ceil(a.length / ukuran),\n  };\n}\nconst h = pecah([1, 2, 3, 4, 5, 6, 7], 3, 3);\nconsole.log(h.isi);\nconsole.log(h.totalHalaman);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "[ 7 ]\n3\n"
+        }
+      ],
+      "hints": [
+        "Posisi awal halaman = (halaman - 1) * ukuran, lalu pakai slice.",
+        "Total halaman = Math.ceil(panjang / ukuran)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "interface dan type boleh punya parameter tipe: Kotak<T>, Respons<T>.",
+        "Tipe pembungkus (Respons<T>, Halaman<T>) menghindari tipe yang berulang.",
+        "Parameter tipe boleh punya default: <T, M = { total: number }>.",
+        "Tipe generic tanpa default wajib diisi (TS2314 kalau lupa).",
+        "Gabungkan dengan discriminated union supaya data hanya terbaca kalau ok."
+      ]
+    }
+  ]
+}

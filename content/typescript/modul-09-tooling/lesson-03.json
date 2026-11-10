@@ -1,0 +1,158 @@
+{
+  "id": "ts-tooling-03",
+  "moduleId": "ts-tooling",
+  "order": 3,
+  "title": "Membaca Error dari tsc",
+  "estimatedMinutes": 13,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kalau ada kesalahan tipe, tsc melaporkannya dalam format yang selalu sama:\n\n```text\nsrc/main.ts:3:46 - error TS2322: Type 'string' is not assignable to type 'boolean'.\n```\n\n| Bagian | Arti |\n|---|---|\n| `src/main.ts` | file |\n| `3:46` | baris 3, kolom 46 |\n| `TS2322` | kode error (bisa dicari di internet) |\n| sisanya | penjelasan |\n\nDi bawahnya ada potongan kode dengan garis `~~~~` di bagian yang bermasalah, kadang disertai info tambahan, lalu ringkasan `Found 1 error`.\n\nIbarat laporan pemeriksaan di bengkel: setiap temuan ditulis lengkap dengan lokasinya (roda kiri depan), kode kerusakan, dan penjelasan, sehingga montir langsung tahu harus memeriksa ke mana."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKeluaran lengkap tsc untuk satu error:\n\n```text\nsrc/main.ts:3:46 - error TS2322: Type 'string' is not assignable to type 'boolean'.\n\n3 const tugas: Tugas = { judul: \"Belajar tsc\", selesai: \"belum\" };\n                                               ~~~~~~~\n\n  src/main.ts:1:31 - The expected type comes from property 'selesai' which is declared here on type 'Tugas'\n    1 type Tugas = { judul: string; selesai: boolean };\n                                    ~~~~~~~\n\nFound 1 error in src/main.ts:3\n```\n\nBagian kedua (baris 1 kolom 31) menunjuk **asal** tipe yang diharapkan: properti `selesai` di tipe Tugas bertipe boolean. Sering kali perbaikannya justru di sana.\n\nDi editor kelas ini, pesan yang sama tampil dalam format satu baris: `main.ts(3,46): error TS2322: ...`."
+    },
+    {
+      "type": "theory",
+      "content": "### Error tidak menghentikan pembuatan .js\n\nSecara bawaan, tsc **tetap menulis file .js** walaupun ada error tipe. Ada dua cara mengaturnya:\n\n- `npx tsc --noEmit`: hanya memeriksa tipe, tidak menulis file apa pun.\n- `\"noEmitOnError\": true` di tsconfig: file .js tidak ditulis kalau ada error.\n\nKalau ada error, tsc keluar dengan **kode keluar bukan 0**. Terminal dan server CI memakai angka ini untuk tahu bahwa langkahnya gagal. Kode keluar perintah terakhir bisa dilihat dengan `echo $?`.\n\nEditor kelas ini bekerja seperti `npx tsc --noEmit && node main.js`: kalau ada error tipe, program tidak dijalankan."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Hanya membaca baris pertama**\n\nInfo tambahan di bawahnya (misalnya \"The expected type comes from ...\") sering menunjuk tempat yang sebenarnya perlu diperbaiki.\n\n**2. Mengabaikan error karena .js tetap jadi**\n\nProgram mungkin berjalan, tapi bug yang ditunjuk tsc tetap ada dan akan muncul nanti.\n\n**3. Memperbaiki error dari bawah**\n\nSatu kesalahan bisa memicu beberapa error lanjutan. Perbaiki dari error pertama, lalu jalankan tsc lagi."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hampir setiap pipeline CI proyek TypeScript punya langkah `tsc --noEmit`. Pull request yang membuat error tipe tidak bisa digabung.\n- Editor seperti VS Code menampilkan error yang sama secara langsung dengan garis merah, karena memakai mesin TypeScript yang sama.\n- Kode error seperti TS2322 atau TS18048 mudah dicari di internet. Mencantumkan kodenya saat bertanya ke rekan tim mempercepat bantuan."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Proyek TS 3: Membaca Error",
+      "folder": "~/todolist-ts",
+      "pembuka": "Aku mengubah `src/main.ts` dan sengaja menaruh satu kesalahan tipe. Folder `dist` juga sudah kuhapus. Kita lihat cara tsc melaporkannya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Ini isi file-nya sekarang.",
+          "terima": [
+            "cat src/main.ts"
+          ],
+          "keluaran": "type Tugas = { judul: string; selesai: boolean };\n\nconst tugas: Tugas = { judul: \"Belajar tsc\", selesai: \"belum\" };\nconsole.log(tugas.judul);",
+          "petunjuk": "",
+          "otomatis": true,
+          "benar": "Perhatikan nilai `selesai`.\n\nSekarang giliranmu."
+        },
+        {
+          "arahan": "Compile proyek: `npx tsc`.",
+          "terima": [
+            "npx tsc"
+          ],
+          "keluaran": "src/main.ts:3:46 - error TS2322: Type 'string' is not assignable to type 'boolean'.\n\n3 const tugas: Tugas = { judul: \"Belajar tsc\", selesai: \"belum\" };\n                                               ~~~~~~~\n\n  src/main.ts:1:31 - The expected type comes from property 'selesai' which is declared here on type 'Tugas'\n    1 type Tugas = { judul: string; selesai: boolean };\n                                    ~~~~~~~\n\n\nFound 1 error in src/main.ts:3",
+          "petunjuk": "Ketik `npx tsc`.",
+          "benar": "Baca dari kiri: file `src/main.ts`, baris **3**, kolom **46**, kode **TS2322**. Bagian kedua menunjuk asal tipe yang diharapkan: `selesai: boolean`."
+        },
+        {
+          "arahan": "Apakah file .js tetap dibuat walaupun ada error? Cek dengan `ls dist`.",
+          "terima": [
+            "ls dist"
+          ],
+          "keluaran": "main.d.ts  main.d.ts.map  main.js  main.js.map",
+          "petunjuk": "Ketik `ls dist`.",
+          "benar": "Tetap dibuat! Secara bawaan tsc menulis .js walaupun ada error tipe."
+        },
+        {
+          "arahan": "Sekarang periksa tipe saja tanpa menulis file: `npx tsc --noEmit`.",
+          "terima": [
+            "npx tsc --noEmit"
+          ],
+          "keluaran": "src/main.ts:3:46 - error TS2322: Type 'string' is not assignable to type 'boolean'.\n\n3 const tugas: Tugas = { judul: \"Belajar tsc\", selesai: \"belum\" };\n                                               ~~~~~~~\n\n  src/main.ts:1:31 - The expected type comes from property 'selesai' which is declared here on type 'Tugas'\n    1 type Tugas = { judul: string; selesai: boolean };\n                                    ~~~~~~~\n\n\nFound 1 error in src/main.ts:3",
+          "petunjuk": "Ketik `npx tsc --noEmit`.",
+          "benar": "Error yang sama, tapi tidak ada file yang ditulis. Perintah inilah yang dipakai di CI."
+        },
+        {
+          "arahan": "Lihat kode keluar perintah terakhir: `echo $?`.",
+          "terima": [
+            "echo $?"
+          ],
+          "keluaran": "1",
+          "petunjuk": "Ketik `echo $?`.",
+          "benar": "Bukan **0**, artinya gagal. CI memakai angka ini untuk menghentikan proses."
+        }
+      ],
+      "penutup": "Sekarang kamu bisa membaca laporan tsc: file, baris, kolom, kode error, dan asal masalahnya."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pada src/main.ts:3:46 - error TS2322, apa arti 3:46?",
+          "options": [
+            "Kolom 3, baris 46",
+            "Baris 3, kolom 46",
+            "Versi TypeScript 3.46",
+            "Error ke-3 dari 46"
+          ],
+          "answer": 1,
+          "explanation": "Formatnya file:baris:kolom.",
+          "remedial": "tsc menulis lokasi sebagai file:baris:kolom. Di editor kelas ini formatnya main.ts(3,46), artinya sama."
+        },
+        {
+          "question": "Apa yang terjadi pada file .js saat npx tsc menemukan error tipe (pengaturan bawaan)?",
+          "options": [
+            "tsc berhenti sebelum memeriksa file lain",
+            "File .js lama dihapus",
+            "File .js tidak ditulis",
+            "File .js tetap ditulis"
+          ],
+          "answer": 3,
+          "explanation": "Bawaan noEmitOnError adalah false.",
+          "remedial": "Secara bawaan tsc tetap menulis .js walaupun ada error tipe. Pakai --noEmit untuk memeriksa saja, atau noEmitOnError: true supaya .js tidak ditulis saat ada error."
+        },
+        {
+          "question": "Apa yang dilakukan npx tsc --noEmit?",
+          "options": [
+            "Menulis file .js tanpa memeriksa tipe",
+            "Menghapus folder dist",
+            "Membuat tsconfig.json baru",
+            "Memeriksa tipe tanpa menulis file apa pun"
+          ],
+          "answer": 3,
+          "explanation": "noEmit artinya tidak mengeluarkan file.",
+          "remedial": "--noEmit menjalankan seluruh pemeriksaan tipe tanpa menulis .js, .map, atau .d.ts. Cocok untuk CI dan untuk proyek yang dibangun oleh alat lain seperti Vite."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa CI tahu bahwa npx tsc --noEmit gagal?",
+      "options": [
+        "Karena tsc menghapus file proyek",
+        "Karena tsc keluar dengan kode keluar bukan 0",
+        "Karena tsc mengirim email ke tim",
+        "Karena tsc tidak mencetak apa pun"
+      ],
+      "answer": 1,
+      "explanation": "Kode keluar 0 berarti berhasil; selain itu berarti gagal."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi perintah untuk memeriksa tipe tanpa menulis file.",
+      "code": "npx tsc ___",
+      "answers": [
+        "--noEmit"
+      ],
+      "explanation": "--noEmit hanya memeriksa tipe."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Format error: file:baris:kolom - error TSxxxx: penjelasan.",
+        "Info tambahan di bawahnya sering menunjuk asal masalah.",
+        "Secara bawaan .js tetap ditulis walaupun ada error.",
+        "npx tsc --noEmit memeriksa tipe tanpa menulis file.",
+        "Ada error berarti kode keluar bukan 0, dan CI gagal."
+      ]
+    }
+  ]
+}

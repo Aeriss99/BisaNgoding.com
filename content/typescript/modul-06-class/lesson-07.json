@@ -1,0 +1,187 @@
+{
+  "id": "ts-class-07",
+  "moduleId": "ts-class",
+  "order": 7,
+  "title": "Proyek Mini: Bank Mini",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **bank mini** dengan beberapa jenis rekening, mutasi yang tercatat, dan nomor rekening otomatis.\n\n| Materi | Dipakai untuk |\n|---|---|\n| class bertipe + `private` | saldo dan riwayat terlindungi |\n| `readonly` + parameter properties | nomor rekening tetap |\n| `static` | penghitung nomor rekening bersama |\n| getter (`get saldo()`) | saldo terbaca seperti properti, tapi tidak bisa diubah |\n| abstract class + `extends` | aturan biaya per jenis rekening |\n\nDua fitur baru di sini: **static** (milik class, bukan milik object) dan **getter**.\n\n```ts\nclass Rekening {\n  private static nomorTerakhir = 0;      // satu untuk semua rekening\n  readonly nomor: string;\n  constructor() {\n    Rekening.nomorTerakhir++;\n    this.nomor = \"R\" + String(Rekening.nomorTerakhir).padStart(3, \"0\");\n  }\n}\n```\n\nIbarat mesin nomor antrean di bank: mesinnya hanya satu (static), tapi setiap nasabah mendapat nomor berbeda."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nGetter membuat nilai terbaca seperti properti, tanpa setter berarti tidak bisa diubah dari luar:\n\n```ts\nclass Dompet {\n  #isi = 0;\n  get isi(): number {\n    return this.#isi;\n  }\n  tambah(n: number) { this.#isi += n; }\n}\nconst d = new Dompet();\nd.tambah(5000);\nconsole.log(d.isi);  // 5000, dibaca seperti properti\nd.isi = 0;           // error TS2540: Cannot assign to 'isi' because it is a read-only property.\n```\n\nRiwayat mutasi bertipe union literal:\n\n```ts\ntype Mutasi = { jenis: \"setor\" | \"tarik\" | \"biaya\"; jumlah: number };\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "type Mutasi = { jenis: \"setor\" | \"tarik\" | \"biaya\"; jumlah: number };\nabstract class Rekening {\n  private static nomorTerakhir = 0;\n  readonly nomor: string;\n  private mutasi: Mutasi[] = [];\n  constructor(public pemilik: string) {\n    Rekening.nomorTerakhir++;\n    this.nomor = \"R\" + String(Rekening.nomorTerakhir).padStart(3, \"0\");\n  }\n  abstract biayaBulanan(): number;\n  get saldo(): number {\n    return this.mutasi.reduce((a, m) => a + (m.jenis === \"setor\" ? m.jumlah : -m.jumlah), 0);\n  }\n  setor(jumlah: number): void {\n    this.mutasi.push({ jenis: \"setor\", jumlah });\n  }\n  akhirBulan(): void {\n    this.mutasi.push({ jenis: \"biaya\", jumlah: this.biayaBulanan() });\n  }\n}\nclass Tabungan extends Rekening {\n  biayaBulanan(): number {\n    return 5000;\n  }\n}\nconst a = new Tabungan(\"Rina\");\nconst b = new Tabungan(\"Budi\");\nb.setor(100000);\nb.akhirBulan();\nconsole.log(a.nomor, b.nomor);\nconsole.log(b.saldo);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "5000",
+          "95000",
+          "105000",
+          "100000"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 3,
+          "note": "Satu penghitung untuk semua object."
+        },
+        {
+          "line": 11,
+          "note": "Dihitung dari mutasi; dibaca seperti properti."
+        },
+        {
+          "line": 18,
+          "note": "Diisi oleh class turunan."
+        }
+      ],
+      "explanation": "Budi menyetor 100000, lalu akhir bulan dicatat biaya 5000. Saldo dihitung dari mutasi: 100000 - 5000 = 95000. Nomor rekening Rina R001 dan Budi R002.",
+      "tryThis": [
+        {
+          "task": "Tambahkan b.saldo = 0. Kenapa ditolak?",
+          "hint": null
+        },
+        {
+          "task": "Buat class Giro dengan biaya 15000 dan coba.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan saldo dan riwayat terpisah tanpa sinkron**\n\nKalau saldo disimpan sebagai angka dan riwayat sebagai array, keduanya bisa tidak sama. Menghitung saldo dari riwayat (seperti getter di atas) menjamin keduanya selalu cocok.\n\n**2. Mengakses static lewat `this`**\n\n`this.nomorTerakhir` di dalam method biasa ditolak, karena static milik class. Tulis `Rekening.nomorTerakhir`.\n\n**3. Getter yang mengubah data**\n\nGetter seharusnya hanya membaca. Kalau getter mengubah data, pemakainya akan bingung karena \"membaca\" ternyata punya efek samping."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Menyimpan **mutasi** dan menghitung saldo darinya adalah pola nyata di sistem keuangan (disebut ledger atau event sourcing): riwayat tidak pernah dihapus, saldo selalu bisa ditelusuri dari transaksinya.\n- Uang di sistem sungguhan disimpan dalam satuan terkecil berupa bilangan bulat (atau tipe khusus seperti `bigint` dan library desimal), bukan angka desimal biasa, supaya tidak ada selisih pembulatan.\n- Penomoran dengan `static` cocok untuk contoh, tapi di aplikasi sungguhan nomor dibuat oleh database (auto increment atau UUID), karena aplikasi bisa berjalan di beberapa server sekaligus."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Rekening TS 7: Bank Mini",
+      "pembuka": "Kita rakit bank mini: nomor rekening otomatis, saldo yang dihitung dari mutasi, dan biaya bulanan per jenis rekening.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Rekening abstract dengan nomor otomatis dan saldo dari mutasi.",
+          "jawaban": "type Mutasi = { jenis: \"setor\" | \"tarik\" | \"biaya\"; jumlah: number };\nabstract class Rekening {\n  private static nomorTerakhir = 0;\n  readonly nomor: string;\n  private mutasi: Mutasi[] = [];\n  constructor(public pemilik: string) {\n    Rekening.nomorTerakhir++;\n    this.nomor = \"R\" + String(Rekening.nomorTerakhir).padStart(3, \"0\");\n  }\n  abstract biayaBulanan(): number;\n  get saldo(): number {\n    return this.mutasi.reduce((a, m) => a + (m.jenis === \"setor\" ? m.jumlah : -m.jumlah), 0);\n  }\n  setor(jumlah: number): void {\n    this.mutasi.push({ jenis: \"setor\", jumlah });\n  }\n  akhirBulan(): void {\n    this.mutasi.push({ jenis: \"biaya\", jumlah: this.biayaBulanan() });\n  }\n}\nclass Tabungan extends Rekening {\n  biayaBulanan(): number {\n    return 5000;\n  }\n}\nconst r = new Tabungan(\"Rina\");\nr.setor(100000);\nr.akhirBulan();\nconsole.log(r.nomor, r.pemilik, r.saldo);",
+          "keluaran": "R001 Rina 95000",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan method `tarik(jumlah: number): void` yang menolak dengan `Error(\"Saldo tidak cukup\")` kalau jumlah melebihi `this.saldo`, dan kalau cukup mencatat mutasi `\"tarik\"`. Tarik `45000` lalu cetak `R001 Rina 50000`.",
+          "jawaban": "type Mutasi = { jenis: \"setor\" | \"tarik\" | \"biaya\"; jumlah: number };\nabstract class Rekening {\n  private static nomorTerakhir = 0;\n  readonly nomor: string;\n  private mutasi: Mutasi[] = [];\n  constructor(public pemilik: string) {\n    Rekening.nomorTerakhir++;\n    this.nomor = \"R\" + String(Rekening.nomorTerakhir).padStart(3, \"0\");\n  }\n  abstract biayaBulanan(): number;\n  get saldo(): number {\n    return this.mutasi.reduce((a, m) => a + (m.jenis === \"setor\" ? m.jumlah : -m.jumlah), 0);\n  }\n  setor(jumlah: number): void {\n    this.mutasi.push({ jenis: \"setor\", jumlah });\n  }\n  tarik(jumlah: number): void {\n    if (jumlah > this.saldo) throw new Error(\"Saldo tidak cukup\");\n    this.mutasi.push({ jenis: \"tarik\", jumlah });\n  }\n  akhirBulan(): void {\n    this.mutasi.push({ jenis: \"biaya\", jumlah: this.biayaBulanan() });\n  }\n}\nclass Tabungan extends Rekening {\n  biayaBulanan(): number {\n    return 5000;\n  }\n}\nconst r = new Tabungan(\"Rina\");\nr.setor(100000);\nr.akhirBulan();\nconsole.log(r.nomor, r.pemilik, r.saldo);\nr.tarik(45000);\nconsole.log(r.nomor, r.pemilik, r.saldo);",
+          "keluaran": "R001 Rina 95000\nR001 Rina 50000",
+          "wajib": [
+            {
+              "pola": "jumlah\\s*>\\s*this\\.saldo",
+              "pesan": "periksa `jumlah > this.saldo`."
+            }
+          ],
+          "petunjuk": "Getter saldo dipakai seperti properti: if (jumlah > this.saldo) throw ..."
+        },
+        {
+          "arahan": "Buat `class Pelajar extends Rekening` dengan biaya bulanan `0`. Buka rekening pelajar **Budi**, setor `30000`, jalankan `akhirBulan()`, lalu cetak `R002 Budi 30000` di baris terakhir.",
+          "jawaban": "type Mutasi = { jenis: \"setor\" | \"tarik\" | \"biaya\"; jumlah: number };\nabstract class Rekening {\n  private static nomorTerakhir = 0;\n  readonly nomor: string;\n  private mutasi: Mutasi[] = [];\n  constructor(public pemilik: string) {\n    Rekening.nomorTerakhir++;\n    this.nomor = \"R\" + String(Rekening.nomorTerakhir).padStart(3, \"0\");\n  }\n  abstract biayaBulanan(): number;\n  get saldo(): number {\n    return this.mutasi.reduce((a, m) => a + (m.jenis === \"setor\" ? m.jumlah : -m.jumlah), 0);\n  }\n  setor(jumlah: number): void {\n    this.mutasi.push({ jenis: \"setor\", jumlah });\n  }\n  tarik(jumlah: number): void {\n    if (jumlah > this.saldo) throw new Error(\"Saldo tidak cukup\");\n    this.mutasi.push({ jenis: \"tarik\", jumlah });\n  }\n  akhirBulan(): void {\n    this.mutasi.push({ jenis: \"biaya\", jumlah: this.biayaBulanan() });\n  }\n}\nclass Tabungan extends Rekening {\n  biayaBulanan(): number {\n    return 5000;\n  }\n}\nclass Pelajar extends Rekening {\n  biayaBulanan(): number {\n    return 0;\n  }\n}\nconst r = new Tabungan(\"Rina\");\nr.setor(100000);\nr.akhirBulan();\nconsole.log(r.nomor, r.pemilik, r.saldo);\nr.tarik(45000);\nconsole.log(r.nomor, r.pemilik, r.saldo);\nconst b = new Pelajar(\"Budi\");\nb.setor(30000);\nb.akhirBulan();\nconsole.log(b.nomor, b.pemilik, b.saldo);",
+          "keluaran": "R001 Rina 95000\nR001 Rina 50000\nR002 Budi 30000",
+          "wajib": [
+            {
+              "pola": "class\\s+Pelajar\\s+extends\\s+Rekening",
+              "pesan": "buat `class Pelajar extends Rekening`."
+            }
+          ],
+          "petunjuk": "class Pelajar extends Rekening { biayaBulanan(): number { return 0; } }. Nomornya otomatis R002 karena static penghitungnya bersama.",
+          "tantangan": true,
+          "benar": "Bank mini selesai: nomor otomatis, saldo dari mutasi, dan aturan biaya per jenis rekening."
+        }
+      ],
+      "penutup": "Bank mini memakai semua alat class: private, readonly, static, getter, abstract, dan pewarisan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa beda properti static dan properti biasa?",
+          "options": [
+            "Static tidak bisa diubah",
+            "Static milik class dan hanya ada satu, properti biasa milik setiap object",
+            "Static hanya untuk angka",
+            "Properti biasa tidak boleh private"
+          ],
+          "answer": 1,
+          "explanation": "Static dibagi oleh semua object.",
+          "remedial": "Properti biasa dimiliki setiap object masing-masing. Static hanya satu dan dimiliki class, sehingga cocok untuk penghitung bersama seperti nomor rekening terakhir."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "class D {\n  private isi = 100;\n  get saldo() {\n    return this.isi;\n  }\n}\nconst d = new D();\nd.saldo = 0;",
+          "options": [
+            "Mencetak 0",
+            "Error, saldo hanya punya getter",
+            "Mencetak 100",
+            "Lolos tanpa error"
+          ],
+          "answer": 1,
+          "explanation": "Getter tanpa setter bersifat hanya-baca.",
+          "remedial": "saldo hanya punya get, tanpa set. TypeScript menganggapnya read-only dan menolak pengisian (TS2540)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "class Tiket {\n  static jumlah = 0;\n  readonly kode: string;\n  constructor() {\n    Tiket.jumlah++;\n    this.kode = \"T\" + String(Tiket.jumlah).padStart(3, \"0\");\n  }\n}\nconst a = new Tiket();\nconst b = new Tiket();\nconsole.log(a.kode, b.kode);\nconsole.log(Tiket.jumlah);",
+          "options": [
+            "T001 T002 / 1",
+            "T002 T002 / 2",
+            "T001 T002 / 2",
+            "T001 T001 / 2"
+          ],
+          "answer": 2,
+          "explanation": "Penghitung static bertambah setiap object dibuat.",
+          "remedial": "Setiap new menaikkan penghitung static. Object pertama mendapat T001, kedua T002, dan penghitungnya bernilai 2."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa saldo dihitung dari daftar mutasi, bukan disimpan sebagai angka terpisah?",
+      "options": [
+        "Karena angka tidak bisa private",
+        "Supaya program lebih cepat",
+        "Saldo dan riwayat dijamin selalu cocok",
+        "Karena getter wajib memakai reduce"
+      ],
+      "answer": 2,
+      "explanation": "Satu sumber kebenaran: riwayat transaksi."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Tambahkan getter jumlahMutasi pada class Dompet di bawah yang mengembalikan banyaknya mutasi, dan static method buatDenganSaldo(n: number): Dompet yang membuat dompet baru lalu langsung menyetor n. Buat dompet dengan saldo 20000, setor 5000, lalu cetak saldo dan jumlah mutasi: 25000 2",
+      "starterCode": "class Dompet {\n  private mutasi: number[] = [];\n  setor(n: number): void {\n    this.mutasi.push(n);\n  }\n  get saldo(): number {\n    return this.mutasi.reduce((a, n) => a + n, 0);\n  }\n}\n",
+      "solution": "class Dompet {\n  private mutasi: number[] = [];\n  static buatDenganSaldo(n: number): Dompet {\n    const d = new Dompet();\n    d.setor(n);\n    return d;\n  }\n  setor(n: number): void {\n    this.mutasi.push(n);\n  }\n  get saldo(): number {\n    return this.mutasi.reduce((a, n) => a + n, 0);\n  }\n  get jumlahMutasi(): number {\n    return this.mutasi.length;\n  }\n}\nconst d = Dompet.buatDenganSaldo(20000);\nd.setor(5000);\nconsole.log(d.saldo, d.jumlahMutasi);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "25000 2\n"
+        }
+      ],
+      "hints": [
+        "Getter: get jumlahMutasi(): number { return this.mutasi.length; }",
+        "Static method dipanggil lewat nama class: Dompet.buatDenganSaldo(20000)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "static: milik class, hanya satu, diakses lewat NamaClass.nama.",
+        "Getter (get x()) dibaca seperti properti; tanpa setter berarti hanya-baca.",
+        "Menghitung saldo dari mutasi menjamin data selalu cocok.",
+        "Abstract class + extends untuk aturan berbeda per jenis rekening.",
+        "Di aplikasi sungguhan, nomor unik dibuat oleh database, bukan static."
+      ]
+    }
+  ]
+}

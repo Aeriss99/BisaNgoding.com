@@ -1,0 +1,180 @@
+{
+  "id": "ts-narrowing-03",
+  "moduleId": "ts-narrowing",
+  "order": 3,
+  "title": "Narrowing dengan in dan instanceof",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Untuk object, `typeof` hanya menghasilkan `\"object\"`. Ada dua alat lain:\n\n**`in`** memeriksa apakah sebuah properti ada di object:\n\n```ts\ntype Tunai = { uang: number };\ntype Kartu = { nomorKartu: string; bank: string };\n\nfunction bayar(cara: Tunai | Kartu) {\n  if (\"uang\" in cara) {\n    console.log(\"Tunai:\", cara.uang);      // cara: Tunai\n  } else {\n    console.log(\"Kartu dari\", cara.bank);  // cara: Kartu\n  }\n}\n```\n\n**`instanceof`** memeriksa apakah object dibuat dari class tertentu (termasuk class bawaan seperti `Date`, `Error`, `Map`):\n\n```ts\nfunction tampil(x: Date | string) {\n  if (x instanceof Date) return x.getFullYear();\n  return x;\n}\n```\n\nBayangkan memeriksa tamu dari barang bawaannya: yang membawa kartu nama diarahkan ke ruang rapat, yang membawa paket diarahkan ke resepsionis."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`instanceof` paling sering dipakai untuk error, karena `catch (e)` bertipe `unknown`:\n\n```ts\ntry {\n  JSON.parse(\"{rusak\");\n} catch (e) {\n  if (e instanceof SyntaxError) {\n    console.log(\"JSON tidak valid:\", e.message);\n  } else if (e instanceof Error) {\n    console.log(\"Error lain:\", e.message);\n  } else {\n    console.log(\"Yang dilempar bukan Error:\", e);\n  }\n}\n```\n\n`in` cocok untuk object biasa (dari JSON) yang tidak dibuat dengan class. `instanceof` hanya bekerja untuk object yang dibuat dengan `new` dari class tersebut."
+    },
+    {
+      "type": "runnable",
+      "code": "type Tunai = { uang: number };\ntype Kartu = { bank: string; biaya: number };\ntype Cara = Tunai | Kartu;\n\nfunction biayaAdmin(c: Cara): number {\n  if (\"uang\" in c) return 0;\n  return c.biaya;\n}\nconst daftar: Cara[] = [{ uang: 50000 }, { bank: \"BCA\", biaya: 2500 }];\nconsole.log(daftar.map(biayaAdmin));\ntry {\n  JSON.parse(\"{rusak\");\n} catch (e) {\n  console.log(e instanceof SyntaxError ? \"JSON rusak\" : \"lain\");\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "[ 50000, 2500 ]",
+          "[ 0, 0 ]",
+          "[ 2500, 0 ]",
+          "[ 0, 2500 ]"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "in: kalau properti uang ada, c pasti Tunai."
+        },
+        {
+          "line": 7,
+          "note": "Sisa kemungkinan: c pasti Kartu."
+        },
+        {
+          "line": 14,
+          "note": "JSON.parse melempar SyntaxError."
+        }
+      ],
+      "explanation": "Pembayaran tunai tidak dikenai biaya (0), pembayaran kartu dikenai biaya 2500. Hasil map adalah [ 0, 2500 ].",
+      "tryThis": [
+        {
+          "task": "Hapus if (\"uang\" in c). Kenapa c.biaya ditolak?",
+          "hint": null
+        },
+        {
+          "task": "Ganti SyntaxError dengan TypeError. Apa yang dicetak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai `instanceof` untuk tipe yang bukan class**\n\n`x instanceof Tunai` ditolak kalau `Tunai` hanya `type` atau `interface`, karena tipe tidak ada saat program jalan. Pakai `in` atau properti pembeda (materi berikutnya).\n\n**2. Memeriksa properti yang ada di kedua tipe**\n\nKalau `Tunai` dan `Kartu` sama-sama punya `jumlah`, maka `\"jumlah\" in c` tidak mempersempit apa pun. Pilih properti yang hanya ada di salah satu.\n\n**3. Langsung `e.message` di catch**\n\nDitolak di mode strict (TS18046). Periksa `e instanceof Error` dulu."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola `catch (e) { if (e instanceof Error) ... }` ada di hampir semua kode TypeScript produksi. Banyak tim membuat fungsi pembantu kecil `pesanError(e: unknown): string` supaya tidak ditulis berulang.\n- Library HTTP seperti Axios menyediakan pemeriksa khusus (`axios.isAxiosError(e)`) yang bekerja seperti `instanceof`, untuk membedakan error jaringan dari error lain.\n- `in` dipakai saat menangani data dari beberapa versi API: `if (\"namaLengkap\" in user)` untuk format baru, selain itu format lama."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Pesanan TS 3: Cara Bayar",
+      "pembuka": "Pembeli bisa membayar tunai atau dengan kartu. Kita hitung kembalian atau biaya admin sesuai caranya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Properti uang hanya ada di Tunai, jadi in bisa membedakan.",
+          "jawaban": "type Tunai = { uang: number };\ntype Kartu = { bank: string; biaya: number };\nfunction keterangan(c: Tunai | Kartu, total: number): string {\n  if (\"uang\" in c) return \"Kembalian \" + (c.uang - total);\n  return \"Bayar \" + (total + c.biaya) + \" via \" + c.bank;\n}\nconsole.log(keterangan({ uang: 50000 }, 42000));",
+          "keluaran": "Kembalian 8000",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan pembayaran kartu **BRI** dengan biaya `2000` untuk total `42000`. Baris terakhir harus `Bayar 44000 via BRI`.",
+          "jawaban": "type Tunai = { uang: number };\ntype Kartu = { bank: string; biaya: number };\nfunction keterangan(c: Tunai | Kartu, total: number): string {\n  if (\"uang\" in c) return \"Kembalian \" + (c.uang - total);\n  return \"Bayar \" + (total + c.biaya) + \" via \" + c.bank;\n}\nconsole.log(keterangan({ uang: 50000 }, 42000));\nconsole.log(keterangan({ bank: \"BRI\", biaya: 2000 }, 42000));",
+          "keluaran": "Kembalian 8000\nBayar 44000 via BRI",
+          "petunjuk": "Kirim object { bank: \"BRI\", biaya: 2000 } sebagai cara bayar."
+        },
+        {
+          "arahan": "Uang pembeli kadang kurang. Buat `try` yang memanggil `bayarTunai(30000, 42000)`. Fungsi itu melempar `Error(\"Uang kurang 12000\")` kalau uang kurang. Di `catch`, periksa `e instanceof Error` dan cetak pesannya.",
+          "jawaban": "type Tunai = { uang: number };\ntype Kartu = { bank: string; biaya: number };\nfunction keterangan(c: Tunai | Kartu, total: number): string {\n  if (\"uang\" in c) return \"Kembalian \" + (c.uang - total);\n  return \"Bayar \" + (total + c.biaya) + \" via \" + c.bank;\n}\nfunction bayarTunai(uang: number, total: number): number {\n  if (uang < total) throw new Error(\"Uang kurang \" + (total - uang));\n  return uang - total;\n}\nconsole.log(keterangan({ uang: 50000 }, 42000));\nconsole.log(keterangan({ bank: \"BRI\", biaya: 2000 }, 42000));\ntry {\n  bayarTunai(30000, 42000);\n} catch (e) {\n  if (e instanceof Error) console.log(e.message);\n}",
+          "keluaran": "Kembalian 8000\nBayar 44000 via BRI\nUang kurang 12000",
+          "wajib": [
+            {
+              "pola": "e\\s+instanceof\\s+Error",
+              "pesan": "periksa `e instanceof Error`."
+            }
+          ],
+          "petunjuk": "Buat bayarTunai yang throw new Error(\"Uang kurang \" + (total - uang)) lalu tangkap di catch.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "in untuk object biasa, instanceof untuk object dari class (termasuk Error). Keduanya mempersempit union object dengan aman."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kapan sebaiknya memakai in dibanding instanceof?",
+          "options": [
+            "Untuk object yang dibuat dengan new",
+            "Untuk object biasa yang tidak dibuat dari class",
+            "Untuk angka dan teks",
+            "in dan instanceof selalu bisa saling menggantikan"
+          ],
+          "answer": 1,
+          "explanation": "instanceof butuh class yang ada saat program jalan.",
+          "remedial": "type dan interface hilang setelah compile, jadi tidak bisa dipakai dengan instanceof. Object biasa (misalnya dari JSON) dibedakan dengan memeriksa properti khasnya memakai in."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "function f(x: Date | string) {\n  if (x instanceof Date) return \"tanggal \" + x.getFullYear();\n  return \"teks \" + x;\n}\nconsole.log(f(new Date(\"2026-01-15\")));",
+          "options": [
+            "teks 2026",
+            "tanggal 2026-01-15",
+            "tanggal 2026",
+            "teks 2026-01-15"
+          ],
+          "answer": 2,
+          "explanation": "instanceof Date bernilai true untuk object Date.",
+          "remedial": "x dibuat dengan new Date, jadi x instanceof Date bernilai true dan getFullYear menghasilkan 2026."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "type Tunai = { uang: number };\ntype Kartu = { biaya: number };\nfunction f(c: Tunai | Kartu) {\n  return c.biaya;\n}\nconsole.log(f({ biaya: 2500 }));",
+          "options": [
+            "Error, biaya tidak ada di Tunai",
+            "Lolos tanpa error",
+            "Mencetak undefined",
+            "Mencetak 2500"
+          ],
+          "answer": 0,
+          "explanation": "Tanpa narrowing, properti khusus satu anggota ditolak.",
+          "remedial": "c bisa Tunai atau Kartu. Tunai tidak punya biaya, jadi c.biaya ditolak (TS2339) sampai c dipersempit dengan \"uang\" in c atau \"biaya\" in c."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa x instanceof Produk ditolak kalau Produk dibuat dengan interface?",
+      "options": [
+        "instanceof hanya untuk angka",
+        "Interface tidak boleh dipakai di if",
+        "Interface tidak ada lagi saat program berjalan",
+        "Produk harus ditulis huruf kecil"
+      ],
+      "answer": 2,
+      "explanation": "Tipe hilang setelah compile; instanceof butuh class."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Tulis fungsi pesanError(e: unknown): string yang mengembalikan e.message kalau e adalah Error, isi teksnya kalau e adalah string, dan Error tidak dikenal untuk lainnya. Uji dengan new Error(\"Stok habis\"), \"Server sibuk\", dan 404.",
+      "starterCode": "function pesanError(e: unknown): string {\n  return e.message;\n}\nconsole.log(pesanError(new Error(\"Stok habis\")));\n",
+      "solution": "function pesanError(e: unknown): string {\n  if (e instanceof Error) return e.message;\n  if (typeof e === \"string\") return e;\n  return \"Error tidak dikenal\";\n}\nconsole.log(pesanError(new Error(\"Stok habis\")));\nconsole.log(pesanError(\"Server sibuk\"));\nconsole.log(pesanError(404));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Stok habis\nServer sibuk\nError tidak dikenal\n"
+        }
+      ],
+      "hints": [
+        "e bertipe unknown: periksa dengan instanceof Error dulu.",
+        "Untuk teks, periksa typeof e === \"string\"."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "\"prop\" in obj mempersempit union object berdasarkan properti khas.",
+        "x instanceof Class mempersempit ke object dari class itu (termasuk Date, Error, Map).",
+        "instanceof tidak bisa dipakai untuk type atau interface.",
+        "catch (e) selalu diperiksa dulu dengan instanceof Error.",
+        "Pilih properti pembeda yang hanya ada di satu anggota union."
+      ]
+    }
+  ]
+}

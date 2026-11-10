@@ -1,0 +1,150 @@
+{
+  "id": "ts-tooling-05",
+  "moduleId": "ts-tooling",
+  "order": 5,
+  "title": "Menjalankan TypeScript Langsung",
+  "estimatedMinutes": 12,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ada tiga cara menjalankan kode TypeScript:\n\n| Cara | Perintah | Memeriksa tipe? |\n|---|---|---|\n| compile dulu | `npx tsc` lalu `node dist/main.js` | ya |\n| Node.js 22.18 ke atas | `node src/main.ts` | **tidak** |\n| tsx | `npx tsx src/main.ts` | **tidak** |\n\nNode.js versi baru dan tsx hanya **menghapus tipe** (type stripping), lalu menjalankan sisanya sebagai JavaScript. Cepat, tapi kesalahan tipe tidak tertangkap.\n\nIbarat pembaca naskah yang terburu-buru: catatan pinggir (tipe) dicoret begitu saja, lalu isinya langsung dibacakan, tanpa dicek apakah catatannya cocok. Pemeriksa (tsc) tetap dibutuhkan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nFile `src/salah.ts`:\n\n```ts\nconst jumlah: number = \"3\";\nconsole.log(\"Jumlah:\", jumlah + 1);\n```\n\n```text\n$ node src/salah.ts\nJumlah: 31\n\n$ npx tsc --noEmit\nsrc/salah.ts:1:7 - error TS2322: Type 'string' is not assignable to type 'number'.\n```\n\nNode.js menjalankannya tanpa protes, dan hasilnya keliru: `\"3\" + 1` menjadi `31`. Hanya tsc yang menangkap kesalahannya."
+    },
+    {
+      "type": "theory",
+      "content": "### Batas type stripping\n\nType stripping hanya bisa menghapus sintaks yang memang **cuma tipe**. Fitur yang menghasilkan kode JavaScript tambahan ditolak oleh Node.js:\n\n```text\nSyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript enum is not supported in strip-only mode\n```\n\nTermasuk di sini: `enum`, `namespace`, dan parameter properties (`constructor(private x: number)`).\n\nOpsi tsconfig `\"erasableSyntaxOnly\": true` membuat tsc menolak sintaks itu sejak awal (error TS1294), sehingga kode pasti bisa dijalankan dengan type stripping."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira `node src/main.ts` memeriksa tipe**\n\nTidak. Jalankan `npx tsc --noEmit` secara terpisah, atau lihat garis merah di editor.\n\n**2. Memakai `enum` di file yang dijalankan Node.js langsung**\n\nProgram gagal dengan `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. Pakai union literal atau object `as const`.\n\n**3. Tidak ada pemeriksaan tipe di CI**\n\nKalau pengembangan memakai node atau tsx, CI wajib menjalankan `tsc --noEmit`. Tanpa itu, error tipe bisa lolos sampai ke pengguna."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola yang umum: saat mengembangkan, kode dijalankan langsung (Node.js, tsx, atau Vite) supaya cepat. Pemeriksaan tipe dikerjakan editor dan langkah `tsc --noEmit` di CI.\n- Bundler seperti Vite dan esbuild juga hanya menghapus tipe tanpa memeriksanya. Itu sebabnya script build proyek Vite biasanya `tsc -b && vite build`.\n- Opsi `erasableSyntaxOnly` makin sering dipakai di proyek Node.js baru, karena menjamin kode bisa dijalankan langsung."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Proyek TS 5: Jalan Tanpa Build",
+      "folder": "~/todolist-ts",
+      "pembuka": "Aku menyiapkan dua file di `src`: `main.ts` yang benar dan `salah.ts` yang punya error tipe. Kita jalankan langsung dengan Node.js.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Aku cek versi Node.js.",
+          "terima": [
+            "node --version"
+          ],
+          "keluaran": "v22.22.0",
+          "petunjuk": "",
+          "otomatis": true,
+          "benar": "Node.js 22.18 ke atas bisa menjalankan file .ts langsung.\n\nSekarang giliranmu."
+        },
+        {
+          "arahan": "Jalankan `main.ts` langsung tanpa compile: `node src/main.ts`.",
+          "terima": [
+            "node src/main.ts"
+          ],
+          "keluaran": "Sisa tugas: 1",
+          "petunjuk": "Ketik `node src/main.ts`.",
+          "benar": "Jalan tanpa `npx tsc` dan tanpa folder dist."
+        },
+        {
+          "arahan": "Sekarang jalankan file yang salah: `node src/salah.ts`.",
+          "terima": [
+            "node src/salah.ts"
+          ],
+          "keluaran": "Jumlah: 31",
+          "petunjuk": "Ketik `node src/salah.ts`.",
+          "benar": "Jalan tanpa protes, tapi hasilnya keliru: **31**, bukan 4. Node.js hanya menghapus tipe, tidak memeriksanya."
+        },
+        {
+          "arahan": "Tangkap kesalahan itu dengan pemeriksa tipe, tanpa menulis file .js.",
+          "terima": [
+            "npx tsc --noEmit"
+          ],
+          "keluaran": "src/salah.ts:1:7 - error TS2322: Type 'string' is not assignable to type 'number'.\n\n1 const jumlah: number = \"3\";\n        ~~~~~~\n\n\nFound 1 error in src/salah.ts:1",
+          "petunjuk": "Pakai perintah pemeriksaan tipe dari materi sebelumnya.",
+          "tantangan": true,
+          "benar": "tsc menangkapnya: `\"3\"` bukan number. Menjalankan dan memeriksa adalah dua langkah berbeda."
+        }
+      ],
+      "penutup": "Node.js dan tsx menjalankan TypeScript dengan cepat, tapi pemeriksaan tipe tetap tugas tsc."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dilakukan node src/main.ts di Node.js 22.18 ke atas?",
+          "options": [
+            "Memeriksa tipe lalu menjalankannya",
+            "Menolak semua file .ts",
+            "Menghapus tipe lalu menjalankan sisanya, tanpa memeriksa tipe",
+            "Meng-compile ke folder dist"
+          ],
+          "answer": 2,
+          "explanation": "Namanya type stripping.",
+          "remedial": "Node.js hanya menghapus anotasi tipe lalu menjalankan kodenya sebagai JavaScript. Kesalahan tipe tidak diperiksa, jadi tetap perlu tsc --noEmit."
+        },
+        {
+          "question": "Kenapa enum gagal dijalankan dengan node src/main.ts?",
+          "options": [
+            "Enum harus ditulis di file .js",
+            "Enum menghasilkan kode JavaScript tambahan, tidak bisa sekadar dihapus",
+            "Node.js tidak mendukung angka",
+            "Enum hanya untuk browser"
+          ],
+          "answer": 1,
+          "explanation": "Type stripping hanya menghapus.",
+          "remedial": "Type stripping hanya bisa menghapus sintaks yang murni tipe. Enum membuat object saat program berjalan, jadi Node.js menolaknya dengan ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX."
+        },
+        {
+          "question": "Kalau tim menjalankan kode dengan tsx saat pengembangan, apa yang wajib ada di CI?",
+          "options": [
+            "Langkah tsx --check",
+            "Tidak perlu apa-apa",
+            "Langkah node --types",
+            "Langkah tsc --noEmit"
+          ],
+          "answer": 3,
+          "explanation": "tsx tidak memeriksa tipe.",
+          "remedial": "tsx hanya menghapus tipe. Supaya error tipe tidak lolos, CI menjalankan tsc --noEmit yang benar-benar memeriksa."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Opsi tsconfig apa yang menolak enum dan namespace supaya kode bisa dijalankan dengan type stripping?",
+      "options": [
+        "noEmit",
+        "erasableSyntaxOnly",
+        "skipLibCheck",
+        "strict"
+      ],
+      "answer": 1,
+      "explanation": "Dengan erasableSyntaxOnly, tsc menolak sintaks yang tidak bisa sekadar dihapus (TS1294)."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi perintah untuk menjalankan file TypeScript langsung dengan tsx.",
+      "code": "npx ___ src/main.ts",
+      "answers": [
+        "tsx"
+      ],
+      "explanation": "tsx menjalankan file .ts dengan menghapus tipenya."
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tiga cara: compile lalu node, node langsung (22.18+), atau tsx.",
+        "node dan tsx hanya menghapus tipe, tidak memeriksanya.",
+        "enum, namespace, dan parameter properties tidak bisa di-strip.",
+        "erasableSyntaxOnly menolak sintaks itu sejak awal.",
+        "Pemeriksaan tipe tetap lewat tsc --noEmit di editor dan CI."
+      ]
+    }
+  ]
+}

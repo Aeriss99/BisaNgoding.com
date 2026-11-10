@@ -35,11 +35,22 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],
       workbox: {
-        globIgnores: ['**/version.json'],
+        // Compiler TypeScript (sekitar 3 MB) tidak ikut diunduh semua pengguna saat aplikasi dipasang.
+        // Diunduh saat kelas TypeScript dipakai, lalu disimpan di cache 'compiler-ts' di bawah.
+        globIgnores: ['**/version.json', '**/tsWorker-*.js'],
         skipWaiting: true,
         clientsClaim: true,
         maximumFileSizeToCacheInBytes: 8000000,
         runtimeCaching: [
+          {
+            urlPattern: ({ url }) => /\/assets\/tsWorker-[\w-]+\.js$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'compiler-ts',
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             urlPattern: ({ url }) => url.pathname.includes('/audio/en/'),
             handler: 'CacheFirst',
@@ -78,6 +89,7 @@ export default defineConfig({
       },
     }),
   ],
+  worker: { format: 'es' },
   base: process.env.GITHUB_PAGES === 'true' ? '/BisaNgoding.com/' : '/',
   build: {
     rollupOptions: {

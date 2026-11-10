@@ -1,0 +1,191 @@
+{
+  "id": "ts-async-04",
+  "moduleId": "ts-async",
+  "order": 4,
+  "title": "Tipe Result: Error sebagai Nilai",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Cara lain menangani kegagalan: **mengembalikannya sebagai nilai**, bukan melemparnya. Bentuk yang umum adalah discriminated union bernama Result:\n\n```ts\ntype Result<T, E = string> =\n  | { ok: true; data: T }\n  | { ok: false; error: E };\n\nfunction bagi(a: number, b: number): Result<number> {\n  if (b === 0) return { ok: false, error: \"Tidak bisa dibagi nol\" };\n  return { ok: true, data: a / b };\n}\n\nconst h = bagi(10, 2);\nconsole.log(h.data); // error TS2339: belum pasti ada\nif (h.ok) console.log(h.data); // aman\nelse console.log(h.error);\n```\n\nBedanya dengan throw: tanda tangan fungsi sudah memberi tahu bahwa fungsi bisa gagal, dan TypeScript memaksa pemakainya memeriksa `ok` sebelum memakai `data`.\n\nIbarat surat balasan lamaran kerja: amplopnya selalu datang, isinya \"diterima\" beserta detailnya atau \"ditolak\" beserta alasannya. Penerima wajib membuka dan membacanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nJenis error bisa dibuat union literal, sehingga setiap kemungkinan bisa ditangani dengan lengkap:\n\n```ts\ntype Galat = \"tidak-ada\" | \"stok-habis\";\nfunction pesan(kode: string): Result<number, Galat> { ... }\n\nconst PESAN: Record<Galat, string> = {\n  \"tidak-ada\": \"Produk tidak ditemukan\",\n  \"stok-habis\": \"Stok sedang kosong\",\n};\n```\n\nKapan memakai yang mana?\n\n| Pakai | Untuk |\n|---|---|\n| `throw` | hal yang benar-benar tidak terduga: bug, server mati, file rusak |\n| `Result` | kegagalan yang biasa dan harus ditangani: input salah, stok habis, data tidak ditemukan |"
+    },
+    {
+      "type": "runnable",
+      "code": "type Result<T, E = string> = { ok: true; data: T } | { ok: false; error: E };\ntype Galat = \"kosong\" | \"terlalu-pendek\" | \"tanpa-angka\";\n\nfunction cekSandi(s: string): Result<string, Galat> {\n  if (s === \"\") return { ok: false, error: \"kosong\" };\n  if (s.length < 8) return { ok: false, error: \"terlalu-pendek\" };\n  if (!/[0-9]/.test(s)) return { ok: false, error: \"tanpa-angka\" };\n  return { ok: true, data: s };\n}\nconst PESAN: Record<Galat, string> = {\n  kosong: \"Sandi wajib diisi\",\n  \"terlalu-pendek\": \"Minimal 8 karakter\",\n  \"tanpa-angka\": \"Harus ada angka\",\n};\nfor (const s of [\"rahasia\", \"rahasiasekali\", \"rahasia123\"]) {\n  const h = cekSandi(s);\n  console.log(h.ok ? \"OK \" + h.data.length : PESAN[h.error]);\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "OK 13",
+          "Minimal 8 karakter",
+          "Sandi wajib diisi",
+          "Harus ada angka"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "Berhasil membawa data, gagal membawa error."
+        },
+        {
+          "line": 4,
+          "note": "Jenis error terbatas pada tiga kemungkinan."
+        },
+        {
+          "line": 10,
+          "note": "Setiap jenis error wajib punya pesan."
+        },
+        {
+          "line": 17,
+          "note": "Periksa ok dulu, baru data atau error bisa dipakai."
+        }
+      ],
+      "explanation": "rahasiasekali sudah 13 karakter, tapi tidak ada angka, sehingga hasilnya error tanpa-angka dengan pesan Harus ada angka.",
+      "tryThis": [
+        {
+          "task": "Ganti PESAN[h.error] menjadi h.data. Baca error-nya.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan \"terlalu-umum\" ke Galat. Bagian mana yang ditolak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai `data` sebelum memeriksa `ok`**\n\nDitolak (TS2339), karena saat gagal, `data` tidak ada. Ini justru gunanya Result.\n\n**2. Mencampur Result dan throw di satu fungsi**\n\nPemakai jadi harus memeriksa `ok` **dan** memasang try/catch. Pilih satu cara per fungsi, dan bungkus error tak terduga menjadi Result di satu tempat kalau perlu.\n\n**3. Error berupa teks bebas**\n\n`error: string` sulit ditangani satu per satu. Union literal seperti `\"tidak-ada\" | \"stok-habis\"` membuat setiap kasus terlihat dan bisa diperiksa lengkap."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Library Supabase memakai pola serupa: setiap query mengembalikan `{ data, error }`, dan error wajib diperiksa sebelum data dipakai.\n- `safeParse` di Zod mengembalikan `{ success: true, data }` atau `{ success: false, error }`, bentuk yang sama dengan Result.\n- Bahasa seperti Rust dan Go menjadikan pola ini cara utama menangani error. Di TypeScript, library seperti neverthrow menyediakan Result lengkap dengan fungsi bantu."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "API TS 4: Hasil Pencarian",
+      "pembuka": "Pencarian stok bisa gagal karena produk tidak ada. Kita kembalikan hasilnya sebagai Result.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. cariStok mengembalikan Result<number>.",
+          "jawaban": "type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nfunction cariStok(kode: string): Result<number> {\n  const stok: Record<string, number> = { P01: 12, P02: 0 };\n  if (!(kode in stok)) return { ok: false, error: \"Produk tidak ada\" };\n  return { ok: true, data: stok[kode] };\n}\nconst a = cariStok(\"P01\");\nif (a.ok) console.log(\"Stok:\", a.data);",
+          "keluaran": "Stok: 12",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak karena `b.data` dipakai tanpa memeriksa `b.ok`. Periksa dulu: kalau berhasil cetak stok, kalau gagal cetak `Gagal: Produk tidak ada`.",
+          "jawaban": "type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nfunction cariStok(kode: string): Result<number> {\n  const stok: Record<string, number> = { P01: 12, P02: 0 };\n  if (!(kode in stok)) return { ok: false, error: \"Produk tidak ada\" };\n  return { ok: true, data: stok[kode] };\n}\nconst a = cariStok(\"P01\");\nif (a.ok) console.log(\"Stok:\", a.data);\nconst b = cariStok(\"P09\");\nif (b.ok) console.log(\"Stok:\", b.data);\nelse console.log(\"Gagal:\", b.error);",
+          "kodeAwal": "type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nfunction cariStok(kode: string): Result<number> {\n  const stok: Record<string, number> = { P01: 12, P02: 0 };\n  if (!(kode in stok)) return { ok: false, error: \"Produk tidak ada\" };\n  return { ok: true, data: stok[kode] };\n}\nconst a = cariStok(\"P01\");\nif (a.ok) console.log(\"Stok:\", a.data);\nconst b = cariStok(\"P09\");\nconsole.log(\"Stok:\", b.data);",
+          "keluaran": "Stok: 12\nGagal: Produk tidak ada",
+          "wajib": [
+            {
+              "pola": "b\\.ok",
+              "pesan": "periksa `b.ok`."
+            }
+          ],
+          "petunjuk": "if (b.ok) ... else console.log(\"Gagal:\", b.error);"
+        },
+        {
+          "arahan": "Buat `function pesan(kode: string, jumlah: number): Result<number>` yang memakai `cariStok`: kalau gagal, kembalikan hasil gagalnya apa adanya; kalau stok kurang dari jumlah, kembalikan error `\"Stok kurang\"`; kalau cukup, `data` berisi sisa stok. Cetak hasil `pesan(\"P02\", 1)`: `Gagal: Stok kurang`.",
+          "jawaban": "type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nfunction cariStok(kode: string): Result<number> {\n  const stok: Record<string, number> = { P01: 12, P02: 0 };\n  if (!(kode in stok)) return { ok: false, error: \"Produk tidak ada\" };\n  return { ok: true, data: stok[kode] };\n}\nconst a = cariStok(\"P01\");\nif (a.ok) console.log(\"Stok:\", a.data);\nconst b = cariStok(\"P09\");\nif (b.ok) console.log(\"Stok:\", b.data);\nelse console.log(\"Gagal:\", b.error);\nfunction pesan(kode: string, jumlah: number): Result<number> {\n  const s = cariStok(kode);\n  if (!s.ok) return s;\n  if (s.data < jumlah) return { ok: false, error: \"Stok kurang\" };\n  return { ok: true, data: s.data - jumlah };\n}\nconst c = pesan(\"P02\", 1);\nconsole.log(c.ok ? \"Sisa: \" + c.data : \"Gagal: \" + c.error);",
+          "keluaran": "Stok: 12\nGagal: Produk tidak ada\nGagal: Stok kurang",
+          "wajib": [
+            {
+              "pola": "function\\s+pesan\\s*\\([^)]*\\)\\s*:\\s*Result<number>",
+              "pesan": "tipe kembalian `pesan` adalah `Result<number>`."
+            }
+          ],
+          "petunjuk": "if (!s.ok) return s; meneruskan kegagalan. Setelah itu s.data dikenal.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Kegagalan kini terlihat di tipe: tidak ada yang bisa memakai data tanpa memeriksa ok terlebih dahulu."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa keuntungan fungsi yang mengembalikan Result dibanding melempar error?",
+          "options": [
+            "Program selalu lebih cepat",
+            "Error otomatis dicatat ke server",
+            "Kemungkinan gagal terlihat di tipe dan wajib diperiksa",
+            "Tidak perlu if sama sekali"
+          ],
+          "answer": 2,
+          "explanation": "Result membuat kegagalan bagian dari tipe.",
+          "remedial": "Dengan Result, tanda tangan fungsi sudah menunjukkan bahwa fungsi bisa gagal. TypeScript menolak pemakaian data sebelum ok diperiksa."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nfunction ambil(): Result<number> {\n  return { ok: true, data: 5 };\n}\nconst h = ambil();\nconsole.log(h.data);",
+          "options": [
+            "Mencetak undefined",
+            "Error, data belum pasti ada sebelum h.ok diperiksa",
+            "Mencetak 5",
+            "Lolos tanpa error"
+          ],
+          "answer": 1,
+          "explanation": "data hanya ada pada bentuk ok: true.",
+          "remedial": "h bisa berbentuk { ok: false; error: string } yang tidak punya data, jadi h.data ditolak (TS2339) sampai h.ok diperiksa."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nfunction akar(n: number): Result<number> {\n  return n < 0 ? { ok: false, error: \"negatif\" } : { ok: true, data: Math.sqrt(n) };\n}\nfor (const n of [16, -4]) {\n  const h = akar(n);\n  console.log(h.ok ? h.data : h.error);\n}",
+          "options": [
+            "4 / NaN",
+            "16 / negatif",
+            "4 / 2",
+            "4 / negatif"
+          ],
+          "answer": 3,
+          "explanation": "Bilangan negatif ditolak sebelum dihitung.",
+          "remedial": "Akar 16 adalah 4. Untuk -4, fungsi mengembalikan error negatif, sehingga yang dicetak pesan error-nya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Library Supabase mengembalikan { data, error } dari setiap query. Apa yang sebaiknya dilakukan sebelum memakai data?",
+      "options": [
+        "Langsung pakai data",
+        "Periksa error terlebih dahulu",
+        "Panggil query dua kali",
+        "Bungkus dengan as any"
+      ],
+      "answer": 1,
+      "explanation": "Pola yang sama dengan Result: periksa dulu, baru pakai."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat type Result<T> = { ok: true; data: T } | { ok: false; error: string } dan fungsi parseUmur(teks: string): Result<number> yang gagal dengan error bukan angka kalau Number(teks) adalah NaN, gagal dengan error terlalu muda kalau kurang dari 13, dan berhasil kalau lainnya. Cetak data atau error untuk \"abc\", \"10\", dan \"21\": bukan angka, terlalu muda, 21",
+      "starterCode": "function parseUmur(teks) {\n  return Number(teks);\n}\n",
+      "solution": "type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nfunction parseUmur(teks: string): Result<number> {\n  const n = Number(teks);\n  if (Number.isNaN(n)) return { ok: false, error: \"bukan angka\" };\n  if (n < 13) return { ok: false, error: \"terlalu muda\" };\n  return { ok: true, data: n };\n}\nfor (const t of [\"abc\", \"10\", \"21\"]) {\n  const h = parseUmur(t);\n  console.log(h.ok ? h.data : h.error);\n}\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "bukan angka\nterlalu muda\n21\n"
+        }
+      ],
+      "hints": [
+        "Periksa Number.isNaN(n) lebih dulu, lalu n < 13.",
+        "Cetak dengan h.ok ? h.data : h.error."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Result: { ok: true; data } atau { ok: false; error }.",
+        "TypeScript memaksa ok diperiksa sebelum data dipakai.",
+        "Jenis error union literal membuat setiap kasus bisa ditangani.",
+        "throw untuk hal tak terduga, Result untuk kegagalan yang biasa.",
+        "Pola ini dipakai Supabase ({ data, error }) dan Zod (safeParse)."
+      ]
+    }
+  ]
+}

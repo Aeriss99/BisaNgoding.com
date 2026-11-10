@@ -1,0 +1,196 @@
+{
+  "id": "ts-async-07",
+  "moduleId": "ts-async",
+  "order": 7,
+  "title": "Proyek Mini: Klien API Toko",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **klien API toko**, yaitu module yang menjadi satu-satunya pintu antara aplikasi dan server.\n\n| Materi | Dipakai untuk |\n|---|---|\n| async/await + `Promise<T>` | mengambil data dari server |\n| `unknown` + type guard | memeriksa bentuk data |\n| try/catch + `instanceof Error` | menangkap jaringan putus |\n| `Result<T>` | mengembalikan berhasil atau gagal tanpa throw |\n| module + `export` | memisahkan klien API dari tampilan |\n\nIbarat loket penerimaan barang di gudang: setiap kiriman dari luar diperiksa di loket, lalu dicatat \"diterima\" atau \"ditolak\" beserta alasannya. Bagian gudang di dalam hanya menerima barang yang sudah lolos loket."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nStruktur file:\n\n```text\napi.ts    -> Result, tipe data, type guard, fungsi ambil...\nmain.ts   -> memakai api.ts, tidak tahu soal fetch atau JSON\n```\n\nBentuk fungsi di api.ts:\n\n```ts\nexport async function ambilProduk(id: string): Promise<Result<Produk>> {\n  try {\n    const res = await fetch(\"https://api.toko.contoh/products/\" + id);\n    if (!res.ok) return { ok: false, error: \"HTTP \" + res.status };\n    const data: unknown = await res.json();\n    return isProduk(data) ? { ok: true, data } : { ok: false, error: \"Data tidak valid\" };\n  } catch (e) {\n    return { ok: false, error: e instanceof Error ? e.message : \"Jaringan gagal\" };\n  }\n}\n```\n\nFungsi ini **tidak pernah melempar error**: semua kemungkinan gagal (status HTTP, data rusak, jaringan putus) menjadi Result."
+    },
+    {
+      "type": "runnable",
+      "code": "// === api.ts ===\nexport type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nexport type Produk = { id: string; name: string; price: number; stock: number };\n\nfunction isProduk(x: unknown): x is Produk {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"name\" in x && typeof x.name === \"string\" &&\n    \"price\" in x && typeof x.price === \"number\" &&\n    \"stock\" in x && typeof x.stock === \"number\"\n  );\n}\nexport async function ambilProduk(id: string): Promise<Result<Produk>> {\n  try {\n    const res = await fetch(\"https://api.toko.contoh/products/\" + id);\n    if (!res.ok) return { ok: false, error: \"HTTP \" + res.status };\n    const data: unknown = await res.json();\n    return isProduk(data) ? { ok: true, data } : { ok: false, error: \"Data tidak valid\" };\n  } catch (e) {\n    return { ok: false, error: e instanceof Error ? e.message : \"Jaringan gagal\" };\n  }\n}\n// === main.ts ===\nimport { ambilProduk } from \"./api\";\n\nfor (const id of [\"P01\", \"P02\", \"P99\"]) {\n  const h = await ambilProduk(id);\n  if (!h.ok) console.log(id, \"gagal:\", h.error);\n  else console.log(id, h.data.name, h.data.stock > 0 ? \"tersedia\" : \"habis\");\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "P02 gagal: Data tidak valid",
+          "P02 Teh Tarik habis",
+          "P02 gagal: HTTP 404",
+          "P02 Teh Tarik tersedia"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Bentuk hasil yang dipakai semua fungsi API."
+        },
+        {
+          "line": 5,
+          "note": "Tidak di-export: urusan dalam api.ts."
+        },
+        {
+          "line": 14,
+          "note": "Tidak pernah melempar error."
+        },
+        {
+          "line": 25,
+          "note": "main.ts tidak tahu soal fetch dan JSON."
+        }
+      ],
+      "explanation": "Produk P02 (Teh Tarik) ada di server, jadi hasilnya berhasil. Stoknya 0, sehingga dicetak habis.",
+      "tryThis": [
+        {
+          "task": "Tambahkan P04 ke daftar id. Apa yang dicetak untuknya?",
+          "hint": null
+        },
+        {
+          "task": "Di main.ts, cetak h.data.name tanpa memeriksa h.ok. Baca error-nya.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Validasi tersebar di mana-mana**\n\nKalau setiap halaman memanggil fetch dan memeriksa data sendiri, satu perubahan di server berarti mengubah banyak tempat. Kumpulkan di satu module API.\n\n**2. `any` dari `json()` bocor ke seluruh aplikasi**\n\nSatu `const data = await res.json()` tanpa pemeriksaan membuat any menyebar ke semua yang memakainya.\n\n**3. Menampilkan error mentah ke pengguna**\n\nPesan seperti `HTTP 503` tidak membantu pengguna. Ubah menjadi pesan yang ramah di bagian tampilan, misalnya \"Server sedang sibuk, coba lagi\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hampir setiap aplikasi frontend punya lapisan **klien API** seperti ini. Library seperti TanStack Query kemudian memanggil fungsi-fungsi itu dan mengurus loading, cache, dan coba ulang.\n- Tipe data dan pemeriksanya sering dibuat otomatis: dari dokumen OpenAPI, dari skema Zod, atau dari database (Supabase generate types).\n- Saat testing, module API mudah diganti versi palsu yang mengembalikan Result tetap, sehingga tampilan bisa diuji tanpa server."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "API TS 7: Klien API Toko",
+      "pembuka": "Kita rakit klien API untuk data pengguna dan pesanan. main.ts cukup memakai fungsi dari api.ts.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. api.ts berisi Result, type guard, dan fungsi ambilPengguna.",
+          "jawaban": "// === api.ts ===\nexport type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nexport type Pengguna = { id: string; name: string; city: string };\nfunction isPengguna(x: unknown): x is Pengguna {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"name\" in x && typeof x.name === \"string\" &&\n    \"city\" in x && typeof x.city === \"string\"\n  );\n}\nexport async function ambilPengguna(id: string): Promise<Result<Pengguna>> {\n  const res = await fetch(\"https://api.toko.contoh/users/\" + id);\n  if (!res.ok) return { ok: false, error: \"HTTP \" + res.status };\n  const data: unknown = await res.json();\n  return isPengguna(data) ? { ok: true, data } : { ok: false, error: \"Data tidak valid\" };\n}\n// === main.ts ===\nimport { ambilPengguna } from \"./api\";\nconst h = await ambilPengguna(\"U1\");\nif (h.ok) console.log(h.data.name, h.data.city);",
+          "keluaran": "Rina Bandung",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak karena `h2.data` dipakai tanpa memeriksa `h2.ok`. Periksa dulu; kalau gagal, cetak `U7 gagal: HTTP 404`.",
+          "jawaban": "// === api.ts ===\nexport type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nexport type Pengguna = { id: string; name: string; city: string };\nfunction isPengguna(x: unknown): x is Pengguna {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"name\" in x && typeof x.name === \"string\" &&\n    \"city\" in x && typeof x.city === \"string\"\n  );\n}\nexport async function ambilPengguna(id: string): Promise<Result<Pengguna>> {\n  const res = await fetch(\"https://api.toko.contoh/users/\" + id);\n  if (!res.ok) return { ok: false, error: \"HTTP \" + res.status };\n  const data: unknown = await res.json();\n  return isPengguna(data) ? { ok: true, data } : { ok: false, error: \"Data tidak valid\" };\n}\n// === main.ts ===\nimport { ambilPengguna } from \"./api\";\nconst h = await ambilPengguna(\"U1\");\nif (h.ok) console.log(h.data.name, h.data.city);\nconst h2 = await ambilPengguna(\"U7\");\nif (h2.ok) console.log(h2.data.name);\nelse console.log(\"U7 gagal:\", h2.error);",
+          "kodeAwal": "// === api.ts ===\nexport type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nexport type Pengguna = { id: string; name: string; city: string };\nfunction isPengguna(x: unknown): x is Pengguna {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"name\" in x && typeof x.name === \"string\" &&\n    \"city\" in x && typeof x.city === \"string\"\n  );\n}\nexport async function ambilPengguna(id: string): Promise<Result<Pengguna>> {\n  const res = await fetch(\"https://api.toko.contoh/users/\" + id);\n  if (!res.ok) return { ok: false, error: \"HTTP \" + res.status };\n  const data: unknown = await res.json();\n  return isPengguna(data) ? { ok: true, data } : { ok: false, error: \"Data tidak valid\" };\n}\n// === main.ts ===\nimport { ambilPengguna } from \"./api\";\nconst h = await ambilPengguna(\"U1\");\nif (h.ok) console.log(h.data.name, h.data.city);\nconst h2 = await ambilPengguna(\"U7\");\nconsole.log(h2.data.name);",
+          "keluaran": "Rina Bandung\nU7 gagal: HTTP 404",
+          "wajib": [
+            {
+              "pola": "h2\\.ok",
+              "pesan": "periksa `h2.ok`."
+            }
+          ],
+          "petunjuk": "if (h2.ok) ... else console.log(\"U7 gagal:\", h2.error);"
+        },
+        {
+          "arahan": "Di api.ts, tambahkan `export type Pesanan = { id: string; userId: string; productId: string; qty: number }`, type guard `isPesanan`, dan `export async function ambilPesanan(userId: string): Promise<Result<Pesanan[]>>` yang mengambil `https://api.toko.contoh/orders?userId=` + userId dan memeriksa `Array.isArray(data) && data.every(isPesanan)`. Di main.ts, cetak `Pesanan Rina: 2`.",
+          "jawaban": "// === api.ts ===\nexport type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nexport type Pengguna = { id: string; name: string; city: string };\nexport type Pesanan = { id: string; userId: string; productId: string; qty: number };\nfunction isPengguna(x: unknown): x is Pengguna {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"name\" in x && typeof x.name === \"string\" &&\n    \"city\" in x && typeof x.city === \"string\"\n  );\n}\nfunction isPesanan(x: unknown): x is Pesanan {\n  return (\n    typeof x === \"object\" && x !== null &&\n    \"id\" in x && typeof x.id === \"string\" &&\n    \"userId\" in x && typeof x.userId === \"string\" &&\n    \"productId\" in x && typeof x.productId === \"string\" &&\n    \"qty\" in x && typeof x.qty === \"number\"\n  );\n}\nexport async function ambilPengguna(id: string): Promise<Result<Pengguna>> {\n  const res = await fetch(\"https://api.toko.contoh/users/\" + id);\n  if (!res.ok) return { ok: false, error: \"HTTP \" + res.status };\n  const data: unknown = await res.json();\n  return isPengguna(data) ? { ok: true, data } : { ok: false, error: \"Data tidak valid\" };\n}\nexport async function ambilPesanan(userId: string): Promise<Result<Pesanan[]>> {\n  const res = await fetch(\"https://api.toko.contoh/orders?userId=\" + userId);\n  if (!res.ok) return { ok: false, error: \"HTTP \" + res.status };\n  const data: unknown = await res.json();\n  if (Array.isArray(data) && data.every(isPesanan)) return { ok: true, data };\n  return { ok: false, error: \"Data tidak valid\" };\n}\n// === main.ts ===\nimport { ambilPengguna, ambilPesanan } from \"./api\";\nconst h = await ambilPengguna(\"U1\");\nif (h.ok) console.log(h.data.name, h.data.city);\nconst h2 = await ambilPengguna(\"U7\");\nif (h2.ok) console.log(h2.data.name);\nelse console.log(\"U7 gagal:\", h2.error);\nconst p = await ambilPesanan(\"U1\");\nconsole.log(\"Pesanan Rina:\", p.ok ? p.data.length : p.error);",
+          "keluaran": "Rina Bandung\nU7 gagal: HTTP 404\nPesanan Rina: 2",
+          "wajib": [
+            {
+              "pola": "Promise<\\s*Result<\\s*Pesanan\\[\\]\\s*>\\s*>",
+              "pesan": "tipe kembalian `Promise<Result<Pesanan[]>>`."
+            },
+            {
+              "pola": "every\\(\\s*isPesanan\\s*\\)",
+              "pesan": "periksa setiap isi dengan `every(isPesanan)`."
+            }
+          ],
+          "petunjuk": "Polanya sama dengan ambilPengguna. Bedanya: data harus array dan setiap isinya lolos isPesanan.",
+          "tantangan": true,
+          "benar": "Klien API selesai: semua data dari server diperiksa di satu tempat, dan main.ts cukup membaca Result."
+        }
+      ],
+      "penutup": "main.ts kini tidak tahu apa pun soal fetch dan JSON. Semua urusan server ada di api.ts."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa pemeriksaan data server dikumpulkan di satu module api.ts?",
+          "options": [
+            "Supaya fetch berjalan lebih cepat",
+            "Supaya bagian lain aplikasi hanya menerima data yang sudah diperiksa",
+            "Karena TypeScript melarang fetch di main.ts",
+            "Supaya tidak perlu tipe sama sekali"
+          ],
+          "answer": 1,
+          "explanation": "Validasi di perbatasan, sekali saja.",
+          "remedial": "Dengan satu pintu masuk, data diperiksa sekali saat datang. Bagian lain aplikasi bisa memercayai tipenya, dan perubahan di server cukup diurus di satu file."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nasync function ambil(id: string): Promise<Result<string>> {\n  const res = await fetch(\"https://api.toko.contoh/products/\" + id);\n  if (!res.ok) return { ok: false, error: String(res.status) };\n  const d: unknown = await res.json();\n  return typeof d === \"object\" && d !== null && \"name\" in d && typeof d.name === \"string\"\n    ? { ok: true, data: d.name }\n    : { ok: false, error: \"format\" };\n}\nconst a = await ambil(\"P04\");\nconst b = await ambil(\"X1\");\nconsole.log(a.ok ? a.data : a.error, b.ok ? b.data : b.error);",
+          "options": [
+            "Nasi Goreng format",
+            "Nasi Goreng 404",
+            "P04 404",
+            "Error tipe"
+          ],
+          "answer": 1,
+          "explanation": "X1 tidak ada di server.",
+          "remedial": "P04 adalah Nasi Goreng. Produk X1 tidak ada, jadi server membalas 404 dan error berisi status itu."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "// === api.ts ===\nexport type Produk = { id: string; name: string };\n// === main.ts ===\nimport type { Produk } from \"./api\";\nconst p: Produk = { id: \"P01\", nama: \"Kopi\" };",
+          "options": [
+            "Mencetak Kopi",
+            "Error, import type tidak boleh dipakai",
+            "Error, Produk tidak punya kolom nama",
+            "Lolos, kolom tambahan diabaikan"
+          ],
+          "answer": 2,
+          "explanation": "Object literal hanya boleh berisi kolom yang dikenal.",
+          "remedial": "Tipe Produk punya kolom name, bukan nama. Object literal dengan kolom yang tidak dikenal ditolak."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa ambilProduk mengembalikan Result daripada melempar error?",
+      "options": [
+        "Karena fungsi async tidak boleh throw",
+        "Supaya fetch tidak perlu await",
+        "Supaya pemanggil wajib menangani kemungkinan gagal",
+        "Supaya data otomatis tersimpan"
+      ],
+      "answer": 2,
+      "explanation": "TypeScript menolak pemakaian data sebelum ok diperiksa."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi async ambilBanyak(ids: string[]): Promise<string[]> yang memanggil ambilNama untuk semua id bersamaan dengan Promise.all, lalu mengembalikan nama untuk yang berhasil saja. Cetak hasil untuk P01, P99, dan P03 digabung koma: Kopi Susu, Roti Bakar",
+      "starterCode": "type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nasync function ambilNama(id: string): Promise<Result<string>> {\n  const res = await fetch(\"https://api.toko.contoh/products/\" + id);\n  if (!res.ok) return { ok: false, error: \"HTTP \" + res.status };\n  const d: unknown = await res.json();\n  if (typeof d === \"object\" && d !== null && \"name\" in d && typeof d.name === \"string\") return { ok: true, data: d.name };\n  return { ok: false, error: \"format\" };\n}\n",
+      "solution": "type Result<T> = { ok: true; data: T } | { ok: false; error: string };\nasync function ambilNama(id: string): Promise<Result<string>> {\n  const res = await fetch(\"https://api.toko.contoh/products/\" + id);\n  if (!res.ok) return { ok: false, error: \"HTTP \" + res.status };\n  const d: unknown = await res.json();\n  if (typeof d === \"object\" && d !== null && \"name\" in d && typeof d.name === \"string\") return { ok: true, data: d.name };\n  return { ok: false, error: \"format\" };\n}\nasync function ambilBanyak(ids: string[]): Promise<string[]> {\n  const hasil = await Promise.all(ids.map(ambilNama));\n  return hasil.flatMap((h) => (h.ok ? [h.data] : []));\n}\nconsole.log((await ambilBanyak([\"P01\", \"P99\", \"P03\"])).join(\", \"));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Kopi Susu, Roti Bakar\n"
+        }
+      ],
+      "hints": [
+        "const hasil = await Promise.all(ids.map(ambilNama)).",
+        "Ambil yang berhasil: hasil.flatMap((h) => (h.ok ? [h.data] : []))."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Satu module API menjadi pintu antara aplikasi dan server.",
+        "Data diperiksa dengan type guard sebelum keluar dari module.",
+        "Semua kegagalan (HTTP, data rusak, jaringan) menjadi Result.",
+        "Bagian tampilan cukup memeriksa ok, tanpa tahu soal fetch.",
+        "Module API mudah diganti versi palsu saat testing."
+      ]
+    }
+  ]
+}

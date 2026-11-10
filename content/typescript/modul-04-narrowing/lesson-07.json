@@ -1,0 +1,187 @@
+{
+  "id": "ts-narrowing-07",
+  "moduleId": "ts-narrowing",
+  "order": 7,
+  "title": "Proyek Mini: Status Pesanan",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **pelacak status pesanan** yang memakai semua teknik narrowing.\n\n| Teknik | Dipakai untuk |\n|---|---|\n| discriminated union | setiap status punya data sendiri |\n| `switch` + `assertNever` | semua status pasti ditampilkan |\n| `typeof` / `in` | membaca data mentah |\n| type guard | menyaring data rusak dari luar |\n\nRancangan status:\n\n```ts\ntype Pesanan =\n  | { status: \"menunggu\"; id: number }\n  | { status: \"dibayar\"; id: number; metode: string }\n  | { status: \"dikirim\"; id: number; kurir: string; resi: string }\n  | { status: \"batal\"; id: number; alasan: string };\n```\n\nIbarat papan status penerbangan: setiap penerbangan punya status, dan setiap status menampilkan informasi berbeda (gerbang, jam baru, atau alasan pembatalan)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSatu fungsi tampil, satu type guard untuk data mentah:\n\n```ts\nfunction tampil(p: Pesanan): string {\n  switch (p.status) {\n    case \"menunggu\": return `#${p.id} menunggu pembayaran`;\n    case \"dibayar\":  return `#${p.id} dibayar via ${p.metode}`;\n    case \"dikirim\":  return `#${p.id} dikirim ${p.kurir} (${p.resi})`;\n    case \"batal\":    return `#${p.id} batal: ${p.alasan}`;\n    default:         return assertNever(p);\n  }\n}\n```\n\nType guard untuk data mentah cukup memeriksa `id` dan `status` yang dikenal. Untuk proyek mini ini, pemeriksaan properti lain disederhanakan."
+    },
+    {
+      "type": "runnable",
+      "code": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Pesanan =\n  | { status: \"menunggu\"; id: number }\n  | { status: \"dibayar\"; id: number; metode: string }\n  | { status: \"dikirim\"; id: number; kurir: string; resi: string };\n\nfunction tampil(p: Pesanan): string {\n  switch (p.status) {\n    case \"menunggu\":\n      return `#${p.id} menunggu pembayaran`;\n    case \"dibayar\":\n      return `#${p.id} dibayar via ${p.metode}`;\n    case \"dikirim\":\n      return `#${p.id} dikirim ${p.kurir} (${p.resi})`;\n    default:\n      return assertNever(p);\n  }\n}\nconst daftar: Pesanan[] = [\n  { status: \"dibayar\", id: 11, metode: \"QRIS\" },\n  { status: \"dikirim\", id: 12, kurir: \"JNE\", resi: \"JN123\" },\n];\ndaftar.forEach((p) => console.log(tampil(p)));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "#12 dikirim undefined (undefined)",
+          "#12 dikirim JNE (JN123)",
+          "#12 menunggu pembayaran",
+          "#11 dibayar via QRIS"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Status dikirim membawa data kurir dan resi."
+        },
+        {
+          "line": 10,
+          "note": "Penanda status mempersempit p."
+        },
+        {
+          "line": 18,
+          "note": "Memastikan semua status ditangani."
+        }
+      ],
+      "explanation": "Pesanan kedua berstatus dikirim, jadi masuk ke case \"dikirim\" yang menampilkan kurir dan nomor resinya.",
+      "tryThis": [
+        {
+          "task": "Tambahkan status batal dengan alasan ke union. Di mana TypeScript protes?",
+          "hint": null
+        },
+        {
+          "task": "Di case \"menunggu\", coba akses p.metode. Kenapa ditolak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Satu object dengan semua properti opsional**\n\n`{ status: string; metode?: string; kurir?: string; resi?: string; alasan?: string }` membolehkan kombinasi tidak masuk akal, misalnya status batal tapi punya resi. Discriminated union mencegahnya.\n\n**2. Mengubah status tanpa mengubah datanya**\n\nKalau pesanan berpindah dari dibayar ke dikirim, buat object baru dengan bentuk status dikirim (lengkap dengan kurir dan resi). Jangan hanya mengganti teks `status`.\n\n**3. Menganggap data dari luar pasti benar**\n\nStatus dari server bisa saja bernilai yang belum dikenal aplikasi. Saring dengan type guard, dan biarkan `assertNever` berjaga di `default`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Siklus hidup pesanan, pembayaran, dan pengiriman di e-commerce biasanya dimodelkan sebagai **state machine**: setiap status punya data sendiri dan perpindahan yang diizinkan (misalnya batal hanya dari menunggu). Discriminated union adalah cara TypeScript menuliskannya.\n- Library seperti **XState** dipakai untuk state machine yang rumit, tapi untuk kasus sederhana union + switch sudah cukup.\n- Fungsi perpindahan status (`kirim(p: PesananDibayar, kurir, resi): PesananDikirim`) membuat perpindahan yang salah ditolak saat compile."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Pesanan TS 7: Pelacak Pesanan",
+      "pembuka": "Kita bangun pelacak pesanan: status dengan datanya sendiri, tampilan yang lengkap, dan perpindahan status yang aman.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Tiga status, satu fungsi tampil dengan assertNever.",
+          "jawaban": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Pesanan =\n  | { status: \"menunggu\"; id: number }\n  | { status: \"dibayar\"; id: number; metode: string }\n  | { status: \"dikirim\"; id: number; kurir: string; resi: string };\nfunction tampil(p: Pesanan): string {\n  switch (p.status) {\n    case \"menunggu\":\n      return `#${p.id} menunggu pembayaran`;\n    case \"dibayar\":\n      return `#${p.id} dibayar via ${p.metode}`;\n    case \"dikirim\":\n      return `#${p.id} dikirim ${p.kurir} (${p.resi})`;\n    default:\n      return assertNever(p);\n  }\n}\nconsole.log(tampil({ status: \"menunggu\", id: 10 }));",
+          "keluaran": "#10 menunggu pembayaran",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan status `\"batal\"` dengan properti `alasan: string`, tangani di `tampil` dengan format `#<id> batal: <alasan>`, lalu cetak `tampil({ status: \"batal\", id: 13, alasan: \"stok habis\" })`.",
+          "jawaban": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Pesanan =\n  | { status: \"menunggu\"; id: number }\n  | { status: \"dibayar\"; id: number; metode: string }\n  | { status: \"dikirim\"; id: number; kurir: string; resi: string }\n  | { status: \"batal\"; id: number; alasan: string };\nfunction tampil(p: Pesanan): string {\n  switch (p.status) {\n    case \"menunggu\":\n      return `#${p.id} menunggu pembayaran`;\n    case \"dibayar\":\n      return `#${p.id} dibayar via ${p.metode}`;\n    case \"dikirim\":\n      return `#${p.id} dikirim ${p.kurir} (${p.resi})`;\n    case \"batal\":\n      return `#${p.id} batal: ${p.alasan}`;\n    default:\n      return assertNever(p);\n  }\n}\nconsole.log(tampil({ status: \"menunggu\", id: 10 }));\nconsole.log(tampil({ status: \"batal\", id: 13, alasan: \"stok habis\" }));",
+          "keluaran": "#10 menunggu pembayaran\n#13 batal: stok habis",
+          "wajib": [
+            {
+              "pola": "status\\s*:\\s*\"batal\"\\s*;\\s*id\\s*:\\s*number\\s*;\\s*alasan\\s*:\\s*string",
+              "pesan": "tambahkan anggota `{ status: \"batal\"; id: number; alasan: string }`."
+            }
+          ],
+          "petunjuk": "Tambahkan anggota union { status: \"batal\"; id: number; alasan: string } lalu case \"batal\"."
+        },
+        {
+          "arahan": "Buat fungsi perpindahan `kirim(p: Extract<Pesanan, { status: \"dibayar\" }>, kurir: string, resi: string): Pesanan` yang menghasilkan pesanan berstatus dikirim. Kirim pesanan `{ status: \"dibayar\", id: 11, metode: \"QRIS\" }` lewat **SiCepat** resi **SC77**, lalu cetak hasil `tampil`-nya.",
+          "jawaban": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Pesanan =\n  | { status: \"menunggu\"; id: number }\n  | { status: \"dibayar\"; id: number; metode: string }\n  | { status: \"dikirim\"; id: number; kurir: string; resi: string }\n  | { status: \"batal\"; id: number; alasan: string };\nfunction tampil(p: Pesanan): string {\n  switch (p.status) {\n    case \"menunggu\":\n      return `#${p.id} menunggu pembayaran`;\n    case \"dibayar\":\n      return `#${p.id} dibayar via ${p.metode}`;\n    case \"dikirim\":\n      return `#${p.id} dikirim ${p.kurir} (${p.resi})`;\n    case \"batal\":\n      return `#${p.id} batal: ${p.alasan}`;\n    default:\n      return assertNever(p);\n  }\n}\nfunction kirim(p: Extract<Pesanan, { status: \"dibayar\" }>, kurir: string, resi: string): Pesanan {\n  return { status: \"dikirim\", id: p.id, kurir, resi };\n}\nconsole.log(tampil({ status: \"menunggu\", id: 10 }));\nconsole.log(tampil({ status: \"batal\", id: 13, alasan: \"stok habis\" }));\nconsole.log(tampil(kirim({ status: \"dibayar\", id: 11, metode: \"QRIS\" }, \"SiCepat\", \"SC77\")));",
+          "keluaran": "#10 menunggu pembayaran\n#13 batal: stok habis\n#11 dikirim SiCepat (SC77)",
+          "wajib": [
+            {
+              "pola": "Extract\\s*<\\s*Pesanan\\s*,\\s*\\{\\s*status\\s*:\\s*\"dibayar\"\\s*\\}\\s*>",
+              "pesan": "pakai `Extract<Pesanan, { status: \"dibayar\" }>` sebagai tipe parameter."
+            }
+          ],
+          "petunjuk": "Extract<Pesanan, { status: \"dibayar\" }> mengambil anggota union yang statusnya dibayar saja. Kembalikan object baru berstatus dikirim.",
+          "tantangan": true,
+          "benar": "Sekarang hanya pesanan yang sudah dibayar yang bisa dikirim. Mengirim pesanan menunggu langsung ditolak TypeScript."
+        }
+      ],
+      "penutup": "Pelacak pesanan selesai. Status, data per status, tampilan lengkap, dan perpindahan yang aman semuanya dijaga oleh tipe."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa status pesanan lebih baik dimodelkan sebagai discriminated union daripada satu object dengan banyak properti opsional?",
+          "options": [
+            "Kodenya lebih pendek",
+            "Kombinasi data yang tidak masuk akal tidak bisa dibuat",
+            "Tidak perlu switch",
+            "Bisa dipakai tanpa tipe"
+          ],
+          "answer": 1,
+          "explanation": "Setiap status punya bentuknya sendiri.",
+          "remedial": "Dengan union, status batal hanya punya alasan dan status dikirim wajib punya kurir dan resi. Object dengan semua properti opsional membolehkan kombinasi aneh seperti batal tapi punya resi."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "type Pesanan = { status: \"menunggu\"; id: number } | { status: \"dibayar\"; id: number };\nfunction kirim(p: Extract<Pesanan, { status: \"dibayar\" }>) {\n  return \"dikirim \" + p.id;\n}\nconsole.log(kirim({ status: \"menunggu\", id: 1 }));",
+          "options": [
+            "Mencetak dikirim",
+            "Error, pesanan menunggu tidak bisa dikirim",
+            "Mencetak menunggu",
+            "Lolos tanpa error"
+          ],
+          "answer": 1,
+          "explanation": "Parameter hanya menerima anggota berstatus dibayar.",
+          "remedial": "kirim hanya menerima Extract<Pesanan, { status: \"dibayar\" }>. Object berstatus menunggu tidak cocok, jadi ditolak sebelum program jalan (TS2322)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "type P = { status: \"menunggu\" } | { status: \"dibayar\"; metode: string };\nconst d: P[] = [{ status: \"dibayar\", metode: \"QRIS\" }, { status: \"menunggu\" }, { status: \"dibayar\", metode: \"Tunai\" }];\nconst bayar = d.filter((p): p is Extract<P, { status: \"dibayar\" }> => p.status === \"dibayar\");\nconsole.log(bayar.length, \"dibayar\");",
+          "options": [
+            "3 dibayar",
+            "2 menunggu",
+            "2 dibayar",
+            "1 menunggu"
+          ],
+          "answer": 2,
+          "explanation": "Extract menyaring anggota union; filter menghitung yang statusnya dibayar.",
+          "remedial": "Ada dua pesanan berstatus dibayar di array, jadi panjang hasil filter adalah 2."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa yang dihasilkan Extract<Pesanan, { status: \"dibayar\" }>?",
+      "options": [
+        "Teks \"dibayar\"",
+        "Semua anggota kecuali dibayar",
+        "Anggota union Pesanan yang status-nya dibayar",
+        "Object baru berstatus dibayar"
+      ],
+      "answer": 2,
+      "explanation": "Extract mengambil anggota union yang cocok dengan bentuk tertentu (dibahas lagi di modul Utility Types)."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat type Tiket = { status: \"baru\"; id: number } | { status: \"diproses\"; id: number; petugas: string } | { status: \"selesai\"; id: number; solusi: string }. Tulis ringkas(t: Tiket): string dengan switch dan assertNever. Cetak tiga tiket: 1 baru, 2 diproses oleh Sari, 3 selesai dengan solusi ganti kabel. Format: #1 baru, #2 diproses Sari, #3 selesai: ganti kabel",
+      "starterCode": "type Tiket = { status: string; id: number };\nfunction ringkas(t: Tiket): string {\n  return \"#\" + t.id;\n}\n",
+      "solution": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Tiket =\n  | { status: \"baru\"; id: number }\n  | { status: \"diproses\"; id: number; petugas: string }\n  | { status: \"selesai\"; id: number; solusi: string };\nfunction ringkas(t: Tiket): string {\n  switch (t.status) {\n    case \"baru\":\n      return `#${t.id} baru`;\n    case \"diproses\":\n      return `#${t.id} diproses ${t.petugas}`;\n    case \"selesai\":\n      return `#${t.id} selesai: ${t.solusi}`;\n    default:\n      return assertNever(t);\n  }\n}\nconst daftar: Tiket[] = [\n  { status: \"baru\", id: 1 },\n  { status: \"diproses\", id: 2, petugas: \"Sari\" },\n  { status: \"selesai\", id: 3, solusi: \"ganti kabel\" },\n];\nfor (const t of daftar) console.log(ringkas(t));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "#1 baru\n#2 diproses Sari\n#3 selesai: ganti kabel\n"
+        }
+      ],
+      "hints": [
+        "Tiga anggota union dengan penanda status literal.",
+        "switch (t.status) dengan tiga case, lalu assertNever(t) di default."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Status dengan data berbeda dimodelkan sebagai discriminated union.",
+        "switch + assertNever memastikan setiap status ditampilkan.",
+        "Extract<Union, { status: \"x\" }> mengambil anggota union tertentu.",
+        "Fungsi perpindahan bertipe membuat perpindahan status yang salah ditolak.",
+        "Data dari luar disaring dengan type guard sebelum dipakai."
+      ]
+    }
+  ]
+}

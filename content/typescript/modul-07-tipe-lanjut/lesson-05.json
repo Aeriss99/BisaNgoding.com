@@ -1,0 +1,187 @@
+{
+  "id": "ts-tipe-lanjut-05",
+  "moduleId": "ts-tipe-lanjut",
+  "order": 5,
+  "title": "ReturnType, Parameters, Awaited, NonNullable",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Utility types ini membaca tipe **dari fungsi** yang sudah ada:\n\n```ts\nfunction buatPesanan(menu: string, jumlah: number) {\n  return { id: 1, menu, jumlah, status: \"baru\" as const };\n}\ntype Pesanan = ReturnType<typeof buatPesanan>;\n// { id: number; menu: string; jumlah: number; status: \"baru\" }\ntype ArgPesanan = Parameters<typeof buatPesanan>;\n// [menu: string, jumlah: number]\n\nasync function ambilProfil() {\n  return { nama: \"Rina\", poin: 120 };\n}\ntype Profil = Awaited<ReturnType<typeof ambilProfil>>;\n// { nama: string; poin: number }  (isi Promise-nya)\n\ntype Pasti = NonNullable<string | null | undefined>; // string\n```\n\nPerhatikan `typeof`: utility ini butuh **tipe** fungsi, bukan fungsinya.\n\nIbarat menyalin ukuran dari baju yang sudah jadi: daripada mengukur ulang badan, kita baca saja ukuran dari baju yang sudah pas."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`Parameters` berguna untuk membuat fungsi pembungkus dengan parameter yang sama persis:\n\n```ts\nfunction kirimEmail(ke: string, judul: string, isi: string) { /* ... */ }\n\nfunction kirimDanCatat(...args: Parameters<typeof kirimEmail>) {\n  console.log(\"kirim ke\", args[0]);\n  return kirimEmail(...args);\n}\n```\n\nKalau parameter `kirimEmail` berubah, pembungkusnya ikut berubah otomatis.\n\n`NonNullable` sering dipakai bersama type predicate untuk membuang null dari array:\n\n```ts\nfunction hanyaAda<T>(daftar: T[]): NonNullable<T>[] {\n  return daftar.filter((x): x is NonNullable<T> => x != null);\n}\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "function buatPesanan(menu: string, jumlah: number) {\n  return { menu, jumlah, status: \"baru\" as \"baru\" | \"selesai\" };\n}\ntype Pesanan = ReturnType<typeof buatPesanan>;\n\nconst log: string[] = [];\nfunction buatDanCatat(...args: Parameters<typeof buatPesanan>): Pesanan {\n  log.push(args.join(\" x\"));\n  return buatPesanan(...args);\n}\nconst p = buatDanCatat(\"Kopi\", 2);\nbuatDanCatat(\"Teh\", 1);\nconsole.log(p.menu, p.status);\nconsole.log(log.join(\", \"));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "Teh x1, Kopi x2",
+          "Kopi 2, Teh 1",
+          "Kopi x2, Teh x1",
+          "Kopi x2"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Tipe kembalian dibaca dari fungsinya."
+        },
+        {
+          "line": 7,
+          "note": "Parameter sama persis: menu lalu jumlah."
+        },
+        {
+          "line": 9,
+          "note": "Argumen diteruskan apa adanya."
+        }
+      ],
+      "explanation": "args adalah tuple berisi menu dan jumlah. join(\" x\") menggabungkannya menjadi Kopi x2 dan Teh x1, lalu log digabung dengan koma.",
+      "tryThis": [
+        {
+          "task": "Panggil buatDanCatat(\"Kopi\"). Baca error-nya.",
+          "hint": null
+        },
+        {
+          "task": "Ganti ReturnType<typeof buatPesanan> menjadi ReturnType<buatPesanan>. Error apa yang muncul?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `typeof`**\n\n`ReturnType<buatPesanan>` ditolak (TS2749), karena buatPesanan adalah nilai. Tulis `ReturnType<typeof buatPesanan>`.\n\n**2. Lupa `Awaited` pada fungsi async**\n\n`ReturnType` dari fungsi async adalah `Promise<...>`. Untuk isinya, bungkus dengan `Awaited`.\n\n**3. Tipe turunan yang terlalu panjang**\n\n`Awaited<ReturnType<typeof ambil>>[\"data\"][number]` sulit dibaca. Kalau dipakai di banyak tempat, beri nama: `type Item = ...`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola `Awaited<ReturnType<typeof ambilData>>` sangat umum di proyek Next.js, tRPC, dan Supabase untuk mendapat tipe data dari fungsi query tanpa menulis ulang.\n- Library sering tidak mengekspor semua tipe. `Parameters<typeof fungsiLibrary>[0]` adalah cara cepat mengambil tipe opsi yang diterimanya.\n- Di React, `ComponentProps<typeof Tombol>` bekerja dengan cara serupa: mengambil tipe props dari komponen yang sudah ada."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Profil TS 5: Data dari Server",
+      "pembuka": "Data profil datang dari server lewat fungsi async. Kita ambil tipenya langsung dari fungsi itu.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Fungsi async mengembalikan data profil.",
+          "jawaban": "async function ambilProfil(id: number) {\n  return { id, nama: \"Rina\", poin: 120 };\n}\nasync function main() {\n  const p = await ambilProfil(1);\n  console.log(p.nama, p.poin);\n}\nmain();",
+          "keluaran": "Rina 120",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak: `Profil` masih berupa `Promise`, sehingga `p.poin` tidak dikenal. Bungkus dengan `Awaited<...>`. Baris terakhir harus `Level: emas`.",
+          "jawaban": "async function ambilProfil(id: number) {\n  return { id, nama: \"Rina\", poin: 120 };\n}\ntype Profil = Awaited<ReturnType<typeof ambilProfil>>;\nfunction level(p: Profil): string {\n  return p.poin >= 100 ? \"emas\" : \"perak\";\n}\nasync function main() {\n  const p = await ambilProfil(1);\n  console.log(p.nama, p.poin);\n  console.log(\"Level:\", level(p));\n}\nmain();",
+          "kodeAwal": "async function ambilProfil(id: number) {\n  return { id, nama: \"Rina\", poin: 120 };\n}\ntype Profil = ReturnType<typeof ambilProfil>;\nfunction level(p: Profil): string {\n  return p.poin >= 100 ? \"emas\" : \"perak\";\n}\nasync function main() {\n  const p = await ambilProfil(1);\n  console.log(p.nama, p.poin);\n  console.log(\"Level:\", level(p));\n}\nmain();",
+          "keluaran": "Rina 120\nLevel: emas",
+          "wajib": [
+            {
+              "pola": "Awaited<\\s*ReturnType<\\s*typeof\\s+ambilProfil\\s*>\\s*>",
+              "pesan": "tulis `Awaited<ReturnType<typeof ambilProfil>>`."
+            }
+          ],
+          "petunjuk": "ReturnType dari fungsi async adalah Promise. Awaited mengambil isinya."
+        },
+        {
+          "arahan": "Daftar teman bisa berisi `null`. Buat fungsi `hanyaAda<T>(daftar: T[]): NonNullable<T>[]` yang membuang null dan undefined. Di dalam `main`, pakai pada `[p, null, p]` dan cetak `Teman: 2`.",
+          "jawaban": "async function ambilProfil(id: number) {\n  return { id, nama: \"Rina\", poin: 120 };\n}\ntype Profil = Awaited<ReturnType<typeof ambilProfil>>;\nfunction level(p: Profil): string {\n  return p.poin >= 100 ? \"emas\" : \"perak\";\n}\nfunction hanyaAda<T>(daftar: T[]): NonNullable<T>[] {\n  return daftar.filter((x): x is NonNullable<T> => x != null);\n}\nasync function main() {\n  const p = await ambilProfil(1);\n  console.log(p.nama, p.poin);\n  console.log(\"Level:\", level(p));\n  console.log(\"Teman:\", hanyaAda([p, null, p]).length);\n}\nmain();",
+          "keluaran": "Rina 120\nLevel: emas\nTeman: 2",
+          "wajib": [
+            {
+              "pola": "NonNullable<T>\\[\\]",
+              "pesan": "tipe kembalian `NonNullable<T>[]`."
+            }
+          ],
+          "petunjuk": "Isi fungsi: daftar.filter((x): x is NonNullable<T> => x != null).",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Tipe profil kini selalu mengikuti fungsi ambilProfil. Kalau server menambah kolom, tipenya ikut berubah."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa ReturnType<buatPesanan> (tanpa typeof) ditolak?",
+          "options": [
+            "ReturnType hanya untuk class",
+            "Nama fungsi harus diawali huruf besar",
+            "buatPesanan adalah nilai, sedangkan ReturnType butuh tipe",
+            "Fungsinya harus async"
+          ],
+          "answer": 2,
+          "explanation": "typeof mengubah nilai menjadi tipe.",
+          "remedial": "Fungsi adalah nilai. Utility type menerima tipe, jadi tulis ReturnType<typeof buatPesanan>. Tanpa typeof, TypeScript menolak dengan TS2749."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "function bagi(a: number, b: number) {\n  return { hasil: a / b, sisa: a % b };\n}\ntype Hasil = ReturnType<typeof bagi>;\nconst h: Hasil = bagi(17, 5);\nconst args: Parameters<typeof bagi> = [9, 4];\nconsole.log(h.sisa, bagi(...args).sisa);",
+          "options": [
+            "2 2",
+            "3 1",
+            "2 1",
+            "Error tipe"
+          ],
+          "answer": 2,
+          "explanation": "17 dibagi 5 sisa 2, 9 dibagi 4 sisa 1.",
+          "remedial": "h adalah hasil bagi(17, 5) dengan sisa 2. args berisi 9 dan 4, sehingga bagi(...args).sisa adalah 1."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "async function ambil() {\n  return { nama: \"Rina\" };\n}\ntype Data = ReturnType<typeof ambil>;\nconst d: Data = { nama: \"Budi\" };",
+          "options": [
+            "Mencetak Budi",
+            "Error, Data masih berupa Promise",
+            "Error, ambil harus diberi tipe",
+            "Lolos, Data berisi nama"
+          ],
+          "answer": 1,
+          "explanation": "ReturnType dari fungsi async adalah Promise.",
+          "remedial": "ambil adalah fungsi async, jadi ReturnType-nya Promise<{ nama: string }>. Object biasa bukan Promise, sehingga ditolak. Pakai Awaited<ReturnType<typeof ambil>>."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Tipe apa yang dihasilkan NonNullable<string | null | undefined>?",
+      "options": [
+        "unknown",
+        "string | null",
+        "string",
+        "never"
+      ],
+      "answer": 2,
+      "explanation": "NonNullable membuang null dan undefined."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Fungsi diskon di bawah sudah ada. Tanpa menulis ulang tipe parameternya, buat fungsi diskonSemua(daftar: Parameters<typeof diskon>[]): number[] yang memanggil diskon untuk setiap pasangan argumen. Cetak hasil untuk pasangan 20000 dan 10, serta 50000 dan 20, digabung koma: 18000, 40000",
+      "starterCode": "function diskon(harga: number, persen: number): number {\n  return harga - (harga * persen) / 100;\n}\n",
+      "solution": "function diskon(harga: number, persen: number): number {\n  return harga - (harga * persen) / 100;\n}\nfunction diskonSemua(daftar: Parameters<typeof diskon>[]): number[] {\n  return daftar.map((args) => diskon(...args));\n}\nconsole.log(diskonSemua([[20000, 10], [50000, 20]]).join(\", \"));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "18000, 40000\n"
+        }
+      ],
+      "hints": [
+        "Parameters<typeof diskon> adalah tuple [harga, persen].",
+        "Untuk setiap tuple, panggil diskon(...args)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "ReturnType<typeof f>: tipe kembalian fungsi.",
+        "Parameters<typeof f>: tuple tipe parameter fungsi.",
+        "Awaited<T>: isi dari Promise (pasangan ReturnType untuk fungsi async).",
+        "NonNullable<T>: buang null dan undefined.",
+        "Jangan lupa typeof: utility ini butuh tipe, bukan nilai (TS2749)."
+      ]
+    }
+  ]
+}

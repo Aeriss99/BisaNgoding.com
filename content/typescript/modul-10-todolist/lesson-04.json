@@ -1,0 +1,195 @@
+{
+  "id": "ts-todolist-04",
+  "moduleId": "ts-todolist",
+  "order": 4,
+  "title": "Perintah dengan Discriminated Union",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi todolist menerima **perintah** dari pengguna: tambah, selesai, hapus. Setiap perintah membawa data yang berbeda, jadi cocok ditulis sebagai discriminated union:\n\n```ts\ntype Perintah =\n  | { jenis: \"tambah\"; judul: string }\n  | { jenis: \"selesai\"; id: number }\n  | { jenis: \"hapus\"; id: number };\n```\n\n`switch (p.jenis)` mempersempit tipenya di setiap `case`, dan pemeriksaan `never` di `default` memastikan tidak ada jenis perintah yang terlupa.\n\nIbarat formulir di kantor pos: setiap layanan (kirim paket, wesel, ambil paket) punya formulir dengan kolom berbeda. Petugas melihat jenis formulirnya dulu, baru membaca kolom-kolomnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```ts\nfunction jelaskan(p: Perintah): string {\n  switch (p.jenis) {\n    case \"tambah\":\n      return `Tambah: ${p.judul}`;   // di sini p punya judul\n    case \"selesai\":\n      return `Tandai selesai #${p.id}`;\n    case \"hapus\":\n      return `Hapus #${p.id}`;\n    default: {\n      const tidakMungkin: never = p; // error kalau ada jenis yang belum ditangani\n      return tidakMungkin;\n    }\n  }\n}\n```\n\nTeks dari pengguna (misalnya `\"selesai 2\"`) diubah dulu menjadi Perintah oleh fungsi `parse`. Kalau teksnya tidak dikenal, `parse` mengembalikan `null`."
+    },
+    {
+      "type": "runnable",
+      "code": "type Perintah =\n  | { jenis: \"tambah\"; judul: string }\n  | { jenis: \"selesai\"; id: number }\n  | { jenis: \"hapus\"; id: number };\n\nfunction parse(teks: string): Perintah | null {\n  const [kata, ...sisa] = teks.trim().split(\" \");\n  const isi = sisa.join(\" \");\n  if (kata === \"tambah\" && isi) return { jenis: \"tambah\", judul: isi };\n  if ((kata === \"selesai\" || kata === \"hapus\") && /^[0-9]+$/.test(isi)) return { jenis: kata, id: Number(isi) };\n  return null;\n}\nfunction jelaskan(p: Perintah): string {\n  switch (p.jenis) {\n    case \"tambah\":\n      return `Tambah: ${p.judul}`;\n    case \"selesai\":\n      return `Tandai selesai #${p.id}`;\n    case \"hapus\":\n      return `Hapus #${p.id}`;\n    default: {\n      const tidakMungkin: never = p;\n      return tidakMungkin;\n    }\n  }\n}\nfor (const t of [\"tambah Belajar union\", \"selesai 2\", \"hapus dua\"]) {\n  const p = parse(t);\n  console.log(p ? jelaskan(p) : `Perintah tidak dikenal: ${t}`);\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "Hapus #dua",
+          "Hapus #2",
+          "Hapus #NaN",
+          "Perintah tidak dikenal: hapus dua"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "Setiap jenis perintah membawa data sendiri."
+        },
+        {
+          "line": 6,
+          "note": "null kalau teksnya tidak dikenal."
+        },
+        {
+          "line": 14,
+          "note": "Tipe p dipersempit di setiap case."
+        },
+        {
+          "line": 22,
+          "note": "Penjaga: semua jenis harus ditangani."
+        }
+      ],
+      "explanation": "Kata dua bukan angka, jadi tidak lolos pemeriksaan /^[0-9]+$/. parse mengembalikan null, dan yang dicetak adalah pesan perintah tidak dikenal.",
+      "tryThis": [
+        {
+          "task": "Tambahkan jenis { jenis: \"ubah\"; id: number; judul: string } ke Perintah. Baris mana yang ditolak?",
+          "hint": null
+        },
+        {
+          "task": "Di case \"tambah\", coba cetak p.id. Kenapa ditolak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa menangani jenis baru**\n\nTanpa pemeriksaan `never`, jenis perintah baru diam-diam jatuh ke `default`. Dengan pemeriksaan itu, TypeScript langsung menolak (TS2322).\n\n**2. Membaca properti sebelum memeriksa jenis**\n\n`p.id` ditolak (TS2339) sebelum `p.jenis` diperiksa, karena perintah tambah tidak punya id.\n\n**3. Perintah berupa teks bebas di seluruh aplikasi**\n\nUbah teks menjadi Perintah sekali saja di `parse`. Bagian lain aplikasi cukup bekerja dengan tipe Perintah."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola ini adalah inti **Redux** dan `useReducer` di React: setiap perubahan state ditulis sebagai action seperti `{ type: \"todo/ditambah\", judul }`, lalu diproses oleh fungsi reducer dengan `switch`.\n- Pesan antar layanan (event, webhook, pesan antrean) juga sering ditulis sebagai discriminated union dengan properti `type`.\n- Pemeriksaan `never` sangat dihargai saat code review, karena menambah jenis baru tidak mungkin terlupa di salah satu `switch`."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Todolist TS 4: Perintah",
+      "pembuka": "Pengguna mengetik perintah. Kita ubah menjadi discriminated union dan tangani semuanya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Dua jenis perintah dan fungsi jelaskan dengan pemeriksaan never.",
+          "jawaban": "type Perintah =\n  | { jenis: \"tambah\"; judul: string }\n  | { jenis: \"selesai\"; id: number };\nfunction jelaskan(p: Perintah): string {\n  switch (p.jenis) {\n    case \"tambah\":\n      return `Tambah: ${p.judul}`;\n    case \"selesai\":\n      return `Tandai selesai #${p.id}`;\n    default: {\n      const tidakMungkin: never = p;\n      return tidakMungkin;\n    }\n  }\n}\nconsole.log(jelaskan({ jenis: \"tambah\", judul: \"Belajar union\" }));",
+          "keluaran": "Tambah: Belajar union",
+          "otomatis": true
+        },
+        {
+          "arahan": "Jenis `hapus` sudah ditambahkan ke Perintah, dan pemeriksaan `never` menolak kode ini karena case-nya belum ada. Tambahkan `case \"hapus\"` yang mengembalikan `Hapus #<id>`. Baris terakhir harus `Hapus #3`.",
+          "jawaban": "type Perintah =\n  | { jenis: \"tambah\"; judul: string }\n  | { jenis: \"selesai\"; id: number }\n  | { jenis: \"hapus\"; id: number };\nfunction jelaskan(p: Perintah): string {\n  switch (p.jenis) {\n    case \"tambah\":\n      return `Tambah: ${p.judul}`;\n    case \"selesai\":\n      return `Tandai selesai #${p.id}`;\n    case \"hapus\":\n      return `Hapus #${p.id}`;\n    default: {\n      const tidakMungkin: never = p;\n      return tidakMungkin;\n    }\n  }\n}\nconsole.log(jelaskan({ jenis: \"tambah\", judul: \"Belajar union\" }));\nconsole.log(jelaskan({ jenis: \"hapus\", id: 3 }));",
+          "kodeAwal": "type Perintah =\n  | { jenis: \"tambah\"; judul: string }\n  | { jenis: \"selesai\"; id: number }\n  | { jenis: \"hapus\"; id: number };\nfunction jelaskan(p: Perintah): string {\n  switch (p.jenis) {\n    case \"tambah\":\n      return `Tambah: ${p.judul}`;\n    case \"selesai\":\n      return `Tandai selesai #${p.id}`;\n    default: {\n      const tidakMungkin: never = p;\n      return tidakMungkin;\n    }\n  }\n}\nconsole.log(jelaskan({ jenis: \"tambah\", judul: \"Belajar union\" }));\nconsole.log(jelaskan({ jenis: \"hapus\", id: 3 }));",
+          "keluaran": "Tambah: Belajar union\nHapus #3",
+          "wajib": [
+            {
+              "pola": "case\\s+\"hapus\"",
+              "pesan": "tambahkan `case \"hapus\"`."
+            }
+          ],
+          "petunjuk": "Error TS2322 di baris never artinya ada jenis yang belum punya case."
+        },
+        {
+          "arahan": "Tambahkan jenis `{ jenis: \"daftar\"; filter: \"semua\" | \"aktif\" | \"selesai\" }` ke Perintah, beserta case-nya yang mengembalikan `Tampilkan <filter>`. Cetak `Tampilkan aktif`.",
+          "jawaban": "type Perintah =\n  | { jenis: \"tambah\"; judul: string }\n  | { jenis: \"selesai\"; id: number }\n  | { jenis: \"hapus\"; id: number }\n  | { jenis: \"daftar\"; filter: \"semua\" | \"aktif\" | \"selesai\" };\nfunction jelaskan(p: Perintah): string {\n  switch (p.jenis) {\n    case \"tambah\":\n      return `Tambah: ${p.judul}`;\n    case \"selesai\":\n      return `Tandai selesai #${p.id}`;\n    case \"hapus\":\n      return `Hapus #${p.id}`;\n    case \"daftar\":\n      return `Tampilkan ${p.filter}`;\n    default: {\n      const tidakMungkin: never = p;\n      return tidakMungkin;\n    }\n  }\n}\nconsole.log(jelaskan({ jenis: \"tambah\", judul: \"Belajar union\" }));\nconsole.log(jelaskan({ jenis: \"hapus\", id: 3 }));\nconsole.log(jelaskan({ jenis: \"daftar\", filter: \"aktif\" }));",
+          "keluaran": "Tambah: Belajar union\nHapus #3\nTampilkan aktif",
+          "wajib": [
+            {
+              "pola": "jenis\\s*:\\s*\"daftar\"\\s*;\\s*filter",
+              "pesan": "tambahkan jenis `daftar` dengan properti `filter`."
+            },
+            {
+              "pola": "case\\s+\"daftar\"",
+              "pesan": "tambahkan `case \"daftar\"`."
+            }
+          ],
+          "petunjuk": "Tambah anggota union dulu; pemeriksaan never akan menunjuk bahwa case-nya belum ada.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Setiap perintah kini punya bentuk sendiri, dan pemeriksaan never menjamin tidak ada yang terlupa."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi const tidakMungkin: never = p di default switch?",
+          "options": [
+            "Mempercepat switch saat program berjalan",
+            "Mencetak error kalau p kosong",
+            "Membuat TypeScript menolak kalau ada jenis perintah yang belum ditangani",
+            "Membuat p tidak bisa diubah"
+          ],
+          "answer": 2,
+          "explanation": "Hanya never yang boleh diisi ke variabel bertipe never.",
+          "remedial": "Kalau semua jenis sudah punya case, p di default bertipe never dan baris itu lolos. Kalau ada yang terlupa, p masih punya tipe lain dan baris itu ditolak."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "type P = { jenis: \"tambah\"; judul: string } | { jenis: \"hapus\"; id: number };\nfunction ambilId(p: P) {\n  return p.id;\n}",
+          "options": [
+            "Mencetak 0",
+            "Error, id belum tentu ada",
+            "Mencetak undefined",
+            "Lolos tanpa error"
+          ],
+          "answer": 1,
+          "explanation": "Periksa jenis dulu.",
+          "remedial": "Perintah tambah tidak punya id. Sebelum p.jenis diperiksa, p.id ditolak (TS2339)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "type Aksi = { jenis: \"naik\"; n: number } | { jenis: \"reset\" };\nfunction terapkan(nilai: number, a: Aksi): number {\n  switch (a.jenis) {\n    case \"naik\":\n      return nilai + a.n;\n    case \"reset\":\n      return 0;\n  }\n}\nlet x = 0;\nconst aksi: Aksi[] = [{ jenis: \"naik\", n: 5 }, { jenis: \"naik\", n: 2 }, { jenis: \"reset\" }, { jenis: \"naik\", n: 1 }];\nfor (const a of aksi) x = terapkan(x, a);\nconsole.log(x);",
+          "options": [
+            "8",
+            "0",
+            "7",
+            "1"
+          ],
+          "answer": 3,
+          "explanation": "reset mengembalikan 0, lalu naik 1.",
+          "remedial": "Nilai naik menjadi 5, lalu 7, kemudian reset ke 0, dan terakhir naik 1."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Di React dan Redux, objek seperti { type: \"todo/ditambah\", judul } dikenal sebagai apa?",
+      "options": [
+        "Komponen yang dirender ulang",
+        "Action yang diproses oleh reducer",
+        "Hook untuk efek samping",
+        "Props dari komponen induk"
+      ],
+      "answer": 1,
+      "explanation": "Reducer menerima state dan action, lalu mengembalikan state baru dengan switch."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat type Aksi untuk penghitung: tambah dengan n, kurang dengan n, dan reset (properti pembedanya bernama jenis). Buat fungsi reducer(nilai: number, a: Aksi): number dengan switch dan pemeriksaan never di default. Jalankan aksi tambah 10, kurang 3, reset, tambah 4 secara berurutan dan cetak nilai setelah setiap aksi: 10, 7, 0, 4 (satu per baris)",
+      "starterCode": "function reducer(nilai, a) {\n  return nilai;\n}\n",
+      "solution": "type Aksi = { jenis: \"tambah\"; n: number } | { jenis: \"kurang\"; n: number } | { jenis: \"reset\" };\nfunction reducer(nilai: number, a: Aksi): number {\n  switch (a.jenis) {\n    case \"tambah\":\n      return nilai + a.n;\n    case \"kurang\":\n      return nilai - a.n;\n    case \"reset\":\n      return 0;\n    default: {\n      const tidakMungkin: never = a;\n      return tidakMungkin;\n    }\n  }\n}\nlet nilai = 0;\nconst semua: Aksi[] = [{ jenis: \"tambah\", n: 10 }, { jenis: \"kurang\", n: 3 }, { jenis: \"reset\" }, { jenis: \"tambah\", n: 4 }];\nfor (const a of semua) {\n  nilai = reducer(nilai, a);\n  console.log(nilai);\n}\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "10\n7\n0\n4\n"
+        }
+      ],
+      "hints": [
+        "Tiga anggota union, dibedakan oleh properti jenis.",
+        "Simpan hasil reducer ke variabel nilai, lalu cetak setelah setiap aksi."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Perintah ditulis sebagai discriminated union dengan properti jenis.",
+        "switch (p.jenis) mempersempit tipe di setiap case.",
+        "Pemeriksaan never di default menolak jenis yang terlupa.",
+        "Teks dari pengguna diubah menjadi Perintah sekali saja di parse.",
+        "Pola yang sama dipakai Redux dan useReducer."
+      ]
+    }
+  ]
+}

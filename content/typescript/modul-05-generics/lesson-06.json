@@ -1,0 +1,187 @@
+{
+  "id": "ts-generics-06",
+  "moduleId": "ts-generics",
+  "order": 6,
+  "title": "Proyek Mini: Gudang Generic",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **gudang data generic**, tempat menyimpan entitas apa pun yang punya `id`. Pola ini dikenal sebagai **repository**.\n\n```ts\ninterface Entitas {\n  id: number;\n}\n\nclass Gudang<T extends Entitas> {\n  private data = new Map<number, T>();\n  simpan(x: T): void { this.data.set(x.id, x); }\n  cari(id: number): T | undefined { return this.data.get(id); }\n  semua(): T[] { return [...this.data.values()]; }\n}\n```\n\n| Materi | Dipakai untuk |\n|---|---|\n| class generic | `Gudang<T>` |\n| constraint `extends` | T wajib punya `id` |\n| `keyof` | mencari berdasarkan kolom apa pun |\n| tipe generic | `Respons<T>` untuk hasil operasi |\n\nIbarat sistem loker bernomor: lokernya sama untuk semua barang, kuncinya adalah nomor (id)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nSatu class, banyak pemakaian:\n\n```ts\ntype Barang = Entitas & { nama: string; stok: number };\ntype Pemasok = Entitas & { nama: string; kota: string };\n\nconst barang = new Gudang<Barang>();\nconst pemasok = new Gudang<Pemasok>();\n\nbarang.simpan({ id: 1, nama: \"Gula\", stok: 5 });\npemasok.simpan({ id: 1, nama: \"CV Manis\", kota: \"Solo\" });\nbarang.simpan({ nama: \"Kopi\" }); // error: id dan stok wajib\n```\n\nMethod pencarian berdasarkan kolom memakai `keyof`:\n\n```ts\ncariBerdasarkan<K extends keyof T>(kunci: K, nilai: T[K]): T[] {\n  return this.semua().filter((x) => x[kunci] === nilai);\n}\n```\n\n`nilai: T[K]` memastikan nilai yang dicari bertipe sama dengan kolomnya: mencari `stok` dengan teks langsung ditolak."
+    },
+    {
+      "type": "runnable",
+      "code": "interface Entitas {\n  id: number;\n}\nclass Gudang<T extends Entitas> {\n  private data = new Map<number, T>();\n  simpan(x: T): void {\n    this.data.set(x.id, x);\n  }\n  cari(id: number): T | undefined {\n    return this.data.get(id);\n  }\n  semua(): T[] {\n    return [...this.data.values()];\n  }\n  cariBerdasarkan<K extends keyof T>(kunci: K, nilai: T[K]): T[] {\n    return this.semua().filter((x) => x[kunci] === nilai);\n  }\n}\ntype Barang = Entitas & { nama: string; kategori: string };\nconst g = new Gudang<Barang>();\ng.simpan({ id: 1, nama: \"Gula\", kategori: \"sembako\" });\ng.simpan({ id: 2, nama: \"Sabun\", kategori: \"mandi\" });\ng.simpan({ id: 3, nama: \"Beras\", kategori: \"sembako\" });\nconsole.log(g.cari(2)?.nama);\nconsole.log(g.cariBerdasarkan(\"kategori\", \"sembako\").map((b) => b.nama));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "[ 1, 3 ]",
+          "[ Gula, Beras ]",
+          "[ Sabun ]",
+          "[ Gula, Sabun, Beras ]"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "T boleh apa saja asalkan punya id."
+        },
+        {
+          "line": 5,
+          "note": "Kunci Map adalah id."
+        },
+        {
+          "line": 15,
+          "note": "Kolom harus ada di T, nilai harus bertipe kolom itu."
+        }
+      ],
+      "explanation": "Dua barang berkategori sembako: Gula (id 1) dan Beras (id 3). Map menyimpan urutan masuk, jadi hasilnya [ Gula, Beras ].",
+      "tryThis": [
+        {
+          "task": "Coba g.cariBerdasarkan(\"kategori\", 5). Kenapa ditolak?",
+          "hint": null
+        },
+        {
+          "task": "Simpan object tanpa id ke g. Error apa yang muncul?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Satu class gudang untuk setiap entitas**\n\n`GudangBarang`, `GudangPemasok`, `GudangPelanggan` dengan isi yang sama persis adalah tanda butuh generic.\n\n**2. Constraint lupa ditulis**\n\nTanpa `T extends Entitas`, `x.id` di dalam `simpan` ditolak, karena TypeScript tidak tahu T punya id.\n\n**3. Mengembalikan array internal langsung**\n\n`semua(): T[] { return this.isi; }` membuat pemanggil bisa mengubah isi gudang tanpa lewat method. Kembalikan salinan (`[...this.data.values()]`) atau tipe `readonly T[]`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola **Repository<T>** adalah standar di backend: TypeORM, MikroORM, dan Spring Data (di Java) memakainya. Bentuknya persis seperti `Gudang<T>`: simpan, cari, cari semua, hapus, dengan T sebagai entitas.\n- Versi di memori seperti ini sering dipakai sebagai **pengganti database saat testing** (in-memory repository), karena cepat dan tidak butuh server.\n- Di modul Proyek Todolist, kamu akan membangun `Repository<T>` semacam ini untuk menyimpan todo."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Gudang TS 6: Gudang Data",
+      "pembuka": "Kita bangun gudang data generic yang bisa menyimpan barang, pemasok, atau entitas lain yang punya id.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Gudang<T> dengan simpan, cari, dan semua.",
+          "jawaban": "interface Entitas {\n  id: number;\n}\nclass Gudang<T extends Entitas> {\n  private data = new Map<number, T>();\n  simpan(x: T): void {\n    this.data.set(x.id, x);\n  }\n  cari(id: number): T | undefined {\n    return this.data.get(id);\n  }\n  semua(): T[] {\n    return [...this.data.values()];\n  }\n}\ntype Barang = Entitas & { nama: string; stok: number };\nconst barang = new Gudang<Barang>();\nbarang.simpan({ id: 1, nama: \"Gula\", stok: 5 });\nbarang.simpan({ id: 2, nama: \"Beras\", stok: 0 });\nconsole.log(barang.semua().length, \"barang\");",
+          "keluaran": "2 barang",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan method `hapus(id: number): boolean` yang memakai `this.data.delete(id)`. Hapus barang id `2` dan cetak hasilnya serta jumlah sisa: `true 1`.",
+          "jawaban": "interface Entitas {\n  id: number;\n}\nclass Gudang<T extends Entitas> {\n  private data = new Map<number, T>();\n  simpan(x: T): void {\n    this.data.set(x.id, x);\n  }\n  cari(id: number): T | undefined {\n    return this.data.get(id);\n  }\n  semua(): T[] {\n    return [...this.data.values()];\n  }\n  hapus(id: number): boolean {\n    return this.data.delete(id);\n  }\n}\ntype Barang = Entitas & { nama: string; stok: number };\nconst barang = new Gudang<Barang>();\nbarang.simpan({ id: 1, nama: \"Gula\", stok: 5 });\nbarang.simpan({ id: 2, nama: \"Beras\", stok: 0 });\nconsole.log(barang.semua().length, \"barang\");\nconsole.log(barang.hapus(2), barang.semua().length);",
+          "keluaran": "2 barang\ntrue 1",
+          "wajib": [
+            {
+              "pola": "hapus\\s*\\(\\s*id\\s*:\\s*number\\s*\\)\\s*:\\s*boolean",
+              "pesan": "tulis `hapus(id: number): boolean`."
+            }
+          ],
+          "petunjuk": "Map.delete mengembalikan true kalau ada yang dihapus."
+        },
+        {
+          "arahan": "Pakai gudang yang sama untuk `Pemasok = Entitas & { nama: string; kota: string }`. Simpan **CV Manis** (Solo) dan **UD Beras Jaya** (Karawang), lalu cetak nama pemasok id `2`: `UD Beras Jaya`.",
+          "jawaban": "interface Entitas {\n  id: number;\n}\nclass Gudang<T extends Entitas> {\n  private data = new Map<number, T>();\n  simpan(x: T): void {\n    this.data.set(x.id, x);\n  }\n  cari(id: number): T | undefined {\n    return this.data.get(id);\n  }\n  semua(): T[] {\n    return [...this.data.values()];\n  }\n  hapus(id: number): boolean {\n    return this.data.delete(id);\n  }\n}\ntype Barang = Entitas & { nama: string; stok: number };\nconst barang = new Gudang<Barang>();\nbarang.simpan({ id: 1, nama: \"Gula\", stok: 5 });\nbarang.simpan({ id: 2, nama: \"Beras\", stok: 0 });\nconsole.log(barang.semua().length, \"barang\");\nconsole.log(barang.hapus(2), barang.semua().length);\ntype Pemasok = Entitas & { nama: string; kota: string };\nconst pemasok = new Gudang<Pemasok>();\npemasok.simpan({ id: 1, nama: \"CV Manis\", kota: \"Solo\" });\npemasok.simpan({ id: 2, nama: \"UD Beras Jaya\", kota: \"Karawang\" });\nconsole.log(pemasok.cari(2)?.nama);",
+          "keluaran": "2 barang\ntrue 1\nUD Beras Jaya",
+          "wajib": [
+            {
+              "pola": "new\\s+Gudang\\s*<\\s*Pemasok\\s*>",
+              "pesan": "buat `new Gudang<Pemasok>()`."
+            }
+          ],
+          "petunjuk": "new Gudang<Pemasok>() lalu simpan dua object. cari bisa undefined, jadi pakai ?.",
+          "tantangan": true,
+          "benar": "Satu class gudang untuk barang dan pemasok. Kalau besok ada entitas pelanggan, cukup satu baris new Gudang<Pelanggan>()."
+        }
+      ],
+      "penutup": "Gudang generic selesai: satu repository untuk semua entitas yang punya id. Pola ini dipakai langsung di backend sungguhan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa Gudang<T extends Entitas> memakai constraint extends Entitas?",
+          "options": [
+            "Supaya T harus class",
+            "Supaya T tidak boleh punya properti lain",
+            "Supaya x.id boleh dipakai di dalam class",
+            "Supaya Gudang lebih cepat"
+          ],
+          "answer": 2,
+          "explanation": "Constraint menjamin properti yang dibutuhkan.",
+          "remedial": "Di dalam simpan, class memakai x.id sebagai kunci. Tanpa constraint, TypeScript tidak tahu T punya id dan menolak x.id."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "type B = { id: number; nama: string; stok: number };\nfunction cariBerdasarkan<K extends keyof B>(a: B[], k: K, v: B[K]) {\n  return a.filter((x) => x[k] === v);\n}\nconst d: B[] = [{ id: 1, nama: \"Gula\", stok: 5 }];\nconsole.log(cariBerdasarkan(d, \"stok\", \"5\"));",
+          "options": [
+            "Mencetak [ Gula ]",
+            "Lolos tanpa error",
+            "Mencetak []",
+            "Error, nilai untuk kolom stok harus number"
+          ],
+          "answer": 3,
+          "explanation": "nilai: T[K] mengikuti tipe kolom.",
+          "remedial": "Kolom stok bertipe number, jadi nilai yang dicari harus number. Teks \"5\" ditolak (TS2345)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const m = new Map<number, string>();\nm.set(1, \"Gula\");\nm.set(2, \"Kopi\");\nm.set(1, \"Beras\");\nconsole.log(m.size);\nconsole.log(m.get(1));",
+          "options": [
+            "2 / Gula",
+            "3 / Gula",
+            "2 / Beras",
+            "3 / Beras"
+          ],
+          "answer": 2,
+          "explanation": "Map dengan kunci yang sama menimpa isi lama.",
+          "remedial": "Barang id 1 disimpan dua kali: yang kedua (Beras) menimpa yang pertama. Jadi ada 2 isi (id 1 dan 2), dan id 1 berisi Beras."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa nama pola Gudang<T> dengan simpan, cari, semua, dan hapus di dunia backend?",
+      "options": [
+        "Singleton",
+        "Component",
+        "Middleware",
+        "Repository"
+      ],
+      "answer": 3,
+      "explanation": "Repository<T> dipakai TypeORM, Spring Data, dan banyak framework."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Tambahkan method perbarui(id: number, ubah: Partial<Omit<T, \"id\">>): boolean ke class Gudang yang menggabungkan perubahan ke data lama (pakai spread). Kembalikan false kalau id tidak ada. Simpan Gula stok 5, perbarui stok menjadi 9, lalu cetak hasil perbarui, stok baru, dan hasil perbarui id 7: true 9 false",
+      "starterCode": "interface Entitas {\n  id: number;\n}\nclass Gudang<T extends Entitas> {\n  private data = new Map<number, T>();\n  simpan(x: T): void {\n    this.data.set(x.id, x);\n  }\n  cari(id: number): T | undefined {\n    return this.data.get(id);\n  }\n}\n",
+      "solution": "interface Entitas {\n  id: number;\n}\nclass Gudang<T extends Entitas> {\n  private data = new Map<number, T>();\n  simpan(x: T): void {\n    this.data.set(x.id, x);\n  }\n  cari(id: number): T | undefined {\n    return this.data.get(id);\n  }\n  perbarui(id: number, ubah: Partial<Omit<T, \"id\">>): boolean {\n    const lama = this.data.get(id);\n    if (!lama) return false;\n    this.data.set(id, { ...lama, ...ubah });\n    return true;\n  }\n}\ntype Barang = Entitas & { nama: string; stok: number };\nconst g = new Gudang<Barang>();\ng.simpan({ id: 1, nama: \"Gula\", stok: 5 });\nconst a = g.perbarui(1, { stok: 9 });\nconsole.log(a, g.cari(1)?.stok, g.perbarui(7, { stok: 1 }));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "true 9 false\n"
+        }
+      ],
+      "hints": [
+        "Partial<Omit<T, \"id\">> artinya boleh mengubah sebagian kolom kecuali id (Utility Types dibahas di modul 7).",
+        "Ambil data lama, kalau tidak ada kembalikan false; kalau ada simpan { ...lama, ...ubah }."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Repository generic: class Gudang<T extends Entitas> untuk entitas apa pun yang punya id.",
+        "Constraint menjamin properti yang dipakai class (x.id).",
+        "cariBerdasarkan<K extends keyof T>(kunci: K, nilai: T[K]) mencari per kolom dengan aman.",
+        "Kembalikan salinan data, bukan array internal.",
+        "In-memory repository dipakai untuk testing dan prototipe."
+      ]
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PraktikJavaCard } from '../../types/schema';
 import { runJavaCode } from '../../lib/javaRunner';
+import { runTsCode } from '../../lib/tsRunner';
+import { artiGalatTs } from '../../lib/tsPeriksa';
 import { getErrorHint } from '../../lib/errorHints';
 import { pecahTeks } from '../../lib/praktikTerminal';
 import {
@@ -75,10 +77,10 @@ function GelembungLingga({ teks, label, tantangan }: { teks: string; label?: str
   );
 }
 
-function BlokKode({ kode, kursor }: { kode: string; kursor?: boolean }) {
+function BlokKode({ kode, kursor, namaFile = 'Main.java' }: { kode: string; kursor?: boolean; namaFile?: string }) {
   return (
     <div className="rounded-[10px] overflow-hidden border-2 border-[var(--color-text-main)]">
-      <div className="px-3 py-1 bg-[#2b2b28] text-[#bdb7a8] font-mono text-[12px]">Main.java</div>
+      <div className="px-3 py-1 bg-[#2b2b28] text-[#bdb7a8] font-mono text-[12px]">{namaFile}</div>
       <pre className="m-0 px-4 py-3 bg-[#1d1d1b] text-[#f5f1e6] font-mono text-[13px] leading-[20px] whitespace-pre-wrap [overflow-wrap:anywhere]">
         {kode}
         {kursor && (
@@ -107,6 +109,8 @@ export function PraktikJavaCardComponent(props: { card: PraktikJavaCard; onSucce
 }
 
 function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attempts: number) => void }) {
+  const ts = card.bahasa === 'typescript';
+  const namaFile = ts ? 'main.ts' : 'Main.java';
   const [langkahKe, setLangkahKe] = useState(0);
   const [entri, setEntri] = useState<Entri[]>(() => {
     const awal: Entri[] = [{ jenis: 'lingga', teks: card.pembuka }];
@@ -214,9 +218,11 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
     if (selesai || !langkah || langkah.otomatis || sedangJalan) return;
     sudahBerinteraksi.current = true;
     setSedangJalan(true);
-    setStatusJalan('Memuat Java (sekali saja)');
+    setStatusJalan(ts ? 'Memeriksa tipe' : 'Memuat Java (sekali saja)');
     try {
-      const res = await runJavaCode(kode, langkah.input ?? '', (s) => setStatusJalan(s));
+      const res = ts
+        ? await runTsCode(kode, (s) => setStatusJalan(s))
+        : await runJavaCode(kode, langkah.input ?? '', (s) => setStatusJalan(s));
       if (res.timedOut) {
         salah(
           [{ jenis: 'hasil', teks: 'Program terlalu lama berjalan.', status: 'error', judul: 'Hasil kodemu' }],
@@ -224,9 +230,19 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
         );
         return;
       }
+      const kodeGalat: number[] = (res as { kodeGalat?: number[] }).kodeGalat ?? [];
+      if (ts && kodeGalat.length > 0) {
+        const pesan = res.stderr;
+        const arti = artiGalatTs(kodeGalat[0]);
+        salah(
+          [{ jenis: 'hasil', teks: pesan, status: 'error', judul: 'Error tipe (program tidak dijalankan)' }],
+          `TypeScript menemukan error tipe, jadi programnya belum dijalankan. ${arti ? arti + ' ' : ''}Baca baris dan kolom yang ditunjuk pesannya, lalu coba lagi.`
+        );
+        return;
+      }
       if (res.exitCode !== 0) {
-        const pesan = rapikanError(res.stderr || res.stdout);
-        const saran = getErrorHint(pesan);
+        const pesan = ts ? res.stderr || res.stdout : rapikanError(res.stderr || res.stdout);
+        const saran = ts ? '' : getErrorHint(pesan);
         salah(
           [{ jenis: 'hasil', teks: pesan, status: 'error', judul: 'Error' }],
           `Ada error. ${saran ? saran + ' ' : ''}Baca baris yang ditunjuk pesannya, lalu coba lagi.`
@@ -254,7 +270,7 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
         ...x,
         {
           jenis: 'lingga',
-          teks: `Java belum bisa dijalankan (${e instanceof Error ? e.message : String(e)}). Periksa koneksi internet, lalu tekan Jalankan lagi.`,
+          teks: `${ts ? 'TypeScript' : 'Java'} belum bisa dijalankan (${e instanceof Error ? e.message : String(e)}). Periksa koneksi internet, lalu tekan Jalankan lagi.`,
         },
       ]);
     } finally {
@@ -283,7 +299,7 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
           e.jenis === 'lingga' ? (
             <GelembungLingga key={i} teks={e.teks} label={e.label} tantangan={e.tantangan} />
           ) : e.jenis === 'kode' ? (
-            <BlokKode key={i} kode={e.kode} />
+            <BlokKode key={i} kode={e.kode} namaFile={namaFile} />
           ) : (
             <BlokHasil key={i} teks={e.teks} status={e.status} judul={e.judul} />
           )
@@ -295,7 +311,7 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
         <div className="space-y-2">
           {hurufContoh !== null && (
             <div aria-hidden="true">
-              <BlokKode kode={langkah.jawaban.slice(0, hurufContoh)} kursor />
+              <BlokKode kode={langkah.jawaban.slice(0, hurufContoh)} kursor namaFile={namaFile} />
             </div>
           )}
           <div className="flex items-center justify-between gap-3">
@@ -313,8 +329,8 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
 
       {!selesai && langkah && !langkah.otomatis && (
         <div className="space-y-2">
-          <div className="brutal-border rounded-xl overflow-hidden bg-white" aria-label="Editor kode Java">
-            <CodeEditor value={kode} onChange={setKode} language="java" resetKey={resetEditor} />
+          <div className="brutal-border rounded-xl overflow-hidden bg-white" aria-label={ts ? 'Editor kode TypeScript' : 'Editor kode Java'}>
+            <CodeEditor value={kode} onChange={setKode} language={ts ? 'typescript' : 'java'} resetKey={resetEditor} />
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <button

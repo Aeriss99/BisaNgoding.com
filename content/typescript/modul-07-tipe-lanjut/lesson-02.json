@@ -1,0 +1,187 @@
+{
+  "id": "ts-tipe-lanjut-02",
+  "moduleId": "ts-tipe-lanjut",
+  "order": 2,
+  "title": "Indexed Access dan as const",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Indexed access type** mengambil tipe dari satu bagian tipe lain, dengan tanda kurung siku:\n\n```ts\ntype Produk = {\n  nama: string;\n  harga: number;\n  varian: { ukuran: string; tambahan: number }[];\n};\ntype Harga = Produk[\"harga\"];            // number\ntype DaftarVarian = Produk[\"varian\"];     // { ukuran: string; tambahan: number }[]\ntype Varian = Produk[\"varian\"][number];   // { ukuran: string; tambahan: number }\n```\n\n`[number]` artinya \"tipe satu elemen di dalam array\".\n\n**as const** mengunci nilai menjadi sepersis mungkin: string tetap literal, array menjadi tuple readonly.\n\n```ts\nconst STATUS = [\"baru\", \"diproses\", \"dikirim\"] as const;\ntype Status = (typeof STATUS)[number]; // \"baru\" | \"diproses\" | \"dikirim\"\n```\n\nIbarat menulis dengan tinta permanen: tanpa as const, TypeScript hanya mencatat \"ini daftar teks\"; dengan as const, isi daftarnya dicatat persis dan tidak bisa diubah."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nPola `as const` + `(typeof X)[number]` membuat **satu daftar** dipakai dua kali: sebagai nilai saat program jalan (misalnya isi dropdown) dan sebagai tipe.\n\n```ts\nconst PERAN = [\"pembaca\", \"penulis\", \"admin\"] as const;\ntype Peran = (typeof PERAN)[number];\n\n// saat jalan: isi pilihan\nfor (const p of PERAN) console.log(p);\n// sebagai tipe: menolak nilai lain\nconst salah: Peran = \"pemilik\"; // error TS2322\n```\n\nBandingkan tanpa `as const`:\n\n```ts\nconst PERAN2 = [\"pembaca\", \"penulis\"];  // string[]\ntype Peran2 = (typeof PERAN2)[number];  // string, semua teks diterima\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "const STATUS = [\"baru\", \"diproses\", \"dikirim\", \"selesai\"] as const;\ntype Status = (typeof STATUS)[number];\n\nfunction berikutnya(s: Status): Status {\n  const i = STATUS.indexOf(s);\n  return STATUS[Math.min(i + 1, STATUS.length - 1)];\n}\nlet s: Status = \"baru\";\ns = berikutnya(s);\ns = berikutnya(s);\nconsole.log(s);\nconsole.log(berikutnya(\"selesai\"));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "diproses",
+          "dikirim",
+          "selesai",
+          "baru"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "Daftar dikunci: setiap teks menjadi literal."
+        },
+        {
+          "line": 2,
+          "note": "Union dari semua isi daftar."
+        },
+        {
+          "line": 4,
+          "note": "Hanya menerima dan mengembalikan status yang sah."
+        }
+      ],
+      "explanation": "s mulai dari baru, lalu dua kali maju: diproses, kemudian dikirim. Status selesai tidak bisa maju lagi, jadi tetap selesai.",
+      "tryThis": [
+        {
+          "task": "Ganti let s: Status = \"baru\" menjadi \"batal\". Baca error TS2322.",
+          "hint": null
+        },
+        {
+          "task": "Hapus as const. Kenapa \"batal\" sekarang tidak ditolak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `as const`**\n\nTanpa `as const`, array teks bertipe `string[]` dan union-nya hilang menjadi `string`.\n\n**2. Menulis daftar dua kali**\n\n`const STATUS = [\"baru\", \"selesai\"]` lalu `type Status = \"baru\" | \"selesai\"` terpisah. Saat satu diubah, yang lain mudah terlupa. Turunkan tipe dari daftarnya.\n\n**3. Mengubah array `as const`**\n\nArray `as const` bersifat readonly, jadi `STATUS.push(\"batal\")` ditolak (TS2339). Kalau daftar memang perlu berubah saat program jalan, jangan pakai `as const`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- `as const` + `(typeof X)[number]` sangat umum untuk daftar peran, status pesanan, dan kategori. Banyak tim memakainya sebagai pengganti `enum`.\n- Tipe hasil generate sering dibaca dengan indexed access. Contoh dari Supabase: `Database[\"public\"][\"Tables\"][\"profiles\"][\"Row\"]` adalah tipe satu baris tabel profiles.\n- Indexed access juga dipakai untuk mengambil tipe props komponen atau tipe respons API tanpa menyalinnya, sehingga tipe selalu ikut sumber aslinya."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Profil TS 2: Peran Pengguna",
+      "pembuka": "Setiap pengguna punya peran. Daftar peran kita kunci dengan as const supaya tidak ada peran asal-asalan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Tipe Peran diturunkan dari daftar PERAN.",
+          "jawaban": "const PERAN = [\"pembaca\", \"penulis\", \"admin\"] as const;\ntype Peran = (typeof PERAN)[number];\ntype Pengguna = { nama: string; peran: Peran };\nconst rina: Pengguna = { nama: \"Rina\", peran: \"penulis\" };\nconsole.log(rina.nama, rina.peran);",
+          "keluaran": "Rina penulis",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak karena peran `\"editor\"` belum ada. Jangan hapus Budi: tambahkan `\"editor\"` ke daftar `PERAN`. Baris terakhir harus `Budi editor`.",
+          "jawaban": "const PERAN = [\"pembaca\", \"penulis\", \"editor\", \"admin\"] as const;\ntype Peran = (typeof PERAN)[number];\ntype Pengguna = { nama: string; peran: Peran };\nconst rina: Pengguna = { nama: \"Rina\", peran: \"penulis\" };\nconsole.log(rina.nama, rina.peran);\nconst budi: Pengguna = { nama: \"Budi\", peran: \"editor\" };\nconsole.log(budi.nama, budi.peran);",
+          "kodeAwal": "const PERAN = [\"pembaca\", \"penulis\", \"admin\"] as const;\ntype Peran = (typeof PERAN)[number];\ntype Pengguna = { nama: string; peran: Peran };\nconst rina: Pengguna = { nama: \"Rina\", peran: \"penulis\" };\nconsole.log(rina.nama, rina.peran);\nconst budi: Pengguna = { nama: \"Budi\", peran: \"editor\" };\nconsole.log(budi.nama, budi.peran);",
+          "keluaran": "Rina penulis\nBudi editor",
+          "wajib": [
+            {
+              "pola": "PERAN\\s*=\\s*\\[[^\\]]*\"editor\"",
+              "pesan": "tambahkan `\"editor\"` ke daftar `PERAN`."
+            }
+          ],
+          "petunjuk": "Tipe Peran ikut berubah otomatis saat isi daftar PERAN ditambah."
+        },
+        {
+          "arahan": "Buat fungsi `bolehMenulis(p: Pengguna[\"peran\"]): boolean` yang bernilai `false` hanya untuk `\"pembaca\"`. Cetak `Budi boleh menulis: true` di baris terakhir.",
+          "jawaban": "const PERAN = [\"pembaca\", \"penulis\", \"editor\", \"admin\"] as const;\ntype Peran = (typeof PERAN)[number];\ntype Pengguna = { nama: string; peran: Peran };\nconst rina: Pengguna = { nama: \"Rina\", peran: \"penulis\" };\nconsole.log(rina.nama, rina.peran);\nconst budi: Pengguna = { nama: \"Budi\", peran: \"editor\" };\nconsole.log(budi.nama, budi.peran);\nfunction bolehMenulis(p: Pengguna[\"peran\"]): boolean {\n  return p !== \"pembaca\";\n}\nconsole.log(\"Budi boleh menulis:\", bolehMenulis(budi.peran));",
+          "keluaran": "Rina penulis\nBudi editor\nBudi boleh menulis: true",
+          "wajib": [
+            {
+              "pola": "p\\s*:\\s*Pengguna\\[\"peran\"\\]",
+              "pesan": "tipe parameter `Pengguna[\"peran\"]`."
+            }
+          ],
+          "petunjuk": "Pengguna[\"peran\"] adalah tipe kolom peran, yaitu union dari daftar PERAN.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Satu daftar PERAN kini menjadi sumber kebenaran: dipakai saat program jalan dan sebagai tipe."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa const STATUS = [\"baru\", \"selesai\"] perlu diberi as const?",
+          "options": [
+            "Supaya tipenya tetap nilai persis, bukan string[]",
+            "Supaya kodenya berjalan lebih cepat",
+            "Supaya array menjadi object",
+            "Supaya array bisa ditambah isinya"
+          ],
+          "answer": 0,
+          "explanation": "Tanpa as const, isi array dilebarkan menjadi string.",
+          "remedial": "Tanpa as const, tipenya string[] sehingga (typeof STATUS)[number] hanya string. Dengan as const, tipenya menjadi tuple readonly berisi \"baru\" dan \"selesai\", sehingga union-nya tetap persis."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const UKURAN = [\"S\", \"M\", \"L\"] as const;\ntype Ukuran = (typeof UKURAN)[number];\nconst pilih: Ukuran[] = [\"L\", \"S\"];\nconsole.log(UKURAN.length, pilih.join(\"-\"));",
+          "options": [
+            "Error tipe",
+            "3 S-L",
+            "3 L-S",
+            "2 L-S"
+          ],
+          "answer": 2,
+          "explanation": "Panjang daftar ukuran dan isi pilih.",
+          "remedial": "UKURAN berisi 3 elemen. pilih adalah array Ukuran berisi L lalu S, digabung dengan tanda minus."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "type Produk = { nama: string; harga: number };\nconst h: Produk[\"harga\"] = \"18000\";",
+          "options": [
+            "Lolos, string diubah menjadi number",
+            "Error, Produk[\"harga\"] bertipe number",
+            "Error, Produk tidak punya harga",
+            "Mencetak 18000"
+          ],
+          "answer": 1,
+          "explanation": "Indexed access mengambil tipe kolom.",
+          "remedial": "Produk[\"harga\"] adalah number. Teks \"18000\" bukan number, jadi ditolak (TS2322)."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Jika type Menu = { nama: string; varian: string[] }, apa tipe Menu[\"varian\"][number]?",
+      "options": [
+        "Menu",
+        "number",
+        "string[]",
+        "string"
+      ],
+      "answer": 3,
+      "explanation": "[number] mengambil tipe satu elemen array."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat daftar KATEGORI berisi makanan, minuman, dan snack dengan as const, turunkan type Kategori darinya, lalu buat fungsi hitung(daftar: { nama: string; kategori: Kategori }[], k: Kategori): number. Cetak jumlah item minuman dari daftar Kopi (minuman), Roti (makanan), dan Teh (minuman): 2",
+      "starterCode": "const KATEGORI = [\"makanan\", \"minuman\", \"snack\"];\ntype Kategori = string;\n",
+      "solution": "const KATEGORI = [\"makanan\", \"minuman\", \"snack\"] as const;\ntype Kategori = (typeof KATEGORI)[number];\ntype Item = { nama: string; kategori: Kategori };\nfunction hitung(daftar: Item[], k: Kategori): number {\n  return daftar.filter((x) => x.kategori === k).length;\n}\nconst menu: Item[] = [\n  { nama: \"Kopi\", kategori: \"minuman\" },\n  { nama: \"Roti\", kategori: \"makanan\" },\n  { nama: \"Teh\", kategori: \"minuman\" },\n];\nconsole.log(hitung(menu, \"minuman\"));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "2\n"
+        }
+      ],
+      "hints": [
+        "Tambahkan as const di belakang array, lalu type Kategori = (typeof KATEGORI)[number].",
+        "hitung cukup memakai filter lalu length."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "T[\"kolom\"]: tipe satu kolom dari tipe lain.",
+        "T[number]: tipe satu elemen array.",
+        "as const mengunci nilai menjadi literal dan readonly.",
+        "(typeof DAFTAR)[number] membuat union dari isi daftar.",
+        "Satu daftar dipakai sebagai nilai dan sebagai tipe."
+      ]
+    }
+  ]
+}

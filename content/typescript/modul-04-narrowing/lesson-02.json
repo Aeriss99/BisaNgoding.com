@@ -1,0 +1,187 @@
+{
+  "id": "ts-narrowing-02",
+  "moduleId": "ts-narrowing",
+  "order": 2,
+  "title": "Narrowing dengan typeof dan Truthiness",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Narrowing** adalah cara TypeScript mempersempit union berdasarkan pemeriksaan di kodemu. Setelah `if (typeof x === \"string\")`, di dalam blok itu `x` pasti `string`.\n\n```ts\nfunction format(harga: string | number): string {\n  if (typeof harga === \"number\") {\n    return harga.toLocaleString(\"id-ID\"); // harga: number\n  }\n  return harga.trim(); // harga: string (sisa kemungkinan)\n}\n```\n\nPerhatikan bagian terakhir: setelah cabang `number` selesai dengan `return`, TypeScript tahu yang tersisa hanya `string`. Analisis ini disebut **control flow analysis**.\n\nIbarat petugas pemeriksa di bandara: setelah koper melewati pemindai dan dinyatakan aman, petugas berikutnya tidak perlu memeriksa ulang."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nHasil `typeof` yang bisa dipakai: `\"string\"`, `\"number\"`, `\"bigint\"`, `\"boolean\"`, `\"symbol\"`, `\"undefined\"`, `\"object\"`, `\"function\"`.\n\n**Truthiness narrowing**: `if (x)` membuang `null`, `undefined`, `0`, `\"\"`, dan `false`.\n\n```ts\nfunction sapa(nama: string | null) {\n  if (nama) {\n    console.log(\"Halo \" + nama.toUpperCase()); // nama: string\n  } else {\n    console.log(\"Halo tamu\");\n  }\n}\n```\n\n**Equality narrowing**: membandingkan dengan `===`.\n\n```ts\nfunction cek(x: string | number, y: string | boolean) {\n  if (x === y) {\n    // satu-satunya tipe yang sama: string\n    console.log(x.toUpperCase(), y.toLowerCase());\n  }\n}\n```\n\nIngat jebakan: `typeof null === \"object\"`. Jadi `typeof x === \"object\"` tidak membuang `null`."
+    },
+    {
+      "type": "runnable",
+      "code": "function harga(x: string | number | null): string {\n  if (x === null) return \"belum ada harga\";\n  if (typeof x === \"number\") return \"Rp\" + x.toLocaleString(\"id-ID\");\n  return x.trim() === \"\" ? \"kosong\" : x.trim().toUpperCase();\n}\nconsole.log(harga(25000));\nconsole.log(harga(\"  gratis \"));\nconsole.log(harga(null));\nconsole.log(harga(\"   \"));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "belum ada harga",
+          "kosong",
+          "GRATIS",
+          "Rp0"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Equality narrowing: setelah ini x tidak mungkin null."
+        },
+        {
+          "line": 3,
+          "note": "typeof narrowing: di cabang ini x number."
+        },
+        {
+          "line": 4,
+          "note": "Sisa kemungkinan: x pasti string."
+        }
+      ],
+      "explanation": "Teks berisi spasi saja bukan null dan bukan number, jadi sampai ke baris terakhir fungsi. Setelah trim isinya kosong, maka hasilnya \"kosong\".",
+      "tryThis": [
+        {
+          "task": "Hapus baris if (x === null). Error apa yang muncul di x.trim()?",
+          "hint": null
+        },
+        {
+          "task": "Ganti cabang null dengan if (!x). Apa bedanya untuk harga(0)?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Truthiness membuang 0 dan teks kosong**\n\n```ts\nfunction stok(n: number | undefined) {\n  if (!n) return \"tidak ada data\"; // n = 0 juga masuk sini!\n}\n```\n\nUntuk angka, periksa `n === undefined`, bukan `!n`.\n\n**2. `typeof x === \"object\"` mengira `null` sudah terbuang**\n\n`null` juga `\"object\"`. Periksa `x !== null` secara terpisah.\n\n**3. Narrowing hilang di dalam callback**\n\nNarrowing pada variabel `let` tidak selalu bertahan di dalam fungsi yang dipanggil belakangan, karena variabelnya bisa berubah sebelum fungsi itu jalan. Simpan dulu ke `const` sebelum dipakai di callback."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hampir setiap fungsi yang menerima data dari luar dimulai dengan beberapa baris narrowing: buang `null`/`undefined`, periksa tipe, baru proses. Pola \"keluar lebih awal\" (`if (!data) return;`) membuat bagian utama fungsi bersih dari `if` bertingkat.\n- Editor seperti VS Code menampilkan tipe hasil narrowing saat kursor diarahkan ke variabel. Ini cara cepat memastikan pemeriksaanmu dipahami TypeScript.\n- Aturan typescript-eslint `strict-boolean-expressions` (dipakai di beberapa tim yang sangat ketat) melarang `if (n)` untuk angka dan teks, justru karena jebakan 0 dan string kosong."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Pesanan TS 2: Jumlah dari Mesin",
+      "pembuka": "Mesin pemesanan kadang mengirim jumlah sebagai angka, kadang sebagai teks, kadang kosong. Kita rapikan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Setiap kemungkinan ditangani satu per satu.",
+          "jawaban": "function jumlah(x: number | string | undefined): number {\n  if (x === undefined) return 1;\n  if (typeof x === \"number\") return x;\n  return Number(x);\n}\nconsole.log(jumlah(3));\nconsole.log(jumlah(\"2\"));\nconsole.log(jumlah(undefined));",
+          "keluaran": "3\n2\n1",
+          "otomatis": true
+        },
+        {
+          "arahan": "Teks dari mesin kadang berisi spasi, misalnya `\" 4 \"`. Di cabang string, pakai `x.trim()` sebelum `Number`. Tambahkan `console.log(jumlah(\" 4 \"));` di akhir: hasilnya `4`.",
+          "jawaban": "function jumlah(x: number | string | undefined): number {\n  if (x === undefined) return 1;\n  if (typeof x === \"number\") return x;\n  return Number(x.trim());\n}\nconsole.log(jumlah(3));\nconsole.log(jumlah(\"2\"));\nconsole.log(jumlah(undefined));\nconsole.log(jumlah(\" 4 \"));",
+          "keluaran": "3\n2\n1\n4",
+          "wajib": [
+            {
+              "pola": "Number\\(\\s*x\\.trim\\(\\)\\s*\\)",
+              "pesan": "pakai `Number(x.trim())`."
+            }
+          ],
+          "petunjuk": "Di baris terakhir fungsi, x pasti string, jadi x.trim() boleh dipakai."
+        },
+        {
+          "arahan": "Jumlah `0` dari mesin artinya pesanan dibatalkan dan **harus tetap 0**. Kode ini memakai `if (!x)` sehingga 0 berubah jadi 1. Perbaiki pemeriksaannya. Baris terakhir harus `0`.",
+          "jawaban": "function jumlah(x: number | string | undefined): number {\n  if (x === undefined) return 1;\n  if (typeof x === \"number\") return x;\n  return Number(x.trim());\n}\nconsole.log(jumlah(3));\nconsole.log(jumlah(\"2\"));\nconsole.log(jumlah(undefined));\nconsole.log(jumlah(\" 4 \"));\nconsole.log(jumlah(0));",
+          "kodeAwal": "function jumlah(x: number | string | undefined): number {\n  if (!x) return 1;\n  if (typeof x === \"number\") return x;\n  return Number(x.trim());\n}\nconsole.log(jumlah(3));\nconsole.log(jumlah(\"2\"));\nconsole.log(jumlah(undefined));\nconsole.log(jumlah(\" 4 \"));\nconsole.log(jumlah(0));",
+          "keluaran": "3\n2\n1\n4\n0",
+          "wajib": [
+            {
+              "pola": "x\\s*===\\s*undefined",
+              "pesan": "periksa dengan `x === undefined`."
+            }
+          ],
+          "petunjuk": "Ganti if (!x) dengan if (x === undefined): 0 bukan undefined.",
+          "benar": "Itu jebakan truthiness yang sering membuat bug di aplikasi kasir. Sekarang aman."
+        }
+      ],
+      "penutup": "typeof dan pemeriksaan === mempersempit union dengan tepat. Hati-hati dengan if (!x) untuk angka dan teks."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di dalam if (typeof x === \"number\") { ... }, apa tipe x kalau awalnya string | number?",
+          "options": [
+            "number",
+            "unknown",
+            "string",
+            "string | number"
+          ],
+          "answer": 0,
+          "explanation": "typeof mempersempit union.",
+          "remedial": "Pemeriksaan typeof x === \"number\" memberi tahu TypeScript bahwa di dalam blok itu x pasti number. Di luar blok (setelah return), sisanya string."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "function cek(n: number | undefined) {\n  if (!n) return \"tidak ada data\";\n  return \"ada \" + n;\n}\nconsole.log(cek(0));",
+          "options": [
+            "undefined",
+            "ada 0",
+            "tidak ada data",
+            "0"
+          ],
+          "answer": 2,
+          "explanation": "if (!n) juga menangkap 0.",
+          "remedial": "n berisi 0, dan !0 bernilai true. Jadi cabang tidak ada data yang dijalankan, padahal 0 adalah data yang sah. Untuk angka, periksa n === undefined."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "function f(x: string[] | null | number) {\n  if (typeof x === \"object\") {\n    console.log(x.length);\n  }\n}\nf([\"a\", \"b\"]);",
+          "options": [
+            "Mencetak object",
+            "Error, x mungkin null",
+            "Lolos tanpa error",
+            "Mencetak 2"
+          ],
+          "answer": 1,
+          "explanation": "typeof null juga \"object\".",
+          "remedial": "typeof x === \"object\" tidak membuang null, karena typeof null adalah \"object\". Jadi x masih mungkin null dan x.length ditolak (TS18047)."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa yang dimaksud control flow analysis?",
+      "options": [
+        "Cara mengatur urutan file saat compile",
+        "Pemeriksaan tipe saat program berjalan",
+        "TypeScript menjalankan program untuk menebak tipe",
+        "TypeScript mengikuti alur if dan return untuk menentukan tipe di setiap titik"
+      ],
+      "answer": 3,
+      "explanation": "Setelah cabang yang return, sisa kemungkinan tipe dihitung ulang."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Tulis fungsi rapikan(x: string | number | null | undefined): string. Aturannya: null atau undefined menjadi -, number menjadi teks dengan dua desimal (toFixed(2)), string dirapikan dengan trim lalu huruf besar. Cetak rapikan(null), rapikan(3.5), rapikan(\"  teh \") di baris terpisah.",
+      "starterCode": "function rapikan(x: string | number | null | undefined): string {\n  return x.toString();\n}\nconsole.log(rapikan(null));\n",
+      "solution": "function rapikan(x: string | number | null | undefined): string {\n  if (x === null || x === undefined) return \"-\";\n  if (typeof x === \"number\") return x.toFixed(2);\n  return x.trim().toUpperCase();\n}\nconsole.log(rapikan(null));\nconsole.log(rapikan(3.5));\nconsole.log(rapikan(\"  teh \"));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "-\n3.50\nTEH\n"
+        }
+      ],
+      "hints": [
+        "Buang null dan undefined lebih dulu dengan ===.",
+        "Setelah cabang number, sisa kemungkinan x adalah string."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Narrowing: pemeriksaan di kode mempersempit tipe union.",
+        "typeof x === \"string\" | \"number\" | \"boolean\" | \"object\" | \"function\" | \"undefined\".",
+        "Setelah return di satu cabang, sisa kemungkinan tipe dihitung ulang.",
+        "if (x) membuang null dan undefined, tapi juga 0, \"\" dan false.",
+        "typeof null === \"object\": periksa null secara terpisah."
+      ]
+    }
+  ]
+}
