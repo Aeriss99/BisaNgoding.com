@@ -1,0 +1,195 @@
+{
+  "id": "ts-async-01",
+  "moduleId": "ts-async",
+  "order": 1,
+  "title": "Promise dan async/await Bertipe",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Fungsi `async` **selalu** mengembalikan Promise. Tipe kembaliannya ditulis `Promise<T>`, dengan T adalah tipe nilai yang akan datang:\n\n```ts\nfunction tunggu(ms: number): Promise<void> {\n  return new Promise((selesai) => setTimeout(selesai, ms));\n}\n\nasync function hitungOngkir(kota: string): Promise<number> {\n  await tunggu(100);\n  return kota === \"Bandung\" ? 10000 : 20000;\n}\n\nconst janji = hitungOngkir(\"Medan\");         // Promise<number>\nconst ongkir = await hitungOngkir(\"Bandung\"); // number\n```\n\nIbarat struk antrean di kedai kopi: Promise<Kopi> adalah struk yang menjanjikan kopi. Struknya belum bisa diminum. await berarti menunggu di depan kasir sampai kopinya benar-benar diberikan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTypeScript menangkap banyak kasus **lupa await**:\n\n```ts\nconst total = hitungOngkir(\"Bandung\") + 5000;\n// error TS2365: Operator '+' cannot be applied to types 'Promise<number>' and 'number'.\n\nasync function cekStok(kode: string): Promise<boolean> { ... }\nif (cekStok(\"P01\")) { ... }\n// error TS2801: This condition will always return true since this 'Promise<boolean>' is always defined.\n```\n\n`Promise.all` menjalankan beberapa Promise bersamaan, dan tipe hasilnya tetap terjaga per posisi:\n\n```ts\nconst [ongkir, ada] = await Promise.all([hitungOngkir(\"Medan\"), cekStok(\"P01\")]);\n// ongkir: number, ada: boolean\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "function tunggu(ms: number): Promise<void> {\n  return new Promise((selesai) => setTimeout(selesai, ms));\n}\nasync function hitungOngkir(kota: string): Promise<number> {\n  await tunggu(200);\n  return kota === \"Bandung\" ? 10000 : 20000;\n}\nasync function cekStok(kode: string): Promise<boolean> {\n  await tunggu(100);\n  return kode !== \"P02\";\n}\nconst [ongkir, ada] = await Promise.all([hitungOngkir(\"Medan\"), cekStok(\"P01\")]);\nconsole.log(\"Ongkir:\", ongkir);\nconsole.log(\"Stok ada:\", ada);\nconst total = (await hitungOngkir(\"Bandung\")) + 5000;\nconsole.log(\"Total:\", total);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "Total: 25000",
+          "Total: 15000",
+          "Total: 100005000",
+          "Total: 10000"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "Promise yang tidak membawa nilai."
+        },
+        {
+          "line": 4,
+          "note": "Nanti menghasilkan number."
+        },
+        {
+          "line": 12,
+          "note": "Dua pekerjaan berjalan bersamaan, tipe per posisi terjaga."
+        },
+        {
+          "line": 15,
+          "note": "await dulu, baru dijumlahkan."
+        }
+      ],
+      "explanation": "Ongkir ke Bandung 10000. Karena await ditulis lebih dulu, yang dijumlahkan adalah angkanya: 10000 + 5000 = 15000.",
+      "tryThis": [
+        {
+          "task": "Hapus await di baris total. Baca error TS2365.",
+          "hint": null
+        },
+        {
+          "task": "Ganti Promise<number> pada hitungOngkir menjadi number. Kenapa ditolak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tipe kembalian async tanpa Promise**\n\n`async function f(): number` ditolak (TS1064). Tulis `Promise<number>`.\n\n**2. Lupa await yang tidak tertangkap**\n\n`console.log(hitungOngkir(\"Bandung\"))` lolos pemeriksaan, tapi mencetak `Promise {}`. Banyak tim memasang aturan ESLint `no-floating-promises` untuk menangkap kasus ini.\n\n**3. await di dalam forEach**\n\n`daftar.forEach(async (x) => { await simpan(x); })` tidak ditunggu oleh kode setelahnya. Pakai `for...of` atau `await Promise.all(daftar.map(simpan))`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hampir semua kode yang berbicara dengan server, database, atau file bersifat async. Menulis `Promise<T>` yang jelas pada fungsi publik membuat pemakainya tahu apa yang akan didapat.\n- Aturan `@typescript-eslint/no-floating-promises` dan `no-misused-promises` sangat umum di proyek TypeScript, karena Promise yang lupa ditunggu adalah sumber bug yang sulit dilacak.\n- `Promise.all` dipakai untuk mempercepat halaman: beberapa data diambil bersamaan, bukan satu per satu."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "API TS 1: Ongkos Kirim",
+      "pembuka": "Toko online kita menghitung ongkos kirim dari server. Prosesnya butuh waktu, jadi kita pakai async.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Fungsi ongkir mengembalikan Promise<number>.",
+          "jawaban": "function tunggu(ms: number): Promise<void> {\n  return new Promise((selesai) => setTimeout(selesai, ms));\n}\nasync function ongkir(kota: string): Promise<number> {\n  await tunggu(100);\n  return kota === \"Bandung\" ? 10000 : 20000;\n}\nconst o = await ongkir(\"Bandung\");\nconsole.log(\"Ongkir:\", o);",
+          "keluaran": "Ongkir: 10000",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak karena Promise dijumlahkan dengan angka. Tambahkan `await` (dalam kurung) di depan `ongkir(\"Medan\")`. Baris terakhir harus `Total: 70000`.",
+          "jawaban": "function tunggu(ms: number): Promise<void> {\n  return new Promise((selesai) => setTimeout(selesai, ms));\n}\nasync function ongkir(kota: string): Promise<number> {\n  await tunggu(100);\n  return kota === \"Bandung\" ? 10000 : 20000;\n}\nconst o = await ongkir(\"Bandung\");\nconsole.log(\"Ongkir:\", o);\nconst total = (await ongkir(\"Medan\")) + 50000;\nconsole.log(\"Total:\", total);",
+          "kodeAwal": "function tunggu(ms: number): Promise<void> {\n  return new Promise((selesai) => setTimeout(selesai, ms));\n}\nasync function ongkir(kota: string): Promise<number> {\n  await tunggu(100);\n  return kota === \"Bandung\" ? 10000 : 20000;\n}\nconst o = await ongkir(\"Bandung\");\nconsole.log(\"Ongkir:\", o);\nconst total = ongkir(\"Medan\") + 50000;\nconsole.log(\"Total:\", total);",
+          "keluaran": "Ongkir: 10000\nTotal: 70000",
+          "wajib": [
+            {
+              "pola": "await\\s+ongkir\\(\\s*\"Medan\"\\s*\\)",
+              "pesan": "tambahkan `await` sebelum `ongkir(\"Medan\")`."
+            }
+          ],
+          "petunjuk": "Error TS2365 artinya Promise<number> tidak bisa dijumlahkan. Tunggu dulu hasilnya dengan await."
+        },
+        {
+          "arahan": "Buat `async function stok(kode: string): Promise<number>` yang menunggu 100 ms lalu mengembalikan `0` untuk `\"P02\"` dan `5` untuk kode lain. Ambil `ongkir(\"Bandung\")` dan `stok(\"P02\")` **bersamaan** dengan `Promise.all`, lalu cetak `10000 0`.",
+          "jawaban": "function tunggu(ms: number): Promise<void> {\n  return new Promise((selesai) => setTimeout(selesai, ms));\n}\nasync function ongkir(kota: string): Promise<number> {\n  await tunggu(100);\n  return kota === \"Bandung\" ? 10000 : 20000;\n}\nasync function stok(kode: string): Promise<number> {\n  await tunggu(100);\n  return kode === \"P02\" ? 0 : 5;\n}\nconst o = await ongkir(\"Bandung\");\nconsole.log(\"Ongkir:\", o);\nconst total = (await ongkir(\"Medan\")) + 50000;\nconsole.log(\"Total:\", total);\nconst [a, b] = await Promise.all([ongkir(\"Bandung\"), stok(\"P02\")]);\nconsole.log(a, b);",
+          "keluaran": "Ongkir: 10000\nTotal: 70000\n10000 0",
+          "wajib": [
+            {
+              "pola": "stok\\s*\\(\\s*kode\\s*:\\s*string\\s*\\)\\s*:\\s*Promise<number>",
+              "pesan": "tipe kembalian `stok` adalah `Promise<number>`."
+            },
+            {
+              "pola": "Promise\\.all",
+              "pesan": "pakai `Promise.all`."
+            }
+          ],
+          "petunjuk": "const [a, b] = await Promise.all([ongkir(\"Bandung\"), stok(\"P02\")]);",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Promise<number> memberi tahu pemakai bahwa angkanya datang nanti, dan TypeScript menolak kalau kita lupa menunggunya."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa tipe kembalian yang benar untuk async function ambilNama() yang mengembalikan string?",
+          "options": [
+            "Promise<string>",
+            "string",
+            "async string",
+            "Promise<void>"
+          ],
+          "answer": 0,
+          "explanation": "Fungsi async selalu mengembalikan Promise.",
+          "remedial": "Karena fungsi async selalu mengembalikan Promise, tipe kembaliannya Promise<string>. Menulis string saja ditolak (TS1064)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "async function dua(): Promise<number> {\n  return 2;\n}\nasync function main() {\n  const a = dua();\n  const b = await dua();\n  console.log(a instanceof Promise, b * 10);\n}\nmain();",
+          "options": [
+            "Error tipe",
+            "false 20",
+            "true 20",
+            "true NaN"
+          ],
+          "answer": 2,
+          "explanation": "Tanpa await, nilainya masih Promise.",
+          "remedial": "a tidak ditunggu, jadi masih berupa Promise (true). b ditunggu, jadi bernilai 2, dikali 10 menjadi 20."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "async function harga(): Promise<number> {\n  return 18000;\n}\nconst total = harga() * 2;\nconsole.log(total);",
+          "options": [
+            "Error, harga() masih berupa Promise",
+            "Mencetak NaN",
+            "Lolos, await ditambahkan otomatis",
+            "Mencetak 36000"
+          ],
+          "answer": 0,
+          "explanation": "Promise tidak bisa dikalikan.",
+          "remedial": "harga() tanpa await bernilai Promise<number>. Promise tidak bisa dipakai dalam perkalian, jadi TypeScript menolaknya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Bagaimana menjalankan dua fungsi async bersamaan lalu menunggu keduanya selesai?",
+      "options": [
+        "await Promise.all([a(), b()])",
+        "Promise.race([a(), b()])",
+        "a().then(b)",
+        "await a(); await b();"
+      ],
+      "answer": 0,
+      "explanation": "Promise.all menunggu semuanya, dan tipe hasilnya terjaga per posisi."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi async ambilHarga(kode: string): Promise<number> yang menunggu 100 ms lalu mengembalikan 18000 untuk P01 dan 12000 untuk kode lain. Buat fungsi async totalKeranjang(kode: string[]): Promise<number> yang mengambil semua harga bersamaan dengan Promise.all lalu menjumlahkannya. Cetak total untuk P01, P02, P01: 48000",
+      "starterCode": "async function ambilHarga(kode) {\n  return 0;\n}\n",
+      "solution": "function tunggu(ms: number): Promise<void> {\n  return new Promise((selesai) => setTimeout(selesai, ms));\n}\nasync function ambilHarga(kode: string): Promise<number> {\n  await tunggu(100);\n  return kode === \"P01\" ? 18000 : 12000;\n}\nasync function totalKeranjang(kode: string[]): Promise<number> {\n  const harga = await Promise.all(kode.map(ambilHarga));\n  return harga.reduce((a, b) => a + b, 0);\n}\nconsole.log(await totalKeranjang([\"P01\", \"P02\", \"P01\"]));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "48000\n"
+        }
+      ],
+      "hints": [
+        "Menunggu 100 ms: await new Promise((r) => setTimeout(r, 100)).",
+        "Promise.all(kode.map(ambilHarga)) menghasilkan number[] setelah di-await."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Fungsi async selalu mengembalikan Promise<T>.",
+        "await mengubah Promise<T> menjadi T.",
+        "Lupa await sering tertangkap (TS2365, TS2801), tapi tidak selalu.",
+        "Promise.all menjalankan beberapa Promise bersamaan dengan tipe per posisi.",
+        "Hindari await di dalam forEach; pakai for...of atau Promise.all."
+      ]
+    }
+  ]
+}
