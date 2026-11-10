@@ -34,7 +34,8 @@ describe('Pencarian menu atas', () => {
   });
 
   it('hasil modul membuka halaman kelas dengan modul itu terbuka', () => {
-    const m = cari('generics').find((x) => x.jenis === 'modul');
+    // kelas Java dan TypeScript sama-sama punya modul Generics
+    const m = cari('generics', 20).find((x) => x.jenis === 'modul' && x.id === 'generics');
     expect(m?.url).toBe('/kelas/java?modul=generics');
   });
 
