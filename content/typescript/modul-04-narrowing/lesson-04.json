@@ -1,0 +1,188 @@
+{
+  "id": "ts-narrowing-04",
+  "moduleId": "ts-narrowing",
+  "order": 4,
+  "title": "Discriminated Union",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Discriminated union** adalah union object yang setiap anggotanya punya satu properti **penanda** dengan nilai literal berbeda. Properti ini biasanya bernama `jenis`, `type`, `kind`, atau `status`.\n\n```ts\ntype Pembayaran =\n  | { jenis: \"tunai\"; uang: number }\n  | { jenis: \"kartu\"; bank: string; biaya: number }\n  | { jenis: \"qris\"; idTransaksi: string };\n```\n\nCukup periksa penandanya, TypeScript langsung tahu anggota mana yang dimaksud:\n\n```ts\nfunction cetak(p: Pembayaran) {\n  if (p.jenis === \"kartu\") {\n    console.log(p.bank, p.biaya); // p: anggota kartu\n  }\n}\n```\n\nIbarat warna amplop di kantor pos: amplop merah pasti kilat, amplop biru pasti biasa. Petugas cukup melihat warnanya untuk tahu cara memprosesnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`switch` pada penanda adalah cara paling rapi menangani semua kemungkinan:\n\n```ts\nfunction biaya(p: Pembayaran): number {\n  switch (p.jenis) {\n    case \"tunai\":\n      return 0;\n    case \"kartu\":\n      return p.biaya;\n    case \"qris\":\n      return 0;\n  }\n}\n```\n\nKelebihan dibanding `in`: penandanya eksplisit dan nilainya terbaca jelas. Saat data dikirim sebagai JSON, penanda juga ikut terkirim, jadi penerima tahu jenis datanya tanpa menebak dari properti lain.\n\nFungsi di atas lolos tanpa `return` di akhir karena TypeScript tahu ketiga `case` sudah mencakup semua kemungkinan."
+    },
+    {
+      "type": "runnable",
+      "code": "type Pembayaran =\n  | { jenis: \"tunai\"; uang: number }\n  | { jenis: \"kartu\"; bank: string; biaya: number }\n  | { jenis: \"qris\"; idTransaksi: string };\n\nfunction keterangan(p: Pembayaran): string {\n  switch (p.jenis) {\n    case \"tunai\":\n      return \"Tunai \" + p.uang;\n    case \"kartu\":\n      return `Kartu ${p.bank} (biaya ${p.biaya})`;\n    case \"qris\":\n      return \"QRIS \" + p.idTransaksi;\n  }\n}\nconst transaksi: Pembayaran[] = [\n  { jenis: \"kartu\", bank: \"BNI\", biaya: 2000 },\n  { jenis: \"qris\", idTransaksi: \"QR-778\" },\n];\nfor (const t of transaksi) console.log(keterangan(t));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "Tunai undefined",
+          "Kartu BNI (biaya 2000)",
+          "QRIS undefined",
+          "QRIS QR-778"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Penanda: nilai literal yang berbeda di setiap anggota."
+        },
+        {
+          "line": 7,
+          "note": "Memeriksa penanda mempersempit p."
+        },
+        {
+          "line": 13,
+          "note": "Di cabang ini p pasti anggota qris."
+        }
+      ],
+      "explanation": "Transaksi kedua punya jenis \"qris\", sehingga masuk ke case \"qris\" dan mencetak idTransaksi-nya.",
+      "tryThis": [
+        {
+          "task": "Di case \"tunai\", coba akses p.bank. Kenapa ditolak?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan anggota { jenis: \"transfer\"; bank: string } ke Pembayaran. Apa kata TypeScript tentang fungsi keterangan?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Penanda bertipe `string` biasa**\n\n`{ jenis: string; ... }` tidak bisa membedakan anggota. Penanda harus **literal**: `jenis: \"tunai\"`.\n\n**2. Menyalin object lalu kehilangan literal**\n\n```ts\nconst p = { jenis: \"tunai\", uang: 50000 }; // jenis disimpulkan string!\nketerangan(p); // error TS2345\n```\n\nBeri tipe saat membuat: `const p: Pembayaran = {...}`, atau tulis `as const`.\n\n**3. Properti dengan nama sama tapi arti berbeda**\n\nKalau `kartu` dan `transfer` sama-sama punya `bank`, pastikan artinya memang sama. Kalau berbeda, beri nama berbeda supaya tidak membingungkan."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Discriminated union dipakai sangat luas: state aplikasi di React/Redux (`{ status: \"loading\" } | { status: \"success\"; data } | { status: \"error\"; pesan }`), pesan event (`{ type: \"TAMBAH_ITEM\"; ... }`), dan respons API.\n- Banyak library validasi (misalnya Zod dengan `z.discriminatedUnion`) dan alat pembuat tipe dari skema API menghasilkan pola ini langsung.\n- Pola ini menggantikan banyak properti opsional yang membingungkan (`data?`, `error?`, `loading?`) dengan beberapa bentuk yang jelas dan tidak mungkin tercampur."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Pesanan TS 4: Tiga Cara Bayar",
+      "pembuka": "Toko kita sekarang menerima tunai, kartu, dan QRIS. Setiap cara punya data berbeda, dibedakan dengan properti jenis.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Penanda jenis menentukan cara memproses.",
+          "jawaban": "type Bayar =\n  | { jenis: \"tunai\"; uang: number }\n  | { jenis: \"kartu\"; bank: string; biaya: number };\nfunction biaya(b: Bayar): number {\n  switch (b.jenis) {\n    case \"tunai\":\n      return 0;\n    case \"kartu\":\n      return b.biaya;\n  }\n}\nconsole.log(biaya({ jenis: \"tunai\", uang: 50000 }));\nconsole.log(biaya({ jenis: \"kartu\", bank: \"BCA\", biaya: 2500 }));",
+          "keluaran": "0\n2500",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak karena anggota baru `qris` belum ditangani dan fungsi bisa berakhir tanpa return. Tambahkan `case \"qris\": return 700;`. Baris terakhir harus `700`.",
+          "jawaban": "type Bayar =\n  | { jenis: \"tunai\"; uang: number }\n  | { jenis: \"kartu\"; bank: string; biaya: number }\n  | { jenis: \"qris\"; idTransaksi: string };\nfunction biaya(b: Bayar): number {\n  switch (b.jenis) {\n    case \"tunai\":\n      return 0;\n    case \"kartu\":\n      return b.biaya;\n    case \"qris\":\n      return 700;\n  }\n}\nconsole.log(biaya({ jenis: \"tunai\", uang: 50000 }));\nconsole.log(biaya({ jenis: \"kartu\", bank: \"BCA\", biaya: 2500 }));\nconsole.log(biaya({ jenis: \"qris\", idTransaksi: \"QR-1\" }));",
+          "kodeAwal": "type Bayar =\n  | { jenis: \"tunai\"; uang: number }\n  | { jenis: \"kartu\"; bank: string; biaya: number }\n  | { jenis: \"qris\"; idTransaksi: string };\nfunction biaya(b: Bayar): number {\n  switch (b.jenis) {\n    case \"tunai\":\n      return 0;\n    case \"kartu\":\n      return b.biaya;\n  }\n}\nconsole.log(biaya({ jenis: \"tunai\", uang: 50000 }));\nconsole.log(biaya({ jenis: \"kartu\", bank: \"BCA\", biaya: 2500 }));\nconsole.log(biaya({ jenis: \"qris\", idTransaksi: \"QR-1\" }));",
+          "keluaran": "0\n2500\n700",
+          "wajib": [
+            {
+              "pola": "case\\s+\"qris\"",
+              "pesan": "tambahkan `case \"qris\"`."
+            }
+          ],
+          "petunjuk": "Error TS2366 muncul karena satu jenis belum punya case. Tambahkan case \"qris\".",
+          "benar": "Itulah kekuatan union: anggota baru yang lupa ditangani langsung ketahuan."
+        },
+        {
+          "arahan": "Buat array `hariIni: Bayar[]` berisi tunai `50000`, kartu BCA biaya `2500`, dan dua QRIS (`QR-2`, `QR-3`). Cetak total biaya semua transaksi: `Total biaya: 3900`.",
+          "jawaban": "type Bayar =\n  | { jenis: \"tunai\"; uang: number }\n  | { jenis: \"kartu\"; bank: string; biaya: number }\n  | { jenis: \"qris\"; idTransaksi: string };\nfunction biaya(b: Bayar): number {\n  switch (b.jenis) {\n    case \"tunai\":\n      return 0;\n    case \"kartu\":\n      return b.biaya;\n    case \"qris\":\n      return 700;\n  }\n}\nconsole.log(biaya({ jenis: \"tunai\", uang: 50000 }));\nconsole.log(biaya({ jenis: \"kartu\", bank: \"BCA\", biaya: 2500 }));\nconsole.log(biaya({ jenis: \"qris\", idTransaksi: \"QR-1\" }));\nconst hariIni: Bayar[] = [\n  { jenis: \"tunai\", uang: 50000 },\n  { jenis: \"kartu\", bank: \"BCA\", biaya: 2500 },\n  { jenis: \"qris\", idTransaksi: \"QR-2\" },\n  { jenis: \"qris\", idTransaksi: \"QR-3\" },\n];\nconsole.log(\"Total biaya:\", hariIni.reduce((a, b) => a + biaya(b), 0));",
+          "keluaran": "0\n2500\n700\nTotal biaya: 3900",
+          "wajib": [
+            {
+              "pola": "hariIni\\s*:\\s*Bayar\\[\\]",
+              "pesan": "beri tipe `Bayar[]` pada `hariIni`."
+            }
+          ],
+          "petunjuk": "Beri tipe Bayar[] supaya setiap object dicek, lalu jumlahkan dengan reduce dan fungsi biaya.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Discriminated union membuat setiap jenis data punya bentuknya sendiri, dan switch pada penanda menangani semuanya dengan aman."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa syarat properti penanda pada discriminated union?",
+          "options": [
+            "Bertipe string biasa",
+            "Harus bertipe number",
+            "Bertipe literal berbeda di setiap anggota",
+            "Harus bernama type"
+          ],
+          "answer": 2,
+          "explanation": "Literal yang berbeda membuat setiap anggota bisa dikenali.",
+          "remedial": "Penanda harus literal (\"tunai\", \"kartu\", ...) dan berbeda di setiap anggota. Namanya bebas (jenis, kind, type, status), yang penting nilainya unik."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "type Bayar = { jenis: \"tunai\"; uang: number } | { jenis: \"kartu\"; biaya: number };\nfunction f(b: Bayar) {\n  return b.jenis;\n}\nconst p = { jenis: \"tunai\", uang: 0 };\nconsole.log(f(p));",
+          "options": [
+            "Mencetak tunai",
+            "Error, jenis disimpulkan string, bukan \"tunai\"",
+            "Mencetak 0",
+            "Lolos tanpa error"
+          ],
+          "answer": 1,
+          "explanation": "Object yang dibuat tanpa tipe kehilangan literal.",
+          "remedial": "const p = { jenis: \"tunai\", ... } membuat properti jenis bertipe string (properti object bisa diubah). string tidak cocok dengan \"tunai\" | \"kartu\", jadi pemanggilan ditolak (TS2345). Beri tipe Bayar saat membuat p."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "type Bentuk = { kind: \"kotak\"; p: number; l: number } | { kind: \"segitiga\"; alas: number; tinggi: number };\nfunction luas(b: Bentuk): number {\n  switch (b.kind) {\n    case \"kotak\":\n      return b.p * b.l;\n    case \"segitiga\":\n      return (b.alas * b.tinggi) / 2;\n  }\n}\nconsole.log(\"luas\", luas({ kind: \"kotak\", p: 3, l: 4 }));\nconsole.log(\"luas\", luas({ kind: \"segitiga\", alas: 2, tinggi: 3 }));",
+          "options": [
+            "luas 12 / luas 6",
+            "luas 7 / luas 3",
+            "luas 12 / luas 1.5",
+            "luas 12 / luas 3"
+          ],
+          "answer": 3,
+          "explanation": "Setiap bentuk dihitung dengan rumusnya sendiri.",
+          "remedial": "Persegi panjang 3 x 4 = 12. Segitiga alas 2 tinggi 3: 2 x 3 / 2 = 3."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "State halaman { status: \"loading\" } | { status: \"ok\"; data: string[] } | { status: \"error\"; pesan: string } lebih baik daripada satu object dengan data?, pesan?, dan loading? karena...",
+      "options": [
+        "Lebih sedikit kode yang ditulis",
+        "Kombinasi yang tidak masuk akal tidak mungkin terjadi",
+        "Bisa dipakai tanpa TypeScript",
+        "Tidak perlu memeriksa apa pun"
+      ],
+      "answer": 1,
+      "explanation": "Misalnya loading sekaligus error tidak bisa dibentuk."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat type Notif = { jenis: \"pesan\"; dari: string } | { jenis: \"diskon\"; persen: number } | { jenis: \"stok\"; produk: string; sisa: number }. Tulis fungsi teks(n: Notif): string dengan switch, lalu cetak tiga notifikasi: Pesan dari Rina, Diskon 20%, Stok Gula tinggal 3.",
+      "starterCode": "type Notif = { jenis: string };\nfunction teks(n: Notif): string {\n  return n.jenis;\n}\n",
+      "solution": "type Notif =\n  | { jenis: \"pesan\"; dari: string }\n  | { jenis: \"diskon\"; persen: number }\n  | { jenis: \"stok\"; produk: string; sisa: number };\nfunction teks(n: Notif): string {\n  switch (n.jenis) {\n    case \"pesan\":\n      return \"Pesan dari \" + n.dari;\n    case \"diskon\":\n      return `Diskon ${n.persen}%`;\n    case \"stok\":\n      return `Stok ${n.produk} tinggal ${n.sisa}`;\n  }\n}\nconst daftar: Notif[] = [\n  { jenis: \"pesan\", dari: \"Rina\" },\n  { jenis: \"diskon\", persen: 20 },\n  { jenis: \"stok\", produk: \"Gula\", sisa: 3 },\n];\nfor (const n of daftar) console.log(teks(n));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Pesan dari Rina\nDiskon 20%\nStok Gula tinggal 3\n"
+        }
+      ],
+      "hints": [
+        "Setiap anggota punya jenis literal berbeda dan properti sendiri.",
+        "switch (n.jenis) dengan tiga case; di setiap case n sudah dipersempit."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Discriminated union: union object dengan properti penanda literal.",
+        "Memeriksa penanda (if atau switch) mempersempit ke anggota yang tepat.",
+        "Penanda harus literal; object tanpa tipe kehilangan literal-nya.",
+        "Anggota baru yang belum ditangani langsung ketahuan.",
+        "Pola ini dipakai untuk state, event, dan respons API."
+      ]
+    }
+  ]
+}

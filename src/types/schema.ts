@@ -310,6 +310,8 @@ export interface LangkahJava {
 
 export interface PraktikJavaCard {
   type: 'praktik_java';
+  /** Bahasa kode praktik. Kosong = Java. 'typescript' = diperiksa tsc (strict) lalu dijalankan. */
+  bahasa?: 'typescript';
   judul: string;
   pembuka: string;
   langkah: LangkahJava[];

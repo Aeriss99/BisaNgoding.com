@@ -7,6 +7,7 @@ import { python } from './editorPython';
 
 export function ekstensiBahasa(language: string): Extension[] {
   if (language === 'javascript') return [javascript()];
+  if (language === 'typescript') return [javascript({ typescript: true })];
   if (language === 'jsx' || language === 'react') return [javascript({ jsx: true })];
   if (language === 'java') return [java()];
   if (language === 'html') return [html()];

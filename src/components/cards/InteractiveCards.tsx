@@ -12,6 +12,8 @@ import { runJavaCode } from '../../lib/javaRunner';
 import { runPythonCode, artiGalatPython } from '../../lib/pythonRunner';
 import { rapikanKeluaran } from '../../lib/praktikPython';
 import { runJsCode, pratinjauHtml } from '../../lib/jsRunner';
+import { runTsCode } from '../../lib/tsRunner';
+import { artiGalatTs } from '../../lib/tsPeriksa';
 
 /** Wadah hasil latihan DOM: menampilkan HTML awal, lalu diganti hasil kode setiap kali dijalankan. */
 function WadahHasilDom({ html }: { html: string }) {
@@ -49,6 +51,10 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
   };
 
   const getFirstErrorHint = (out: string) => {
+    if (language === 'typescript') {
+      const kodeTs = out.match(/error TS(\d+)/);
+      if (kodeTs) return artiGalatTs(Number(kodeTs[1])) || null;
+    }
     if (!out.includes('Error') && !out.includes('Exception')) return null;
     if (language === 'python') {
       const jenis = [...out.matchAll(/^(\w+(?:Error|Exception))\b/gm)].pop()?.[1] ?? '';
@@ -61,10 +67,12 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
     setIsRunning(true);
     setTimedOut(false);
     setOutput('\n');
-    setStatusText(language === 'javascript' ? "Menjalankan JavaScript" : language === 'python' ? "Menjalankan Python" : "Memuat Java (sekali saja)");
+    setStatusText(language === 'javascript' ? "Menjalankan JavaScript" : language === 'typescript' ? "Memeriksa tipe" : language === 'python' ? "Menjalankan Python" : "Memuat Java (sekali saja)");
     try {
       const res = language === 'javascript' 
         ? await runJsCode(code, card.html, (s) => setStatusText(s))
+        : language === 'typescript'
+        ? await runTsCode(code, (s) => setStatusText(s))
         : language === 'python'
         ? await runPythonCode(code, "", (s) => setStatusText(s))
         : await runJavaCode(code, "", (s) => setStatusText(s));
@@ -175,10 +183,10 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 bg-[#1E1F22] rounded-xl border-2 border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)] overflow-hidden flex flex-col">
               <div className="bg-[#2B2D30] px-4 py-2 flex items-center gap-2 text-[#DFE1E5] text-xs font-mono border-b border-[#111]">
-                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {language === 'javascript' ? 'Script' : language === 'python' ? 'main.py' : 'Main'}
+                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {language === 'javascript' ? 'Script' : language === 'typescript' ? 'main.ts' : language === 'python' ? 'main.py' : 'Main'}
               </div>
               <div className="p-4 font-mono text-[14px] leading-[1.6] whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] text-[#DFE1E5]">
-                <div className="text-[#6F737A] mb-2">{language === 'javascript' ? (card.html ? 'Console browser' : 'node script.js') : language === 'python' ? 'python main.py' : 'java Main'}</div>
+                <div className="text-[#6F737A] mb-2">{language === 'javascript' ? (card.html ? 'Console browser' : 'node script.js') : language === 'typescript' ? 'npx tsc && node main.js' : language === 'python' ? 'python main.py' : 'java Main'}</div>
                 <div dangerouslySetInnerHTML={{ __html: formatKeluaranHtml(output) }} />
                 <div className="text-[#6F737A] mt-2 flex items-center gap-1.5">
                   <div className={`w-2 h-2 rounded-full ${output.includes('Error:') || output.includes('Gagal:') || output.includes('Exception') ? 'bg-[#F75464]' : 'bg-[#6F737A]'}`} />
@@ -280,6 +288,10 @@ export function CodeChallengeCardComponent({
   };
 
   const getFirstErrorHint = (out: string) => {
+    if (language === 'typescript') {
+      const kodeTs = out.match(/error TS(\d+)/);
+      if (kodeTs) return artiGalatTs(Number(kodeTs[1])) || null;
+    }
     if (!out.includes('Error') && !out.includes('Exception')) return null;
     if (language === 'python') {
       const jenis = [...out.matchAll(/^(\w+(?:Error|Exception))\b/gm)].pop()?.[1] ?? '';
@@ -312,7 +324,7 @@ export function CodeChallengeCardComponent({
     setIsRunning(true);
     setTimedOut(false);
     setOutput('Memeriksa jawaban...\n');
-    setStatusText(language === 'javascript' ? "Menjalankan JavaScript" : language === 'python' ? "Menjalankan Python" : "Memuat Java (sekali saja)");
+    setStatusText(language === 'javascript' ? "Menjalankan JavaScript" : language === 'typescript' ? "Memeriksa tipe" : language === 'python' ? "Menjalankan Python" : "Memuat Java (sekali saja)");
     try {
       let allPassed = true;
       let finalOutput = '';
@@ -327,6 +339,8 @@ export function CodeChallengeCardComponent({
         const test = card.tests[i];
         const res = language === 'javascript'
           ? await runJsCode(code, card.html, (s) => setStatusText(s))
+          : language === 'typescript'
+          ? await runTsCode(code, (s) => setStatusText(s))
           : language === 'python'
           ? await runPythonCode(code, test.input, (s) => setStatusText(s))
           : await runJavaCode(code, test.input, (s) => setStatusText(s));
@@ -483,10 +497,10 @@ export function CodeChallengeCardComponent({
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 bg-[#1E1F22] rounded-xl border-2 border-[var(--color-text-main)] shadow-[4px_4px_0_var(--color-text-main)] overflow-hidden flex flex-col">
               <div className="bg-[#2B2D30] px-4 py-2 flex items-center gap-2 text-[#DFE1E5] text-xs font-mono border-b border-[#111]">
-                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {(language === 'html' || language === 'css') ? language.toUpperCase() : language === 'javascript' ? 'Script' : language === 'python' ? 'main.py' : 'Main'}
+                <Play className="w-3 h-3 text-[var(--color-success)]" /> Run: {(language === 'html' || language === 'css') ? language.toUpperCase() : language === 'javascript' ? 'Script' : language === 'typescript' ? 'main.ts' : language === 'python' ? 'main.py' : 'Main'}
               </div>
               <div className="p-4 font-mono text-[14px] leading-[1.6] whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] text-[#DFE1E5]">
-                <div className="text-[#6F737A] mb-2">{(language === 'html' || language === 'css') ? (language === 'css' ? 'Pemeriksaan aturan CSS' : 'Pemeriksaan struktur HTML') : language === 'javascript' ? (card.html ? 'Console browser' : 'node script.js') : language === 'python' ? 'python main.py' : 'java Main'}</div>
+                <div className="text-[#6F737A] mb-2">{(language === 'html' || language === 'css') ? (language === 'css' ? 'Pemeriksaan aturan CSS' : 'Pemeriksaan struktur HTML') : language === 'javascript' ? (card.html ? 'Console browser' : 'node script.js') : language === 'typescript' ? 'npx tsc && node main.js' : language === 'python' ? 'python main.py' : 'java Main'}</div>
                 {(language === 'html' || language === 'css') ? output : <div dangerouslySetInnerHTML={{ __html: formatKeluaranHtml(output) }} />}
                 {(language === 'html' || language === 'css') ? (
                   <p className={`mt-2 font-bold ${isSuccess ? 'text-[var(--color-success)]' : 'text-[#F75464]'}`}>

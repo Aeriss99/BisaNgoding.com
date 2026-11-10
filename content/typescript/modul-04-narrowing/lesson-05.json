@@ -1,0 +1,186 @@
+{
+  "id": "ts-narrowing-05",
+  "moduleId": "ts-narrowing",
+  "order": 5,
+  "title": "Exhaustiveness Check dengan never",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di materi sebelumnya, TypeScript menolak fungsi yang lupa menangani salah satu anggota union karena **tipe kembaliannya** tidak terpenuhi. Tapi bagaimana dengan fungsi `void` yang tidak mengembalikan apa pun? Di sana tidak ada yang memaksa.\n\nTeknik **exhaustiveness check** memastikan semua kemungkinan ditangani, memakai `never`:\n\n```ts\nfunction assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\n\nswitch (p.jenis) {\n  case \"tunai\": ...; break;\n  case \"kartu\": ...; break;\n  default:\n    assertNever(p); // p di sini harus sudah never\n}\n```\n\nIbarat petugas yang memeriksa daftar hadir di akhir acara: kalau masih ada satu nama yang belum dicentang, ia tidak boleh pulang."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKenapa ini bekerja? Setelah semua `case` menangani setiap anggota, tidak ada kemungkinan tersisa: tipe `p` di `default` adalah `never`. Kalau ada anggota baru yang lupa ditangani, tipe `p` di `default` adalah anggota itu, dan mengirimnya ke parameter bertipe `never` **ditolak**:\n\n```ts\ntype Bayar = { jenis: \"tunai\" } | { jenis: \"kartu\" } | { jenis: \"qris\" };\n\nfunction log(p: Bayar): void {\n  switch (p.jenis) {\n    case \"tunai\": console.log(\"tunai\"); break;\n    case \"kartu\": console.log(\"kartu\"); break;\n    default:\n      assertNever(p);\n      // error TS2345: Argument of type '{ jenis: \"qris\"; }' is not assignable to parameter of type 'never'.\n  }\n}\n```\n\nPesan error-nya bahkan menyebut anggota mana yang terlupa. `throw` di dalam `assertNever` adalah pengaman tambahan kalau ternyata data aneh datang saat program jalan (misalnya dari API versi baru)."
+    },
+    {
+      "type": "runnable",
+      "code": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Status = \"menunggu\" | \"dibayar\" | \"dikirim\";\n\nfunction ikon(s: Status): string {\n  switch (s) {\n    case \"menunggu\":\n      return \"[ ]\";\n    case \"dibayar\":\n      return \"[$]\";\n    case \"dikirim\":\n      return \"[>]\";\n    default:\n      return assertNever(s);\n  }\n}\nconst semua: Status[] = [\"dikirim\", \"menunggu\"];\nconsole.log(semua.map(ikon).join(\" \"));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak?",
+        "options": [
+          "Kasus tidak ditangani",
+          "[ ] [>]",
+          "[>] [ ]",
+          "[>] [$]"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "Hanya menerima nilai bertipe never."
+        },
+        {
+          "line": 14,
+          "note": "Kalau semua case lengkap, s di sini bertipe never."
+        }
+      ],
+      "explanation": "Status dikirim menghasilkan [>] dan menunggu menghasilkan [ ], digabung dengan spasi. Cabang default tidak pernah dijalankan karena semua status sudah punya case.",
+      "tryThis": [
+        {
+          "task": "Tambahkan \"batal\" ke Status. Baca error di baris assertNever.",
+          "hint": null
+        },
+        {
+          "task": "Hapus case \"dibayar\". Error menyebut anggota mana?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `default` yang diam-diam mengembalikan nilai cadangan**\n\n```ts\ndefault: return \"?\";\n```\n\nIni membuat anggota baru tidak pernah ketahuan. Pakai `assertNever` di `default`.\n\n**2. Parameter `assertNever` bertipe `any` atau `unknown`**\n\nKalau parameternya bukan `never`, pemeriksaannya hilang: apa pun diterima.\n\n**3. Lupa `break` atau `return` di setiap `case`**\n\nTanpa `break`, eksekusi \"jatuh\" ke `case` berikutnya. Opsi tsconfig `noFallthroughCasesInSwitch` menangkap kesalahan ini."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hampir setiap proyek TypeScript besar punya fungsi `assertNever` (atau `exhaustiveCheck`) di folder utilitasnya. Pola ini menjadi pengaman utama saat union status atau jenis event bertambah.\n- Aturan typescript-eslint `switch-exhaustiveness-check` memberi peringatan untuk switch yang belum lengkap, sebagai lapisan tambahan di code review.\n- Dengan `satisfies` (TypeScript 4.9 ke atas) dan `Record<Status, ...>`, tabel pemetaan juga bisa dipaksa lengkap tanpa switch sama sekali."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Pesanan TS 5: Tidak Ada yang Terlewat",
+      "pembuka": "Status pesanan bertambah dari waktu ke waktu. Kita pastikan setiap status punya tampilan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. assertNever di default memastikan semua status ditangani.",
+          "jawaban": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Status = \"menunggu\" | \"dibayar\";\nfunction tampil(s: Status): void {\n  switch (s) {\n    case \"menunggu\":\n      console.log(\"Menunggu pembayaran\");\n      break;\n    case \"dibayar\":\n      console.log(\"Sudah dibayar\");\n      break;\n    default:\n      assertNever(s);\n  }\n}\ntampil(\"dibayar\");",
+          "keluaran": "Sudah dibayar",
+          "otomatis": true
+        },
+        {
+          "arahan": "Status `\"dikirim\"` baru ditambahkan dan TypeScript langsung menolak. Tambahkan `case \"dikirim\"` yang mencetak `Dalam pengiriman`, lalu panggil `tampil(\"dikirim\")`.",
+          "jawaban": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Status = \"menunggu\" | \"dibayar\" | \"dikirim\";\nfunction tampil(s: Status): void {\n  switch (s) {\n    case \"menunggu\":\n      console.log(\"Menunggu pembayaran\");\n      break;\n    case \"dibayar\":\n      console.log(\"Sudah dibayar\");\n      break;\n    case \"dikirim\":\n      console.log(\"Dalam pengiriman\");\n      break;\n    default:\n      assertNever(s);\n  }\n}\ntampil(\"dibayar\");\ntampil(\"dikirim\");",
+          "kodeAwal": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Status = \"menunggu\" | \"dibayar\" | \"dikirim\";\nfunction tampil(s: Status): void {\n  switch (s) {\n    case \"menunggu\":\n      console.log(\"Menunggu pembayaran\");\n      break;\n    case \"dibayar\":\n      console.log(\"Sudah dibayar\");\n      break;\n    default:\n      assertNever(s);\n  }\n}\ntampil(\"dibayar\");\ntampil(\"dikirim\");",
+          "keluaran": "Sudah dibayar\nDalam pengiriman",
+          "wajib": [
+            {
+              "pola": "case\\s+\"dikirim\"",
+              "pesan": "tambahkan `case \"dikirim\"`."
+            }
+          ],
+          "petunjuk": "Baca error di assertNever(s): ia menyebut \"dikirim\". Tambahkan case \"dikirim\" dengan break."
+        },
+        {
+          "arahan": "Tambahkan status `\"batal\"` ke tipe, tangani dengan mencetak `Dibatalkan`, dan panggil `tampil(\"batal\")`. Pastikan `assertNever` tetap di `default`.",
+          "jawaban": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Status = \"menunggu\" | \"dibayar\" | \"dikirim\" | \"batal\";\nfunction tampil(s: Status): void {\n  switch (s) {\n    case \"menunggu\":\n      console.log(\"Menunggu pembayaran\");\n      break;\n    case \"dibayar\":\n      console.log(\"Sudah dibayar\");\n      break;\n    case \"dikirim\":\n      console.log(\"Dalam pengiriman\");\n      break;\n    case \"batal\":\n      console.log(\"Dibatalkan\");\n      break;\n    default:\n      assertNever(s);\n  }\n}\ntampil(\"dibayar\");\ntampil(\"dikirim\");\ntampil(\"batal\");",
+          "keluaran": "Sudah dibayar\nDalam pengiriman\nDibatalkan",
+          "wajib": [
+            {
+              "pola": "\\|\\s*\"batal\"",
+              "pesan": "tambahkan `\"batal\"` ke tipe Status."
+            },
+            {
+              "pola": "assertNever\\(\\s*s\\s*\\)",
+              "pesan": "biarkan `assertNever(s)` di default."
+            }
+          ],
+          "petunjuk": "Tambahkan | \"batal\" pada Status, lalu case \"batal\" yang mencetak Dibatalkan.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Dengan assertNever, setiap status baru memaksa semua switch diperbarui. Tidak ada lagi tampilan kosong karena status yang terlupa."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa tipe s di cabang default kalau semua anggota union sudah punya case?",
+          "options": [
+            "string",
+            "any",
+            "never",
+            "unknown"
+          ],
+          "answer": 2,
+          "explanation": "Tidak ada kemungkinan tersisa.",
+          "remedial": "Setiap case membuang satu kemungkinan. Kalau semua sudah ditangani, yang tersisa di default adalah never (tidak mungkin terjadi). Itulah sebabnya assertNever(s) diterima."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "function assertNever(x: never): never {\n  throw new Error(String(x));\n}\ntype Warna = \"merah\" | \"hijau\" | \"biru\";\nfunction kode(w: Warna): string {\n  switch (w) {\n    case \"merah\":\n      return \"#f00\";\n    case \"hijau\":\n      return \"#0f0\";\n    default:\n      return assertNever(w);\n  }\n}\nconsole.log(kode(\"merah\"));",
+          "options": [
+            "Lolos, default menangani sisanya",
+            "Mencetak merah",
+            "Error, \"biru\" belum ditangani",
+            "Error, switch harus punya return"
+          ],
+          "answer": 2,
+          "explanation": "Anggota yang terlupa sampai ke default dan ditolak oleh parameter never.",
+          "remedial": "Warna punya tiga anggota tapi hanya dua case. Di default, w masih bisa \"biru\", dan \"biru\" tidak cocok dengan parameter never (TS2345)."
+        },
+        {
+          "question": "Kenapa assertNever tetap berisi throw padahal TypeScript sudah memeriksa saat compile?",
+          "options": [
+            "Supaya program lebih cepat",
+            "Untuk berjaga kalau data tak terduga datang saat program jalan",
+            "Karena TypeScript tidak memeriksa switch",
+            "Karena fungsi never wajib berisi console.log"
+          ],
+          "answer": 1,
+          "explanation": "Data dari luar bisa berbeda dari tipenya.",
+          "remedial": "Tipe hanya diperiksa saat compile. Kalau API mengirim status baru yang belum dikenal aplikasi, nilai itu bisa sampai ke default saat program jalan. throw membuat masalahnya terlihat jelas, bukan diam-diam salah."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Opsi tsconfig apa yang menangkap case yang lupa break?",
+      "options": [
+        "esModuleInterop",
+        "strictNullChecks",
+        "noFallthroughCasesInSwitch",
+        "noImplicitAny"
+      ],
+      "answer": 2,
+      "explanation": "Opsi ini melaporkan case yang jatuh ke case berikutnya."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat type Ukuran = \"S\" | \"M\" | \"L\" | \"XL\" dan fungsi harga(u: Ukuran): number dengan switch dan assertNever di default. S 15000, M 18000, L 21000, XL 25000. Cetak total harga untuk array [\"M\", \"XL\", \"S\"]: 58000",
+      "starterCode": "type Ukuran = \"S\" | \"M\" | \"L\";\nfunction harga(u: Ukuran): number {\n  switch (u) {\n    case \"S\":\n      return 15000;\n    default:\n      return 0;\n  }\n}\n",
+      "solution": "function assertNever(x: never): never {\n  throw new Error(\"Kasus tidak ditangani: \" + JSON.stringify(x));\n}\ntype Ukuran = \"S\" | \"M\" | \"L\" | \"XL\";\nfunction harga(u: Ukuran): number {\n  switch (u) {\n    case \"S\":\n      return 15000;\n    case \"M\":\n      return 18000;\n    case \"L\":\n      return 21000;\n    case \"XL\":\n      return 25000;\n    default:\n      return assertNever(u);\n  }\n}\nconst pesanan: Ukuran[] = [\"M\", \"XL\", \"S\"];\nconsole.log(pesanan.reduce((a, u) => a + harga(u), 0));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "58000\n"
+        }
+      ],
+      "hints": [
+        "Tulis assertNever(x: never): never di atas, lalu return assertNever(u) di default.",
+        "Jumlahkan dengan reduce dan fungsi harga."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Exhaustiveness check memastikan semua anggota union ditangani.",
+        "assertNever(x: never): never dipanggil di default switch.",
+        "Anggota yang terlupa membuat error TS2345 yang menyebut anggota itu.",
+        "throw di assertNever berjaga terhadap data tak terduga saat program jalan.",
+        "Jangan memakai default yang diam-diam mengembalikan cadangan."
+      ]
+    }
+  ]
+}

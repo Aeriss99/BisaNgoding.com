@@ -23,7 +23,7 @@ export const STIKER_MAP: Record<string, StikerConfig> = {
   'english-it': { label: 'ENGLISH', warna: '#a78bfa', bentuk: 'kotak', rotasi: 9 },
   nodejs: { label: 'NODE.JS', warna: 'transparent', bentuk: 'pil', rotasi: -7 },
   tailwind: { label: 'TAILWIND', warna: '#7dd3fc', bentuk: 'kotak', rotasi: 3 },
-  typescript: { label: 'TYPESCRIPT', warna: 'transparent', bentuk: 'pil', rotasi: 8 },
+  typescript: { label: 'TYPESCRIPT', warna: '#7fb2ff', bentuk: 'pil', rotasi: 8 },
   react: { label: 'REACT', warna: '#61dafb', bentuk: 'bulat', rotasi: -5 },
   excel: { label: 'EXCEL', warna: '#7ee2a8', bentuk: 'kotak', rotasi: 5 },
   python: { label: 'PYTHON', warna: '#ffd43b', bentuk: 'pil', rotasi: -8 },
