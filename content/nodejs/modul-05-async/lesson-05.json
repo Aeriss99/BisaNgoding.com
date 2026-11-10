@@ -1,0 +1,189 @@
+{
+  "id": "node-async-05",
+  "moduleId": "node-async",
+  "order": 5,
+  "title": "Timeout dan Pembatalan: AbortController",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pekerjaan async bisa macet: server lain lambat, koneksi tidak menjawab. Program yang baik **membatasi waktu tunggu** dan bisa **membatalkan** pekerjaan.\n\nAlat standarnya adalah `AbortController`:\n\n```js\nconst ac = new AbortController();\nsetTimeout(() => ac.abort(), 1000);       // batalkan setelah 1 detik\nawait fetch(url, { signal: ac.signal }); // fetch menghormati signal\n```\n\nCara singkat untuk batas waktu: `AbortSignal.timeout(1000)`.\n\nIbarat memesan ojek: kalau pengemudi tidak datang dalam 10 menit, pesanan dibatalkan dan kamu mencari pengemudi lain, bukan menunggu selamanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`setTimeout` dari `node:timers/promises` bisa di-await dan menerima signal:\n\n```js\nimport { setTimeout as tunda } from 'node:timers/promises';\n\nconst ac = new AbortController();\nconst kerja = tunda(5000, 'selesai', { signal: ac.signal });\nac.abort();\ntry {\n  await kerja;\n} catch (e) {\n  console.log(e.name); // AbortError\n}\n```\n\nBanyak API Node.js menerima `signal`: `fetch`, `readFile`, `setTimeout` versi Promise, `events.once`, dan `stream.pipeline`. Pola yang sama juga dipakai di fungsi buatan sendiri dengan memeriksa `signal.aborted`."
+    },
+    {
+      "type": "runnable",
+      "code": "import { setTimeout as tunda } from 'node:timers/promises';\n\nconsole.log(await tunda(10, 'tunda selesai'));\n\nconst ac = new AbortController();\nsetTimeout(() => ac.abort(), 10);\ntry {\n  await tunda(1000, 'tidak akan tercetak', { signal: ac.signal });\n} catch (e) {\n  console.log(e.name, e.code);\n}\n\nasync function denganBatas(janji, ms) {\n  const batas = tunda(ms).then(() => {\n    throw new Error(`Lebih dari ${ms} ms`);\n  });\n  return Promise.race([janji, batas]);\n}\ntry {\n  await denganBatas(tunda(50, 'lambat'), 20);\n} catch (e) {\n  console.log(e.message);\n}\nconsole.log(await denganBatas(tunda(5, 'cepat'), 20));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "TimeoutError ETIMEDOUT",
+          "tidak akan tercetak",
+          "AbortError ABORT_ERR",
+          "Error ABORT_ERR"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "setTimeout yang bisa di-await."
+        },
+        {
+          "line": 6,
+          "note": "Membatalkan semua yang memakai signal ini."
+        },
+        {
+          "line": 8,
+          "note": "Pekerjaan menghormati pembatalan."
+        },
+        {
+          "line": 17,
+          "note": "Batas waktu buatan sendiri."
+        }
+      ],
+      "explanation": "Setelah 10 ms, ac.abort() dipanggil. Tunda 1000 ms dibatalkan dan ditolak dengan error bernama AbortError berkode ABORT_ERR.",
+      "tryThis": [
+        {
+          "task": "Ganti 50 menjadi 10 di denganBatas(tunda(50, ...)). Apa yang tercetak?",
+          "hint": null
+        },
+        {
+          "task": "Hapus setTimeout(() => ac.abort(), 10). Berapa lama program berjalan?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tidak ada batas waktu**\n\nPermintaan ke layanan lain tanpa timeout bisa menggantung lama, dan permintaan yang menumpuk menghabiskan sumber daya server.\n\n**2. Timeout dengan Promise.race tanpa membatalkan**\n\nPromise.race hanya berhenti menunggu. Pekerjaan aslinya tetap berjalan di belakang. Kalau bisa, batalkan juga dengan signal.\n\n**3. Menganggap AbortError sebagai bug**\n\nPembatalan adalah hal yang disengaja. Tangani `e.name === 'AbortError'` terpisah dari error lain."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Setiap panggilan ke layanan luar (API pembayaran, pengiriman, email) diberi batas waktu. Nilai beberapa detik adalah hal yang umum.\n- Pola **retry** (coba lagi) dengan jeda yang makin panjang (*exponential backoff*) dipakai untuk kegagalan sementara, digabung dengan batas waktu.\n- Saat server dimatikan dengan rapi (*graceful shutdown*), AbortController dipakai untuk menghentikan pekerjaan yang masih berjalan."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Antrean Pesanan 5: Kurir Lambat",
+      "pembuka": "Toko memanggil layanan kurir yang kadang lambat. Kita beri batas waktu dan bisa membatalkan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Layanan kurir butuh waktu sesuai jarak.",
+          "jawaban": "import { setTimeout as tunda } from 'node:timers/promises';\nasync function cariKurir(jarak, signal) {\n  return tunda(jarak * 10, `Kurir siap (${jarak} km)`, { signal });\n}\nconsole.log(await cariKurir(1));",
+          "keluaran": "Kurir siap (1 km)",
+          "otomatis": true
+        },
+        {
+          "arahan": "Panggil `cariKurir(10, AbortSignal.timeout(30))` di dalam try/catch. Kurir 10 km butuh 100 ms, lebih lama dari batas 30 ms. Di catch, cetak `Kurir terlalu lama`.",
+          "jawaban": "import { setTimeout as tunda } from 'node:timers/promises';\nasync function cariKurir(jarak, signal) {\n  return tunda(jarak * 10, `Kurir siap (${jarak} km)`, { signal });\n}\nconsole.log(await cariKurir(1));\ntry {\n  await cariKurir(10, AbortSignal.timeout(30));\n} catch {\n  console.log('Kurir terlalu lama');\n}",
+          "keluaran": "Kurir siap (1 km)\nKurir terlalu lama",
+          "wajib": [
+            {
+              "pola": "AbortSignal\\.timeout\\(",
+              "pesan": "pakai `AbortSignal.timeout`."
+            }
+          ],
+          "petunjuk": "AbortSignal.timeout(30) membuat signal yang batal sendiri setelah 30 ms."
+        },
+        {
+          "arahan": "Buat `async function cobaLagi(fn, kali)` yang memanggil `fn()` sampai berhasil, paling banyak `kali` percobaan, dan melempar error terakhir kalau semuanya gagal. Uji dengan fungsi yang gagal dua kali lalu berhasil, dan cetak `Berhasil pada percobaan 3`.",
+          "jawaban": "import { setTimeout as tunda } from 'node:timers/promises';\nasync function cariKurir(jarak, signal) {\n  return tunda(jarak * 10, `Kurir siap (${jarak} km)`, { signal });\n}\nconsole.log(await cariKurir(1));\ntry {\n  await cariKurir(10, AbortSignal.timeout(30));\n} catch {\n  console.log('Kurir terlalu lama');\n}\nasync function cobaLagi(fn, kali) {\n  let terakhir;\n  for (let i = 1; i <= kali; i++) {\n    try {\n      return await fn(i);\n    } catch (e) {\n      terakhir = e;\n    }\n  }\n  throw terakhir;\n}\nconst hasil = await cobaLagi(async (ke) => {\n  if (ke < 3) throw new Error('Kurir sibuk');\n  return `Berhasil pada percobaan ${ke}`;\n}, 5);\nconsole.log(hasil);",
+          "keluaran": "Kurir siap (1 km)\nKurir terlalu lama\nBerhasil pada percobaan 3",
+          "wajib": [
+            {
+              "pola": "async\\s+function\\s+cobaLagi",
+              "pesan": "buat `async function cobaLagi`."
+            }
+          ],
+          "petunjuk": "Loop for dari 1 sampai kali: return await fn(i) di dalam try, simpan error di catch, lempar setelah loop.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Panggilan ke kurir kini punya batas waktu, dan kegagalan sementara dicoba lagi."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi AbortController?",
+          "options": [
+            "Menangkap semua error",
+            "Menjalankan kode di thread lain",
+            "Membatalkan pekerjaan async yang menerima signal-nya",
+            "Mempercepat Promise"
+          ],
+          "answer": 2,
+          "explanation": "abort = batalkan.",
+          "remedial": "AbortController punya signal yang diberikan ke pekerjaan. Saat abort() dipanggil, pekerjaan yang menghormati signal itu berhenti dan menolak dengan AbortError."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { setTimeout as tunda } from 'node:timers/promises';\nconst ac = new AbortController();\nac.abort();\ntry {\n  await tunda(10, 'halo', { signal: ac.signal });\n} catch (e) {\n  console.log(e.name);\n}",
+          "options": [
+            "Error",
+            "halo",
+            "AbortError",
+            "TimeoutError"
+          ],
+          "answer": 2,
+          "explanation": "Signal sudah dibatalkan sebelum menunggu.",
+          "remedial": "Signal dibatalkan sebelum tunda dipanggil, sehingga tunda langsung ditolak dengan AbortError."
+        },
+        {
+          "question": "Apa kelemahan timeout dengan Promise.race saja?",
+          "options": [
+            "Hasilnya selalu error",
+            "Pekerjaan aslinya tetap berjalan di belakang, hanya tidak ditunggu",
+            "Promise.race menunggu semuanya selesai",
+            "Promise.race tidak bisa dipakai dengan timer"
+          ],
+          "answer": 1,
+          "explanation": "race hanya memilih yang tercepat.",
+          "remedial": "Promise.race berhenti menunggu, tapi tidak menghentikan pekerjaan yang kalah. Untuk benar-benar menghentikannya, pakai signal."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa cara singkat membuat signal yang otomatis batal setelah 2 detik?",
+      "options": [
+        "Promise.timeout(2000)",
+        "new AbortController(2000)",
+        "AbortSignal.timeout(2000)",
+        "setTimeout(abort, 2)"
+      ],
+      "answer": 2,
+      "explanation": "Metode statis di AbortSignal."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi async batasi(janji, ms) yang menolak dengan Error berpesan Waktu habis kalau janji belum selesai dalam ms milidetik. Uji dengan janji yang selesai dalam 50 ms dan batas 10 ms, lalu cetak pesan errornya: Waktu habis",
+      "starterCode": "import { setTimeout as tunda } from 'node:timers/promises';\nasync function batasi(janji, ms) {}\n",
+      "solution": "import { setTimeout as tunda } from 'node:timers/promises';\nasync function batasi(janji, ms) {\n  const habis = tunda(ms).then(() => {\n    throw new Error('Waktu habis');\n  });\n  return Promise.race([janji, habis]);\n}\ntry {\n  await batasi(tunda(50, 'ok'), 10);\n} catch (e) {\n  console.log(e.message);\n}\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Waktu habis\n"
+        }
+      ],
+      "hints": [
+        "tunda(ms).then(() => { throw new Error(...) }) menjadi Promise yang gagal setelah ms.",
+        "Promise.race([janji, habis])."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Beri batas waktu pada setiap panggilan ke layanan luar.",
+        "AbortController membatalkan pekerjaan lewat signal.",
+        "AbortSignal.timeout(ms) membuat signal yang batal sendiri.",
+        "Pembatalan menolak dengan error bernama AbortError.",
+        "Retry dipakai untuk kegagalan sementara."
+      ]
+    }
+  ]
+}

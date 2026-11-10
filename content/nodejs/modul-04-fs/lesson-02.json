@@ -1,0 +1,190 @@
+{
+  "id": "node-fs-02",
+  "moduleId": "node-fs",
+  "order": 2,
+  "title": "JSON sebagai Penyimpanan",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Data terstruktur (daftar produk, pengaturan) bisa disimpan sebagai file JSON:\n\n```js\nimport { readFile, writeFile } from 'node:fs/promises';\n\nconst produk = JSON.parse(await readFile('produk.json', 'utf8'));\nproduk.push({ nama: 'Es Jeruk', harga: 10000 });\nawait writeFile('produk.json', JSON.stringify(produk, null, 2));\n```\n\nPolanya selalu tiga langkah: **baca, ubah, tulis kembali**.\n\n`JSON.stringify(data, null, 2)` membuat file rapi dengan indentasi 2 spasi, sehingga mudah dibaca manusia dan rapi di Git.\n\nIbarat buku catatan stok di toko kecil: untuk mencatat barang baru, buku dibuka, catatan ditambah, lalu buku disimpan kembali di laci."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMembaca JSON yang rusak membuat `JSON.parse` melempar `SyntaxError`:\n\n```js\ntry {\n  const data = JSON.parse(await readFile('produk.json', 'utf8'));\n} catch (e) {\n  if (e instanceof SyntaxError) console.log('File JSON rusak');\n  else throw e;\n}\n```\n\nFungsi kecil membuat pola baca-ubah-tulis lebih rapi:\n\n```js\nasync function bacaJson(file) {\n  return JSON.parse(await readFile(file, 'utf8'));\n}\nasync function tulisJson(file, data) {\n  await writeFile(file, JSON.stringify(data, null, 2) + '\\n');\n}\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "// === produk.json ===\n[\n  { \"nama\": \"Kopi Susu\", \"harga\": 18000, \"stok\": 5 },\n  { \"nama\": \"Teh Tarik\", \"harga\": 12000, \"stok\": 0 }\n]\n// === main.js ===\nimport { readFile, writeFile } from 'node:fs/promises';\nconst bacaJson = async (f) => JSON.parse(await readFile(f, 'utf8'));\nconst tulisJson = (f, d) => writeFile(f, JSON.stringify(d, null, 2) + '\\n');\n\nconst produk = await bacaJson('produk.json');\nproduk.find((p) => p.nama === 'Teh Tarik').stok += 10;\nproduk.push({ nama: 'Es Jeruk', harga: 10000, stok: 7 });\nawait tulisJson('produk.json', produk);\n\nconst lagi = await bacaJson('produk.json');\nconsole.log(lagi.length, lagi.reduce((a, p) => a + p.stok, 0));\nconsole.log((await readFile('produk.json', 'utf8')).split('\\n')[1]);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "3 12",
+          "3 22",
+          "2 15",
+          "3 17"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 8,
+          "note": "Baca teks, ubah menjadi object."
+        },
+        {
+          "line": 9,
+          "note": "Tulis kembali dengan rapi."
+        },
+        {
+          "line": 12,
+          "note": "Ubah data di memori."
+        }
+      ],
+      "explanation": "Setelah diubah ada 3 produk. Stoknya 5 + 10 (Teh Tarik bertambah dari 0) + 7 = 22.",
+      "tryThis": [
+        {
+          "task": "Ganti JSON.stringify(d, null, 2) menjadi JSON.stringify(d). Apa isi baris kedua file?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan koma berlebih di akhir produk.json. Baca error-nya.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa menulis kembali**\n\nMengubah object di memori tidak mengubah file. Setelah diubah, panggil writeFile.\n\n**2. Menulis object langsung**\n\n`writeFile('a.json', data)` menulis `[object Object]`. Ubah dulu dengan `JSON.stringify`.\n\n**3. Dua proses menulis file yang sama bersamaan**\n\nPerubahan salah satu bisa hilang. Ini salah satu alasan aplikasi multi-pengguna memakai database."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- File JSON umum dipakai untuk konfigurasi, data contoh (*seed*), dan cache sederhana. Untuk data yang ditulis banyak pengguna bersamaan, dipakai database seperti PostgreSQL (modul Database).\n- Saat menulis file penting, aplikasi yang hati-hati menulis ke file sementara dulu lalu mengganti namanya (`rename`), supaya file tidak setengah tertulis kalau program berhenti di tengah jalan.\n- JSON yang dibaca dari luar (file, API) sebaiknya divalidasi, misalnya dengan Zod, karena isinya belum tentu sesuai harapan."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Arsip Node 2: Stok di JSON",
+      "pembuka": "Stok toko disimpan di file JSON. Kita ubah stok dan menyimpannya kembali.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Stok dibaca dari JSON.",
+          "jawaban": "// === stok.json ===\n{ \"Kopi Susu\": 5, \"Teh Tarik\": 2 }\n// === main.js ===\nimport { readFile } from 'node:fs/promises';\nconst stok = JSON.parse(await readFile('stok.json', 'utf8'));\nconsole.log(stok);",
+          "keluaran": "{ 'Kopi Susu': 5, 'Teh Tarik': 2 }",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kurangi stok Kopi Susu sebanyak 2, tulis kembali ke `stok.json` dengan `JSON.stringify(stok, null, 2)`, lalu baca ulang dan cetak `Sisa Kopi Susu: 3`.",
+          "jawaban": "// === stok.json ===\n{ \"Kopi Susu\": 5, \"Teh Tarik\": 2 }\n// === main.js ===\nimport { readFile, writeFile } from 'node:fs/promises';\nconst stok = JSON.parse(await readFile('stok.json', 'utf8'));\nconsole.log(stok);\nstok['Kopi Susu'] -= 2;\nawait writeFile('stok.json', JSON.stringify(stok, null, 2));\nconst lagi = JSON.parse(await readFile('stok.json', 'utf8'));\nconsole.log('Sisa Kopi Susu:', lagi['Kopi Susu']);",
+          "keluaran": "{ 'Kopi Susu': 5, 'Teh Tarik': 2 }\nSisa Kopi Susu: 3",
+          "wajib": [
+            {
+              "pola": "JSON\\.stringify\\(\\s*stok\\s*,\\s*null\\s*,\\s*2\\s*\\)",
+              "pesan": "tulis dengan `JSON.stringify(stok, null, 2)`."
+            }
+          ],
+          "petunjuk": "stok['Kopi Susu'] -= 2, lalu writeFile dengan JSON.stringify."
+        },
+        {
+          "arahan": "Bungkus dengan dua fungsi: `bacaJson(file)` dan `tulisJson(file, data)`, lalu tambahkan menu baru `'Es Jeruk': 4` lewat fungsi itu. Cetak `Jumlah menu: 3` di baris terakhir.",
+          "jawaban": "// === stok.json ===\n{ \"Kopi Susu\": 5, \"Teh Tarik\": 2 }\n// === main.js ===\nimport { readFile, writeFile } from 'node:fs/promises';\nasync function bacaJson(file) {\n  return JSON.parse(await readFile(file, 'utf8'));\n}\nasync function tulisJson(file, data) {\n  await writeFile(file, JSON.stringify(data, null, 2));\n}\nconst stok = await bacaJson('stok.json');\nconsole.log(stok);\nstok['Kopi Susu'] -= 2;\nawait tulisJson('stok.json', stok);\nconst lagi = await bacaJson('stok.json');\nconsole.log('Sisa Kopi Susu:', lagi['Kopi Susu']);\nlagi['Es Jeruk'] = 4;\nawait tulisJson('stok.json', lagi);\nconsole.log('Jumlah menu:', Object.keys(await bacaJson('stok.json')).length);",
+          "keluaran": "{ 'Kopi Susu': 5, 'Teh Tarik': 2 }\nSisa Kopi Susu: 3\nJumlah menu: 3",
+          "wajib": [
+            {
+              "pola": "async\\s+function\\s+bacaJson",
+              "pesan": "buat `async function bacaJson`."
+            },
+            {
+              "pola": "async\\s+function\\s+tulisJson",
+              "pesan": "buat `async function tulisJson`."
+            }
+          ],
+          "petunjuk": "Dua fungsi async kecil, lalu pakai keduanya untuk semua baca-tulis.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Stok toko tersimpan di JSON dengan pola baca, ubah, tulis kembali."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa pola mengubah data di file JSON?",
+          "options": [
+            "Baca, ubah di memori, lalu tulis kembali",
+            "Hapus file lalu buat baru tanpa membaca",
+            "Cukup ubah object, file ikut berubah",
+            "Langsung mengedit satu baris file"
+          ],
+          "answer": 0,
+          "explanation": "File tidak berubah sendiri.",
+          "remedial": "Object di memori adalah salinan. Setelah diubah, ia harus diubah ke teks dengan JSON.stringify dan ditulis kembali ke file."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { readFile, writeFile } from 'node:fs/promises';\nawait writeFile('d.json', String({ a: 1 }));\nconsole.log(await readFile('d.json', 'utf8'));",
+          "options": [
+            "Error",
+            "{ a: 1 }",
+            "[object Object]",
+            "{\"a\":1}"
+          ],
+          "answer": 2,
+          "explanation": "writeFile menerima teks atau Buffer.",
+          "remedial": "Object yang ditulis langsung diubah menjadi teks [object Object]. Pakai JSON.stringify."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini dijalankan?",
+          "code": "// === data.json ===\n[1, 2, ]\n// === main.js ===\nimport { readFile } from 'node:fs/promises';\nconsole.log(JSON.parse(await readFile('data.json', 'utf8')));",
+          "options": [
+            "Mencetak objek kosong",
+            "Error, isi file bukan JSON yang sah",
+            "Koma diabaikan",
+            "Mencetak undefined"
+          ],
+          "answer": 1,
+          "explanation": "JSON tidak mengizinkan koma di akhir.",
+          "remedial": "JSON tidak mengizinkan koma setelah elemen terakhir. JSON.parse melempar SyntaxError, dan karena tidak ditangkap, program berhenti."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa aplikasi multi-pengguna menyimpan data di database, bukan file JSON?",
+      "options": [
+        "JSON hanya untuk browser",
+        "Node.js tidak bisa membaca file besar",
+        "File JSON tidak bisa berisi angka",
+        "Dua proses yang menulis file bersamaan bisa saling menimpa perubahan"
+      ],
+      "answer": 3,
+      "explanation": "Database menangani banyak penulis bersamaan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "pengguna.json berisi daftar pengguna. Tambahkan pengguna baru Dodi berumur 25, tulis kembali dengan rapi (indentasi 2), lalu baca ulang dan cetak nama semua pengguna dipisah koma: Rina, Budi, Dodi",
+      "starterCode": "// === pengguna.json ===\n[{ \"nama\": \"Rina\", \"umur\": 21 }, { \"nama\": \"Budi\", \"umur\": 30 }]\n// === main.js ===\nconsole.log('Rina, Budi');\n",
+      "solution": "// === pengguna.json ===\n[{ \"nama\": \"Rina\", \"umur\": 21 }, { \"nama\": \"Budi\", \"umur\": 30 }]\n// === main.js ===\nimport { readFile, writeFile } from 'node:fs/promises';\nconst data = JSON.parse(await readFile('pengguna.json', 'utf8'));\ndata.push({ nama: 'Dodi', umur: 25 });\nawait writeFile('pengguna.json', JSON.stringify(data, null, 2));\nconst lagi = JSON.parse(await readFile('pengguna.json', 'utf8'));\nconsole.log(lagi.map((p) => p.nama).join(', '));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Rina, Budi, Dodi\n"
+        }
+      ],
+      "hints": [
+        "JSON.parse hasil readFile, lalu push pengguna baru.",
+        "Tulis dengan JSON.stringify(data, null, 2), baca ulang, lalu map nama."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "JSON.parse mengubah teks file menjadi object; JSON.stringify sebaliknya.",
+        "Pola: baca, ubah di memori, tulis kembali.",
+        "JSON.stringify(data, null, 2) membuat file rapi.",
+        "JSON rusak membuat JSON.parse melempar SyntaxError.",
+        "Data multi-pengguna disimpan di database."
+      ]
+    }
+  ]
+}

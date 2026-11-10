@@ -1,0 +1,190 @@
+{
+  "id": "node-fs-06",
+  "moduleId": "node-fs",
+  "order": 6,
+  "title": "Proyek Mini: Arsip Pesanan",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **arsip pesanan** yang menyimpan data di file.\n\n| Materi | Dipakai untuk |\n|---|---|\n| readFile/writeFile + JSON | menyimpan daftar pesanan |\n| appendFile | log kejadian satu baris per pesanan |\n| mkdir recursive | folder data dan laporan |\n| path + import.meta.dirname | jalur yang pasti |\n| e.code ENOENT | mulai dari arsip kosong |\n| file sementara + rename | menyimpan dengan aman |\n\nIbarat buku besar di toko: setiap transaksi dicatat rapi, ada catatan harian di bagian belakang (log), dan buku lama disalin dulu sebelum diganti supaya tidak ada yang hilang."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMenyimpan dengan aman lewat file sementara:\n\n```js\nasync function simpan(file, data) {\n  const sementara = file + '.tmp';\n  await writeFile(sementara, JSON.stringify(data, null, 2));\n  await rename(sementara, file); // menggantikan file lama sekaligus\n}\n```\n\nFormat log yang mudah dibaca dan dicari: satu kejadian per baris, diawali waktu dalam format ISO:\n\n```text\n2026-11-10T08:00:00.000Z TAMBAH #1 Kopi Susu x2\n```\n\n(Di contoh materi, waktu dibuat tetap supaya keluarannya bisa dicocokkan.)"
+    },
+    {
+      "type": "runnable",
+      "code": "import { readFile, writeFile, appendFile, mkdir, rename } from 'node:fs/promises';\nimport path from 'node:path';\n\nconst DIR = path.join(import.meta.dirname, 'data');\nconst FILE = path.join(DIR, 'pesanan.json');\nconst LOG = path.join(DIR, 'kejadian.log');\nconst WAKTU = '2026-11-10T08:00:00.000Z';\n\nasync function baca() {\n  try {\n    return JSON.parse(await readFile(FILE, 'utf8'));\n  } catch (e) {\n    if (e.code === 'ENOENT') return [];\n    throw e;\n  }\n}\nasync function simpan(data) {\n  await writeFile(FILE + '.tmp', JSON.stringify(data, null, 2));\n  await rename(FILE + '.tmp', FILE);\n}\nasync function tambah(menu, jumlah) {\n  const semua = await baca();\n  const p = { id: semua.length + 1, menu, jumlah };\n  semua.push(p);\n  await simpan(semua);\n  await appendFile(LOG, `${WAKTU} TAMBAH #${p.id} ${menu} x${jumlah}\\n`);\n}\nawait mkdir(DIR, { recursive: true });\nawait tambah('Kopi Susu', 2);\nawait tambah('Roti Bakar', 1);\nconsole.log((await baca()).length);\nconsole.log((await readFile(LOG, 'utf8')).trim().split('\\n').at(-1));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "TAMBAH #2 Roti Bakar x1",
+          "2026-11-10T08:00:00.000Z TAMBAH #2 Roti Bakar x1",
+          "2026-11-10T08:00:00.000Z TAMBAH #1 Kopi Susu x2",
+          "2026-11-10T08:00:00.000Z TAMBAH #2 Roti Bakar x2"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Folder data dari lokasi kode."
+        },
+        {
+          "line": 13,
+          "note": "Belum ada arsip: mulai dari kosong."
+        },
+        {
+          "line": 19,
+          "note": "Ganti file lama sekaligus."
+        },
+        {
+          "line": 26,
+          "note": "Satu baris log per kejadian."
+        }
+      ],
+      "explanation": "Ada dua pesanan. Baris terakhir log adalah kejadian kedua: pesanan nomor 2, Roti Bakar sebanyak 1.",
+      "tryThis": [
+        {
+          "task": "Tambahkan pesanan ketiga Teh Tarik x3.",
+          "hint": null
+        },
+        {
+          "task": "Cetak isi file pesanan.json apa adanya.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Id dari panjang array**\n\n`semua.length + 1` bentrok kalau ada pesanan yang dihapus. Simpan penghitung tersendiri, atau pakai `crypto.randomUUID()`.\n\n**2. Menulis langsung ke file utama**\n\nKalau program berhenti di tengah writeFile, file bisa rusak. Tulis ke file sementara lalu rename.\n\n**3. Log tanpa waktu**\n\nLog tanpa waktu sulit dipakai untuk menelusuri masalah. Awali setiap baris dengan waktu ISO."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Penyimpanan berbasis file seperti ini cocok untuk CLI dan prototipe. Begitu aplikasi melayani banyak pengguna, data dipindah ke database, dan log dikirim ke sistem log terpusat.\n- Pola \"tulis sementara lalu rename\" juga dipakai alat besar seperti npm saat menulis package-lock.json.\n- Format log satu baris per kejadian dengan waktu ISO memudahkan pencarian dengan alat seperti grep, dan menjadi dasar log JSON yang dibahas di modul Produksi."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Arsip Node 6: Arsip Pesanan",
+      "pembuka": "Kita rakit arsip pesanan: data di JSON, log kejadian, dan penyimpanan yang aman.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Arsip dibaca, dan kalau belum ada dimulai dari kosong.",
+          "jawaban": "import { readFile } from 'node:fs/promises';\nasync function baca() {\n  try {\n    return JSON.parse(await readFile('pesanan.json', 'utf8'));\n  } catch (e) {\n    if (e.code === 'ENOENT') return [];\n    throw e;\n  }\n}\nconsole.log('Pesanan:', (await baca()).length);",
+          "keluaran": "Pesanan: 0",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat `async function simpan(data)` yang menulis ke `pesanan.json.tmp` lalu `rename` ke `pesanan.json`. Tambahkan pesanan `{ id: 1, menu: 'Kopi Susu' }`, simpan, lalu cetak `Pesanan: 1`.",
+          "jawaban": "import { readFile, writeFile, rename } from 'node:fs/promises';\nasync function baca() {\n  try {\n    return JSON.parse(await readFile('pesanan.json', 'utf8'));\n  } catch (e) {\n    if (e.code === 'ENOENT') return [];\n    throw e;\n  }\n}\nasync function simpan(data) {\n  await writeFile('pesanan.json.tmp', JSON.stringify(data, null, 2));\n  await rename('pesanan.json.tmp', 'pesanan.json');\n}\nconsole.log('Pesanan:', (await baca()).length);\nconst semua = await baca();\nsemua.push({ id: 1, menu: 'Kopi Susu' });\nawait simpan(semua);\nconsole.log('Pesanan:', (await baca()).length);",
+          "keluaran": "Pesanan: 0\nPesanan: 1",
+          "wajib": [
+            {
+              "pola": "rename\\(",
+              "pesan": "pakai `rename`."
+            }
+          ],
+          "petunjuk": "writeFile ke .tmp, lalu rename ke nama asli."
+        },
+        {
+          "arahan": "Catat kejadian ke `kejadian.log` dengan `appendFile` setiap kali menyimpan, berformat `TAMBAH #1 Kopi Susu`. Cetak isi log (tanpa spasi di akhir) di baris terakhir.",
+          "jawaban": "import { readFile, writeFile, rename, appendFile } from 'node:fs/promises';\nasync function baca() {\n  try {\n    return JSON.parse(await readFile('pesanan.json', 'utf8'));\n  } catch (e) {\n    if (e.code === 'ENOENT') return [];\n    throw e;\n  }\n}\nasync function simpan(data) {\n  await writeFile('pesanan.json.tmp', JSON.stringify(data, null, 2));\n  await rename('pesanan.json.tmp', 'pesanan.json');\n}\nconsole.log('Pesanan:', (await baca()).length);\nconst semua = await baca();\nconst p = { id: 1, menu: 'Kopi Susu' };\nsemua.push(p);\nawait simpan(semua);\nawait appendFile('kejadian.log', `TAMBAH #${p.id} ${p.menu}\\n`);\nconsole.log('Pesanan:', (await baca()).length);\nconsole.log((await readFile('kejadian.log', 'utf8')).trim());",
+          "keluaran": "Pesanan: 0\nPesanan: 1\nTAMBAH #1 Kopi Susu",
+          "wajib": [
+            {
+              "pola": "appendFile\\(\\s*'kejadian\\.log'",
+              "pesan": "tulis log ke `'kejadian.log'`."
+            }
+          ],
+          "petunjuk": "appendFile dengan template string berakhiran \\n, lalu readFile dan trim.",
+          "tantangan": true,
+          "benar": "Arsip pesanan selesai: data aman, ada jejak kejadiannya, dan tahan terhadap file yang belum ada."
+        }
+      ],
+      "penutup": "Arsip pesanan memakai semua alat file Node.js: JSON, log, folder, jalur, dan penanganan error."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa data disimpan ke file sementara dulu lalu di-rename?",
+          "options": [
+            "Supaya file lebih kecil",
+            "Supaya file tersembunyi",
+            "Supaya file utama tidak pernah setengah tertulis kalau program berhenti",
+            "Karena writeFile tidak bisa menulis JSON"
+          ],
+          "answer": 2,
+          "explanation": "rename terjadi sekaligus.",
+          "remedial": "Kalau program berhenti saat menulis, yang rusak hanya file sementara. File utama baru diganti dengan rename setelah penulisan selesai."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { appendFile, readFile } from 'node:fs/promises';\nfor (const m of ['a', 'b', 'c']) await appendFile('x.log', m + '\\n');\nconsole.log((await readFile('x.log', 'utf8')).trim().split('\\n').length);",
+          "options": [
+            "1",
+            "0",
+            "2",
+            "3"
+          ],
+          "answer": 3,
+          "explanation": "appendFile menambah baris.",
+          "remedial": "Tiga kali appendFile menambah tiga baris ke log, sehingga setelah trim dan split ada 3 baris."
+        },
+        {
+          "question": "Kenapa id dari semua.length + 1 berisiko?",
+          "options": [
+            "length tidak ada di array",
+            "Id harus berupa teks",
+            "Id bisa bentrok setelah ada data yang dihapus",
+            "Angka bisa terlalu besar"
+          ],
+          "answer": 2,
+          "explanation": "Panjang array berkurang saat ada yang dihapus.",
+          "remedial": "Kalau pesanan nomor 1 dihapus dari 2 pesanan, length menjadi 1 dan pesanan baru mendapat id 2 yang sudah dipakai."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kapan penyimpanan berbasis file JSON sebaiknya diganti database?",
+      "options": [
+        "Saat data lebih dari 10 baris",
+        "Tidak pernah",
+        "Saat file dibaca lebih dari sekali",
+        "Saat aplikasi melayani banyak pengguna yang menulis bersamaan"
+      ],
+      "answer": 3,
+      "explanation": "Database menangani penulisan bersamaan dengan aman."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Lengkapi fungsi hapus(id) yang membaca data.json, membuang item dengan id itu, lalu menyimpannya kembali. Hapus id 2, lalu cetak id yang tersisa dipisah koma: 1,3",
+      "starterCode": "// === data.json ===\n[{ \"id\": 1 }, { \"id\": 2 }, { \"id\": 3 }]\n// === main.js ===\nimport { readFile, writeFile } from 'node:fs/promises';\nasync function hapus(id) {}\n",
+      "solution": "// === data.json ===\n[{ \"id\": 1 }, { \"id\": 2 }, { \"id\": 3 }]\n// === main.js ===\nimport { readFile, writeFile } from 'node:fs/promises';\nasync function hapus(id) {\n  const data = JSON.parse(await readFile('data.json', 'utf8'));\n  await writeFile('data.json', JSON.stringify(data.filter((x) => x.id !== id), null, 2));\n}\nawait hapus(2);\nconst sisa = JSON.parse(await readFile('data.json', 'utf8'));\nconsole.log(sisa.map((x) => x.id).join(','));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "1,3\n"
+        }
+      ],
+      "hints": [
+        "Baca, filter((x) => x.id !== id), lalu tulis kembali.",
+        "Setelah hapus, baca ulang dan cetak id dengan join."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Simpan data sebagai JSON dengan pola baca, ubah, tulis.",
+        "Tulis ke file sementara lalu rename supaya aman.",
+        "Log kejadian satu baris per kejadian, diawali waktu.",
+        "Mulai dari data kosong kalau file belum ada (ENOENT).",
+        "Banyak pengguna menulis bersamaan: pakai database."
+      ]
+    }
+  ]
+}

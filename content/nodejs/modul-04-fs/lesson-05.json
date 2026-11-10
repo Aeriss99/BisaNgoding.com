@@ -1,0 +1,189 @@
+{
+  "id": "node-fs-05",
+  "moduleId": "node-fs",
+  "order": 5,
+  "title": "Menangani Error File",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Operasi file bisa gagal: file tidak ada, sudah ada, atau tidak boleh dibaca. Error dari `fs` punya properti **`code`** yang bisa diperiksa:\n\n| code | Artinya |\n|---|---|\n| `ENOENT` | file atau folder tidak ada |\n| `EEXIST` | sudah ada (misalnya saat membuat dengan flag `wx`) |\n| `EACCES` / `EPERM` | tidak punya izin |\n| `EISDIR` | yang dibaca ternyata folder |\n\n```js\ntry {\n  const isi = await readFile('config.json', 'utf8');\n} catch (e) {\n  if (e.code === 'ENOENT') console.log('Pakai pengaturan bawaan');\n  else throw e; // error lain: jangan ditelan\n}\n```\n\nIbarat petugas arsip yang mencari map: kalau mapnya tidak ada, ia memberi tahu dengan kode yang jelas (ENOENT), bukan sekadar berkata \"gagal\", sehingga atasannya tahu harus berbuat apa."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMembuat file **hanya kalau belum ada** dengan flag `'wx'`:\n\n```js\ntry {\n  await writeFile('kunci.lock', String(process.pid), { flag: 'wx' });\n} catch (e) {\n  if (e.code === 'EEXIST') console.log('Program lain sedang berjalan');\n}\n```\n\nMemeriksa dulu dengan `access` atau `existsSync` lalu baru membaca terdengar aman, tapi ada jeda di antaranya: file bisa saja dihapus program lain. Cara yang dianjurkan adalah **langsung mencoba**, lalu menangani error-nya."
+    },
+    {
+      "type": "runnable",
+      "code": "import { readFile, writeFile } from 'node:fs/promises';\n\nasync function bacaPengaturan() {\n  try {\n    return JSON.parse(await readFile('pengaturan.json', 'utf8'));\n  } catch (e) {\n    if (e.code === 'ENOENT') return { tema: 'terang' };\n    throw e;\n  }\n}\nconsole.log(await bacaPengaturan());\nawait writeFile('pengaturan.json', '{\"tema\":\"gelap\"}');\nconsole.log(await bacaPengaturan());\ntry {\n  await writeFile('pengaturan.json', '{}', { flag: 'wx' });\n} catch (e) {\n  console.log(e.code);\n}\ntry {\n  await readFile('tidak-ada.txt', 'utf8');\n} catch (e) {\n  console.log(e.message);\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "undefined",
+          "ENOENT",
+          "EEXIST",
+          "{ tema: 'gelap' }"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "File tidak ada: pakai nilai bawaan."
+        },
+        {
+          "line": 8,
+          "note": "Error lain jangan ditelan."
+        },
+        {
+          "line": 15,
+          "note": "Tulis hanya kalau file belum ada."
+        }
+      ],
+      "explanation": "pengaturan.json sudah dibuat sebelumnya, jadi menulis dengan flag wx gagal dengan kode EEXIST.",
+      "tryThis": [
+        {
+          "task": "Hapus baris throw e dan tulis JSON yang rusak ke pengaturan.json. Apa yang terjadi?",
+          "hint": null
+        },
+        {
+          "task": "Ganti flag 'wx' menjadi 'w'. Apa bedanya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menelan semua error**\n\n`catch (e) {}` atau `catch { return bawaan }` untuk semua error membuat masalah izin atau JSON rusak tersembunyi. Tangani kode yang dikenal, lempar lagi sisanya.\n\n**2. Membandingkan pesan error**\n\nPesan bisa berubah antar versi. Bandingkan `e.code`, bukan `e.message`.\n\n**3. Cek dulu baru baca**\n\n`if (existsSync(f)) readFile(f)` punya jeda waktu. Langsung coba baca dan tangani `ENOENT`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di server, error file yang tidak dikenal sebaiknya dicatat di log (dengan kode dan jalurnya) dan dibalas dengan respons 500 yang sopan, bukan membuat server berhenti.\n- Kode error sistem seperti ENOENT, EACCES, dan EADDRINUSE (port sudah dipakai) akan sering kamu lihat di log server Node.js. Mengenal artinya mempercepat mencari masalah.\n- File kunci (*lock file*) dengan flag `wx` dipakai untuk mencegah dua salinan script yang sama berjalan bersamaan, misalnya script backup."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Arsip Node 5: Aman dari Error",
+      "pembuka": "Program arsip harus tetap berjalan walau file datanya belum ada, tapi tidak boleh menyembunyikan error lain.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Membaca file yang belum ada menghasilkan error ENOENT.",
+          "jawaban": "import { readFile } from 'node:fs/promises';\ntry {\n  await readFile('arsip.json', 'utf8');\n} catch (e) {\n  console.log('Kode error:', e.code);\n}",
+          "keluaran": "Kode error: ENOENT",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat `async function bacaArsip()` yang mengembalikan `[]` kalau file tidak ada (`ENOENT`) dan melempar ulang error lain. Cetak `Isi arsip: 0` di baris terakhir.",
+          "jawaban": "import { readFile } from 'node:fs/promises';\ntry {\n  await readFile('arsip.json', 'utf8');\n} catch (e) {\n  console.log('Kode error:', e.code);\n}\nasync function bacaArsip() {\n  try {\n    return JSON.parse(await readFile('arsip.json', 'utf8'));\n  } catch (e) {\n    if (e.code === 'ENOENT') return [];\n    throw e;\n  }\n}\nconst arsip = await bacaArsip();\nconsole.log('Isi arsip:', arsip.length);",
+          "keluaran": "Kode error: ENOENT\nIsi arsip: 0",
+          "wajib": [
+            {
+              "pola": "e\\.code\\s*===\\s*'ENOENT'",
+              "pesan": "periksa `e.code === 'ENOENT'`."
+            },
+            {
+              "pola": "throw\\s+e",
+              "pesan": "lempar ulang error lain dengan `throw e`."
+            }
+          ],
+          "petunjuk": "Di catch: if (e.code === 'ENOENT') return []; lalu throw e;"
+        },
+        {
+          "arahan": "Buat file `arsip.lock` dengan flag `'wx'` dua kali berturut-turut. Yang pertama berhasil (`Kunci dibuat`), yang kedua gagal: tangkap dan cetak `Sudah dikunci: EEXIST`.",
+          "jawaban": "import { readFile, writeFile } from 'node:fs/promises';\ntry {\n  await readFile('arsip.json', 'utf8');\n} catch (e) {\n  console.log('Kode error:', e.code);\n}\nasync function bacaArsip() {\n  try {\n    return JSON.parse(await readFile('arsip.json', 'utf8'));\n  } catch (e) {\n    if (e.code === 'ENOENT') return [];\n    throw e;\n  }\n}\nconst arsip = await bacaArsip();\nconsole.log('Isi arsip:', arsip.length);\nasync function kunci() {\n  try {\n    await writeFile('arsip.lock', 'terkunci', { flag: 'wx' });\n    console.log('Kunci dibuat');\n  } catch (e) {\n    if (e.code === 'EEXIST') console.log('Sudah dikunci:', e.code);\n    else throw e;\n  }\n}\nawait kunci();\nawait kunci();",
+          "keluaran": "Kode error: ENOENT\nIsi arsip: 0\nKunci dibuat\nSudah dikunci: EEXIST",
+          "wajib": [
+            {
+              "pola": "flag\\s*:\\s*'wx'",
+              "pesan": "pakai `{ flag: 'wx' }`."
+            }
+          ],
+          "petunjuk": "writeFile('arsip.lock', '...', { flag: 'wx' }) di dalam try; tangkap EEXIST.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Program arsip kini tahan terhadap file yang belum ada, tanpa menyembunyikan error lain."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti kode error ENOENT?",
+          "options": [
+            "Tidak punya izin",
+            "Disk penuh",
+            "File atau folder tidak ada",
+            "File sudah ada"
+          ],
+          "answer": 2,
+          "explanation": "Error NO ENTry.",
+          "remedial": "ENOENT muncul saat jalur yang dibaca, dihapus, atau dibuka tidak ditemukan."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { readFile } from 'node:fs/promises';\ntry {\n  await readFile('kosong.txt');\n} catch (e) {\n  console.log(e.code);\n  console.log(e instanceof Error);\n}",
+          "options": [
+            "ENOENT / false",
+            "EEXIST / true",
+            "ENOENT / true",
+            "Error"
+          ],
+          "answer": 2,
+          "explanation": "Error fs punya code dan juga Error biasa.",
+          "remedial": "File tidak ada, jadi e.code bernilai ENOENT. Error dari fs tetap turunan Error, jadi instanceof Error bernilai true."
+        },
+        {
+          "question": "Kenapa cek existsSync lalu readFile kurang dianjurkan?",
+          "options": [
+            "readFile tidak bisa dipakai setelah existsSync",
+            "File bisa berubah di antara cek dan baca; lebih aman langsung coba lalu tangani error",
+            "existsSync menghapus file",
+            "existsSync selalu salah"
+          ],
+          "answer": 1,
+          "explanation": "Ada jeda waktu.",
+          "remedial": "Antara pengecekan dan pembacaan ada jeda. Program lain bisa menghapus atau mengganti file di jeda itu. Mencoba langsung dan menangani ENOENT tidak punya celah ini."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa fungsi flag 'wx' pada writeFile?",
+      "options": [
+        "Menulis dalam mode tersembunyi",
+        "Menulis lebih cepat",
+        "Menulis hanya kalau file belum ada; kalau sudah ada, error EEXIST",
+        "Menambah di akhir file"
+      ],
+      "answer": 2,
+      "explanation": "w = tulis, x = eksklusif."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi async ukuran(nama) yang mengembalikan ukuran file dalam byte, atau -1 kalau file tidak ada (ENOENT). Cetak hasil untuk a.txt (berisi halo) dan b.txt (tidak ada), dipisah spasi: 4 -1",
+      "starterCode": "// === a.txt ===\nhalo\n// === main.js ===\nimport { stat } from 'node:fs/promises';\n",
+      "solution": "// === a.txt ===\nhalo\n// === main.js ===\nimport { stat } from 'node:fs/promises';\nasync function ukuran(nama) {\n  try {\n    return (await stat(nama)).size;\n  } catch (e) {\n    if (e.code === 'ENOENT') return -1;\n    throw e;\n  }\n}\nconsole.log(await ukuran('a.txt'), await ukuran('b.txt'));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "5 -1\n"
+        }
+      ],
+      "hints": [
+        "stat(nama).size di dalam try.",
+        "Di catch: if (e.code === 'ENOENT') return -1; lalu throw e."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Error fs punya properti code: ENOENT, EEXIST, EACCES, EISDIR.",
+        "Bandingkan e.code, bukan e.message.",
+        "Tangani error yang dikenal, lempar ulang sisanya.",
+        "flag 'wx' menulis hanya kalau file belum ada.",
+        "Langsung coba lalu tangani error, jangan cek dulu."
+      ]
+    }
+  ]
+}

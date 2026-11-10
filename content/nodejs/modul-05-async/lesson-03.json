@@ -1,0 +1,185 @@
+{
+  "id": "node-async-03",
+  "moduleId": "node-async",
+  "order": 3,
+  "title": "Event Loop: Urutan Eksekusi",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Node.js menjalankan kode JavaScript di **satu thread**. Pekerjaan yang menunggu (timer, file, jaringan) dijadwalkan, dan **event loop** memanggil callback-nya satu per satu saat siap.\n\nUrutan dasarnya:\n\n1. Kode **sinkron** sampai habis.\n2. **Microtask**: callback Promise (`.then`, lanjutan setelah `await`) dan `queueMicrotask`.\n3. **Timer** (`setTimeout`, `setInterval`) yang waktunya sudah tiba, lalu I/O, lalu `setImmediate`.\n\nSetelah setiap callback, semua microtask dijalankan dulu sebelum callback berikutnya.\n\nIbarat satu kasir di kedai: ia menyelesaikan pembeli di depannya dulu (kode sinkron), lalu urusan kecil yang dijanjikan (microtask), baru memanggil nomor antrean berikutnya (timer dan I/O)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```js\nconsole.log('A');\nsetTimeout(() => console.log('D'), 0);\nPromise.resolve().then(() => console.log('C'));\nconsole.log('B');\n// A B C D\n```\n\nKarena hanya satu thread, kode sinkron yang lama **menahan semuanya**: timer tidak bisa jalan, dan server tidak bisa melayani permintaan lain.\n\n```js\nsetTimeout(() => console.log('timer'), 0);\nconst akhir = Date.now() + 2000;\nwhile (Date.now() < akhir) {} // 2 detik semua tertahan\n```\n\n`process.nextTick` juga menjadwalkan callback secepatnya. Di modul ESM urutannya terhadap Promise berbeda dari CommonJS, jadi untuk kode baru lebih jelas memakai `queueMicrotask`."
+    },
+    {
+      "type": "runnable",
+      "code": "console.log('1 sinkron');\nsetTimeout(() => console.log('5 timer 0 ms'), 0);\nsetTimeout(() => console.log('7 timer 20 ms'), 20);\nPromise.resolve().then(() => console.log('3 promise'));\nqueueMicrotask(() => console.log('4 microtask'));\nsetTimeout(() => {\n  console.log('6 timer 5 ms');\n  Promise.resolve().then(() => console.log('6b promise di dalam timer'));\n}, 5);\nconsole.log('2 sinkron');",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "5 timer 0 ms",
+          "4 microtask",
+          "2 sinkron",
+          "3 promise"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Timer: menunggu kode sinkron dan microtask."
+        },
+        {
+          "line": 4,
+          "note": "Microtask: setelah kode sinkron."
+        },
+        {
+          "line": 5,
+          "note": "Microtask juga, urut setelah promise di atasnya."
+        }
+      ],
+      "explanation": "Kode sinkron dulu (1 dan 2), lalu microtask sesuai urutan dijadwalkan (3 promise, 4 microtask), baru timer.",
+      "tryThis": [
+        {
+          "task": "Pindahkan baris queueMicrotask ke paling atas. Apa urutannya sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Perhatikan kapan 6b dicetak: sebelum atau sesudah timer 20 ms?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira setTimeout 0 langsung jalan**\n\nsetTimeout 0 artinya \"secepatnya setelah kode sinkron dan microtask selesai\", bukan saat itu juga.\n\n**2. Pekerjaan berat di thread utama**\n\nMengolah file besar atau menghitung berat secara sinkron membuat server berhenti merespons. Pecah pekerjaannya, pakai stream, atau pindahkan ke worker thread.\n\n**3. Mengandalkan urutan setTimeout 0 dan setImmediate**\n\nDi kode utama, urutan keduanya bisa berbeda setiap kali dijalankan. Jangan bergantung padanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pertanyaan urutan event loop (sinkron, microtask, timer) sangat sering muncul di wawancara kerja Node.js.\n- Server Node.js cepat karena tidak menunggu I/O, tapi lambat kalau ada kode sinkron yang berat. Alat seperti `--cpu-prof` atau clinic.js dipakai untuk mencari kode yang menahan event loop.\n- Pekerjaan yang benar-benar berat (mengolah gambar, enkripsi besar) dipindahkan ke `worker_threads` atau ke layanan antrean terpisah."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Antrean Pesanan 3: Siapa Duluan",
+      "pembuka": "Kasir harus tahu urutan kejadian supaya struk tercetak dengan benar.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Kode sinkron selalu selesai sebelum timer.",
+          "jawaban": "console.log('Buka kasir');\nsetTimeout(() => console.log('Pesanan online masuk'), 0);\nconsole.log('Layani pembeli di depan');",
+          "keluaran": "Buka kasir\nLayani pembeli di depan\nPesanan online masuk",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan `Promise.resolve().then(() => console.log('Catat pembayaran'))` di antara setTimeout dan console.log terakhir. Jalankan dan amati: Catat pembayaran tercetak sebelum Pesanan online masuk.",
+          "jawaban": "console.log('Buka kasir');\nsetTimeout(() => console.log('Pesanan online masuk'), 0);\nPromise.resolve().then(() => console.log('Catat pembayaran'));\nconsole.log('Layani pembeli di depan');",
+          "keluaran": "Buka kasir\nLayani pembeli di depan\nCatat pembayaran\nPesanan online masuk",
+          "wajib": [
+            {
+              "pola": "Promise\\.resolve\\(\\)\\.then\\(",
+              "pesan": "pakai `Promise.resolve().then(...)`."
+            }
+          ],
+          "petunjuk": "Promise.resolve().then(...) adalah microtask: jalan sebelum timer."
+        },
+        {
+          "arahan": "Tambahkan di paling bawah sebuah `setTimeout` 10 ms yang mencetak `Tutup kasir`, dan di dalamnya `queueMicrotask` yang mencetak `Hitung kas`. Pastikan baris terakhir `Hitung kas`.",
+          "jawaban": "console.log('Buka kasir');\nsetTimeout(() => console.log('Pesanan online masuk'), 0);\nPromise.resolve().then(() => console.log('Catat pembayaran'));\nconsole.log('Layani pembeli di depan');\nsetTimeout(() => {\n  console.log('Tutup kasir');\n  queueMicrotask(() => console.log('Hitung kas'));\n}, 10);",
+          "keluaran": "Buka kasir\nLayani pembeli di depan\nCatat pembayaran\nPesanan online masuk\nTutup kasir\nHitung kas",
+          "wajib": [
+            {
+              "pola": "queueMicrotask\\(",
+              "pesan": "pakai `queueMicrotask`."
+            }
+          ],
+          "petunjuk": "Di dalam callback setTimeout, panggil queueMicrotask(...).",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Urutan kejadian di kasir kini bisa ditebak: sinkron, microtask, lalu timer."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dijalankan lebih dulu setelah kode sinkron selesai?",
+          "options": [
+            "Timer setTimeout 0",
+            "Microtask, seperti callback Promise",
+            "setImmediate",
+            "Callback I/O file"
+          ],
+          "answer": 1,
+          "explanation": "Microtask selalu dikosongkan dulu.",
+          "remedial": "Setelah kode sinkron (dan setelah setiap callback), semua microtask dijalankan sebelum event loop lanjut ke timer atau I/O."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "setTimeout(() => console.log('y'), 0);\nconsole.log('x');\nqueueMicrotask(() => console.log('z'));",
+          "options": [
+            "x / y / z",
+            "z / x / y",
+            "x / z / y",
+            "y / x / z"
+          ],
+          "answer": 2,
+          "explanation": "Microtask sebelum timer.",
+          "remedial": "x sinkron. Timer y menunggu, sedangkan microtask z jalan setelah kode sinkron dan sebelum timer."
+        },
+        {
+          "question": "Kenapa kode sinkron yang lama berbahaya di server Node.js?",
+          "options": [
+            "Event loop tertahan sehingga permintaan lain tidak dilayani",
+            "Kode sinkron selalu error",
+            "Kode sinkron otomatis dipindah ke thread lain",
+            "Node.js akan menghapus kode itu"
+          ],
+          "answer": 0,
+          "explanation": "Hanya satu thread JavaScript.",
+          "remedial": "Selama kode sinkron berjalan, event loop tidak bisa memanggil callback apa pun. Semua permintaan lain menunggu."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Ke mana pekerjaan yang benar-benar berat, seperti mengolah gambar besar, sebaiknya dipindahkan?",
+      "options": [
+        "Ke dalam setTimeout 0",
+        "Ke dalam Promise.resolve().then",
+        "Ke worker_threads atau layanan antrean terpisah",
+        "Ke fungsi async biasa"
+      ],
+      "answer": 2,
+      "explanation": "Fungsi async tetap berjalan di thread yang sama."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Susun kode supaya keluarannya berurutan satu, dua, tiga, empat (setiap kata di baris sendiri) dengan aturan: satu dan dua dicetak sinkron, tiga dari Promise.resolve().then, dan empat dari setTimeout 0. Tulis setTimeout lebih dulu daripada Promise.",
+      "starterCode": "console.log('satu');\n",
+      "solution": "console.log('satu');\nsetTimeout(() => console.log('empat'), 0);\nPromise.resolve().then(() => console.log('tiga'));\nconsole.log('dua');\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "satu\ndua\ntiga\nempat\n"
+        }
+      ],
+      "hints": [
+        "Walau ditulis lebih dulu, setTimeout tetap jalan paling akhir.",
+        "console.log dua ditulis paling bawah, tapi tetap sebelum tiga."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "JavaScript di Node.js berjalan di satu thread dengan event loop.",
+        "Urutan: kode sinkron, microtask, lalu timer dan I/O.",
+        "Microtask: callback Promise, lanjutan await, queueMicrotask.",
+        "setTimeout 0 berarti setelah sinkron dan microtask.",
+        "Kode sinkron berat menahan seluruh server."
+      ]
+    }
+  ]
+}

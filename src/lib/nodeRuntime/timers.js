@@ -79,8 +79,25 @@ export function clearImmediate(t) {
 export function hentikanSemua() {
   for (const [id, d] of daftar) { if (d.jenis === 'i') asliClearI(d.h); else if (d.h) asliClear(d.h); daftar.delete(id); }
 }
+class AbortError extends Error {
+  constructor(message = 'The operation was aborted', options = undefined) {
+    super(message, options);
+    this.code = 'ABORT_ERR';
+    this.name = 'AbortError';
+  }
+}
+function tundaPromise(ms, nilai, opsi = {}) {
+  const signal = opsi && opsi.signal;
+  if (signal && signal.aborted) return Promise.reject(new AbortError(undefined, { cause: signal.reason }));
+  return new Promise((r, j) => {
+    const t = setTimeout(() => { if (signal) signal.removeEventListener('abort', batal); r(nilai); }, ms);
+    if (opsi && opsi.ref === false) t.unref();
+    function batal() { clearTimeout(t); j(new AbortError(undefined, { cause: signal.reason })); }
+    if (signal) signal.addEventListener('abort', batal, { once: true });
+  });
+}
 export const promises = {
-  setTimeout: (ms, nilai) => new Promise((r) => setTimeout(() => r(nilai), ms)),
+  setTimeout: tundaPromise,
   setImmediate: (nilai) => new Promise((r) => setImmediate(() => r(nilai))),
   async *setInterval(ms, nilai) { while (true) { await promises.setTimeout(ms); yield nilai; } },
 };

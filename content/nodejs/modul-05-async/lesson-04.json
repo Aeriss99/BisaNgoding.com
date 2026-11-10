@@ -1,0 +1,189 @@
+{
+  "id": "node-async-04",
+  "moduleId": "node-async",
+  "order": 4,
+  "title": "Menangani Error di Kode Async",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Error di kode async ditangkap dengan `try/catch` di sekitar `await`:\n\n```js\ntry {\n  const data = await ambilProduk(7);\n} catch (e) {\n  console.error('Gagal mengambil produk:', e.message);\n}\n```\n\nPromise yang ditolak tanpa ada yang menangkap disebut **unhandled rejection**. Sejak Node.js 15, ini membuat **program berhenti** dengan kode keluar 1.\n\nError juga bisa diberi **penyebab** (`cause`) supaya jejaknya tidak hilang:\n\n```js\nthrow new Error('Gagal menyimpan pesanan', { cause: e });\n```\n\nIbarat surat yang dikirim lewat kurir: kalau surat ditolak di alamat tujuan dan tidak ada yang menerima kabar penolakannya, kurir menganggap ada masalah besar dan menghentikan pengiriman."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKelas error sendiri memudahkan membedakan jenis kesalahan:\n\n```js\nclass StokHabisError extends Error {\n  constructor(menu) {\n    super(`${menu} habis`);\n    this.name = 'StokHabisError';\n    this.menu = menu;\n  }\n}\n\ntry {\n  await pesan('Es Krim');\n} catch (e) {\n  if (e instanceof StokHabisError) console.log('Tawarkan menu lain');\n  else throw e;\n}\n```\n\nPegangan terakhir untuk error yang lolos: `process.on('unhandledRejection', ...)` dan `process.on('uncaughtException', ...)`. Keduanya dipakai untuk **mencatat** error lalu menghentikan program dengan rapi, bukan untuk melanjutkan seolah tidak terjadi apa-apa."
+    },
+    {
+      "type": "runnable",
+      "code": "class StokHabisError extends Error {\n  constructor(menu) {\n    super(`${menu} habis`);\n    this.name = 'StokHabisError';\n  }\n}\nconst stok = { Kopi: 2, 'Es Krim': 0 };\nasync function pesan(menu) {\n  await new Promise((r) => setTimeout(r, 5));\n  if (!stok[menu]) throw new StokHabisError(menu);\n  stok[menu] -= 1;\n  return `${menu} dipesan`;\n}\nasync function simpanPesanan(menu) {\n  try {\n    return await pesan(menu);\n  } catch (e) {\n    throw new Error('Gagal menyimpan pesanan', { cause: e });\n  }\n}\nconsole.log(await simpanPesanan('Kopi'));\ntry {\n  await simpanPesanan('Es Krim');\n} catch (e) {\n  console.log(e.message);\n  console.log(e.cause.name, '-', e.cause.message);\n  console.log(e.cause instanceof StokHabisError);\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "Error - Es Krim habis",
+          "Error - Gagal menyimpan pesanan",
+          "StokHabisError - Gagal menyimpan pesanan",
+          "StokHabisError - Es Krim habis"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "Kelas error sendiri."
+        },
+        {
+          "line": 16,
+          "note": "await di dalam try supaya error tertangkap."
+        },
+        {
+          "line": 18,
+          "note": "Simpan error aslinya sebagai penyebab."
+        }
+      ],
+      "explanation": "Error luar berpesan Gagal menyimpan pesanan. Penyebabnya (cause) adalah StokHabisError dengan pesan Es Krim habis.",
+      "tryThis": [
+        {
+          "task": "Hapus await di return await pesan(menu). Apakah error masih dibungkus?",
+          "hint": null
+        },
+        {
+          "task": "Hapus try/catch di bagian bawah. Baca pesan error-nya.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `return pesan()` tanpa await di dalam try**\n\nPromise dikembalikan sebelum selesai, sehingga penolakannya tidak tertangkap oleh catch di fungsi itu. Tulis `return await pesan()`.\n\n**2. Menelan error**\n\n`catch (e) {}` membuat kegagalan hilang tanpa jejak. Minimal catat, atau lempar ulang.\n\n**3. Melempar teks, bukan Error**\n\n`throw 'gagal'` tidak punya stack trace. Selalu `throw new Error('gagal')`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di API, error dibagi dua: error yang **diharapkan** (data tidak valid, stok habis, tidak ditemukan) dijawab dengan status 4xx dan pesan jelas, sedangkan error **tak terduga** (bug, database mati) dicatat lengkap dan dijawab 500.\n- Kelas error sendiri (misalnya `NotFoundError`, `ValidationError`) adalah pola umum untuk membedakan keduanya. Express middleware penanganan error memakainya (modul Middleware).\n- Kalau program menemui uncaughtException, praktik yang dianjurkan adalah mencatat lalu berhenti, dan membiarkan pengelola proses (Docker, systemd, PM2) menyalakannya kembali."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Antrean Pesanan 4: Pesanan Gagal",
+      "pembuka": "Tidak semua pesanan bisa dipenuhi. Kita bedakan pesanan yang ditolak dari error yang tak terduga.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Pesanan menu yang tidak ada ditolak dengan error.",
+          "jawaban": "const menu = { Kopi: 18000, Teh: 12000 };\nasync function pesan(nama) {\n  if (!(nama in menu)) throw new Error(`${nama} tidak ada di menu`);\n  return menu[nama];\n}\ntry {\n  await pesan('Jus');\n} catch (e) {\n  console.log('Ditolak:', e.message);\n}",
+          "keluaran": "Ditolak: Jus tidak ada di menu",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat `class MenuTidakAdaError extends Error` dengan `this.name = 'MenuTidakAdaError'`, dan lempar error itu dari `pesan`. Di catch, cetak `e.name` dan `e.message` dipisah titik dua: `MenuTidakAdaError: Jus tidak ada di menu`.",
+          "jawaban": "const menu = { Kopi: 18000, Teh: 12000 };\nclass MenuTidakAdaError extends Error {\n  constructor(nama) {\n    super(`${nama} tidak ada di menu`);\n    this.name = 'MenuTidakAdaError';\n  }\n}\nasync function pesan(nama) {\n  if (!(nama in menu)) throw new MenuTidakAdaError(nama);\n  return menu[nama];\n}\ntry {\n  await pesan('Jus');\n} catch (e) {\n  console.log(`${e.name}: ${e.message}`);\n}",
+          "keluaran": "MenuTidakAdaError: Jus tidak ada di menu",
+          "wajib": [
+            {
+              "pola": "class\\s+MenuTidakAdaError\\s+extends\\s+Error",
+              "pesan": "buat `class MenuTidakAdaError extends Error`."
+            }
+          ],
+          "petunjuk": "class MenuTidakAdaError extends Error { constructor(nama) { super(...); this.name = '...'; } }"
+        },
+        {
+          "arahan": "Buat `async function layani(nama)` yang mengembalikan `Ditolak: <pesan>` kalau errornya `MenuTidakAdaError`, dan melempar ulang error lain. Cetak hasil `layani('Kopi')` dan `layani('Jus')`: `18000` lalu `Ditolak: Jus tidak ada di menu`.",
+          "jawaban": "const menu = { Kopi: 18000, Teh: 12000 };\nclass MenuTidakAdaError extends Error {\n  constructor(nama) {\n    super(`${nama} tidak ada di menu`);\n    this.name = 'MenuTidakAdaError';\n  }\n}\nasync function pesan(nama) {\n  if (!(nama in menu)) throw new MenuTidakAdaError(nama);\n  return menu[nama];\n}\ntry {\n  await pesan('Jus');\n} catch (e) {\n  console.log(`${e.name}: ${e.message}`);\n}\nasync function layani(nama) {\n  try {\n    return await pesan(nama);\n  } catch (e) {\n    if (e instanceof MenuTidakAdaError) return `Ditolak: ${e.message}`;\n    throw e;\n  }\n}\nconsole.log(await layani('Kopi'));\nconsole.log(await layani('Jus'));",
+          "keluaran": "MenuTidakAdaError: Jus tidak ada di menu\n18000\nDitolak: Jus tidak ada di menu",
+          "wajib": [
+            {
+              "pola": "instanceof\\s+MenuTidakAdaError",
+              "pesan": "periksa dengan `instanceof MenuTidakAdaError`."
+            },
+            {
+              "pola": "return\\s+await",
+              "pesan": "tulis `return await pesan(nama)`."
+            }
+          ],
+          "petunjuk": "Di catch: if (e instanceof MenuTidakAdaError) return ...; lalu throw e. Jangan lupa return await.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Pesanan yang ditolak dijawab dengan sopan, sedangkan error tak terduga tetap muncul."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang terjadi pada Node.js modern saat ada Promise ditolak tanpa ditangkap?",
+          "options": [
+            "Error diabaikan diam-diam",
+            "Hanya muncul peringatan, program lanjut",
+            "Program berhenti dengan kode keluar 1",
+            "Promise otomatis dicoba lagi"
+          ],
+          "answer": 2,
+          "explanation": "Sejak Node.js 15.",
+          "remedial": "Unhandled rejection membuat program berhenti. Ini mencegah kesalahan tersembunyi yang membuat data rusak diam-diam."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini dijalankan?",
+          "code": "async function simpan() {\n  throw new Error('koneksi putus');\n}\nawait simpan();\nconsole.log('selesai');",
+          "options": [
+            "Tidak mencetak apa-apa dan berakhir normal",
+            "Program berhenti dengan Error: koneksi putus",
+            "Mencetak selesai",
+            "Mencetak undefined"
+          ],
+          "answer": 1,
+          "explanation": "Tidak ada yang menangkap penolakan.",
+          "remedial": "Promise ditolak dan tidak ada catch. Node.js menganggapnya unhandled rejection: program berhenti dengan error itu, dan baris berikutnya tidak pernah dijalankan."
+        },
+        {
+          "question": "Kenapa ditulis return await pesan() di dalam try, bukan return pesan()?",
+          "options": [
+            "Supaya lebih cepat",
+            "Karena return tanpa await adalah error sintaks",
+            "Supaya hasilnya berupa teks",
+            "Supaya penolakan Promise tertangkap oleh catch di fungsi itu"
+          ],
+          "answer": 3,
+          "explanation": "Tanpa await, fungsi sudah keluar dari try.",
+          "remedial": "Tanpa await, Promise langsung dikembalikan dan fungsi keluar dari blok try sebelum Promise selesai, sehingga catch di situ tidak pernah menangkap penolakannya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa gunanya opsi cause pada new Error(pesan, { cause: e })?",
+      "options": [
+        "Membuat error tidak bisa ditangkap",
+        "Menyimpan error asli sebagai penyebab supaya jejaknya tidak hilang",
+        "Menghentikan program langsung",
+        "Mengubah nama error"
+      ],
+      "answer": 1,
+      "explanation": "Error luar menjelaskan konteks, cause menyimpan aslinya."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat class ValidasiError yang mewarisi Error dengan name ValidasiError. Fungsi async cekUmur(umur) melempar ValidasiError berpesan Umur tidak valid kalau umur negatif. Panggil cekUmur(-1) di try/catch dan cetak: true Umur tidak valid (hasil instanceof dan pesannya)",
+      "starterCode": "async function cekUmur(umur) {}\n",
+      "solution": "class ValidasiError extends Error {\n  constructor(pesan) {\n    super(pesan);\n    this.name = 'ValidasiError';\n  }\n}\nasync function cekUmur(umur) {\n  if (umur < 0) throw new ValidasiError('Umur tidak valid');\n  return umur;\n}\ntry {\n  await cekUmur(-1);\n} catch (e) {\n  console.log(e instanceof ValidasiError, e.message);\n}\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "true Umur tidak valid\n"
+        }
+      ],
+      "hints": [
+        "class ValidasiError extends Error dengan super(pesan) dan this.name.",
+        "console.log(e instanceof ValidasiError, e.message)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Tangkap error async dengan try/catch di sekitar await.",
+        "Unhandled rejection membuat program berhenti.",
+        "Di dalam try, tulis return await, bukan return saja.",
+        "Kelas error sendiri membedakan jenis kesalahan.",
+        "cause menyimpan error asli saat dibungkus."
+      ]
+    }
+  ]
+}
