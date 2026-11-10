@@ -1,0 +1,193 @@
+{
+  "id": "node-auth-05",
+  "moduleId": "node-auth",
+  "order": 5,
+  "title": "Otorisasi: Peran dan Kepemilikan",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Autentikasi** menjawab \"kamu siapa?\". **Otorisasi** menjawab \"kamu boleh melakukan ini?\".\n\nDua pola otorisasi yang paling umum:\n\n1. **Berdasarkan peran** (*role*): hanya `admin` yang boleh menghapus produk.\n\n```js\napp.delete('/produk/:id', butuhLogin, butuhPeran('admin'), hapusProduk);\n```\n\n2. **Berdasarkan kepemilikan**: pelanggan hanya boleh melihat pesanannya sendiri.\n\n```js\nif (pesanan.penggunaId !== req.pengguna.id && req.pengguna.peran !== 'admin') {\n  throw new AppError(403, 'TIDAK_BERHAK', 'Bukan pesananmu');\n}\n```\n\nIbarat karyawan kantor: kartu identitas membuktikan kamu karyawan (autentikasi), tapi hanya bagian keuangan yang boleh membuka brankas (peran), dan kamu hanya boleh membuka laci mejamu sendiri (kepemilikan)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nCelah yang sering terjadi bernama **IDOR** (*Insecure Direct Object Reference*): API memeriksa login, tapi lupa memeriksa kepemilikan.\n\n```text\nGET /pesanan/15  -> pesanan milik Rina\nGET /pesanan/16  -> pesanan milik Budi, tapi ikut terbuka untuk Rina!\n```\n\nCara lain mencegahnya: ambil data **dengan syarat pemilik**, misalnya `pesanan.find((p) => p.id === id && p.penggunaId === req.pengguna.id)`, lalu jawab **404** kalau tidak ada. Dengan 404, penyerang bahkan tidak tahu pesanan itu ada.\n\nCelah otorisasi termasuk masalah keamanan nomor satu dalam daftar **OWASP Top 10**."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\n\nconst TOKEN = { 'token-rina': { id: 1, peran: 'pelanggan' }, 'token-budi': { id: 2, peran: 'pelanggan' }, 'token-sari': { id: 3, peran: 'admin' } };\nconst pesanan = [{ id: 15, penggunaId: 1, menu: 'Kopi' }, { id: 16, penggunaId: 2, menu: 'Teh' }];\nconst butuhLogin = (req, res, next) => {\n  req.pengguna = TOKEN[(req.get('authorization') ?? '').replace('Bearer ', '')];\n  if (!req.pengguna) return res.sendStatus(401);\n  next();\n};\nconst butuhPeran = (peran) => (req, res, next) => (req.pengguna.peran === peran ? next() : res.sendStatus(403));\n\nconst app = express();\napp.get('/pesanan/:id', butuhLogin, (req, res) => {\n  const p = pesanan.find((x) => x.id === Number(req.params.id));\n  const boleh = p && (p.penggunaId === req.pengguna.id || req.pengguna.peran === 'admin');\n  if (!boleh) return res.status(404).json({ error: 'Pesanan tidak ada' });\n  res.json(p);\n});\napp.delete('/pesanan/:id', butuhLogin, butuhPeran('admin'), (req, res) => res.sendStatus(204));\nconst server = app.listen(3000);\n\nconst coba = async (method, jalur, token) => {\n  const r = await fetch('http://localhost:3000' + jalur, { method, headers: { Authorization: `Bearer ${token}` } });\n  console.log(token, method, jalur, r.status);\n};\nawait coba('GET', '/pesanan/15', 'token-rina');\nawait coba('GET', '/pesanan/16', 'token-rina');\nawait coba('GET', '/pesanan/16', 'token-sari');\nawait coba('DELETE', '/pesanan/15', 'token-rina');\nawait coba('DELETE', '/pesanan/15', 'token-sari');\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "token-rina GET /pesanan/16 401",
+          "token-rina GET /pesanan/16 200",
+          "token-rina GET /pesanan/16 404",
+          "token-rina GET /pesanan/16 403"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 10,
+          "note": "Otorisasi berdasarkan peran."
+        },
+        {
+          "line": 15,
+          "note": "Otorisasi berdasarkan kepemilikan."
+        },
+        {
+          "line": 16,
+          "note": "404: jangan beri tahu bahwa pesanan itu ada."
+        },
+        {
+          "line": 19,
+          "note": "Autentikasi dulu, lalu otorisasi."
+        }
+      ],
+      "explanation": "Pesanan 16 milik Budi. Rina sudah login, tapi bukan pemilik dan bukan admin, sehingga dijawab 404 seolah pesanan itu tidak ada.",
+      "tryThis": [
+        {
+          "task": "Hapus pemeriksaan kepemilikan. Apa yang bisa dilihat Rina?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan peran kasir yang boleh melihat semua pesanan.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Hanya memeriksa login**\n\n\"Sudah login\" tidak sama dengan \"boleh\". Periksa juga kepemilikan atau peran di setiap rute yang membuka data pribadi.\n\n**2. Menyembunyikan tombol di frontend saja**\n\nTombol hapus yang disembunyikan tidak mencegah orang memanggil API langsung. Pemeriksaan wajib ada di server.\n\n**3. Peran diambil dari body atau query**\n\nPeran selalu dari token atau database, bukan dari data yang dikirim klien."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Aplikasi besar memakai sistem izin yang lebih halus (*permission*): `produk:hapus`, `laporan:lihat`, yang dikelompokkan ke dalam peran.\n- Di database, kepemilikan sering ditegakkan langsung lewat query (`WHERE pengguna_id = ?`) atau fitur seperti **Row Level Security** di PostgreSQL dan Supabase.\n- Penguji keamanan (*pentester*) hampir selalu mencoba IDOR dengan mengganti angka id di URL. Pastikan API kamu lolos."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Login API 5: Laci Masing-masing",
+      "pembuka": "Setiap pelanggan hanya boleh melihat alamat pengirimannya sendiri, dan hanya admin yang boleh melihat semua.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Siapa pun yang login bisa membuka alamat siapa saja.",
+          "jawaban": "import express from 'express';\nconst TOKEN = { 'token-rina': { id: 1, peran: 'pelanggan' }, 'token-sari': { id: 3, peran: 'admin' } };\nconst alamat = [{ id: 1, penggunaId: 1, kota: 'Bandung' }, { id: 2, penggunaId: 2, kota: 'Medan' }];\nconst butuhLogin = (req, res, next) => {\n  req.pengguna = TOKEN[(req.get('authorization') ?? '').replace('Bearer ', '')];\n  if (!req.pengguna) return res.sendStatus(401);\n  next();\n};\nconst app = express();\napp.get('/alamat/:id', butuhLogin, (req, res) => {\n  const a = alamat.find((x) => x.id === Number(req.params.id));\n  if (!a) return res.sendStatus(404);\n  res.json(a);\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/alamat/2', { headers: { Authorization: 'Bearer token-rina' } });\nconsole.log(r.status);\nserver.close();",
+          "keluaran": "200",
+          "otomatis": true
+        },
+        {
+          "arahan": "Perbaiki celah IDOR: alamat hanya boleh dibuka pemiliknya atau admin, selain itu jawab 404. Uji Rina membuka alamat 2 dan Sari (admin) membuka alamat 2, lalu cetak `404` dan `200`.",
+          "jawaban": "import express from 'express';\nconst TOKEN = { 'token-rina': { id: 1, peran: 'pelanggan' }, 'token-sari': { id: 3, peran: 'admin' } };\nconst alamat = [{ id: 1, penggunaId: 1, kota: 'Bandung' }, { id: 2, penggunaId: 2, kota: 'Medan' }];\nconst butuhLogin = (req, res, next) => {\n  req.pengguna = TOKEN[(req.get('authorization') ?? '').replace('Bearer ', '')];\n  if (!req.pengguna) return res.sendStatus(401);\n  next();\n};\nconst app = express();\napp.get('/alamat/:id', butuhLogin, (req, res) => {\n  const a = alamat.find((x) => x.id === Number(req.params.id));\n  if (!a || (a.penggunaId !== req.pengguna.id && req.pengguna.peran !== 'admin')) return res.sendStatus(404);\n  res.json(a);\n});\nconst server = app.listen(3000);\nfor (const token of ['token-rina', 'token-sari']) {\n  const r = await fetch('http://localhost:3000/alamat/2', { headers: { Authorization: `Bearer ${token}` } });\n  console.log(r.status);\n}\nserver.close();",
+          "keluaran": "404\n200",
+          "wajib": [
+            {
+              "pola": "penggunaId\\s*!==\\s*req\\.pengguna\\.id",
+              "pesan": "bandingkan `penggunaId` dengan `req.pengguna.id`."
+            }
+          ],
+          "petunjuk": "Tambahkan syarat a.penggunaId !== req.pengguna.id && req.pengguna.peran !== 'admin'."
+        },
+        {
+          "arahan": "Tambahkan pabrik `butuhPeran(peran)` (403 kalau tidak cocok) dan rute `GET /alamat` yang hanya untuk admin, menjawab semua alamat. Uji dengan token Rina lalu Sari dan cetak status keduanya dipisah spasi: `403 200`.",
+          "jawaban": "import express from 'express';\nconst TOKEN = { 'token-rina': { id: 1, peran: 'pelanggan' }, 'token-sari': { id: 3, peran: 'admin' } };\nconst alamat = [{ id: 1, penggunaId: 1, kota: 'Bandung' }, { id: 2, penggunaId: 2, kota: 'Medan' }];\nconst butuhLogin = (req, res, next) => {\n  req.pengguna = TOKEN[(req.get('authorization') ?? '').replace('Bearer ', '')];\n  if (!req.pengguna) return res.sendStatus(401);\n  next();\n};\nconst butuhPeran = (peran) => (req, res, next) => (req.pengguna.peran === peran ? next() : res.sendStatus(403));\nconst app = express();\napp.get('/alamat', butuhLogin, butuhPeran('admin'), (req, res) => res.json(alamat));\napp.get('/alamat/:id', butuhLogin, (req, res) => {\n  const a = alamat.find((x) => x.id === Number(req.params.id));\n  if (!a || (a.penggunaId !== req.pengguna.id && req.pengguna.peran !== 'admin')) return res.sendStatus(404);\n  res.json(a);\n});\nconst server = app.listen(3000);\nfor (const token of ['token-rina', 'token-sari']) {\n  const r = await fetch('http://localhost:3000/alamat/2', { headers: { Authorization: `Bearer ${token}` } });\n  console.log(r.status);\n}\nconst s = [];\nfor (const token of ['token-rina', 'token-sari']) {\n  s.push((await fetch('http://localhost:3000/alamat', { headers: { Authorization: `Bearer ${token}` } })).status);\n}\nconsole.log(s.join(' '));\nserver.close();",
+          "keluaran": "404\n200\n403 200",
+          "wajib": [
+            {
+              "pola": "butuhPeran\\s*=\\s*\\(\\s*peran\\s*\\)",
+              "pesan": "buat pabrik `butuhPeran(peran)`."
+            },
+            {
+              "pola": "butuhLogin\\s*,\\s*butuhPeran\\(\\s*'admin'\\s*\\)",
+              "pesan": "pasang `butuhLogin, butuhPeran('admin')`."
+            }
+          ],
+          "petunjuk": "const butuhPeran = (peran) => (req, res, next) => ...; app.get('/alamat', butuhLogin, butuhPeran('admin'), ...).",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Alamat pelanggan kini hanya terbuka untuk pemiliknya dan admin, dan daftar semua alamat khusus admin."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa beda autentikasi dan otorisasi?",
+          "options": [
+            "Autentikasi untuk admin, otorisasi untuk pelanggan",
+            "Otorisasi terjadi sebelum autentikasi",
+            "Autentikasi: memastikan siapa kamu. Otorisasi: memastikan kamu boleh melakukan sesuatu",
+            "Keduanya sama saja"
+          ],
+          "answer": 2,
+          "explanation": "Siapa vs boleh.",
+          "remedial": "Server harus tahu dulu siapa penggunanya (autentikasi), baru bisa memutuskan apakah ia berhak (otorisasi)."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const boleh = (data, p) => data.pemilik === p.id || p.peran === 'admin';\nconst rina = { id: 1, peran: 'pelanggan' };\nconsole.log(boleh({ pemilik: 1 }, rina));\nconsole.log(boleh({ pemilik: 2 }, rina));",
+          "options": [
+            "false / false",
+            "true / true",
+            "true / false",
+            "false / true"
+          ],
+          "answer": 2,
+          "explanation": "Kepemilikan atau admin.",
+          "remedial": "Pengguna 1 memiliki data pertama, sehingga boleh. Data kedua milik pengguna 2 dan pengguna 1 bukan admin, sehingga tidak boleh."
+        },
+        {
+          "question": "Apa itu celah IDOR?",
+          "options": [
+            "Password yang tidak di-hash",
+            "API memeriksa login tapi tidak memeriksa kepemilikan, sehingga data orang lain bisa dibuka dengan mengganti id",
+            "Server yang lupa memanggil next()",
+            "Token yang terlalu panjang"
+          ],
+          "answer": 1,
+          "explanation": "Ganti angka di URL.",
+          "remedial": "Penyerang cukup mengganti id di URL untuk melihat data pengguna lain kalau server tidak memeriksa pemiliknya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa menyembunyikan tombol hapus di frontend tidak cukup?",
+      "options": [
+        "Server tidak tahu tombolnya ada",
+        "Tombol tetap terlihat di HP",
+        "API tetap bisa dipanggil langsung tanpa melewati tombol",
+        "Frontend tidak bisa menyembunyikan tombol"
+      ],
+      "answer": 2,
+      "explanation": "Pemeriksaan wajib di server."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi bolehUbah(pengguna, produk) yang mengembalikan true kalau pengguna adalah admin atau pemilik produk (produk.pemilikId sama dengan pengguna.id). Cetak hasil untuk penjual id 4 terhadap produk milik 4, penjual id 4 terhadap produk milik 5, dan admin id 1 terhadap produk milik 5: true, false, true",
+      "starterCode": "function bolehUbah(pengguna, produk) {}\n",
+      "solution": "function bolehUbah(pengguna, produk) {\n  return pengguna.peran === 'admin' || produk.pemilikId === pengguna.id;\n}\nconsole.log(bolehUbah({ id: 4, peran: 'penjual' }, { pemilikId: 4 }));\nconsole.log(bolehUbah({ id: 4, peran: 'penjual' }, { pemilikId: 5 }));\nconsole.log(bolehUbah({ id: 1, peran: 'admin' }, { pemilikId: 5 }));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "true\nfalse\ntrue\n"
+        }
+      ],
+      "hints": [
+        "return pengguna.peran === 'admin' || produk.pemilikId === pengguna.id;",
+        "Cetak tiga panggilan di baris terpisah."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Autentikasi: siapa kamu. Otorisasi: bolehkah kamu.",
+        "Otorisasi berdasarkan peran memakai butuhPeran.",
+        "Otorisasi berdasarkan kepemilikan memeriksa pemilik data.",
+        "IDOR: lupa memeriksa kepemilikan; jawab 404 untuk data orang lain.",
+        "Pemeriksaan wajib di server, bukan hanya di tampilan."
+      ]
+    }
+  ]
+}

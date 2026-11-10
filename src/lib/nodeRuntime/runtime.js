@@ -3,6 +3,7 @@
 // fs (memfs), path, events, stream, http (server di port tiruan + fetch localhost), crypto, os, url, util, timers,
 // serta paket npm express dan zod. Keluaran console memakai util.inspect versi Node.
 import { Buffer } from 'buffer';
+import { tambalBuffer } from './tambalBuffer.js';
 import * as eventsMod from 'events';
 import * as pathMod from 'path-browserify';
 import * as streamMod from 'readable-stream';
@@ -27,6 +28,7 @@ import * as spMod from './streamPromises.js';
 import * as rlMod from './readline.js';
 import { inspect, format } from 'node-inspect-extracted';
 
+tambalBuffer(Buffer);
 const ev = eventsMod.default || eventsMod;
 const pth = pathMod.default || pathMod;
 const stream = streamMod.default || streamMod;

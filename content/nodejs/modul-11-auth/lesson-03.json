@@ -1,0 +1,193 @@
+{
+  "id": "node-auth-03",
+  "moduleId": "node-auth",
+  "order": 3,
+  "title": "JSON Web Token (JWT)",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setelah login, server perlu mengenali pengguna di permintaan berikutnya. Salah satu cara yang paling umum di API adalah **JWT** (JSON Web Token): server memberi token bertanda tangan, dan klien mengirimnya di setiap permintaan.\n\n```bash\nnpm install jsonwebtoken\n```\n\n```js\nimport jwt from 'jsonwebtoken';\nconst token = jwt.sign({ sub: '7', peran: 'admin' }, process.env.JWT_SECRET, { expiresIn: '15m' });\nconst isi = jwt.verify(token, process.env.JWT_SECRET); // { sub, peran, iat, exp }\n```\n\nToken terdiri dari tiga bagian dipisah titik: **header.payload.signature**.\n\nIbarat gelang tiket konser: penjaga cukup memeriksa gelang yang sudah distempel panitia, tanpa harus menelepon kantor tiket setiap kali kamu masuk area. Gelang yang dipalsukan ketahuan karena stempelnya tidak cocok."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nPayload JWT hanya **dikodekan** (base64url), **tidak dienkripsi**. Siapa pun yang memegang token bisa membacanya:\n\n```js\nJSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());\n```\n\nKarena itu payload hanya berisi data yang tidak rahasia, seperti id (`sub`) dan peran. **Jangan** taruh password atau data pribadi.\n\nYang membuat JWT aman adalah **signature**: hasil HMAC dari header dan payload dengan kunci rahasia server. Kalau payload diubah, signature tidak cocok dan `jwt.verify` melempar error.\n\n| Klaim | Arti |\n|---|---|\n| `sub` | subjek: id pengguna |\n| `iat` | waktu dibuat (detik) |\n| `exp` | waktu kedaluwarsa (detik) |"
+    },
+    {
+      "type": "runnable",
+      "code": "import jwt from 'jsonwebtoken';\n\nconst RAHASIA = 'kunci-rahasia-yang-panjang-dan-acak';\nconst token = jwt.sign({ sub: '7', peran: 'kasir' }, RAHASIA, { expiresIn: '15m' });\nconst [header, payload] = token.split('.');\n\nconsole.log(token.split('.').length);\nconsole.log(JSON.parse(Buffer.from(header, 'base64url').toString()));\nconst isi = JSON.parse(Buffer.from(payload, 'base64url').toString());\nconsole.log(isi.sub, isi.peran, isi.exp - isi.iat);\n\nconst palsu = [header, Buffer.from(JSON.stringify({ ...isi, peran: 'admin' })).toString('base64url'), token.split('.')[2]].join('.');\nfor (const [nama, t, kunci] of [['asli', token, RAHASIA], ['payload diubah', palsu, RAHASIA], ['kunci salah', token, 'tebakan']]) {\n  try {\n    console.log(nama, '->', jwt.verify(t, kunci).peran);\n  } catch (e) {\n    console.log(nama, '->', e.message);\n  }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kelima?",
+        "options": [
+          "payload diubah -> admin",
+          "payload diubah -> kasir",
+          "payload diubah -> jwt expired",
+          "payload diubah -> invalid signature"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Buat token bertanda tangan."
+        },
+        {
+          "line": 4,
+          "note": "Berlaku 15 menit (900 detik)."
+        },
+        {
+          "line": 9,
+          "note": "Payload bisa dibaca siapa saja."
+        },
+        {
+          "line": 15,
+          "note": "Periksa tanda tangan dan masa berlaku."
+        }
+      ],
+      "explanation": "Payload diubah menjadi admin, tapi signature-nya masih milik payload lama. jwt.verify menghitung ulang signature dan mendapati tidak cocok: invalid signature.",
+      "tryThis": [
+        {
+          "task": "Ganti expiresIn menjadi '1h'. Berapa exp - iat?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan klaim email ke payload, lalu baca dari bagian kedua token.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Data rahasia di payload**\n\nPayload bisa dibaca siapa saja. Hanya taruh id dan peran.\n\n**2. Kunci rahasia pendek atau tertulis di kode**\n\nKunci pendek bisa ditebak, dan kunci di kode ikut bocor bersama repository. Pakai kunci acak panjang dari `process.env.JWT_SECRET`.\n\n**3. Token tanpa masa berlaku**\n\nToken yang dicuri bisa dipakai selamanya. Selalu beri `expiresIn`, misalnya 15 menit sampai beberapa jam."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola umum: **access token** berumur pendek (15 menit) dan **refresh token** berumur panjang yang disimpan lebih aman dan dipakai untuk meminta access token baru.\n- Di sisi verifikasi, tentukan algoritma yang diterima: `jwt.verify(token, kunci, { algorithms: ['HS256'] })`.\n- Untuk aplikasi web biasa, banyak tim memilih **sesi dengan cookie httpOnly** daripada JWT, karena lebih mudah dicabut. JWT unggul untuk API yang dipakai aplikasi HP atau layanan lain."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Login API 3: Tiket Masuk",
+      "pembuka": "Setelah login, pelanggan mendapat tiket berupa JWT.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Token dibuat dan diperiksa dengan kunci yang sama.",
+          "jawaban": "import jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-toko-sari-yang-panjang';\nconst token = jwt.sign({ sub: '1' }, RAHASIA, { expiresIn: '15m' });\nconsole.log(jwt.verify(token, RAHASIA).sub);",
+          "keluaran": "1",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan klaim `peran: 'pelanggan'` ke token, lalu baca payload **tanpa** verify dengan `Buffer.from(token.split('.')[1], 'base64url')` dan cetak `Isi payload: pelanggan`.",
+          "jawaban": "import jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-toko-sari-yang-panjang';\nconst token = jwt.sign({ sub: '1', peran: 'pelanggan' }, RAHASIA, { expiresIn: '15m' });\nconsole.log(jwt.verify(token, RAHASIA).sub);\nconst isi = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());\nconsole.log('Isi payload:', isi.peran);",
+          "keluaran": "1\nIsi payload: pelanggan",
+          "wajib": [
+            {
+              "pola": "'base64url'",
+              "pesan": "baca dengan encoding `'base64url'`."
+            }
+          ],
+          "petunjuk": "Buffer.from(token.split('.')[1], 'base64url').toString() lalu JSON.parse."
+        },
+        {
+          "arahan": "Buat token yang sudah kedaluwarsa dengan klaim `exp: Math.floor(Date.now() / 1000) - 60`, lalu verify di dalam try/catch dan cetak `Ditolak: jwt expired` di baris terakhir.",
+          "jawaban": "import jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-toko-sari-yang-panjang';\nconst token = jwt.sign({ sub: '1', peran: 'pelanggan' }, RAHASIA, { expiresIn: '15m' });\nconsole.log(jwt.verify(token, RAHASIA).sub);\nconst isi = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());\nconsole.log('Isi payload:', isi.peran);\nconst lama = jwt.sign({ sub: '1', exp: Math.floor(Date.now() / 1000) - 60 }, RAHASIA);\ntry {\n  jwt.verify(lama, RAHASIA);\n} catch (e) {\n  console.log('Ditolak:', e.message);\n}",
+          "keluaran": "1\nIsi payload: pelanggan\nDitolak: jwt expired",
+          "wajib": [
+            {
+              "pola": "Math\\.floor\\(\\s*Date\\.now\\(\\)\\s*/\\s*1000\\s*\\)\\s*-\\s*60",
+              "pesan": "buat `exp` 60 detik yang lalu."
+            },
+            {
+              "pola": "catch",
+              "pesan": "tangkap error verify."
+            }
+          ],
+          "petunjuk": "exp dalam detik; jwt.verify melempar TokenExpiredError.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Pelanggan kini mendapat tiket JWT yang bisa dibaca tapi tidak bisa dipalsukan, dan kedaluwarsa sendiri."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang membuat JWT tidak bisa dipalsukan?",
+          "options": [
+            "Payload yang dienkripsi",
+            "Signature yang dihitung dengan kunci rahasia server",
+            "Panjang token",
+            "Header alg"
+          ],
+          "answer": 1,
+          "explanation": "Tanda tangan.",
+          "remedial": "Payload bisa dibaca dan diubah siapa saja, tapi tanpa kunci rahasia tidak ada yang bisa membuat signature yang cocok untuk payload baru."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import jwt from 'jsonwebtoken';\nconst t = jwt.sign({ sub: '7' }, 'kunci');\nconsole.log(t.split('.').length);\nconsole.log(JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString()).sub);",
+          "options": [
+            "2 / 7",
+            "3 / undefined",
+            "3 / 7",
+            "1 / 7"
+          ],
+          "answer": 2,
+          "explanation": "header.payload.signature.",
+          "remedial": "Token punya tiga bagian. Payload di bagian kedua bisa dibaca dengan base64url tanpa kunci."
+        },
+        {
+          "question": "Kenapa password tidak boleh ditaruh di payload JWT?",
+          "options": [
+            "Payload hanya dikodekan, bukan dienkripsi, sehingga bisa dibaca siapa saja",
+            "Payload dihapus setelah 15 menit",
+            "jwt.sign menolak kata password",
+            "Payload maksimal 10 karakter"
+          ],
+          "answer": 0,
+          "explanation": "base64url bukan enkripsi.",
+          "remedial": "Siapa pun yang memegang token, termasuk yang mencurinya, bisa membaca isi payload."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa pola token yang umum untuk menyeimbangkan keamanan dan kenyamanan?",
+      "options": [
+        "Satu token tanpa masa berlaku",
+        "Token baru di setiap permintaan tanpa login",
+        "Access token berumur pendek dan refresh token berumur panjang",
+        "Password dikirim di setiap permintaan"
+      ],
+      "answer": 2,
+      "explanation": "Token yang dicuri cepat kedaluwarsa."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat token dengan payload { sub: '5', peran: 'admin' } memakai kunci rahasia-toko dan expiresIn 1h. Verifikasi token dengan kunci yang sama lalu cetak sub, peran, dan selisih exp - iat, dipisah spasi: 5 admin 3600",
+      "starterCode": "import jwt from 'jsonwebtoken';\n",
+      "solution": "import jwt from 'jsonwebtoken';\nconst token = jwt.sign({ sub: '5', peran: 'admin' }, 'rahasia-toko', { expiresIn: '1h' });\nconst isi = jwt.verify(token, 'rahasia-toko');\nconsole.log(isi.sub, isi.peran, isi.exp - isi.iat);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "5 admin 3600\n"
+        }
+      ],
+      "hints": [
+        "jwt.sign(payload, 'rahasia-toko', { expiresIn: '1h' }).",
+        "jwt.verify mengembalikan payload beserta iat dan exp."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "JWT: header.payload.signature, dibuat dengan jwt.sign.",
+        "Payload bisa dibaca siapa saja: jangan isi rahasia.",
+        "Signature dengan kunci rahasia mencegah pemalsuan.",
+        "Selalu beri expiresIn; verify menolak token kedaluwarsa.",
+        "Kunci rahasia panjang dan acak, dari process.env."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,193 @@
+{
+  "id": "node-auth-01",
+  "moduleId": "node-auth",
+  "order": 1,
+  "title": "Menyimpan Password dengan Aman",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Password **tidak pernah** disimpan apa adanya. Kalau database bocor, semua password pengguna ikut bocor, dan banyak orang memakai password yang sama di tempat lain.\n\nYang disimpan adalah **hash**: hasil fungsi satu arah yang tidak bisa dikembalikan ke password aslinya. Untuk password, pakai fungsi yang **sengaja lambat** seperti **bcrypt**:\n\n```bash\nnpm install bcryptjs\n```\n\n```js\nimport bcrypt from 'bcryptjs';\n\nconst hash = await bcrypt.hash('rahasia123', 10);   // simpan ini\nawait bcrypt.compare('rahasia123', hash);           // true\nawait bcrypt.compare('salah', hash);                // false\n```\n\nIbarat sidik jari: dari sidik jari kamu tidak bisa membuat ulang orangnya, tapi kamu bisa memeriksa apakah seseorang cocok dengan sidik jari yang tersimpan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBentuk hash bcrypt:\n\n```text\n$2b$10$N9qo8uLOickgx2ZMRZoMye.IjZAgcfl7p92ldGxad68LJZdL17lhW\n│   │  └ salt (22 huruf) + hash\n│   └ cost: 10 (2^10 putaran)\n└ versi algoritma\n```\n\n**Salt** adalah data acak yang dicampur sebelum di-hash. Karena itu password yang sama menghasilkan hash yang **berbeda** setiap kali, dan penyerang tidak bisa memakai tabel hash yang sudah disiapkan.\n\n**Cost** menentukan seberapa lambat. Nilai 10 sampai 12 umum dipakai: cukup cepat untuk login, tapi sangat mahal bagi penyerang yang mencoba jutaan tebakan.\n\nPaket `bcryptjs` ditulis dengan JavaScript murni sehingga mudah dipasang di mana saja. Paket `bcrypt` (dengan kode C++) sedikit lebih cepat. Alternatif modern: **argon2**."
+    },
+    {
+      "type": "runnable",
+      "code": "import bcrypt from 'bcryptjs';\nimport { createHash } from 'node:crypto';\n\nconst password = 'kopiSusu123';\nconst hash1 = await bcrypt.hash(password, 10);\nconst hash2 = await bcrypt.hash(password, 10);\n\nconsole.log(hash1.slice(0, 7), hash1.length);\nconsole.log(hash1 === hash2);\nconsole.log(await bcrypt.compare('kopiSusu123', hash1), await bcrypt.compare('kopiSusu123', hash2));\nconsole.log(await bcrypt.compare('kopisusu123', hash1));\n\nconst sha = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);\nconsole.log(sha(password) === sha(password));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "true",
+          "false",
+          "$2b$10$",
+          "undefined"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 5,
+          "note": "Hash dengan cost 10."
+        },
+        {
+          "line": 9,
+          "note": "Salt acak: hasilnya berbeda."
+        },
+        {
+          "line": 10,
+          "note": "Periksa password terhadap hash."
+        },
+        {
+          "line": 13,
+          "note": "Hash biasa: selalu sama, terlalu cepat untuk password."
+        }
+      ],
+      "explanation": "Setiap bcrypt.hash memakai salt acak, sehingga hash1 dan hash2 berbeda walau password-nya sama. Keduanya tetap cocok saat diperiksa dengan compare.",
+      "tryThis": [
+        {
+          "task": "Ganti cost 10 menjadi 12. Apakah terasa lebih lambat?",
+          "hint": null
+        },
+        {
+          "task": "Cetak hash1 seluruhnya. Temukan bagian cost-nya.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan password asli**\n\nSekali database bocor, semua akun dan akun di situs lain yang memakai password sama ikut terancam.\n\n**2. Hash cepat seperti MD5 atau SHA-256 untuk password**\n\nFungsi ini dirancang cepat, sehingga penyerang bisa mencoba miliaran tebakan per detik. Pakai bcrypt atau argon2.\n\n**3. Membandingkan hash dengan `===`**\n\nHash baru selalu berbeda karena salt. Pakai `bcrypt.compare`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Standar keamanan seperti OWASP menganjurkan argon2id, bcrypt, atau scrypt untuk password. bcrypt dengan cost minimal 10 masih sangat umum.\n- Banyak perusahaan memakai layanan autentikasi siap pakai (Auth0, Clerk, Supabase Auth, Firebase Auth) supaya tidak perlu menyimpan password sendiri. Memahami cara kerjanya tetap penting.\n- Hash password juga tidak boleh ikut dikirim di respons API, walau sudah di-hash."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Login API 1: Brankas Password",
+      "pembuka": "Toko akan punya akun pengguna. Password harus disimpan sebagai hash.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Password di-hash dengan bcrypt.",
+          "jawaban": "import bcrypt from 'bcryptjs';\nconst hash = await bcrypt.hash('tokoSari2026', 10);\nconsole.log('Hash dimulai dengan', hash.slice(0, 7));",
+          "keluaran": "Hash dimulai dengan $2b$10$",
+          "otomatis": true
+        },
+        {
+          "arahan": "Periksa password `tokoSari2026` dan `tokosari2026` terhadap hash itu dengan `bcrypt.compare`, lalu cetak hasilnya: `Cocok: true` dan `Cocok: false`.",
+          "jawaban": "import bcrypt from 'bcryptjs';\nconst hash = await bcrypt.hash('tokoSari2026', 10);\nconsole.log('Hash dimulai dengan', hash.slice(0, 7));\nconsole.log('Cocok:', await bcrypt.compare('tokoSari2026', hash));\nconsole.log('Cocok:', await bcrypt.compare('tokosari2026', hash));",
+          "keluaran": "Hash dimulai dengan $2b$10$\nCocok: true\nCocok: false",
+          "wajib": [
+            {
+              "pola": "bcrypt\\.compare\\(",
+              "pesan": "periksa dengan `bcrypt.compare`."
+            }
+          ],
+          "petunjuk": "await bcrypt.compare(password, hash) mengembalikan true atau false."
+        },
+        {
+          "arahan": "Simpan pengguna di objek `{ email: 'sari@toko.id', hashPassword }`. Buat `async function periksa(email, password)` yang mengembalikan `false` kalau email tidak cocok, atau hasil `bcrypt.compare`. Cetak hasil untuk email salah: `Masuk: false` di baris terakhir.",
+          "jawaban": "import bcrypt from 'bcryptjs';\nconst hash = await bcrypt.hash('tokoSari2026', 10);\nconsole.log('Hash dimulai dengan', hash.slice(0, 7));\nconsole.log('Cocok:', await bcrypt.compare('tokoSari2026', hash));\nconsole.log('Cocok:', await bcrypt.compare('tokosari2026', hash));\nconst pengguna = { email: 'sari@toko.id', hashPassword: hash };\nasync function periksa(email, password) {\n  if (email !== pengguna.email) return false;\n  return bcrypt.compare(password, pengguna.hashPassword);\n}\nconsole.log('Masuk:', await periksa('rina@toko.id', 'tokoSari2026'));",
+          "keluaran": "Hash dimulai dengan $2b$10$\nCocok: true\nCocok: false\nMasuk: false",
+          "wajib": [
+            {
+              "pola": "async\\s+function\\s+periksa",
+              "pesan": "buat `async function periksa`."
+            },
+            {
+              "pola": "hashPassword",
+              "pesan": "simpan di properti `hashPassword`."
+            }
+          ],
+          "petunjuk": "if (email !== pengguna.email) return false; return bcrypt.compare(password, pengguna.hashPassword);",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Password akun toko kini disimpan sebagai hash bcrypt dan diperiksa dengan compare."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa password disimpan sebagai hash, bukan teks asli?",
+          "options": [
+            "Kalau database bocor, password asli tidak ikut terbaca",
+            "Supaya password lebih pendek",
+            "Supaya login lebih cepat",
+            "Karena database tidak bisa menyimpan teks"
+          ],
+          "answer": 0,
+          "explanation": "Fungsi satu arah.",
+          "remedial": "Hash tidak bisa dikembalikan ke password aslinya. Saat login, password yang diketik di-hash dan dibandingkan."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import bcrypt from 'bcryptjs';\nconst a = await bcrypt.hash('x', 4);\nconst b = await bcrypt.hash('x', 4);\nconsole.log(a === b);\nconsole.log(await bcrypt.compare('x', b));",
+          "options": [
+            "true / false",
+            "true / true",
+            "false / true",
+            "false / false"
+          ],
+          "answer": 2,
+          "explanation": "Salt acak.",
+          "remedial": "Dua hash dari password yang sama berbeda karena salt acak, tapi compare tetap mengenali password yang benar."
+        },
+        {
+          "question": "Kenapa SHA-256 kurang tepat untuk menyimpan password?",
+          "options": [
+            "Terlalu cepat, sehingga penyerang bisa mencoba sangat banyak tebakan",
+            "SHA-256 tidak tersedia di Node.js",
+            "SHA-256 menghasilkan teks terlalu panjang",
+            "SHA-256 bisa dikembalikan ke teks asli"
+          ],
+          "answer": 0,
+          "explanation": "Cepat itu buruk untuk password.",
+          "remedial": "Fungsi hash password sengaja dibuat lambat. SHA-256 sangat cepat, sehingga tebakan massal menjadi murah."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa fungsi salt pada bcrypt?",
+      "options": [
+        "Membuat hash password yang sama berbeda-beda sehingga tabel hash siap pakai tidak berguna",
+        "Mempercepat proses login",
+        "Menyimpan password asli secara tersembunyi",
+        "Mengenkripsi password supaya bisa dibuka lagi"
+      ],
+      "answer": 0,
+      "explanation": "Data acak per hash."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat fungsi async daftar(password) yang menolak dengan Error berpesan Password minimal 8 karakter kalau password lebih pendek dari 8, atau mengembalikan hash bcrypt (cost 10). Tangkap daftar(\"123\") dan cetak pesannya, lalu cetak apakah hash dari daftar(\"rahasia123\") cocok dengan rahasia123: Password minimal 8 karakter lalu true",
+      "starterCode": "import bcrypt from 'bcryptjs';\n",
+      "solution": "import bcrypt from 'bcryptjs';\nasync function daftar(password) {\n  if (password.length < 8) throw new Error('Password minimal 8 karakter');\n  return bcrypt.hash(password, 10);\n}\ntry {\n  await daftar('123');\n} catch (e) {\n  console.log(e.message);\n}\nconst hash = await daftar('rahasia123');\nconsole.log(await bcrypt.compare('rahasia123', hash));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Password minimal 8 karakter\ntrue\n"
+        }
+      ],
+      "hints": [
+        "if (password.length < 8) throw new Error('...'); return bcrypt.hash(password, 10);",
+        "Periksa dengan bcrypt.compare."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Simpan hash password, tidak pernah password asli.",
+        "Pakai fungsi lambat: bcrypt (atau argon2), cost 10 sampai 12.",
+        "Salt acak membuat hash berbeda setiap kali.",
+        "Periksa dengan bcrypt.compare, bukan ===.",
+        "Jangan kirim hash password di respons API."
+      ]
+    }
+  ]
+}
