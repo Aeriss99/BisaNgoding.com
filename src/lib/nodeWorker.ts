@@ -1,5 +1,4 @@
 // Web Worker kelas Node.js: menjalankan kode dengan runtime Node tiruan (lihat src/lib/nodeRuntime).
-// @ts-expect-error modul JavaScript tanpa deklarasi tipe
 import './nodeRuntime/global.js';
 // @ts-expect-error modul JavaScript tanpa deklarasi tipe
 import { jalankanNode } from './nodeRuntime/runtime.js';
