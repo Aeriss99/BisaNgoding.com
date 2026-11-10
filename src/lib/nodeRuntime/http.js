@@ -58,15 +58,22 @@ export class ServerResponse extends Writable {
       if (Array.isArray(headers)) { for (let i = 0; i < headers.length; i += 2) this.setHeader(headers[i], headers[i + 1]); }
       else for (const k of Object.keys(headers)) this.setHeader(k, headers[k]);
     }
-    this.headersSent = true;
+    this.headersSent = true; this._sudahWriteHead = true;
     return this;
   }
   writeContinue() {}
   setTimeout() { return this; }
   _write(chunk, enc, cb) { this.headersSent = true; this._isi.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc)); cb(); }
+  write(chunk, enc, cb) { this._pakaiWrite = true; return super.write(chunk, enc, cb); }
   end(chunk, enc, cb) {
     if (typeof chunk === 'function') { cb = chunk; chunk = undefined; }
     if (typeof enc === 'function') { cb = enc; enc = undefined; }
+    // Seperti Node: end() tanpa write sebelumnya -> Content-Length dihitung langsung (bukan chunked)
+    if (!this._pakaiWrite && !this._sudahWriteHead && !this._hdr.has('content-length') && !this._hdr.has('transfer-encoding')
+      && this.statusCode !== 204 && this.statusCode !== 304 && !(this.statusCode >= 100 && this.statusCode < 200)) {
+      const n = chunk === undefined || chunk === null ? 0 : (Buffer.isBuffer(chunk) || chunk instanceof Uint8Array ? chunk.length : Buffer.byteLength(String(chunk), enc));
+      this._hdr.set('content-length', ['Content-Length', n]);
+    }
     this.headersSent = true;
     if (chunk !== undefined && chunk !== null) return super.end(chunk, enc, cb);
     return super.end(cb);

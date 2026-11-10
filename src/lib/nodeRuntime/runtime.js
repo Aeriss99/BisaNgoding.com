@@ -81,7 +81,30 @@ async function fetchNode(input, init = {}) {
   const req = input instanceof Request ? input : null;
   const url = new URL(req ? req.url : String(input));
   if (req) init = { method: req.method, headers: req.headers, body: req.body ? await req.text() : undefined, ...init };
-  if (['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) return httpMod.kirimKeServer(url, init);
+  if (!lokal(url)) gagalDns(url);
+  let r = await httpMod.kirimKeServer(url, init);
+  let kini = url, belok = false, n = 0;
+  const mode = init.redirect || 'follow';
+  while ([301, 302, 303, 307, 308].includes(r.status) && r.headers.has('location') && mode !== 'manual') {
+    if (mode === 'error') throw Object.assign(new TypeError('fetch failed'), { cause: new Error('unexpected redirect') });
+    if (++n > 20) throw Object.assign(new TypeError('fetch failed'), { cause: new Error('redirect count exceeded') });
+    kini = new URL(r.headers.get('location'), kini);
+    if (!lokal(kini)) gagalDns(kini);
+    const metode = String(init.method || 'GET').toUpperCase();
+    if ((r.status === 303 && metode !== 'HEAD') || ([301, 302].includes(r.status) && metode === 'POST')) {
+      const h = new Headers(init.headers || {});
+      for (const k of ['content-type', 'content-length', 'content-encoding', 'content-language', 'content-location']) h.delete(k);
+      init = { ...init, method: 'GET', body: undefined, headers: h };
+    }
+    r = await httpMod.kirimKeServer(kini, init);
+    belok = true;
+  }
+  Object.defineProperty(r, 'url', { value: kini.href });
+  Object.defineProperty(r, 'redirected', { value: belok });
+  return r;
+}
+function lokal(url) { return ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname); }
+function gagalDns(url) {
   const sebab = new Error(`getaddrinfo ENOTFOUND ${url.hostname}`);
   sebab.code = 'ENOTFOUND'; sebab.errno = -3008; sebab.syscall = 'getaddrinfo'; sebab.hostname = url.hostname;
   throw Object.assign(new TypeError('fetch failed'), { cause: sebab });

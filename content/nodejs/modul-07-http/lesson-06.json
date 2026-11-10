@@ -1,0 +1,198 @@
+{
+  "id": "node-http-06",
+  "moduleId": "node-http",
+  "order": 6,
+  "title": "Proyek Mini: Server Toko",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: **API toko** dengan `node:http` saja.\n\n| Rute | Fungsi | Status |\n|---|---|---|\n| `GET /menu` | daftar menu, bisa dicari dengan `?q=` | 200 |\n| `POST /menu` | tambah menu dari body JSON | 201 / 400 |\n| jalur lain | tidak ditemukan | 404 |\n\nSemua yang dipelajari dipakai: membaca URL dan query, membaca body, validasi, status dan header yang tepat, dan tabel rute.\n\nIbarat membuka warung kecil sendirian: kamu menjadi kasir, pelayan, dan penjaga pintu sekaligus. Bisa, tapi melelahkan, dan di modul berikutnya Express akan membantu."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKerangka API yang rapi memisahkan tiga hal:\n\n```js\n// 1. data\nconst menu = [];\n// 2. penangan per rute\nasync function tambahMenu(req, res) { ... }\n// 3. server dan routing\nconst server = http.createServer(async (req, res) => { ... });\n```\n\nPenangan error terakhir menjaga server tetap hidup kalau ada bug di salah satu penangan:\n\n```js\ntry {\n  await penangan(req, res, url);\n} catch (e) {\n  console.error(e);\n  kirimJson(res, 500, { error: 'Terjadi kesalahan di server' });\n}\n```\n\nPesan error 500 untuk klien dibuat umum. Detailnya cukup ditulis di log server."
+    },
+    {
+      "type": "runnable",
+      "code": "import http from 'node:http';\n\nconst menu = [{ id: 1, nama: 'Kopi Susu', harga: 18000 }];\nfunction kirimJson(res, status, data) {\n  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify(data));\n}\nasync function bacaJson(req) {\n  let isi = '';\n  for await (const p of req) isi += p;\n  return JSON.parse(isi);\n}\nconst rute = {\n  'GET /menu': (req, res, url) => {\n    const q = (url.searchParams.get('q') ?? '').toLowerCase();\n    kirimJson(res, 200, menu.filter((m) => m.nama.toLowerCase().includes(q)));\n  },\n  'POST /menu': async (req, res) => {\n    let data;\n    try {\n      data = await bacaJson(req);\n    } catch {\n      return kirimJson(res, 400, { error: 'JSON rusak' });\n    }\n    if (typeof data.nama !== 'string' || !(data.harga > 0)) {\n      return kirimJson(res, 400, { error: 'nama dan harga wajib' });\n    }\n    const baru = { id: menu.length + 1, nama: data.nama, harga: data.harga };\n    menu.push(baru);\n    kirimJson(res, 201, baru);\n  },\n  'GET /rusak': () => {\n    throw new Error('bug di penangan');\n  },\n};\nconst server = http.createServer(async (req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  const penangan = rute[`${req.method} ${url.pathname}`];\n  if (!penangan) return kirimJson(res, 404, { error: 'Tidak ditemukan' });\n  try {\n    await penangan(req, res, url);\n  } catch (e) {\n    kirimJson(res, 500, { error: 'Terjadi kesalahan di server' });\n  }\n});\nserver.listen(3000);\n\nconst u = 'http://localhost:3000';\nconst post = (body) => fetch(u + '/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\nconsole.log((await post({ nama: 'Es Kopi', harga: 15000 })).status);\nconsole.log((await post({ nama: 'Gratis', harga: 0 })).status);\nconsole.log((await (await fetch(u + '/menu?q=kopi')).json()).length);\nconsole.log((await fetch(u + '/rusak')).status);\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "0",
+          "2",
+          "1",
+          "3"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 14,
+          "note": "Daftar menu dengan pencarian."
+        },
+        {
+          "line": 18,
+          "note": "Tambah menu dari body JSON."
+        },
+        {
+          "line": 25,
+          "note": "Harga harus angka positif."
+        },
+        {
+          "line": 43,
+          "note": "Bug tidak menghentikan server."
+        }
+      ],
+      "explanation": "Es Kopi berhasil ditambahkan, sedangkan Gratis ditolak karena harganya 0. Menu yang mengandung kata kopi: Kopi Susu dan Es Kopi.",
+      "tryThis": [
+        {
+          "task": "Tambahkan rute DELETE /menu yang mengosongkan menu.",
+          "hint": null
+        },
+        {
+          "task": "Hapus try/catch di server. Apa yang terjadi saat /rusak dipanggil?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memperlihatkan detail error ke klien**\n\nMengirim `e.stack` atau pesan database ke klien membocorkan informasi dalam aplikasi. Kirim pesan umum, catat detailnya di log.\n\n**2. Data hanya di memori**\n\nArray `menu` hilang setiap kali server dijalankan ulang. Untuk data sungguhan, pakai database (modul Database).\n\n**3. Kode server yang terus memanjang**\n\nSatu file dengan semua rute, validasi, dan data menjadi sulit dirawat. Modul REST API membahas cara membaginya menjadi beberapa lapisan."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Setelah memahami node:http, kamu akan melihat Express melakukan hal yang sama dengan kode yang jauh lebih pendek, dan tahu persis apa yang terjadi di baliknya.\n- Endpoint `GET /health` (atau `/sehat`) yang selalu menjawab 200 adalah standar untuk dipantau platform hosting dan *load balancer*.\n- Penangan error terakhir yang menjawab 500 dan mencatat detailnya ada di setiap API produksi."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Server Toko 6: API Menu",
+      "pembuka": "Kita rakit API menu toko: daftar, cari, tambah, dan tahan terhadap bug.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Server dengan tabel rute dan fungsi kirimJson.",
+          "jawaban": "import http from 'node:http';\nconst menu = [{ id: 1, nama: 'Kopi Susu' }];\nfunction kirimJson(res, status, data) {\n  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify(data));\n}\nconst rute = {\n  'GET /menu': (req, res) => kirimJson(res, 200, menu),\n};\nconst server = http.createServer(async (req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  const penangan = rute[`${req.method} ${url.pathname}`];\n  if (!penangan) return kirimJson(res, 404, { error: 'Tidak ditemukan' });\n  await penangan(req, res, url);\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu');\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "200 [ { id: 1, nama: 'Kopi Susu' } ]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan rute `'POST /menu'` yang membaca body JSON, menolak dengan 400 `{ error: 'nama wajib' }` kalau `nama` bukan teks, atau menambah menu dan menjawab 201. Kirim `{ nama: 'Teh Tarik' }` dan cetak `201 { id: 2, nama: 'Teh Tarik' }`.",
+          "jawaban": "import http from 'node:http';\nconst menu = [{ id: 1, nama: 'Kopi Susu' }];\nfunction kirimJson(res, status, data) {\n  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify(data));\n}\nconst rute = {\n  'GET /menu': (req, res) => kirimJson(res, 200, menu),\n  'POST /menu': async (req, res) => {\n    let isi = '';\n    for await (const p of req) isi += p;\n    const data = JSON.parse(isi);\n    if (typeof data.nama !== 'string') return kirimJson(res, 400, { error: 'nama wajib' });\n    const baru = { id: menu.length + 1, nama: data.nama };\n    menu.push(baru);\n    kirimJson(res, 201, baru);\n  },\n};\nconst server = http.createServer(async (req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  const penangan = rute[`${req.method} ${url.pathname}`];\n  if (!penangan) return kirimJson(res, 404, { error: 'Tidak ditemukan' });\n  await penangan(req, res, url);\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu');\nconsole.log(r.status, await r.json());\nconst r2 = await fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nama: 'Teh Tarik' }) });\nconsole.log(r2.status, await r2.json());\nserver.close();",
+          "keluaran": "200 [ { id: 1, nama: 'Kopi Susu' } ]\n201 { id: 2, nama: 'Teh Tarik' }",
+          "wajib": [
+            {
+              "pola": "'POST /menu'",
+              "pesan": "tambahkan rute `'POST /menu'`."
+            },
+            {
+              "pola": "kirimJson\\(\\s*res\\s*,\\s*201",
+              "pesan": "jawab 201 dengan `kirimJson`."
+            }
+          ],
+          "petunjuk": "Penangan async: baca body, JSON.parse, cek typeof data.nama, push, kirimJson 201."
+        },
+        {
+          "arahan": "Bungkus `await penangan(req, res, url)` dengan try/catch yang menjawab 500 `{ error: 'Kesalahan server' }`. Kirim POST berisi teks `rusak` (JSON.parse akan gagal) dan cetak `500 { error: 'Kesalahan server' }` di baris terakhir.",
+          "jawaban": "import http from 'node:http';\nconst menu = [{ id: 1, nama: 'Kopi Susu' }];\nfunction kirimJson(res, status, data) {\n  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify(data));\n}\nconst rute = {\n  'GET /menu': (req, res) => kirimJson(res, 200, menu),\n  'POST /menu': async (req, res) => {\n    let isi = '';\n    for await (const p of req) isi += p;\n    const data = JSON.parse(isi);\n    if (typeof data.nama !== 'string') return kirimJson(res, 400, { error: 'nama wajib' });\n    const baru = { id: menu.length + 1, nama: data.nama };\n    menu.push(baru);\n    kirimJson(res, 201, baru);\n  },\n};\nconst server = http.createServer(async (req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  const penangan = rute[`${req.method} ${url.pathname}`];\n  if (!penangan) return kirimJson(res, 404, { error: 'Tidak ditemukan' });\n  try {\n    await penangan(req, res, url);\n  } catch {\n    kirimJson(res, 500, { error: 'Kesalahan server' });\n  }\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu');\nconsole.log(r.status, await r.json());\nconst r2 = await fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nama: 'Teh Tarik' }) });\nconsole.log(r2.status, await r2.json());\nconst r3 = await fetch('http://localhost:3000/menu', { method: 'POST', body: 'rusak' });\nconsole.log(r3.status, await r3.json());\nserver.close();",
+          "keluaran": "200 [ { id: 1, nama: 'Kopi Susu' } ]\n201 { id: 2, nama: 'Teh Tarik' }\n500 { error: 'Kesalahan server' }",
+          "wajib": [
+            {
+              "pola": "kirimJson\\(\\s*res\\s*,\\s*500",
+              "pesan": "jawab 500 dengan `kirimJson`."
+            },
+            {
+              "pola": "catch",
+              "pesan": "tangkap dengan try/catch."
+            }
+          ],
+          "petunjuk": "try { await penangan(req, res, url); } catch { kirimJson(res, 500, ...); }",
+          "tantangan": true,
+          "benar": "API menu selesai: daftar, tambah dengan validasi, dan server tetap hidup walau ada error."
+        }
+      ],
+      "penutup": "API menu toko berjalan dengan node:http murni: routing, body JSON, validasi, status yang tepat, dan penangan error."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa pesan error 500 untuk klien dibuat umum?",
+          "options": [
+            "Supaya respons lebih kecil",
+            "Karena status 500 tidak boleh punya isi",
+            "Supaya detail dalam aplikasi tidak bocor; detailnya dicatat di log server",
+            "Karena klien tidak bisa membaca teks panjang"
+          ],
+          "answer": 2,
+          "explanation": "Keamanan.",
+          "remedial": "Stack trace dan pesan database bisa membocorkan struktur aplikasi. Klien cukup tahu ada kesalahan; tim membaca detailnya di log."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import http from 'node:http';\nconst s = http.createServer(async (req, res) => {\n  try {\n    if (req.url === '/bug') throw new Error('x');\n    res.end('hidup');\n  } catch {\n    res.statusCode = 500;\n    res.end();\n  }\n});\ns.listen(3000);\nconsole.log((await fetch('http://localhost:3000/bug')).status);\nconsole.log(await (await fetch('http://localhost:3000/')).text());\ns.close();",
+          "options": [
+            "Program berhenti dengan error",
+            "200 / hidup",
+            "500 / mati",
+            "500 / hidup"
+          ],
+          "answer": 3,
+          "explanation": "Error ditangkap di server.",
+          "remedial": "Penangan melempar error, tapi try/catch di server menangkapnya dan menjawab 500. Server tetap hidup dan bisa menjawab permintaan berikutnya."
+        },
+        {
+          "question": "Apa kelemahan menyimpan data di array dalam program server?",
+          "options": [
+            "Array membuat server lebih lambat dari database",
+            "Array hanya bisa berisi 100 data",
+            "Data hilang setiap kali server dijalankan ulang",
+            "Array tidak bisa menyimpan objek"
+          ],
+          "answer": 2,
+          "explanation": "Memori bersifat sementara.",
+          "remedial": "Isi memori hilang saat program berhenti. Data yang harus tetap ada disimpan di database."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Endpoint apa yang lazim disediakan supaya platform hosting bisa memeriksa server masih hidup?",
+      "options": [
+        "POST /login",
+        "DELETE /server",
+        "GET /admin",
+        "GET /health yang selalu menjawab 200"
+      ],
+      "answer": 3,
+      "explanation": "Health check."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat server dengan rute GET /health yang menjawab JSON { status: \"ok\" } berstatus 200, dan semua jalur lain 404. Fetch /health dan /x, lalu cetak status keduanya dan isi health, dipisah spasi: 200 404 ok",
+      "starterCode": "import http from 'node:http';\n",
+      "solution": "import http from 'node:http';\nconst server = http.createServer((req, res) => {\n  if (req.method === 'GET' && req.url === '/health') {\n    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });\n    return res.end(JSON.stringify({ status: 'ok' }));\n  }\n  res.statusCode = 404;\n  res.end();\n});\nserver.listen(3000);\nconst a = await fetch('http://localhost:3000/health');\nconst b = await fetch('http://localhost:3000/x');\nconsole.log(a.status, b.status, (await a.json()).status);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "200 404 ok\n"
+        }
+      ],
+      "hints": [
+        "if (req.method === 'GET' && req.url === '/health') { ... return ... }",
+        "console.log(a.status, b.status, (await a.json()).status)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "API dengan node:http: tabel rute, kirimJson, bacaJson.",
+        "Validasi body dan jawab 400 untuk data salah.",
+        "Penangan error terakhir menjawab 500 dan menjaga server tetap hidup.",
+        "Pesan error untuk klien dibuat umum; detail di log.",
+        "Express membuat semua ini lebih ringkas."
+      ]
+    }
+  ]
+}

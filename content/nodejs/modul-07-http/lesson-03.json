@@ -1,0 +1,193 @@
+{
+  "id": "node-http-03",
+  "moduleId": "node-http",
+  "order": 3,
+  "title": "Membuat Respons: Status, Header, JSON",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Respons terdiri dari **status**, **header**, dan **isi** (*body*).\n\n```js\nres.statusCode = 201;\nres.setHeader('Content-Type', 'application/json; charset=utf-8');\nres.end(JSON.stringify({ id: 1, menu: 'Kopi' }));\n\n// atau sekaligus:\nres.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });\nres.end(JSON.stringify({ error: 'Produk tidak ditemukan' }));\n```\n\nKode status dikelompokkan berdasarkan angka pertama:\n\n| Kelompok | Arti | Contoh |\n|---|---|---|\n| 2xx | berhasil | 200 OK, 201 Created, 204 No Content |\n| 3xx | pindah | 301, 302 |\n| 4xx | kesalahan klien | 400, 401, 403, 404, 409, 422 |\n| 5xx | kesalahan server | 500, 503 |\n\nIbarat jawaban surat resmi: nomor status di kop surat (berhasil atau ditolak), keterangan jenis lampiran (header), lalu isi suratnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nHeader **`Content-Type`** memberi tahu klien cara membaca isi respons:\n\n| Isi | Content-Type |\n|---|---|\n| JSON | `application/json; charset=utf-8` |\n| Teks | `text/plain; charset=utf-8` |\n| HTML | `text/html; charset=utf-8` |\n\nFungsi bantu kecil membuat kode lebih rapi:\n\n```js\nfunction kirimJson(res, status, data) {\n  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify(data));\n}\n```\n\nHeader harus diatur **sebelum** isi dikirim. Mengatur header setelah `res.end` memunculkan error `ERR_HTTP_HEADERS_SENT`."
+    },
+    {
+      "type": "runnable",
+      "code": "import http from 'node:http';\n\nconst menu = [{ id: 1, nama: 'Kopi Susu' }, { id: 2, nama: 'Teh Tarik' }];\nfunction kirimJson(res, status, data) {\n  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify(data));\n}\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  if (url.pathname === '/menu') return kirimJson(res, 200, menu);\n  if (url.pathname === '/sehat') {\n    res.statusCode = 204;\n    return res.end();\n  }\n  kirimJson(res, 404, { error: `Jalur ${url.pathname} tidak ditemukan` });\n});\nserver.listen(3000);\n\nfor (const jalur of ['/menu', '/sehat', '/kasir']) {\n  const r = await fetch('http://localhost:3000' + jalur);\n  console.log(jalur, r.status, r.statusText);\n}\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "/kasir 200 OK",
+          "/kasir 204 No Content",
+          "/kasir 500 Internal Server Error",
+          "/kasir 404 Not Found"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Fungsi bantu respons JSON."
+        },
+        {
+          "line": 5,
+          "note": "Beri tahu klien: ini JSON."
+        },
+        {
+          "line": 12,
+          "note": "Berhasil, tanpa isi."
+        },
+        {
+          "line": 15,
+          "note": "Jalur tidak dikenal."
+        }
+      ],
+      "explanation": "/kasir tidak cocok dengan jalur mana pun, jadi server membalas 404 dengan pesan error dalam JSON. statusText untuk 404 adalah Not Found.",
+      "tryThis": [
+        {
+          "task": "Cetak juga r.headers.get('content-type') di dalam loop.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan jalur /menu/1 yang mengembalikan satu menu.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Semua respons berstatus 200**\n\nMengembalikan `{ error: '...' }` dengan status 200 membingungkan klien dan alat pemantau. Pakai status yang sesuai.\n\n**2. Lupa `Content-Type`**\n\nKlien tidak tahu isinya JSON. Beberapa klien gagal membaca, dan browser bisa salah menampilkan.\n\n**3. Mengirim respons dua kali**\n\nLupa `return` setelah mengirim respons membuat kode lanjut dan mencoba mengirim lagi, memunculkan `ERR_HTTP_HEADERS_SENT`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Kode status yang tepat adalah bagian dari kontrak API. Tim frontend dan aplikasi HP bergantung padanya untuk menampilkan pesan yang benar.\n- Bentuk error yang konsisten (misalnya selalu `{ error: { code, message } }`) memudahkan klien. Ada juga standar RFC 9457 (*Problem Details*) dengan tipe `application/problem+json`.\n- Status 5xx menandakan bug atau gangguan server dan biasanya memicu peringatan otomatis ke tim."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Server Toko 3: Jawaban Rapi",
+      "pembuka": "Server toko menjawab dalam JSON dengan status yang tepat.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Server menjawab daftar menu dalam JSON.",
+          "jawaban": "import http from 'node:http';\nconst menu = ['Kopi Susu', 'Teh Tarik'];\nconst server = http.createServer((req, res) => {\n  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify(menu));\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu');\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "200 [ 'Kopi Susu', 'Teh Tarik' ]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat fungsi `kirimJson(res, status, data)`. Jawab daftar menu hanya untuk jalur `/menu`, dan jalur lain dengan status 404 berisi `{ error: 'Tidak ditemukan' }`. Fetch `/kasir` dan cetak `404 { error: 'Tidak ditemukan' }`.",
+          "jawaban": "import http from 'node:http';\nconst menu = ['Kopi Susu', 'Teh Tarik'];\nfunction kirimJson(res, status, data) {\n  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify(data));\n}\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  if (url.pathname === '/menu') return kirimJson(res, 200, menu);\n  kirimJson(res, 404, { error: 'Tidak ditemukan' });\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu');\nconsole.log(r.status, await r.json());\nconst r2 = await fetch('http://localhost:3000/kasir');\nconsole.log(r2.status, await r2.json());\nserver.close();",
+          "keluaran": "200 [ 'Kopi Susu', 'Teh Tarik' ]\n404 { error: 'Tidak ditemukan' }",
+          "wajib": [
+            {
+              "pola": "function\\s+kirimJson",
+              "pesan": "buat `function kirimJson`."
+            },
+            {
+              "pola": "kirimJson\\(\\s*res\\s*,\\s*404",
+              "pesan": "jawab 404 dengan `kirimJson`."
+            }
+          ],
+          "petunjuk": "if (url.pathname === '/menu') return kirimJson(res, 200, menu); lalu kirimJson 404."
+        },
+        {
+          "arahan": "Tambahkan jalur `/menu/1`, `/menu/2`, dan seterusnya: ambil nomornya dari `url.pathname.split('/')[2]`, kirim menu ke-n (mulai dari 1), atau 404 kalau tidak ada. Fetch `/menu/2` dan cetak `200 Teh Tarik`.",
+          "jawaban": "import http from 'node:http';\nconst menu = ['Kopi Susu', 'Teh Tarik'];\nfunction kirimJson(res, status, data) {\n  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify(data));\n}\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://${req.headers.host}`);\n  if (url.pathname === '/menu') return kirimJson(res, 200, menu);\n  const bagian = url.pathname.split('/');\n  if (bagian[1] === 'menu' && bagian.length === 3) {\n    const m = menu[Number(bagian[2]) - 1];\n    if (m) return kirimJson(res, 200, m);\n  }\n  kirimJson(res, 404, { error: 'Tidak ditemukan' });\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu');\nconsole.log(r.status, await r.json());\nconst r2 = await fetch('http://localhost:3000/kasir');\nconsole.log(r2.status, await r2.json());\nconst r3 = await fetch('http://localhost:3000/menu/2');\nconsole.log(r3.status, await r3.json());\nserver.close();",
+          "keluaran": "200 [ 'Kopi Susu', 'Teh Tarik' ]\n404 { error: 'Tidak ditemukan' }\n200 Teh Tarik",
+          "wajib": [
+            {
+              "pola": "split\\(\\s*'/'\\s*\\)",
+              "pesan": "pecah jalur dengan `split('/')`."
+            }
+          ],
+          "petunjuk": "const bagian = url.pathname.split('/'); bagian[2] adalah nomornya.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Server toko kini menjawab dalam JSON dengan status yang tepat, termasuk satu menu berdasarkan nomornya."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Status apa yang tepat untuk respons berhasil membuat data baru?",
+          "options": [
+            "200 OK",
+            "201 Created",
+            "204 No Content",
+            "302 Found"
+          ],
+          "answer": 1,
+          "explanation": "Created = dibuat.",
+          "remedial": "201 menandakan data baru berhasil dibuat. 200 untuk berhasil secara umum, 204 untuk berhasil tanpa isi."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import http from 'node:http';\nconst s = http.createServer((req, res) => {\n  res.writeHead(418, { 'Content-Type': 'text/plain' });\n  res.end('saya teko');\n});\ns.listen(3000);\nconst r = await fetch('http://localhost:3000');\nconsole.log(r.status);\nconsole.log(r.headers.get('content-type'));\ns.close();",
+          "options": [
+            "200 / text/plain",
+            "418 / application/json",
+            "418 / text/plain",
+            "200 / null"
+          ],
+          "answer": 2,
+          "explanation": "writeHead mengatur status dan header sekaligus.",
+          "remedial": "writeHead mengatur status 418 dan Content-Type text/plain sebelum isi dikirim."
+        },
+        {
+          "question": "Kenapa ditulis return kirimJson(...) dan bukan kirimJson(...) saja?",
+          "options": [
+            "Supaya kode setelahnya tidak jalan dan mencoba mengirim respons kedua",
+            "Supaya status menjadi 200",
+            "Karena kirimJson wajib mengembalikan nilai",
+            "Supaya JSON lebih kecil"
+          ],
+          "answer": 0,
+          "explanation": "Satu permintaan, satu respons.",
+          "remedial": "Tanpa return, kode lanjut ke baris berikutnya dan bisa memanggil kirimJson lagi, yang memunculkan ERR_HTTP_HEADERS_SENT."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kelompok kode status apa yang menandakan kesalahan dari sisi klien?",
+      "options": [
+        "2xx",
+        "3xx",
+        "4xx",
+        "5xx"
+      ],
+      "answer": 2,
+      "explanation": "Misalnya 400, 404."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat server yang menjawab status 201 dengan Content-Type application/json; charset=utf-8 dan isi { \"ok\": true }. Fetch, lalu cetak status dan hasil r.json(), dipisah spasi: 201 { ok: true }",
+      "starterCode": "import http from 'node:http';\n",
+      "solution": "import http from 'node:http';\nconst server = http.createServer((req, res) => {\n  res.writeHead(201, { 'Content-Type': 'application/json; charset=utf-8' });\n  res.end(JSON.stringify({ ok: true }));\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000');\nconsole.log(r.status, await r.json());\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "201 { ok: true }\n"
+        }
+      ],
+      "hints": [
+        "res.writeHead(201, { ... }) lalu res.end(JSON.stringify(...)).",
+        "console.log(r.status, await r.json())."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Respons terdiri dari status, header, dan isi.",
+        "2xx berhasil, 4xx kesalahan klien, 5xx kesalahan server.",
+        "Content-Type memberi tahu format isi: JSON pakai application/json.",
+        "Atur header sebelum isi dikirim.",
+        "return setelah mengirim respons supaya tidak terkirim dua kali."
+      ]
+    }
+  ]
+}

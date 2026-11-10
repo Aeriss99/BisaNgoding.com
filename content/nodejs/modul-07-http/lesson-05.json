@@ -1,0 +1,189 @@
+{
+  "id": "node-http-05",
+  "moduleId": "node-http",
+  "order": 5,
+  "title": "Routing Manual dan Batasnya",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**Routing** adalah memilih kode yang dijalankan berdasarkan **method** dan **jalur**. Dengan `node:http`, routing ditulis sendiri:\n\n```js\nconst rute = {\n  'GET /menu': daftarMenu,\n  'POST /pesanan': buatPesanan,\n};\nconst penangan = rute[`${req.method} ${url.pathname}`];\nif (penangan) return penangan(req, res);\nkirimJson(res, 404, { error: 'Tidak ditemukan' });\n```\n\nIbarat resepsionis gedung dengan daftar ruangan: tamu menyebut keperluan dan tujuan, resepsionis melihat daftar dan mengarahkan ke ruangan yang tepat, atau menolak kalau ruangannya tidak ada."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nJalur yang tidak ada dijawab **404**. Jalur yang ada tapi method-nya tidak didukung lebih tepat dijawab **405 Method Not Allowed**, dengan header `Allow` berisi method yang didukung.\n\nRouting manual cepat menjadi rumit saat API bertambah:\n\n- jalur dengan parameter (`/produk/:id`) harus dipecah sendiri,\n- pemeriksaan yang sama (login, log, validasi) diulang di setiap penangan,\n- penanganan error harus ditulis di setiap tempat.\n\nItulah alasan framework seperti **Express** dipakai. Express menyediakan routing dengan parameter, *middleware*, dan penangan error terpusat."
+    },
+    {
+      "type": "runnable",
+      "code": "import http from 'node:http';\n\nconst menu = [{ id: 1, nama: 'Kopi' }];\nfunction kirimJson(res, status, data, header = {}) {\n  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...header });\n  res.end(JSON.stringify(data));\n}\nconst rute = {\n  '/menu': { GET: (req, res) => kirimJson(res, 200, menu) },\n  '/sehat': { GET: (req, res) => kirimJson(res, 200, { status: 'ok' }) },\n};\nconst server = http.createServer((req, res) => {\n  const { pathname } = new URL(req.url, `http://${req.headers.host}`);\n  const jalur = rute[pathname];\n  if (!jalur) return kirimJson(res, 404, { error: 'Tidak ditemukan' });\n  const penangan = jalur[req.method];\n  if (!penangan) {\n    return kirimJson(res, 405, { error: 'Method tidak didukung' }, { Allow: Object.keys(jalur).join(', ') });\n  }\n  penangan(req, res);\n});\nserver.listen(3000);\n\nconst uji = [['GET', '/menu'], ['DELETE', '/menu'], ['GET', '/kasir']];\nfor (const [method, jalur] of uji) {\n  const r = await fetch('http://localhost:3000' + jalur, { method });\n  console.log(method, jalur, r.status, r.headers.get('allow'));\n}\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris kedua?",
+        "options": [
+          "DELETE /menu 405 null",
+          "DELETE /menu 404 null",
+          "DELETE /menu 405 GET",
+          "DELETE /menu 200 null"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 8,
+          "note": "Tabel rute: jalur lalu method."
+        },
+        {
+          "line": 15,
+          "note": "Jalur tidak ada: 404."
+        },
+        {
+          "line": 18,
+          "note": "Jalur ada, method salah: 405."
+        },
+        {
+          "line": 18,
+          "note": "Sebutkan method yang didukung."
+        }
+      ],
+      "explanation": "Jalur /menu ada, tapi hanya mendukung GET. DELETE dijawab 405 dengan header Allow berisi GET.",
+      "tryThis": [
+        {
+          "task": "Tambahkan POST untuk /menu. Apa isi header Allow sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Coba tambahkan rute /menu/1. Kenapa tabel ini tidak bisa menanganinya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Semua jalur salah dijawab 404**\n\nMethod yang tidak didukung lebih jelas dijawab 405, supaya klien tahu jalurnya benar tapi caranya salah.\n\n**2. If-else yang sangat panjang**\n\nRouting dengan puluhan `if` sulit dibaca dan mudah salah urutan. Pakai tabel rute, atau framework.\n\n**3. Lupa jawaban untuk jalur yang tidak dikenal**\n\nKalau tidak ada penangan akhir, permintaan ke jalur yang tidak dikenal tidak pernah dijawab."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Framework Node.js yang umum dipakai: **Express** (paling banyak dipakai dan paling banyak contohnya), **Fastify** (cepat, validasi skema bawaan), **NestJS** (terstruktur ala Angular, populer di perusahaan), dan **Hono** (ringan, juga jalan di edge).\n- Semua framework itu tetap memakai `req` dan `res` dari `node:http` (atau versi serupa) di bawahnya.\n- Konsep dari modul ini (method, status, header, body, routing) sama di semua framework, bahkan di bahasa lain."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Server Toko 5: Meja Resepsionis",
+      "pembuka": "Server toko memakai tabel rute supaya mudah ditambah.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Tabel rute memetakan \"METHOD jalur\" ke penangan.",
+          "jawaban": "import http from 'node:http';\nconst rute = {\n  'GET /menu': (req, res) => res.end('Daftar menu'),\n};\nconst server = http.createServer((req, res) => {\n  const { pathname } = new URL(req.url, `http://${req.headers.host}`);\n  const penangan = rute[`${req.method} ${pathname}`];\n  if (penangan) return penangan(req, res);\n  res.statusCode = 404;\n  res.end('Tidak ditemukan');\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu');\nconsole.log(r.status, await r.text());\nserver.close();",
+          "keluaran": "200 Daftar menu",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan rute `'POST /pesanan'` yang menjawab status 201 dengan teks `Pesanan dibuat`. Kirim POST ke `/pesanan` dan cetak `201 Pesanan dibuat` di baris terakhir.",
+          "jawaban": "import http from 'node:http';\nconst rute = {\n  'GET /menu': (req, res) => res.end('Daftar menu'),\n  'POST /pesanan': (req, res) => {\n    res.statusCode = 201;\n    res.end('Pesanan dibuat');\n  },\n};\nconst server = http.createServer((req, res) => {\n  const { pathname } = new URL(req.url, `http://${req.headers.host}`);\n  const penangan = rute[`${req.method} ${pathname}`];\n  if (penangan) return penangan(req, res);\n  res.statusCode = 404;\n  res.end('Tidak ditemukan');\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu');\nconsole.log(r.status, await r.text());\nconst r2 = await fetch('http://localhost:3000/pesanan', { method: 'POST' });\nconsole.log(r2.status, await r2.text());\nserver.close();",
+          "keluaran": "200 Daftar menu\n201 Pesanan dibuat",
+          "wajib": [
+            {
+              "pola": "'POST /pesanan'",
+              "pesan": "tambahkan rute `'POST /pesanan'`."
+            }
+          ],
+          "petunjuk": "'POST /pesanan': (req, res) => { res.statusCode = 201; res.end(...); }"
+        },
+        {
+          "arahan": "Bedakan 404 dan 405: kalau ada rute lain dengan jalur yang sama tapi method berbeda, jawab 405 `Method tidak didukung`. Kirim `DELETE /menu` dan cetak `405 Method tidak didukung` di baris terakhir.",
+          "jawaban": "import http from 'node:http';\nconst rute = {\n  'GET /menu': (req, res) => res.end('Daftar menu'),\n  'POST /pesanan': (req, res) => {\n    res.statusCode = 201;\n    res.end('Pesanan dibuat');\n  },\n};\nconst server = http.createServer((req, res) => {\n  const { pathname } = new URL(req.url, `http://${req.headers.host}`);\n  const penangan = rute[`${req.method} ${pathname}`];\n  if (penangan) return penangan(req, res);\n  const adaJalur = Object.keys(rute).some((k) => k.split(' ')[1] === pathname);\n  if (adaJalur) {\n    res.statusCode = 405;\n    return res.end('Method tidak didukung');\n  }\n  res.statusCode = 404;\n  res.end('Tidak ditemukan');\n});\nserver.listen(3000);\nconst r = await fetch('http://localhost:3000/menu');\nconsole.log(r.status, await r.text());\nconst r2 = await fetch('http://localhost:3000/pesanan', { method: 'POST' });\nconsole.log(r2.status, await r2.text());\nconst r3 = await fetch('http://localhost:3000/menu', { method: 'DELETE' });\nconsole.log(r3.status, await r3.text());\nserver.close();",
+          "keluaran": "200 Daftar menu\n201 Pesanan dibuat\n405 Method tidak didukung",
+          "wajib": [
+            {
+              "pola": "405",
+              "pesan": "jawab dengan status 405."
+            }
+          ],
+          "petunjuk": "Object.keys(rute).some((k) => k.split(' ')[1] === pathname) memeriksa apakah jalurnya ada.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Server toko kini memakai tabel rute dan membedakan jalur yang tidak ada (404) dari method yang salah (405)."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kapan status 405 lebih tepat daripada 404?",
+          "options": [
+            "Saat jalurnya tidak ada sama sekali",
+            "Saat body kosong",
+            "Saat jalurnya ada, tapi method yang dipakai tidak didukung",
+            "Saat server error"
+          ],
+          "answer": 2,
+          "explanation": "Method Not Allowed.",
+          "remedial": "404 berarti jalurnya tidak ada. 405 berarti jalurnya ada, tapi klien memakai method yang tidak didukung."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "const rute = { 'GET /a': 'A', 'POST /a': 'B' };\nconsole.log(rute['POST /a'] ?? 'tidak ada');\nconsole.log(rute['GET /b'] ?? 'tidak ada');",
+          "options": [
+            "B / A",
+            "A / tidak ada",
+            "B / tidak ada",
+            "tidak ada / tidak ada"
+          ],
+          "answer": 2,
+          "explanation": "Kunci tabel memuat method dan jalur.",
+          "remedial": "Kunci yang dicari adalah POST /a, yang terdaftar dengan nilai B. GET /b tidak ada di tabel, jadi memakai nilai bawaan."
+        },
+        {
+          "question": "Apa alasan utama memakai framework seperti Express daripada routing manual?",
+          "options": [
+            "Express tidak memakai req dan res",
+            "Routing berparameter, middleware, dan penanganan error terpusat sudah tersedia",
+            "Routing manual lebih lambat sepuluh kali",
+            "node:http tidak bisa dipakai di produksi"
+          ],
+          "answer": 1,
+          "explanation": "Menghindari kode berulang.",
+          "remedial": "Saat API bertambah, routing manual harus menulis sendiri parameter jalur, pemeriksaan bersama, dan penanganan error. Framework menyediakannya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Header apa yang menyebut method yang didukung saat menjawab 405?",
+      "options": [
+        "Method",
+        "Accept",
+        "Allow",
+        "Content-Type"
+      ],
+      "answer": 2,
+      "explanation": "Contoh: Allow: GET, POST."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat tabel rute dengan kunci 'GET /halo' yang menjawab teks hai. Server mencari penangan dari tabel, atau menjawab 404 dengan teks kosong. Fetch /halo lalu /lain, dan cetak status keduanya dipisah spasi: 200 404",
+      "starterCode": "import http from 'node:http';\n",
+      "solution": "import http from 'node:http';\nconst rute = { 'GET /halo': (req, res) => res.end('hai') };\nconst server = http.createServer((req, res) => {\n  const { pathname } = new URL(req.url, `http://${req.headers.host}`);\n  const p = rute[`${req.method} ${pathname}`];\n  if (p) return p(req, res);\n  res.statusCode = 404;\n  res.end();\n});\nserver.listen(3000);\nconst a = await fetch('http://localhost:3000/halo');\nconst b = await fetch('http://localhost:3000/lain');\nconsole.log(a.status, b.status);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "200 404\n"
+        }
+      ],
+      "hints": [
+        "Kunci tabel: `${req.method} ${pathname}`.",
+        "Kalau tidak ada penangan: res.statusCode = 404; res.end()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Routing memilih penangan berdasarkan method dan jalur.",
+        "Tabel rute lebih rapi daripada if-else panjang.",
+        "404: jalur tidak ada. 405: method tidak didukung, dengan header Allow.",
+        "Routing manual cepat rumit: parameter, pemeriksaan bersama, error.",
+        "Framework seperti Express menyelesaikan masalah itu."
+      ]
+    }
+  ]
+}
