@@ -1,0 +1,197 @@
+{
+  "id": "node-middleware-03",
+  "moduleId": "node-middleware",
+  "order": 3,
+  "title": "Validasi Data dengan Zod",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Memeriksa body dengan banyak `if` cepat menjadi panjang. **Zod** adalah library untuk mendefinisikan **skema** data lalu memeriksanya:\n\n```bash\nnpm install zod\n```\n\n```js\nimport { z } from 'zod';\n\nconst MenuBaru = z.object({\n  nama: z.string().min(2),\n  harga: z.number().int().positive(),\n  kategori: z.enum(['minuman', 'makanan']).default('minuman'),\n});\n\nconst hasil = MenuBaru.safeParse(req.body);\nif (!hasil.success) { /* jawab 400 */ }\nhasil.data; // data bersih: hanya properti di skema, dengan nilai bawaan\n```\n\nIbarat formulir pendaftaran dengan kolom-kolom yang sudah ditentukan: petugas memeriksa setiap kolom sesuai aturannya, dan kolom tambahan yang tidak ada di formulir diabaikan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`safeParse` tidak melempar error. Hasilnya `{ success: true, data }` atau `{ success: false, error }`. Daftar masalahnya ada di `error.issues`:\n\n```js\nhasil.error.issues.map((i) => ({ kolom: i.path.join('.'), pesan: i.message }));\n```\n\nPesan bisa diganti sesuai bahasa aplikasi:\n\n```js\nz.string({ error: 'nama wajib berupa teks' }).min(2, 'nama minimal 2 huruf')\n```\n\nUntuk query dan params yang selalu berupa teks, pakai `z.coerce.number()` supaya diubah menjadi angka dulu.\n\nKelas ini memakai **Zod 4**."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\nimport { z } from 'zod';\n\nconst MenuBaru = z.object({\n  nama: z.string({ error: 'nama wajib berupa teks' }).min(2, 'nama minimal 2 huruf'),\n  harga: z.number({ error: 'harga wajib berupa angka' }).int().positive('harga harus lebih dari 0'),\n  kategori: z.enum(['minuman', 'makanan']).default('minuman'),\n});\nconst app = express();\napp.use(express.json());\napp.post('/menu', (req, res) => {\n  const hasil = MenuBaru.safeParse(req.body);\n  if (!hasil.success) {\n    return res.status(400).json({ error: hasil.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`) });\n  }\n  res.status(201).json(hasil.data);\n});\nconst server = app.listen(3000);\n\nconst kirim = async (body) => {\n  const r = await fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\n  console.log(r.status, await r.json());\n};\nawait kirim({ nama: 'Es Teh', harga: 8000, gratis: true });\nawait kirim({ nama: 'K', harga: -1 });\nawait kirim({ harga: '8000' });\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "201 { nama: 'Es Teh', harga: 8000, gratis: true }",
+          "201 { nama: 'Es Teh', harga: 8000, gratis: true, kategori: 'minuman' }",
+          "400 { nama: 'Es Teh', harga: 8000, kategori: 'minuman' }",
+          "201 { nama: 'Es Teh', harga: 8000, kategori: 'minuman' }"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Skema: bentuk data yang diterima."
+        },
+        {
+          "line": 7,
+          "note": "Pilihan tetap dengan nilai bawaan."
+        },
+        {
+          "line": 12,
+          "note": "Periksa tanpa melempar error."
+        },
+        {
+          "line": 14,
+          "note": "Daftar masalah per kolom."
+        },
+        {
+          "line": 16,
+          "note": "Data bersih untuk disimpan."
+        }
+      ],
+      "explanation": "Data valid. Properti gratis dibuang karena tidak ada di skema, dan kategori diisi nilai bawaan minuman.",
+      "tryThis": [
+        {
+          "task": "Kirim kategori minuman dingin. Apa pesannya?",
+          "hint": null
+        },
+        {
+          "task": "Ganti z.number menjadi z.coerce.number. Apa yang terjadi pada harga berupa teks?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai `req.body` setelah validasi**\n\nSimpan `hasil.data`, bukan `req.body`. `hasil.data` sudah bersih dari properti asing dan berisi nilai bawaan.\n\n**2. `parse` tanpa try/catch**\n\n`parse` melempar `ZodError` kalau data salah. Pakai `safeParse`, atau biarkan error ditangani middleware error (materi berikutnya).\n\n**3. Validasi hanya di frontend**\n\nKlien bisa mengirim permintaan langsung tanpa melewati formulir. Validasi di server wajib."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Zod sangat populer di ekosistem TypeScript karena skema yang sama juga menghasilkan **tipe**: `z.infer<typeof MenuBaru>`.\n- Alternatif lain: **Joi**, **Yup**, **Valibot**, atau validasi JSON Schema bawaan Fastify.\n- Skema yang sama sering dibagi antara frontend dan backend, sehingga aturan validasi tidak ditulis dua kali."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Pengaman API 3: Periksa Formulir",
+      "pembuka": "Data menu baru diperiksa dengan skema Zod sebelum disimpan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Skema Zod memeriksa satu objek.",
+          "jawaban": "import { z } from 'zod';\nconst Menu = z.object({ nama: z.string().min(2) });\nconsole.log(Menu.safeParse({ nama: 'Kopi' }).success);\nconsole.log(Menu.safeParse({ nama: 'K' }).success);",
+          "keluaran": "true\nfalse",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan kolom `harga` di skema: angka bulat positif dengan pesan `harga harus lebih dari 0`. Cetak pesan masalah pertama untuk `{ nama: 'Kopi', harga: 0 }`: `harga harus lebih dari 0`.",
+          "jawaban": "import { z } from 'zod';\nconst Menu = z.object({\n  nama: z.string().min(2),\n  harga: z.number().int().positive('harga harus lebih dari 0'),\n});\nconsole.log(Menu.safeParse({ nama: 'Kopi' }).success);\nconsole.log(Menu.safeParse({ nama: 'K' }).success);\nconsole.log(Menu.safeParse({ nama: 'Kopi', harga: 0 }).error.issues[0].message);",
+          "keluaran": "false\nfalse\nharga harus lebih dari 0",
+          "wajib": [
+            {
+              "pola": "positive\\(\\s*'harga harus lebih dari 0'\\s*\\)",
+              "pesan": "pakai `.positive('harga harus lebih dari 0')`."
+            }
+          ],
+          "petunjuk": "harga: z.number().int().positive('harga harus lebih dari 0'), lalu error.issues[0].message."
+        },
+        {
+          "arahan": "Pakai skema itu di rute Express `POST /menu`: jawab 400 dengan `{ error: <pesan pertama> }` kalau tidak valid, atau 201 dengan `hasil.data`. Kirim `{ nama: 'Teh', harga: 12000, rahasia: 1 }` dan cetak status serta isinya: `201 { nama: 'Teh', harga: 12000 }`.",
+          "jawaban": "import express from 'express';\nimport { z } from 'zod';\nconst Menu = z.object({\n  nama: z.string().min(2),\n  harga: z.number().int().positive('harga harus lebih dari 0'),\n});\nconsole.log(Menu.safeParse({ nama: 'Kopi' }).success);\nconsole.log(Menu.safeParse({ nama: 'K' }).success);\nconsole.log(Menu.safeParse({ nama: 'Kopi', harga: 0 }).error.issues[0].message);\nconst app = express();\napp.use(express.json());\napp.post('/menu', (req, res) => {\n  const hasil = Menu.safeParse(req.body);\n  if (!hasil.success) return res.status(400).json({ error: hasil.error.issues[0].message });\n  res.status(201).json(hasil.data);\n});\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nama: 'Teh', harga: 12000, rahasia: 1 }) });\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "false\nfalse\nharga harus lebih dari 0\n201 { nama: 'Teh', harga: 12000 }",
+          "wajib": [
+            {
+              "pola": "safeParse\\(\\s*req\\.body\\s*\\)",
+              "pesan": "periksa `safeParse(req.body)`."
+            },
+            {
+              "pola": "json\\(\\s*hasil\\.data\\s*\\)",
+              "pesan": "kirim `hasil.data`."
+            }
+          ],
+          "petunjuk": "safeParse(req.body); kirim hasil.data, bukan req.body.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Menu baru kini diperiksa skema Zod: data salah ditolak dengan pesan jelas, dan properti asing dibuang."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa beda safeParse dan parse di Zod?",
+          "options": [
+            "safeParse lebih lambat",
+            "safeParse mengembalikan hasil berisi success, parse melempar error kalau data salah",
+            "parse tidak memeriksa data",
+            "Tidak ada bedanya"
+          ],
+          "answer": 1,
+          "explanation": "Safe = tidak melempar.",
+          "remedial": "safeParse cocok di rute karena bisa langsung diperiksa dengan if. parse melempar ZodError yang harus ditangkap."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import { z } from 'zod';\nconst S = z.object({ a: z.number() });\nconst h = S.safeParse({ a: 1, b: 2 });\nconsole.log(h.success);\nconsole.log(h.data);",
+          "options": [
+            "true / { a: 1, b: 2 }",
+            "false / undefined",
+            "true / { a: 1 }",
+            "true / { b: 2 }"
+          ],
+          "answer": 2,
+          "explanation": "Properti di luar skema.",
+          "remedial": "Data valid. Zod membuang properti b karena tidak ada di skema."
+        },
+        {
+          "question": "Kenapa query sebaiknya divalidasi dengan z.coerce.number() dan bukan z.number()?",
+          "options": [
+            "Nilai query selalu teks, coerce mengubahnya menjadi angka dulu",
+            "Query selalu berisi angka",
+            "coerce lebih aman untuk password",
+            "z.number() tidak ada di Zod"
+          ],
+          "answer": 0,
+          "explanation": "Teks menjadi angka.",
+          "remedial": "req.query.halaman bernilai teks seperti '2'. z.number() menolaknya, sedangkan z.coerce.number() mengubahnya menjadi 2."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa validasi di server tetap wajib walau frontend sudah memeriksa formulir?",
+      "options": [
+        "Frontend tidak bisa memeriksa data",
+        "Server lebih cepat memeriksa",
+        "Klien bisa mengirim permintaan langsung tanpa melewati formulir",
+        "Supaya data diperiksa dua kali lebih teliti"
+      ],
+      "answer": 2,
+      "explanation": "Jangan percaya klien."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat skema Zod Pengguna dengan email (z.email()) dan umur (bilangan bulat minimal 17). Periksa { email: \"sari@toko.id\", umur: 16 } dengan safeParse, lalu cetak success dan jumlah masalahnya dipisah spasi: false 1",
+      "starterCode": "import { z } from 'zod';\n",
+      "solution": "import { z } from 'zod';\nconst Pengguna = z.object({\n  email: z.email(),\n  umur: z.number().int().min(17),\n});\nconst h = Pengguna.safeParse({ email: 'sari@toko.id', umur: 16 });\nconsole.log(h.success, h.error.issues.length);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "false 1\n"
+        }
+      ],
+      "hints": [
+        "z.object({ email: z.email(), umur: z.number().int().min(17) }).",
+        "console.log(h.success, h.error.issues.length)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Zod mendefinisikan skema data lalu memeriksanya.",
+        "safeParse mengembalikan success dan data atau error.",
+        "error.issues berisi kolom (path) dan pesan setiap masalah.",
+        "Simpan hasil.data: bersih dan berisi nilai bawaan.",
+        "z.coerce.number() untuk query dan params."
+      ]
+    }
+  ]
+}

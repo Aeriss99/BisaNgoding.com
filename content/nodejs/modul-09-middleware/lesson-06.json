@@ -1,0 +1,211 @@
+{
+  "id": "node-middleware-06",
+  "moduleId": "node-middleware",
+  "order": 6,
+  "title": "Proyek Mini: Pengaman API Toko",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek modul ini: API menu toko yang **aman dan rapi**, memakai semua middleware dari modul ini.\n\n| Lapisan | Isi |\n|---|---|\n| Middleware umum | log permintaan, header aman, `express.json()` |\n| Pemeriksaan akses | `butuhKunci` untuk rute yang mengubah data |\n| Validasi | middleware `validasi(skema)` dengan Zod |\n| Error | `HttpError`, penangan 404, penangan error terpusat |\n\nIbarat toko yang sudah punya sistem: ada buku tamu, satpam, formulir resmi, dan meja pengaduan. Pemilik tinggal fokus berjualan (menulis rute)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMiddleware validasi yang bisa dipakai ulang untuk skema apa pun:\n\n```js\nfunction validasi(skema) {\n  return (req, res, next) => {\n    const hasil = skema.safeParse(req.body);\n    if (!hasil.success) {\n      return res.status(400).json({\n        error: 'Data tidak valid',\n        detail: hasil.error.issues.map((i) => ({ kolom: i.path.join('.'), pesan: i.message })),\n      });\n    }\n    req.body = hasil.data; // ganti dengan data bersih\n    next();\n  };\n}\n\napp.post('/menu', butuhKunci, validasi(MenuBaru), tambahMenu);\n```\n\nRute `tambahMenu` kini bisa langsung percaya pada `req.body`."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\nimport { z } from 'zod';\n\nclass HttpError extends Error {\n  constructor(status, message) { super(message); this.status = status; }\n}\nconst butuhKunci = (req, res, next) => {\n  if (req.get('x-api-key') !== 'kunci-toko') throw new HttpError(401, 'Kunci API salah');\n  next();\n};\nconst validasi = (skema) => (req, res, next) => {\n  const hasil = skema.safeParse(req.body);\n  if (!hasil.success) {\n    return res.status(400).json({ error: 'Data tidak valid', detail: hasil.error.issues.map((i) => i.path.join('.')) });\n  }\n  req.body = hasil.data;\n  next();\n};\nconst MenuBaru = z.object({ nama: z.string().min(2), harga: z.number().int().positive() });\n\nconst menu = [];\nconst app = express();\napp.use((req, res, next) => {\n  res.on('finish', () => console.log('LOG', req.method, req.originalUrl, res.statusCode));\n  next();\n});\napp.use(express.json());\napp.get('/menu', (req, res) => res.json(menu));\napp.post('/menu', butuhKunci, validasi(MenuBaru), (req, res) => {\n  const baru = { id: menu.length + 1, ...req.body };\n  menu.push(baru);\n  res.status(201).json(baru);\n});\napp.use((req, res) => res.status(404).json({ error: 'Jalur tidak ditemukan' }));\napp.use((err, req, res, next) => {\n  if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });\n  res.status(500).json({ error: 'Terjadi kesalahan di server' });\n});\nconst server = app.listen(3000);\n\nconst kirim = (kunci, body) => fetch('http://localhost:3000/menu', {\n  method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': kunci }, body: JSON.stringify(body),\n});\nawait kirim('salah', { nama: 'Teh', harga: 12000 });\nconsole.log((await (await kirim('kunci-toko', { nama: 'T', harga: 'gratis' })).json()).detail);\nawait kirim('kunci-toko', { nama: 'Teh Tarik', harga: 12000, admin: true });\nconsole.log(await (await fetch('http://localhost:3000/menu')).json());\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "[ { id: 1, nama: 'Teh', harga: 12000 } ]",
+          "[ { id: 1, nama: 'Teh Tarik', harga: 12000 } ]",
+          "[ { id: 1, nama: 'Teh Tarik', harga: 12000, admin: true } ]",
+          "[]"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Error dengan status."
+        },
+        {
+          "line": 7,
+          "note": "Pemeriksaan akses: melempar 401."
+        },
+        {
+          "line": 11,
+          "note": "Middleware validasi untuk skema apa pun."
+        },
+        {
+          "line": 16,
+          "note": "Ganti body dengan data bersih."
+        },
+        {
+          "line": 29,
+          "note": "Rantai middleware di satu rute."
+        }
+      ],
+      "explanation": "Hanya permintaan ketiga yang lolos semua pemeriksaan. Properti admin dibuang oleh skema, sehingga menu yang tersimpan hanya berisi id, nama, dan harga.",
+      "tryThis": [
+        {
+          "task": "Tukar urutan butuhKunci dan validasi(MenuBaru). Apa bedanya untuk klien tanpa kunci?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan rute DELETE /menu/:id yang juga memakai butuhKunci.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Validasi sebelum pemeriksaan akses**\n\nKlien tanpa kunci jadi tahu aturan validasi dari pesan error. Periksa akses lebih dulu.\n\n**2. Penangan error yang tidak dipakai oleh middleware**\n\nMiddleware yang mengirim respons error dengan format berbeda-beda membuat API tidak konsisten. Lempar `HttpError` dan biarkan penangan terpusat yang membalas.\n\n**3. Semua kode dalam satu file**\n\nProyek ini sudah mendekati batas wajar untuk satu file. Modul berikutnya memecahnya menjadi lapisan."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Urutan middleware yang umum di proyek Express: `helmet` → `cors` → log permintaan → pembatas → `express.json()` → rute (dengan autentikasi dan validasi per rute) → penangan 404 → penangan error.\n- Middleware `validasi(skema)` seperti ini sering diperluas untuk memeriksa `req.params` dan `req.query` juga.\n- Log permintaan di produksi berformat JSON dan menyertakan id permintaan (*request id*) untuk menelusuri satu permintaan di banyak layanan."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Pengaman API 6: Toko Berpengaman",
+      "pembuka": "Kita rakit API menu yang aman: kunci, validasi Zod, dan penangan error terpusat.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. API menu dengan penangan error terpusat.",
+          "jawaban": "import express from 'express';\nconst menu = [];\nconst app = express();\napp.use(express.json());\napp.post('/menu', (req, res) => {\n  menu.push(req.body);\n  res.status(201).json(req.body);\n});\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: err.message }));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nama: 'Kopi', harga: 18000 }) });\nconsole.log(r.status, await r.json());\nserver.close();",
+          "keluaran": "201 { nama: 'Kopi', harga: 18000 }",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat pabrik middleware `validasi(skema)` yang menjawab 400 `{ error: 'Data tidak valid' }` kalau gagal, atau mengganti `req.body` dengan `hasil.data`. Pasang `validasi(Menu)` (skema: `nama` teks minimal 2 huruf, `harga` angka positif) di rute POST. Kirim `{ nama: 'K', harga: 0 }` dan cetak `400 { error: 'Data tidak valid' }` di baris terakhir.",
+          "jawaban": "import express from 'express';\nimport { z } from 'zod';\nconst Menu = z.object({ nama: z.string().min(2), harga: z.number().positive() });\nfunction validasi(skema) {\n  return (req, res, next) => {\n    const hasil = skema.safeParse(req.body);\n    if (!hasil.success) return res.status(400).json({ error: 'Data tidak valid' });\n    req.body = hasil.data;\n    next();\n  };\n}\nconst menu = [];\nconst app = express();\napp.use(express.json());\napp.post('/menu', validasi(Menu), (req, res) => {\n  menu.push(req.body);\n  res.status(201).json(req.body);\n});\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: err.message }));\nconst server = app.listen(3000);\nconst kirim = (body) => fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\nconst r = await kirim({ nama: 'Kopi', harga: 18000 });\nconsole.log(r.status, await r.json());\nconst r2 = await kirim({ nama: 'K', harga: 0 });\nconsole.log(r2.status, await r2.json());\nserver.close();",
+          "kodeAwal": "import express from 'express';\nimport { z } from 'zod';\nconst Menu = z.object({ nama: z.string().min(2), harga: z.number().positive() });\nconst menu = [];\nconst app = express();\napp.use(express.json());\napp.post('/menu', (req, res) => {\n  menu.push(req.body);\n  res.status(201).json(req.body);\n});\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: err.message }));\nconst server = app.listen(3000);\nconst kirim = (body) => fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\nconst r = await kirim({ nama: 'Kopi', harga: 18000 });\nconsole.log(r.status, await r.json());\nconst r2 = await kirim({ nama: 'K', harga: 0 });\nconsole.log(r2.status, await r2.json());\nserver.close();",
+          "keluaran": "201 { nama: 'Kopi', harga: 18000 }\n400 { error: 'Data tidak valid' }",
+          "wajib": [
+            {
+              "pola": "function\\s+validasi\\s*\\(\\s*skema\\s*\\)",
+              "pesan": "buat `function validasi(skema)`."
+            },
+            {
+              "pola": "req\\.body\\s*=\\s*hasil\\.data",
+              "pesan": "ganti `req.body = hasil.data`."
+            },
+            {
+              "pola": "validasi\\(\\s*Menu\\s*\\)",
+              "pesan": "pasang `validasi(Menu)` di rute."
+            }
+          ],
+          "petunjuk": "function validasi(skema) { return (req, res, next) => { ... }; }"
+        },
+        {
+          "arahan": "Tambahkan middleware `butuhKunci` yang **melempar** error berstatus 401 dan pesan `Kunci salah` kalau header `x-api-key` bukan `kunci-toko`, pasang **sebelum** `validasi(Menu)`, dan kirim kunci yang benar di fungsi `kirim`. Kirim permintaan tanpa kunci di akhir dan cetak `401 { error: 'Kunci salah' }`.",
+          "jawaban": "import express from 'express';\nimport { z } from 'zod';\nconst Menu = z.object({ nama: z.string().min(2), harga: z.number().positive() });\nfunction validasi(skema) {\n  return (req, res, next) => {\n    const hasil = skema.safeParse(req.body);\n    if (!hasil.success) return res.status(400).json({ error: 'Data tidak valid' });\n    req.body = hasil.data;\n    next();\n  };\n}\nfunction butuhKunci(req, res, next) {\n  if (req.get('x-api-key') !== 'kunci-toko') throw Object.assign(new Error('Kunci salah'), { status: 401 });\n  next();\n}\nconst menu = [];\nconst app = express();\napp.use(express.json());\napp.post('/menu', butuhKunci, validasi(Menu), (req, res) => {\n  menu.push(req.body);\n  res.status(201).json(req.body);\n});\napp.use((err, req, res, next) => res.status(err.status ?? 500).json({ error: err.message }));\nconst server = app.listen(3000);\nconst kirim = (body) => fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': 'kunci-toko' }, body: JSON.stringify(body) });\nconst r = await kirim({ nama: 'Kopi', harga: 18000 });\nconsole.log(r.status, await r.json());\nconst r2 = await kirim({ nama: 'K', harga: 0 });\nconsole.log(r2.status, await r2.json());\nconst r3 = await fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nama: 'Teh', harga: 1 }) });\nconsole.log(r3.status, await r3.json());\nserver.close();",
+          "keluaran": "201 { nama: 'Kopi', harga: 18000 }\n400 { error: 'Data tidak valid' }\n401 { error: 'Kunci salah' }",
+          "wajib": [
+            {
+              "pola": "function\\s+butuhKunci",
+              "pesan": "buat `function butuhKunci`."
+            },
+            {
+              "pola": "butuhKunci\\s*,\\s*validasi\\(\\s*Menu\\s*\\)",
+              "pesan": "pasang `butuhKunci` sebelum `validasi(Menu)`."
+            },
+            {
+              "pola": "throw",
+              "pesan": "lempar error dari `butuhKunci`."
+            }
+          ],
+          "petunjuk": "throw Object.assign(new Error('Kunci salah'), { status: 401 }); urutan: butuhKunci, validasi(Menu), penangan.",
+          "tantangan": true,
+          "benar": "API toko berpengaman selesai: pemeriksaan kunci, validasi Zod, dan semua error ditangani di satu tempat."
+        }
+      ],
+      "penutup": "API menu toko kini berlapis pengaman: kunci, validasi skema, dan penanganan error terpusat."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa pemeriksaan akses (kunci) dipasang sebelum validasi?",
+          "options": [
+            "Karena validasi lebih lambat",
+            "Tidak ada pengaruhnya",
+            "Supaya klien tanpa akses tidak mendapat informasi aturan validasi",
+            "Karena Zod membutuhkan kunci"
+          ],
+          "answer": 2,
+          "explanation": "Tolak lebih awal.",
+          "remedial": "Klien yang tidak berhak seharusnya langsung ditolak 401 tanpa tahu apa pun tentang bentuk data yang diterima."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import express from 'express';\nimport { z } from 'zod';\nconst app = express();\napp.use(express.json());\napp.post('/', (req, res, next) => {\n  req.body = z.object({ n: z.coerce.number() }).parse(req.body);\n  next();\n}, (req, res) => res.json(req.body));\nconst s = app.listen(3000);\nconst r = await fetch('http://localhost:3000/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ n: '5' }) });\nconsole.log(await r.json());\ns.close();",
+          "options": [
+            "{}",
+            "undefined",
+            "{ n: '5' }",
+            "{ n: 5 }"
+          ],
+          "answer": 3,
+          "explanation": "req.body diganti data bersih.",
+          "remedial": "Skema dengan z.coerce.number() mengubah '5' menjadi 5. Middleware mengganti req.body dengan hasil itu sebelum rute membacanya."
+        },
+        {
+          "question": "Kenapa middleware sebaiknya melempar HttpError daripada mengirim respons error sendiri?",
+          "options": [
+            "Supaya server lebih cepat",
+            "Karena throw wajib di Express 5",
+            "Supaya semua respons error dibentuk di satu tempat dan konsisten",
+            "Karena middleware tidak boleh memanggil res"
+          ],
+          "answer": 2,
+          "explanation": "Satu meja pengaduan.",
+          "remedial": "Dengan melempar, format respons error ditentukan oleh penangan error terpusat, sehingga sama di seluruh API."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Urutan middleware mana yang umum di proyek Express?",
+      "options": [
+        "rute, express.json, penangan error, helmet",
+        "express.json, penangan error, rute, cors",
+        "penangan error, rute, cors, helmet",
+        "helmet, cors, log, pembatas, express.json, rute, penangan 404, penangan error"
+      ],
+      "answer": 3,
+      "explanation": "Keamanan di depan, error di belakang."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat pabrik middleware validasiQuery(skema) yang memeriksa req.query dengan safeParse dan menjawab 400 kalau gagal. Pasang dengan skema { halaman: z.coerce.number().int().min(1) } di rute GET /menu yang menjawab teks ok. Fetch /menu?halaman=0 dan /menu?halaman=2, lalu cetak status keduanya: 400 200",
+      "starterCode": "import express from 'express';\nimport { z } from 'zod';\nconst app = express();\n",
+      "solution": "import express from 'express';\nimport { z } from 'zod';\nconst app = express();\nfunction validasiQuery(skema) {\n  return (req, res, next) => {\n    if (!skema.safeParse(req.query).success) return res.sendStatus(400);\n    next();\n  };\n}\napp.get('/menu', validasiQuery(z.object({ halaman: z.coerce.number().int().min(1) })), (req, res) => res.send('ok'));\nconst server = app.listen(3000);\nconst a = await fetch('http://localhost:3000/menu?halaman=0');\nconst b = await fetch('http://localhost:3000/menu?halaman=2');\nconsole.log(a.status, b.status);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "400 200\n"
+        }
+      ],
+      "hints": [
+        "Sama seperti validasi(skema), tapi memeriksa req.query.",
+        "z.coerce.number() karena query selalu teks."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "API aman = log, header aman, kunci, validasi, error terpusat.",
+        "Pabrik validasi(skema) dipakai ulang untuk banyak rute.",
+        "Ganti req.body dengan hasil.data yang bersih.",
+        "Periksa akses sebelum validasi.",
+        "Middleware melempar HttpError; penangan terpusat yang membalas."
+      ]
+    }
+  ]
+}

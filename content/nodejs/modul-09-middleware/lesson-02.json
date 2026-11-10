@@ -1,0 +1,193 @@
+{
+  "id": "node-middleware-02",
+  "moduleId": "node-middleware",
+  "order": 2,
+  "title": "Middleware per Rute dan Pemeriksaan Akses",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Middleware tidak harus berlaku untuk semua rute. Ia bisa dipasang **di rute tertentu** saja:\n\n```js\napp.get('/menu', daftarMenu);                 // terbuka\napp.post('/menu', butuhKunci, tambahMenu);    // hanya dengan kunci\n```\n\nAtau di sebuah router:\n\n```js\nconst admin = express.Router();\nadmin.use(butuhKunci); // berlaku untuk semua rute admin\n```\n\nContoh pemeriksaan sederhana dengan kunci API di header:\n\n```js\nfunction butuhKunci(req, res, next) {\n  if (req.get('x-api-key') !== process.env.API_KEY) {\n    return res.status(401).json({ error: 'Kunci API salah' });\n  }\n  next();\n}\n```\n\nIbarat pintu dapur restoran: ruang makan terbuka untuk semua tamu, tapi pintu dapur hanya boleh dilewati karyawan yang punya kartu."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**Pabrik middleware** adalah fungsi yang **mengembalikan** middleware, supaya bisa diatur:\n\n```js\nfunction butuhPeran(peran) {\n  return (req, res, next) => {\n    if (req.pengguna?.peran !== peran) {\n      return res.status(403).json({ error: 'Tidak punya akses' });\n    }\n    next();\n  };\n}\napp.delete('/menu/:id', butuhPeran('admin'), hapusMenu);\n```\n\nBedakan dua status ini:\n\n| Status | Arti |\n|---|---|\n| **401** Unauthorized | belum dikenali (tidak login, kunci salah) |\n| **403** Forbidden | sudah dikenali, tapi tidak punya izin |"
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\n\nconst PENGGUNA = { 'kunci-kasir': { nama: 'Rina', peran: 'kasir' }, 'kunci-admin': { nama: 'Sari', peran: 'admin' } };\nfunction kenali(req, res, next) {\n  const p = PENGGUNA[req.get('x-api-key')];\n  if (!p) return res.status(401).json({ error: 'Kunci API salah atau tidak ada' });\n  req.pengguna = p;\n  next();\n}\nfunction butuhPeran(peran) {\n  return (req, res, next) => {\n    if (req.pengguna.peran !== peran) return res.status(403).json({ error: `Khusus ${peran}` });\n    next();\n  };\n}\nconst app = express();\napp.get('/menu', (req, res) => res.json(['Kopi']));\napp.get('/laporan', kenali, (req, res) => res.json({ untuk: req.pengguna.nama }));\napp.delete('/menu/:id', kenali, butuhPeran('admin'), (req, res) => res.sendStatus(204));\nconst server = app.listen(3000);\n\nconst coba = async (method, jalur, kunci) => {\n  const r = await fetch('http://localhost:3000' + jalur, { method, headers: kunci ? { 'X-API-Key': kunci } : {} });\n  console.log(method, jalur, kunci ?? '-', r.status);\n};\nawait coba('GET', '/menu');\nawait coba('GET', '/laporan');\nawait coba('GET', '/laporan', 'kunci-kasir');\nawait coba('DELETE', '/menu/1', 'kunci-kasir');\nawait coba('DELETE', '/menu/1', 'kunci-admin');\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa status pada baris keempat?",
+        "options": [
+          "DELETE /menu/1 kunci-kasir 401",
+          "DELETE /menu/1 kunci-kasir 403",
+          "DELETE /menu/1 kunci-kasir 204",
+          "DELETE /menu/1 kunci-kasir 404"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Kenali pemilik kunci, atau 401."
+        },
+        {
+          "line": 7,
+          "note": "Simpan pengguna untuk langkah berikutnya."
+        },
+        {
+          "line": 10,
+          "note": "Pabrik middleware: mengembalikan middleware."
+        },
+        {
+          "line": 19,
+          "note": "Beberapa middleware berurutan di satu rute."
+        }
+      ],
+      "explanation": "Kunci kasir dikenali (lolos kenali), tapi perannya bukan admin. butuhPeran menolak dengan 403: dikenali, tapi tidak punya izin.",
+      "tryThis": [
+        {
+          "task": "Tukar urutan kenali dan butuhPeran('admin'). Apa yang terjadi?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan peran pemilik dan rute khusus pemilik.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menukar 401 dan 403**\n\n401 untuk yang belum dikenali, 403 untuk yang dikenali tapi tidak berhak.\n\n**2. Urutan middleware salah**\n\n`butuhPeran` sebelum `kenali` membaca `req.pengguna` yang belum ada, sehingga muncul TypeError.\n\n**3. Kunci ditulis langsung di kode**\n\nKunci API dan rahasia lain disimpan di variabel lingkungan (`process.env`), bukan di kode yang masuk Git."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Kunci API dipakai untuk komunikasi antar server. Untuk pengguna manusia, dipakai login dengan token JWT atau sesi (modul Autentikasi).\n- Pemeriksaan peran (*role-based access control*, RBAC) seperti `butuhPeran('admin')` sangat umum di dashboard admin.\n- Header kunci API yang lazim: `X-API-Key` atau `Authorization: Bearer <kunci>`."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Pengaman API 2: Pintu Dapur",
+      "pembuka": "Daftar menu terbuka untuk semua, tapi menambah menu hanya untuk karyawan berkunci.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Rute daftar menu terbuka untuk siapa saja.",
+          "jawaban": "import express from 'express';\nconst app = express();\napp.use(express.json());\napp.get('/menu', (req, res) => res.json(['Kopi']));\napp.post('/menu', (req, res) => res.status(201).json({ nama: req.body.nama }));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/menu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nama: 'Teh' }) });\nconsole.log(r.status);\nserver.close();",
+          "keluaran": "201",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat middleware `butuhKunci` yang menjawab 401 `{ error: 'Kunci salah' }` kalau header `x-api-key` bukan `rahasia-dapur`, lalu pasang hanya di rute POST. Kirim POST tanpa kunci lalu dengan kunci, dan cetak `401` lalu `201`.",
+          "jawaban": "import express from 'express';\nfunction butuhKunci(req, res, next) {\n  if (req.get('x-api-key') !== 'rahasia-dapur') return res.status(401).json({ error: 'Kunci salah' });\n  next();\n}\nconst app = express();\napp.use(express.json());\napp.get('/menu', (req, res) => res.json(['Kopi']));\napp.post('/menu', butuhKunci, (req, res) => res.status(201).json({ nama: req.body.nama }));\nconst server = app.listen(3000);\nfor (const kunci of [undefined, 'rahasia-dapur']) {\n  const headers = { 'Content-Type': 'application/json' };\n  if (kunci) headers['X-API-Key'] = kunci;\n  const r = await fetch('http://localhost:3000/menu', { method: 'POST', headers, body: JSON.stringify({ nama: 'Teh' }) });\n  console.log(r.status);\n}\nserver.close();",
+          "keluaran": "401\n201",
+          "wajib": [
+            {
+              "pola": "function\\s+butuhKunci",
+              "pesan": "buat `function butuhKunci`."
+            },
+            {
+              "pola": "app\\.post\\(\\s*'/menu'\\s*,\\s*butuhKunci",
+              "pesan": "pasang `butuhKunci` di rute POST."
+            }
+          ],
+          "petunjuk": "app.post('/menu', butuhKunci, (req, res) => ...). Baca header dengan req.get('x-api-key')."
+        },
+        {
+          "arahan": "Baca kunci yang benar dari `process.env.KUNCI_DAPUR` (isi di kode: `process.env.KUNCI_DAPUR = 'rahasia-dapur'` di baris paling atas sebagai pengganti file .env), lalu pastikan GET `/menu` tanpa kunci tetap 200. Cetak status GET itu di baris terakhir: `200`.",
+          "jawaban": "import express from 'express';\nprocess.env.KUNCI_DAPUR = 'rahasia-dapur';\nfunction butuhKunci(req, res, next) {\n  if (req.get('x-api-key') !== process.env.KUNCI_DAPUR) return res.status(401).json({ error: 'Kunci salah' });\n  next();\n}\nconst app = express();\napp.use(express.json());\napp.get('/menu', (req, res) => res.json(['Kopi']));\napp.post('/menu', butuhKunci, (req, res) => res.status(201).json({ nama: req.body.nama }));\nconst server = app.listen(3000);\nfor (const kunci of [undefined, 'rahasia-dapur']) {\n  const headers = { 'Content-Type': 'application/json' };\n  if (kunci) headers['X-API-Key'] = kunci;\n  const r = await fetch('http://localhost:3000/menu', { method: 'POST', headers, body: JSON.stringify({ nama: 'Teh' }) });\n  console.log(r.status);\n}\nconsole.log((await fetch('http://localhost:3000/menu')).status);\nserver.close();",
+          "keluaran": "401\n201\n200",
+          "wajib": [
+            {
+              "pola": "process\\.env\\.KUNCI_DAPUR",
+              "pesan": "baca dari `process.env.KUNCI_DAPUR`."
+            }
+          ],
+          "petunjuk": "Bandingkan dengan process.env.KUNCI_DAPUR, lalu fetch GET /menu.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Rute menambah menu kini terkunci untuk karyawan, sedangkan daftar menu tetap terbuka."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa beda status 401 dan 403?",
+          "options": [
+            "401: belum dikenali. 403: dikenali tapi tidak punya izin",
+            "401: izin ditolak. 403: belum login",
+            "401 dan 403 sama saja",
+            "401: tidak ada data. 403: server error"
+          ],
+          "answer": 0,
+          "explanation": "Siapa kamu vs boleh tidak.",
+          "remedial": "401 berarti server belum tahu siapa kamu (kunci atau token tidak sah). 403 berarti server tahu, tapi kamu tidak berhak."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import express from 'express';\nconst cek = (req, res, next) => (req.get('x-k') ? next() : res.sendStatus(401));\nconst app = express();\napp.get('/rahasia', cek, (req, res) => res.send('ok'));\napp.get('/umum', (req, res) => res.send('ok'));\nconst s = app.listen(3000);\nconsole.log((await fetch('http://localhost:3000/rahasia')).status);\nconsole.log((await fetch('http://localhost:3000/umum')).status);\ns.close();",
+          "options": [
+            "200 / 401",
+            "401 / 401",
+            "401 / 200",
+            "200 / 200"
+          ],
+          "answer": 2,
+          "explanation": "Middleware hanya di satu rute.",
+          "remedial": "cek hanya dipasang di /rahasia. Permintaan ke sana tanpa header ditolak 401, sedangkan /umum tidak diperiksa."
+        },
+        {
+          "question": "Apa itu pabrik middleware seperti butuhPeran('admin')?",
+          "options": [
+            "Middleware bawaan Express",
+            "Fungsi yang mengembalikan middleware sesuai pengaturan yang diberikan",
+            "Fungsi yang membuat server baru",
+            "Middleware yang dijalankan di pabrik"
+          ],
+          "answer": 1,
+          "explanation": "Fungsi yang membuat fungsi.",
+          "remedial": "butuhPeran('admin') dipanggil sekali saat rute didaftarkan, dan hasilnya adalah middleware (req, res, next) yang memeriksa peran admin."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Di mana kunci API rahasia sebaiknya disimpan?",
+      "options": [
+        "Di README proyek",
+        "Di folder public",
+        "Langsung di kode",
+        "Di variabel lingkungan seperti process.env"
+      ],
+      "answer": 3,
+      "explanation": "Jangan masuk Git."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat pabrik middleware minimalUmur(n) yang menolak dengan 403 kalau query umur kurang dari n. Pasang minimalUmur(17) di rute GET /film yang menjawab teks boleh. Fetch /film?umur=15 dan /film?umur=20, lalu cetak status keduanya dipisah spasi: 403 200",
+      "starterCode": "import express from 'express';\nconst app = express();\n",
+      "solution": "import express from 'express';\nconst app = express();\nfunction minimalUmur(n) {\n  return (req, res, next) => {\n    if (Number(req.query.umur) < n) return res.sendStatus(403);\n    next();\n  };\n}\napp.get('/film', minimalUmur(17), (req, res) => res.send('boleh'));\nconst server = app.listen(3000);\nconst a = await fetch('http://localhost:3000/film?umur=15');\nconst b = await fetch('http://localhost:3000/film?umur=20');\nconsole.log(a.status, b.status);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "403 200\n"
+        }
+      ],
+      "hints": [
+        "function minimalUmur(n) { return (req, res, next) => { ... }; }",
+        "app.get('/film', minimalUmur(17), (req, res) => ...)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Middleware bisa dipasang di rute atau router tertentu saja.",
+        "Beberapa middleware di satu rute dijalankan berurutan.",
+        "Pabrik middleware mengembalikan middleware yang bisa diatur.",
+        "401: belum dikenali. 403: tidak punya izin.",
+        "Kunci rahasia dibaca dari process.env."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "id": "node-middleware-05",
+  "moduleId": "node-middleware",
+  "order": 5,
+  "title": "CORS, Header Keamanan, dan Pembatas Permintaan",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tiga middleware keamanan yang hampir selalu ada di API produksi:\n\n| Middleware | Paket umum | Fungsi |\n|---|---|---|\n| CORS | `cors` | mengizinkan halaman web dari domain lain memanggil API |\n| Header keamanan | `helmet` | menambah header yang menutup celah umum di browser |\n| Pembatas permintaan | `express-rate-limit` | membatasi jumlah permintaan per klien |\n\n```js\nimport cors from 'cors';\nimport helmet from 'helmet';\napp.use(helmet());\napp.use(cors({ origin: 'https://tokosari.id' }));\n```\n\nIbarat satpam toko: memeriksa tamu dari mana (CORS), memasang tanda larangan di pintu (header keamanan), dan menahan orang yang keluar masuk terlalu sering (pembatas)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**CORS** (*Cross-Origin Resource Sharing*): browser melarang halaman `https://web.tokosari.id` membaca respons dari `https://api.tokosari.id` kecuali API menjawab dengan header:\n\n```text\nAccess-Control-Allow-Origin: https://web.tokosari.id\n```\n\nCORS hanya berlaku di **browser**. Panggilan dari server lain, aplikasi HP, atau curl tidak diperiksa CORS.\n\n**Pembatas permintaan** (*rate limit*) menjawab **429 Too Many Requests** kalau klien melebihi batas, misalnya 100 permintaan per 15 menit, untuk menahan serangan tebak password dan penyalahgunaan.\n\nDi editor kelas ini, kita membuat versi kecil sendiri supaya tahu cara kerjanya. Di proyek sungguhan, pakai paketnya (dibahas di modul Produksi)."
+    },
+    {
+      "type": "runnable",
+      "code": "import express from 'express';\n\nconst DIIZINKAN = ['https://web.tokosari.id'];\nfunction corsSederhana(req, res, next) {\n  const asal = req.get('origin');\n  if (asal && DIIZINKAN.includes(asal)) res.set('Access-Control-Allow-Origin', asal);\n  next();\n}\nfunction headerAman(req, res, next) {\n  res.set('X-Content-Type-Options', 'nosniff');\n  res.removeHeader('X-Powered-By');\n  next();\n}\nfunction batasi(maks) {\n  const hitung = new Map();\n  return (req, res, next) => {\n    const kunci = req.get('x-klien') ?? 'anonim';\n    const n = (hitung.get(kunci) ?? 0) + 1;\n    hitung.set(kunci, n);\n    if (n > maks) return res.status(429).json({ error: 'Terlalu banyak permintaan' });\n    next();\n  };\n}\nconst app = express();\napp.use(headerAman, corsSederhana, batasi(2));\napp.get('/menu', (req, res) => res.json(['Kopi']));\nconst server = app.listen(3000);\n\nfor (const asal of ['https://web.tokosari.id', 'https://situs-lain.com', 'https://web.tokosari.id']) {\n  const r = await fetch('http://localhost:3000/menu', { headers: { Origin: asal, 'X-Klien': 'hp-rina' } });\n  console.log(r.status, r.headers.get('access-control-allow-origin'), r.headers.get('x-powered-by'));\n}\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "200 https://web.tokosari.id Express",
+          "200 https://web.tokosari.id null",
+          "429 https://web.tokosari.id null",
+          "429 null null"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 4,
+          "note": "Izinkan asal tertentu saja."
+        },
+        {
+          "line": 11,
+          "note": "Jangan umumkan teknologi server."
+        },
+        {
+          "line": 14,
+          "note": "Pabrik pembatas permintaan."
+        },
+        {
+          "line": 20,
+          "note": "Too Many Requests."
+        },
+        {
+          "line": 25,
+          "note": "Beberapa middleware sekaligus."
+        }
+      ],
+      "explanation": "Permintaan ketiga dari klien hp-rina melebihi batas 2, jadi dijawab 429. Header CORS sudah dipasang sebelum pembatas jalan, dan X-Powered-By sudah dihapus.",
+      "tryThis": [
+        {
+          "task": "Ganti batasi(2) menjadi batasi(5). Apa status baris ketiga?",
+          "hint": null
+        },
+        {
+          "task": "Kirim tanpa header Origin. Apa nilai access-control-allow-origin?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. CORS `*` untuk API yang memakai cookie atau login**\n\n`Access-Control-Allow-Origin: *` mengizinkan semua situs. Untuk API pribadi, sebutkan domain yang diizinkan.\n\n**2. Mengira CORS melindungi API**\n\nCORS hanya aturan browser. Penyerang bisa memanggil API langsung dari server atau curl. Perlindungan sungguhan tetap autentikasi dan otorisasi.\n\n**3. Pembatas di memori untuk banyak server**\n\nHitungan di `Map` hanya berlaku di satu proses. Kalau API dijalankan di beberapa server, simpan hitungan di Redis."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- `helmet()` adalah baris pertama yang ditambahkan di banyak proyek Express. Ia mengatur belasan header keamanan sekaligus.\n- Pembatas permintaan biasanya lebih ketat di rute login (misalnya 5 percobaan per menit) daripada di rute biasa.\n- Error CORS adalah salah satu masalah yang paling sering ditanyakan developer frontend. Pesannya muncul di console browser, bukan di log server."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Pengaman API 5: Satpam Toko",
+      "pembuka": "API toko dipanggil dari website toko. Kita pasang aturan CORS dan pembatas permintaan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Tanpa header CORS, browser di website toko tidak boleh membaca respons.",
+          "jawaban": "import express from 'express';\nconst app = express();\napp.get('/menu', (req, res) => res.json(['Kopi']));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/menu', { headers: { Origin: 'https://tokosari.id' } });\nconsole.log(r.status, r.headers.get('access-control-allow-origin'));\nserver.close();",
+          "keluaran": "200 null",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat middleware `cors` yang mengisi header `Access-Control-Allow-Origin` dengan asal permintaan hanya kalau asalnya `https://tokosari.id` (simpan di konstanta `ASAL_TOKO`). Uji dengan asal `https://tokosari.id` lalu `https://palsu.com`, dan cetak `200 https://tokosari.id` lalu `200 null`.",
+          "jawaban": "import express from 'express';\nconst ASAL_TOKO = 'https://tokosari.id';\nfunction cors(req, res, next) {\n  if (req.get('origin') === ASAL_TOKO) res.set('Access-Control-Allow-Origin', ASAL_TOKO);\n  next();\n}\nconst app = express();\napp.use(cors);\napp.get('/menu', (req, res) => res.json(['Kopi']));\nconst server = app.listen(3000);\nfor (const asal of ['https://tokosari.id', 'https://palsu.com']) {\n  const r = await fetch('http://localhost:3000/menu', { headers: { Origin: asal } });\n  console.log(r.status, r.headers.get('access-control-allow-origin'));\n}\nserver.close();",
+          "keluaran": "200 https://tokosari.id\n200 null",
+          "wajib": [
+            {
+              "pola": "Access-Control-Allow-Origin",
+              "pesan": "atur header `Access-Control-Allow-Origin`."
+            },
+            {
+              "pola": "app\\.use\\(\\s*cors\\s*\\)",
+              "pesan": "pasang dengan `app.use(cors)`."
+            }
+          ],
+          "petunjuk": "req.get('origin') dibandingkan, lalu res.set('Access-Control-Allow-Origin', ...)."
+        },
+        {
+          "arahan": "Tambahkan pembatas: setelah 3 permintaan (dihitung untuk semua klien), jawab 429. Kirim 4 permintaan ke `/menu` dalam loop dan cetak status permintaan terakhir: `429`.",
+          "jawaban": "import express from 'express';\nconst ASAL_TOKO = 'https://tokosari.id';\nfunction cors(req, res, next) {\n  if (req.get('origin') === ASAL_TOKO) res.set('Access-Control-Allow-Origin', ASAL_TOKO);\n  next();\n}\nlet jumlah = 0;\nfunction batasi(req, res, next) {\n  jumlah++;\n  if (jumlah > 3) return res.status(429).json({ error: 'Terlalu banyak permintaan' });\n  next();\n}\nconst app = express();\napp.use(cors);\napp.use(batasi);\napp.get('/menu', (req, res) => res.json(['Kopi']));\nconst server = app.listen(3000);\nfor (const asal of ['https://tokosari.id', 'https://palsu.com']) {\n  const r = await fetch('http://localhost:3000/menu', { headers: { Origin: asal } });\n  console.log(r.status, r.headers.get('access-control-allow-origin'));\n}\nlet terakhir;\nfor (let i = 0; i < 2; i++) terakhir = await fetch('http://localhost:3000/menu');\nconsole.log(terakhir.status);\nserver.close();",
+          "keluaran": "200 https://tokosari.id\n200 null\n429",
+          "wajib": [
+            {
+              "pola": "status\\(\\s*429\\s*\\)",
+              "pesan": "jawab `status(429)`."
+            }
+          ],
+          "petunjuk": "Penghitung di luar middleware; if (jumlah > 3) return res.status(429)...",
+          "tantangan": true
+        }
+      ],
+      "penutup": "API toko kini hanya bisa dibaca website toko dari browser, dan menahan klien yang meminta terlalu sering."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi header Access-Control-Allow-Origin?",
+          "options": [
+            "Mempercepat respons",
+            "Menyembunyikan alamat server",
+            "Memberi tahu browser bahwa halaman dari asal tertentu boleh membaca respons API",
+            "Mengunci API dari semua klien"
+          ],
+          "answer": 2,
+          "explanation": "CORS.",
+          "remedial": "Browser memeriksa header ini sebelum mengizinkan JavaScript di halaman dari domain lain membaca respons."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import express from 'express';\nlet n = 0;\nconst app = express();\napp.use((req, res, next) => (++n > 2 ? res.sendStatus(429) : next()));\napp.get('/', (req, res) => res.send('ok'));\nconst s = app.listen(3000);\nfor (let i = 0; i < 3; i++) console.log((await fetch('http://localhost:3000/')).status);\ns.close();",
+          "options": [
+            "200 / 200 / 200",
+            "200 / 429 / 429",
+            "200 / 200 / 429",
+            "429 / 429 / 429"
+          ],
+          "answer": 2,
+          "explanation": "Batas 2 permintaan.",
+          "remedial": "Dua permintaan pertama lolos. Yang ketiga melebihi batas dan dijawab 429."
+        },
+        {
+          "question": "Apakah CORS melindungi API dari penyerang yang memakai curl?",
+          "options": [
+            "Ya, kalau memakai header *",
+            "Tidak, CORS hanya aturan di browser",
+            "Hanya untuk metode POST",
+            "Ya, semua klien wajib mematuhi CORS"
+          ],
+          "answer": 1,
+          "explanation": "Aturan browser.",
+          "remedial": "curl, aplikasi HP, dan server lain tidak menjalankan pemeriksaan CORS. Perlindungan sungguhan tetap autentikasi dan otorisasi."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Status apa yang dipakai pembatas permintaan saat klien melebihi batas?",
+      "options": [
+        "400 Bad Request",
+        "403 Forbidden",
+        "429 Too Many Requests",
+        "503 Service Unavailable"
+      ],
+      "answer": 2,
+      "explanation": "Too Many Requests."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat middleware headerAman yang memasang header X-Frame-Options bernilai DENY dan menghapus header X-Powered-By. Pasang di app dengan rute GET / yang mengirim teks ok. Fetch / lalu cetak nilai kedua header dipisah spasi: DENY null",
+      "starterCode": "import express from 'express';\nconst app = express();\n",
+      "solution": "import express from 'express';\nconst app = express();\nfunction headerAman(req, res, next) {\n  res.set('X-Frame-Options', 'DENY');\n  res.removeHeader('X-Powered-By');\n  next();\n}\napp.use(headerAman);\napp.get('/', (req, res) => res.send('ok'));\nconst server = app.listen(3000);\nconst r = await fetch('http://localhost:3000/');\nconsole.log(r.headers.get('x-frame-options'), r.headers.get('x-powered-by'));\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "DENY null\n"
+        }
+      ],
+      "hints": [
+        "res.set('X-Frame-Options', 'DENY'); res.removeHeader('X-Powered-By'); next();",
+        "Pasang headerAman sebelum rute."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "CORS mengizinkan halaman dari domain tertentu memanggil API lewat browser.",
+        "helmet memasang header keamanan sekaligus.",
+        "Pembatas permintaan menjawab 429 saat batas terlampaui.",
+        "CORS bukan perlindungan dari curl atau server lain.",
+        "Di produksi pakai paket cors, helmet, express-rate-limit."
+      ]
+    }
+  ]
+}
