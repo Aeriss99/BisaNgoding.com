@@ -1,0 +1,197 @@
+{
+  "id": "node-todolist-04",
+  "moduleId": "node-todolist",
+  "order": 4,
+  "title": "Autentikasi: Todo Milik Sendiri",
+  "estimatedMinutes": 15,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sekarang header sementara `X-Pengguna` diganti **JWT** sungguhan:\n\n1. `POST /api/v1/auth/daftar`: validasi, cek email ganda (409), hash bcrypt.\n2. `POST /api/v1/auth/masuk`: periksa password, kirim token.\n3. Middleware `butuhLogin` dipasang di depan router todo, mengisi `req.pengguna.id` dari klaim `sub`.\n\n```js\napp.use('/api/v1/auth', auth.router);\napp.use('/api/v1/todos', auth.butuhLogin, buatTodoRouter(todoService));\n```\n\nRouter dan service todo **tidak berubah sama sekali**. Mereka sudah memakai `req.pengguna.id` dan `penggunaId` sejak awal.\n\nIbarat mengganti kunci rumah dari gembok biasa ke kunci pintar: pintunya, ruangannya, dan isinya tetap sama, hanya cara masuknya yang berganti."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`buatAuth({ rahasia })` mengembalikan dua hal: `router` untuk daftar dan masuk, serta middleware `butuhLogin`. Kunci rahasia diberikan dari luar, sama seperti repository diberikan ke service.\n\nMiddleware melempar `AppError(401, 'PERLU_LOGIN', ...)` sehingga respons 401 juga berbentuk sama dengan error lain:\n\n```json\n{ \"error\": { \"kode\": \"PERLU_LOGIN\", \"pesan\": \"Perlu login\" } }\n```\n\nDi contoh ini pengguna disimpan di memori di dalam `buatAuth`. Di proyek sungguhan, pengguna juga punya repository sendiri dan disimpan di database."
+    },
+    {
+      "type": "runnable",
+      "code": "// === src/errors.js ===\nexport class AppError extends Error {\n  constructor(status, kode, pesan) { super(pesan); Object.assign(this, { status, kode }); }\n}\n// === src/repositories/todo.js ===\nexport function buatTodoRepo() {\n  const data = [];\n  let nextId = 1;\n  return {\n    async semuaMilik(penggunaId) { return data.filter((t) => t.penggunaId === penggunaId).map((t) => ({ ...t })); },\n    async cari(id) { const t = data.find((x) => x.id === id); return t ? { ...t } : null; },\n    async tambah(t) { const baru = { id: nextId++, selesai: false, ...t }; data.push(baru); return { ...baru }; },\n    async ubah(id, perubahan) { const t = data.find((x) => x.id === id); Object.assign(t, perubahan); return { ...t }; },\n    async hapus(id) { data.splice(data.findIndex((x) => x.id === id), 1); },\n  };\n}\n// === src/services/todo.js ===\nimport { z } from 'zod';\nimport { AppError } from '../errors.js';\nconst TodoBaru = z.object({ judul: z.string().trim().min(1).max(100), prioritas: z.enum(['rendah', 'sedang', 'tinggi']).default('sedang') });\nconst TodoUbah = z.object({ judul: z.string().trim().min(1).max(100), selesai: z.boolean(), prioritas: z.enum(['rendah', 'sedang', 'tinggi']) }).partial();\nfunction periksa(skema, data) {\n  const h = skema.safeParse(data);\n  if (!h.success) throw new AppError(400, 'VALIDASI_GAGAL', h.error.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; '));\n  return h.data;\n}\nexport function buatTodoService(repo) {\n  async function milik(penggunaId, id) {\n    const t = await repo.cari(id);\n    if (!t || t.penggunaId !== penggunaId) throw new AppError(404, 'TODO_TIDAK_ADA', `Todo ${id} tidak ada`);\n    return t;\n  }\n  return {\n    daftar: (penggunaId) => repo.semuaMilik(penggunaId),\n    detail: milik,\n    async tambah(penggunaId, masukan) { return repo.tambah({ ...periksa(TodoBaru, masukan), penggunaId }); },\n    async ubah(penggunaId, id, masukan) { await milik(penggunaId, id); return repo.ubah(id, periksa(TodoUbah, masukan)); },\n    async hapus(penggunaId, id) { await milik(penggunaId, id); await repo.hapus(id); },\n  };\n}\n// === src/routes/todo.js ===\nimport { Router } from 'express';\nexport function buatTodoRouter(todoService) {\n  const r = Router();\n  r.get('/', async (req, res) => res.json({ data: await todoService.daftar(req.pengguna.id) }));\n  r.post('/', async (req, res) => {\n    const t = await todoService.tambah(req.pengguna.id, req.body);\n    res.status(201).location(`${req.baseUrl}/${t.id}`).json({ data: t });\n  });\n  r.get('/:id', async (req, res) => res.json({ data: await todoService.detail(req.pengguna.id, Number(req.params.id)) }));\n  r.patch('/:id', async (req, res) => res.json({ data: await todoService.ubah(req.pengguna.id, Number(req.params.id), req.body) }));\n  r.delete('/:id', async (req, res) => {\n    await todoService.hapus(req.pengguna.id, Number(req.params.id));\n    res.sendStatus(204);\n  });\n  return r;\n}\n// === src/auth.js ===\nimport { Router } from 'express';\nimport bcrypt from 'bcryptjs';\nimport jwt from 'jsonwebtoken';\nimport { z } from 'zod';\nimport { AppError } from './errors.js';\nconst Akun = z.object({ email: z.email().toLowerCase(), password: z.string().min(8) });\nexport function buatAuth({ rahasia }) {\n  const pengguna = [];\n  const router = Router();\n  router.post('/daftar', async (req, res) => {\n    const h = Akun.safeParse(req.body);\n    if (!h.success) throw new AppError(400, 'VALIDASI_GAGAL', 'Email atau password tidak valid');\n    if (pengguna.some((p) => p.email === h.data.email)) throw new AppError(409, 'EMAIL_SUDAH_ADA', 'Email sudah terdaftar');\n    const p = { id: pengguna.length + 1, email: h.data.email, hashPassword: await bcrypt.hash(h.data.password, 10) };\n    pengguna.push(p);\n    res.status(201).json({ data: { id: p.id, email: p.email } });\n  });\n  router.post('/masuk', async (req, res) => {\n    const p = pengguna.find((x) => x.email === String(req.body.email).toLowerCase());\n    if (!p || !(await bcrypt.compare(String(req.body.password), p.hashPassword))) throw new AppError(401, 'LOGIN_GAGAL', 'Email atau password salah');\n    res.json({ data: { token: jwt.sign({ sub: String(p.id) }, rahasia, { expiresIn: '15m' }) } });\n  });\n  function butuhLogin(req, res, next) {\n    const [jenis, token] = (req.get('authorization') ?? '').split(' ');\n    try {\n      if (jenis !== 'Bearer') throw new Error();\n      req.pengguna = { id: Number(jwt.verify(token, rahasia, { algorithms: ['HS256'] }).sub) };\n    } catch {\n      throw new AppError(401, 'PERLU_LOGIN', 'Perlu login');\n    }\n    next();\n  }\n  return { router, butuhLogin };\n}\n// === src/app.js ===\nimport express from 'express';\nimport { AppError } from './errors.js';\nimport { buatTodoRouter } from './routes/todo.js';\nimport { buatAuth } from './auth.js';\nexport function buatApp({ todoService, rahasia }) {\n  const auth = buatAuth({ rahasia });\n  const app = express();\n  app.use(express.json());\n  app.get('/health', (req, res) => res.json({ status: 'ok' }));\n  app.use('/api/v1/auth', auth.router);\n  app.use('/api/v1/todos', auth.butuhLogin, buatTodoRouter(todoService));\n  app.use((req, res) => res.status(404).json({ error: { kode: 'JALUR_TIDAK_ADA', pesan: 'Jalur tidak ditemukan' } }));\n  app.use((err, req, res, next) => {\n    if (!(err instanceof AppError)) err = new AppError(500, 'KESALAHAN_SERVER', 'Terjadi kesalahan di server');\n    res.status(err.status).json({ error: { kode: err.kode, pesan: err.message } });\n  });\n  return app;\n}\n// === main.js ===\nimport { buatTodoRepo } from './src/repositories/todo.js';\nimport { buatTodoService } from './src/services/todo.js';\nimport { buatApp } from './src/app.js';\nconst app = buatApp({ todoService: buatTodoService(buatTodoRepo()), rahasia: 'kunci-todolist-di-editor-minimal-32-karakter' });\nconst server = app.listen(3000);\nconst u = 'http://localhost:3000/api/v1';\nconst kirim = (method, jalur, body, token) => fetch(u + jalur, { method, headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) }, body: body && JSON.stringify(body) });\nconst masuk = async (email) => {\n  await kirim('POST', '/auth/daftar', { email, password: 'rahasia123' });\n  return (await (await kirim('POST', '/auth/masuk', { email, password: 'rahasia123' })).json()).data.token;\n};\nconst rina = await masuk('rina@toko.id');\nconst budi = await masuk('budi@toko.id');\nawait kirim('POST', '/todos', { judul: 'Belanja bahan kue' }, rina);\nawait kirim('POST', '/todos', { judul: 'Servis motor' }, budi);\nconsole.log((await kirim('GET', '/todos')).status);\nconsole.log((await (await kirim('GET', '/todos', undefined, rina)).json()).data.map((t) => t.judul));\nconsole.log((await kirim('DELETE', '/todos/1', undefined, budi)).status);\nconsole.log((await kirim('POST', '/auth/daftar', { email: 'RINA@toko.id', password: 'apaSaja123' })).status);\nserver.close();",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris ketiga?",
+        "options": [
+          "403",
+          "204",
+          "401",
+          "404"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 65,
+          "note": "Kunci rahasia diberikan dari luar."
+        },
+        {
+          "line": 78,
+          "note": "Pesan sama untuk email dan password salah."
+        },
+        {
+          "line": 81,
+          "note": "Isi req.pengguna dari token."
+        },
+        {
+          "line": 104,
+          "note": "Semua rute todo wajib login."
+        }
+      ],
+      "explanation": "Budi mencoba menghapus todo 1 milik Rina. Service menganggap todo itu tidak ada untuk Budi, sehingga jawabannya 404 dan todo Rina tetap aman.",
+      "tryThis": [
+        {
+          "task": "Login dengan password yang salah. Apa kodenya?",
+          "hint": null
+        },
+        {
+          "task": "Cetak daftar todo Budi.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa memasang `butuhLogin` di router todo**\n\n`req.pengguna` menjadi `undefined`, dan `req.pengguna.id` melempar TypeError (500).\n\n**2. Middleware membalas 401 dengan bentuk berbeda**\n\n`res.status(401).send('no')` tidak cocok dengan bentuk error lain. Lempar `AppError` supaya ditangani penangan error yang sama.\n\n**3. Kunci rahasia yang sama dengan contoh**\n\nKunci di contoh hanya untuk editor. Di laptop dan server, pakai kunci acak dari `.env`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Rute daftar dan masuk adalah sasaran utama serangan tebak password. Di produksi, pasang pembatas permintaan khusus di `/api/v1/auth`.\n- Beberapa API menambahkan rute `POST /auth/keluar` yang mencabut refresh token, dan `GET /auth/saya` untuk mengambil profil pengguna yang sedang login.\n- Karena service sudah menerima `penggunaId`, menambahkan fitur berbagi todo antar pengguna cukup mengubah aturan di service, bukan di semua rute."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "nodejs",
+      "judul": "Todolist API 4: Kunci Pintar",
+      "pembuka": "Akses todo kini membutuhkan login dengan JWT.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Router todo masih memakai pengguna tetap tanpa login.",
+          "jawaban": "import express, { Router } from 'express';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-todolist-latihan-minimal-32-karakter';\nconst data = [{ id: 1, penggunaId: 1, judul: 'Beli kopi' }, { id: 2, penggunaId: 2, judul: 'Servis motor' }];\nconst router = Router();\nrouter.get('/', (req, res) => res.json({ data: data.filter((t) => t.penggunaId === 1).map((t) => t.judul) }));\nconst app = express();\napp.use('/api/v1/todos', router);\nconst server = app.listen(3000);\nconsole.log(await (await fetch('http://localhost:3000/api/v1/todos')).json());\nserver.close();",
+          "keluaran": "{ data: [ 'Beli kopi' ] }",
+          "otomatis": true
+        },
+        {
+          "arahan": "Buat middleware `butuhLogin` (Bearer + `jwt.verify` dengan `RAHASIA`, isi `req.pengguna = { id: Number(isi.sub) }`, atau jawab 401), pasang di depan router, dan saring todo dengan `req.pengguna.id`. Buat token untuk pengguna 2 dengan `jwt.sign({ sub: '2' }, RAHASIA)` dan cetak `{ data: [ 'Servis motor' ] }`.",
+          "jawaban": "import express, { Router } from 'express';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-todolist-latihan-minimal-32-karakter';\nconst data = [{ id: 1, penggunaId: 1, judul: 'Beli kopi' }, { id: 2, penggunaId: 2, judul: 'Servis motor' }];\nfunction butuhLogin(req, res, next) {\n  const [jenis, token] = (req.get('authorization') ?? '').split(' ');\n  try {\n    if (jenis !== 'Bearer') throw new Error();\n    req.pengguna = { id: Number(jwt.verify(token, RAHASIA).sub) };\n  } catch {\n    return res.status(401).json({ error: { kode: 'PERLU_LOGIN', pesan: 'Perlu login' } });\n  }\n  next();\n}\nconst router = Router();\nrouter.get('/', (req, res) => res.json({ data: data.filter((t) => t.penggunaId === req.pengguna.id).map((t) => t.judul) }));\nconst app = express();\napp.use('/api/v1/todos', butuhLogin, router);\nconst server = app.listen(3000);\nconst token = jwt.sign({ sub: '2' }, RAHASIA);\nconsole.log(await (await fetch('http://localhost:3000/api/v1/todos', { headers: { Authorization: `Bearer ${token}` } })).json());\nserver.close();",
+          "keluaran": "{ data: [ 'Servis motor' ] }",
+          "wajib": [
+            {
+              "pola": "function\\s+butuhLogin",
+              "pesan": "buat `function butuhLogin`."
+            },
+            {
+              "pola": "app\\.use\\(\\s*'/api/v1/todos'\\s*,\\s*butuhLogin",
+              "pesan": "pasang `butuhLogin` di depan router."
+            },
+            {
+              "pola": "req\\.pengguna\\.id",
+              "pesan": "saring dengan `req.pengguna.id`."
+            }
+          ],
+          "petunjuk": "app.use('/api/v1/todos', butuhLogin, router); di router pakai req.pengguna.id."
+        },
+        {
+          "arahan": "Uji tanpa token dan dengan token yang ditandatangani kunci lain (`jwt.sign({ sub: '1' }, 'kunci-palsu')`). Cetak kedua status di baris terakhir dipisah spasi: `401 401`.",
+          "jawaban": "import express, { Router } from 'express';\nimport jwt from 'jsonwebtoken';\nconst RAHASIA = 'kunci-todolist-latihan-minimal-32-karakter';\nconst data = [{ id: 1, penggunaId: 1, judul: 'Beli kopi' }, { id: 2, penggunaId: 2, judul: 'Servis motor' }];\nfunction butuhLogin(req, res, next) {\n  const [jenis, token] = (req.get('authorization') ?? '').split(' ');\n  try {\n    if (jenis !== 'Bearer') throw new Error();\n    req.pengguna = { id: Number(jwt.verify(token, RAHASIA).sub) };\n  } catch {\n    return res.status(401).json({ error: { kode: 'PERLU_LOGIN', pesan: 'Perlu login' } });\n  }\n  next();\n}\nconst router = Router();\nrouter.get('/', (req, res) => res.json({ data: data.filter((t) => t.penggunaId === req.pengguna.id).map((t) => t.judul) }));\nconst app = express();\napp.use('/api/v1/todos', butuhLogin, router);\nconst server = app.listen(3000);\nconst token = jwt.sign({ sub: '2' }, RAHASIA);\nconsole.log(await (await fetch('http://localhost:3000/api/v1/todos', { headers: { Authorization: `Bearer ${token}` } })).json());\nconst palsu = jwt.sign({ sub: '1' }, 'kunci-palsu');\nconst a = await fetch('http://localhost:3000/api/v1/todos');\nconst b = await fetch('http://localhost:3000/api/v1/todos', { headers: { Authorization: `Bearer ${palsu}` } });\nconsole.log(a.status, b.status);\nserver.close();",
+          "keluaran": "{ data: [ 'Servis motor' ] }\n401 401",
+          "wajib": [
+            {
+              "pola": "'kunci-palsu'",
+              "pesan": "buat token dengan `'kunci-palsu'`."
+            }
+          ],
+          "petunjuk": "const palsu = jwt.sign({ sub: '1' }, 'kunci-palsu'); lalu dua fetch.",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Todo kini hanya bisa dibuka pemiliknya lewat JWT, dan token palsu ditolak."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa router dan service todo tidak perlu diubah saat JWT dipasang?",
+          "options": [
+            "Karena JWT mengubah router otomatis",
+            "Karena todo tidak butuh pemilik",
+            "Keduanya sudah memakai req.pengguna.id dan penggunaId sejak awal",
+            "Karena service tidak dipakai lagi"
+          ],
+          "answer": 2,
+          "explanation": "Desain yang terpisah.",
+          "remedial": "Cara mengenali pengguna hanya diatur oleh middleware. Bagian lain cukup menerima id pengguna, dari mana pun asalnya."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "import jwt from 'jsonwebtoken';\nconst t = jwt.sign({ sub: '2' }, 'k');\nconsole.log(Number(jwt.verify(t, 'k').sub));",
+          "options": [
+            "undefined",
+            "2",
+            "'2'",
+            "NaN"
+          ],
+          "answer": 1,
+          "explanation": "Number dari klaim sub.",
+          "remedial": "Klaim sub disimpan sebagai teks, lalu diubah menjadi angka dengan Number."
+        },
+        {
+          "question": "Kenapa middleware melempar AppError 401 daripada langsung mengirim respons?",
+          "options": [
+            "Karena middleware tidak boleh memakai res",
+            "Supaya lebih cepat",
+            "Karena Express 5 melarang res.status di middleware",
+            "Supaya respons 401 berbentuk sama dengan error lain lewat penangan error terpusat"
+          ],
+          "answer": 3,
+          "explanation": "Satu bentuk error.",
+          "remedial": "Dengan melempar, penangan error terpusat yang membentuk respons, sehingga klien selalu menerima { error: { kode, pesan } }."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa yang sebaiknya ditambahkan di rute /api/v1/auth saat produksi?",
+      "options": [
+        "Cache selama satu jam",
+        "Pembatas permintaan untuk menahan tebakan password",
+        "Log berisi password pengguna",
+        "Header X-Powered-By"
+      ],
+      "answer": 1,
+      "explanation": "Rate limit."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat app Express dengan middleware butuhLogin yang melempar error berstatus 401 kalau header x-token bukan rahasia, dan penangan error yang menjawab status err.status. Pasang butuhLogin di rute GET /todos yang menjawab teks ok. Fetch tanpa header dan dengan header x-token: rahasia, lalu cetak kedua status: 401 200",
+      "starterCode": "import express from 'express';\nconst app = express();\n",
+      "solution": "import express from 'express';\nconst app = express();\nfunction butuhLogin(req, res, next) {\n  if (req.get('x-token') !== 'rahasia') throw Object.assign(new Error('Perlu login'), { status: 401 });\n  next();\n}\napp.get('/todos', butuhLogin, (req, res) => res.send('ok'));\napp.use((err, req, res, next) => res.sendStatus(err.status ?? 500));\nconst server = app.listen(3000);\nconst a = await fetch('http://localhost:3000/todos');\nconst b = await fetch('http://localhost:3000/todos', { headers: { 'x-token': 'rahasia' } });\nconsole.log(a.status, b.status);\nserver.close();\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "401 200\n"
+        }
+      ],
+      "hints": [
+        "Di butuhLogin: throw Object.assign(new Error('Perlu login'), { status: 401 });",
+        "Penangan error: res.sendStatus(err.status ?? 500)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Auth Todolist: daftar, masuk, dan butuhLogin di depan router todo.",
+        "req.pengguna.id berasal dari klaim sub token.",
+        "Router dan service tidak berubah saat cara login berganti.",
+        "Middleware melempar AppError 401 supaya respons seragam.",
+        "Todo orang lain tetap 404."
+      ]
+    }
+  ]
+}
