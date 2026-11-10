@@ -21,7 +21,7 @@ export const STIKER_MAP: Record<string, StikerConfig> = {
   linux: { label: 'LINUX', warna: '#2fe6f0', bentuk: 'bulat', rotasi: 7 },
   devops: { label: 'DEVOPS', warna: '#ff3dcb', bentuk: 'pil', rotasi: -4 },
   'english-it': { label: 'ENGLISH', warna: '#a78bfa', bentuk: 'kotak', rotasi: 9 },
-  nodejs: { label: 'NODE.JS', warna: 'transparent', bentuk: 'pil', rotasi: -7 },
+  nodejs: { label: 'NODE.JS', warna: '#8ce99a', bentuk: 'pil', rotasi: -7 },
   tailwind: { label: 'TAILWIND', warna: '#7dd3fc', bentuk: 'kotak', rotasi: 3 },
   typescript: { label: 'TYPESCRIPT', warna: '#7fb2ff', bentuk: 'pil', rotasi: 8 },
   react: { label: 'REACT', warna: '#61dafb', bentuk: 'bulat', rotasi: -5 },

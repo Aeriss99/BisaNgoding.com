@@ -98,8 +98,7 @@ describe('statusKartu', () => {
       nama: 'Spring Boot',
     });
     const node = statusKartu({ kelas: 'nodejs' });
-    expect(node).toMatchObject({ jenis: 'segera', teks: 'Segera hadir', nama: 'Node.js' });
-    expect(node.url).toBeUndefined();
+    expect(node).toMatchObject({ jenis: 'tersedia', url: '/kelas/nodejs', nama: 'Node.js' });
   });
 });
 
