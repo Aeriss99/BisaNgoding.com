@@ -1,0 +1,189 @@
+{
+  "id": "ts-generics-03",
+  "moduleId": "ts-generics",
+  "order": 3,
+  "title": "Constraint: extends dan keyof",
+  "estimatedMinutes": 14,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kadang `T` tidak boleh sembarang tipe. Misalnya fungsi yang membaca `.length`: tidak semua tipe punya `length`. Batasan ditulis dengan `extends`:\n\n```ts\nfunction terpanjang<T extends { length: number }>(a: T, b: T): T {\n  return a.length >= b.length ? a : b;\n}\nterpanjang(\"kopi\", \"teh\");      // boleh: string punya length\nterpanjang([1, 2], [1, 2, 3]);  // boleh: array punya length\nterpanjang(10, 20);             // error TS2345: number tidak punya length\n```\n\n`T extends X` artinya \"T boleh tipe apa saja **asalkan** memenuhi X\".\n\nIbarat lowongan kerja \"bebas jurusan, asalkan bisa menyetir\": siapa pun boleh melamar, tapi syarat itu wajib dipenuhi."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**`keyof T`** menghasilkan union semua nama properti T:\n\n```ts\ntype Produk = { nama: string; harga: number; stok: number };\ntype KunciProduk = keyof Produk; // \"nama\" | \"harga\" | \"stok\"\n```\n\nDigabung dengan constraint, kita bisa membuat fungsi pengambil properti yang aman:\n\n```ts\nfunction ambil<T, K extends keyof T>(obj: T, kunci: K): T[K] {\n  return obj[kunci];\n}\nconst p: Produk = { nama: \"Kopi\", harga: 18000, stok: 5 };\nambil(p, \"harga\"); // number\nambil(p, \"nama\");  // string\nambil(p, \"warna\"); // error TS2345: \"warna\" bukan keyof Produk\n```\n\n`T[K]` disebut **indexed access type**: tipe properti `K` di dalam `T`. Hasil `ambil(p, \"harga\")` tepat `number`, bukan `string | number`."
+    },
+    {
+      "type": "runnable",
+      "code": "type Produk = { nama: string; harga: number; stok: number };\nfunction ambil<T, K extends keyof T>(obj: T, kunci: K): T[K] {\n  return obj[kunci];\n}\nfunction urutkan<T>(a: T[], kunci: keyof T): T[] {\n  return [...a].sort((x, y) => (x[kunci] < y[kunci] ? -1 : 1));\n}\nconst daftar: Produk[] = [\n  { nama: \"Teh\", harga: 12000, stok: 8 },\n  { nama: \"Kopi\", harga: 18000, stok: 3 },\n  { nama: \"Jus\", harga: 15000, stok: 5 },\n];\nconsole.log(ambil(daftar[0], \"harga\") + 1000);\nconsole.log(urutkan(daftar, \"stok\").map((p) => p.nama));",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "[ Teh, Kopi, Jus ]",
+          "[ Jus, Kopi, Teh ]",
+          "[ Teh, Jus, Kopi ]",
+          "[ Kopi, Jus, Teh ]"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "K hanya boleh salah satu nama properti T."
+        },
+        {
+          "line": 2,
+          "note": "Tipe hasil: tipe properti yang diminta."
+        },
+        {
+          "line": 5,
+          "note": "Mengurutkan berdasarkan properti apa pun yang ada."
+        }
+      ],
+      "explanation": "Diurutkan berdasarkan stok dari kecil ke besar: Kopi (3), Jus (5), Teh (8).",
+      "tryThis": [
+        {
+          "task": "Panggil ambil(daftar[0], \"warna\"). Baca error-nya.",
+          "hint": null
+        },
+        {
+          "task": "Urutkan berdasarkan \"nama\". Apa urutannya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengakses properti T tanpa constraint**\n\n```ts\nfunction panjang<T>(x: T) { return x.length; } // error TS2339\n```\n\nTanpa `extends { length: number }`, TypeScript tidak tahu `T` punya `length`.\n\n**2. Memakai `string` untuk nama properti**\n\n`function ambil<T>(obj: T, kunci: string)` membuat `obj[kunci]` ditolak (TS7053). `keyof T` menjamin kuncinya benar-benar ada.\n\n**3. Constraint terlalu ketat**\n\n`T extends Produk` membuat fungsi hanya untuk Produk dan turunannya. Kalau yang dibutuhkan hanya `harga`, tulis `T extends { harga: number }` supaya fungsi bisa dipakai untuk tipe lain yang juga punya harga."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola `K extends keyof T` dipakai di komponen tabel (kolom yang bisa diurutkan hanya nama properti yang ada), di fungsi `pick`/`omit`, dan di library form seperti React Hook Form (`register(\"email\")` hanya menerima nama field yang terdaftar).\n- Constraint berbentuk \"minimal punya properti ini\" (`T extends { id: number }`) sangat umum untuk fungsi yang bekerja dengan semua entitas database.\n- Editor menampilkan pilihan nama properti saat mengetik argumen bertipe `keyof T`. Ini sangat membantu mencegah salah ketik nama kolom."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Gudang TS 3: Laporan per Kolom",
+      "pembuka": "Laporan gudang perlu diurutkan dan dibaca berdasarkan kolom tertentu. Nama kolomnya harus yang benar-benar ada.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. ambil hanya menerima nama properti yang ada.",
+          "jawaban": "type Barang = { nama: string; stok: number; harga: number };\nfunction ambil<T, K extends keyof T>(obj: T, kunci: K): T[K] {\n  return obj[kunci];\n}\nconst gula: Barang = { nama: \"Gula\", stok: 5, harga: 14000 };\nconsole.log(ambil(gula, \"nama\"), ambil(gula, \"stok\"));",
+          "keluaran": "Gula 5",
+          "otomatis": true
+        },
+        {
+          "arahan": "Kode ini ditolak karena nama kolom salah ketik. Perbaiki `\"hrga\"` menjadi nama properti yang benar. Baris terakhir harus `70000`.",
+          "jawaban": "type Barang = { nama: string; stok: number; harga: number };\nfunction ambil<T, K extends keyof T>(obj: T, kunci: K): T[K] {\n  return obj[kunci];\n}\nconst gula: Barang = { nama: \"Gula\", stok: 5, harga: 14000 };\nconsole.log(ambil(gula, \"nama\"), ambil(gula, \"stok\"));\nconsole.log(ambil(gula, \"harga\") * ambil(gula, \"stok\"));",
+          "kodeAwal": "type Barang = { nama: string; stok: number; harga: number };\nfunction ambil<T, K extends keyof T>(obj: T, kunci: K): T[K] {\n  return obj[kunci];\n}\nconst gula: Barang = { nama: \"Gula\", stok: 5, harga: 14000 };\nconsole.log(ambil(gula, \"nama\"), ambil(gula, \"stok\"));\nconsole.log(ambil(gula, \"hrga\") * ambil(gula, \"stok\"));",
+          "keluaran": "Gula 5\n70000",
+          "wajib": [
+            {
+              "pola": "ambil\\(\\s*gula\\s*,\\s*\"harga\"\\s*\\)",
+              "pesan": "pakai `ambil(gula, \"harga\")`."
+            }
+          ],
+          "petunjuk": "Error TS2345 menyebut \"hrga\" tidak cocok. Nama propertinya harga.",
+          "benar": "Salah ketik nama kolom tertangkap sebelum laporan salah dicetak."
+        },
+        {
+          "arahan": "Buat fungsi `totalKolom<T>(a: T[], kunci: KunciAngka<T>): number` yang menjumlahkan kolom angka, dengan `type KunciAngka<T> = { [K in keyof T]: T[K] extends number ? K : never }[keyof T];`. Jumlahkan kolom `stok` dari dua barang (Gula 5, Beras 12): `17`.",
+          "jawaban": "type Barang = { nama: string; stok: number; harga: number };\ntype KunciAngka<T> = { [K in keyof T]: T[K] extends number ? K : never }[keyof T];\nfunction ambil<T, K extends keyof T>(obj: T, kunci: K): T[K] {\n  return obj[kunci];\n}\nfunction totalKolom<T>(a: T[], kunci: KunciAngka<T>): number {\n  let total = 0;\n  for (const x of a) total += x[kunci] as number;\n  return total;\n}\nconst gula: Barang = { nama: \"Gula\", stok: 5, harga: 14000 };\nconst beras: Barang = { nama: \"Beras\", stok: 12, harga: 13000 };\nconsole.log(ambil(gula, \"nama\"), ambil(gula, \"stok\"));\nconsole.log(ambil(gula, \"harga\") * ambil(gula, \"stok\"));\nconsole.log(totalKolom([gula, beras], \"stok\"));",
+          "keluaran": "Gula 5\n70000\n17",
+          "wajib": [
+            {
+              "pola": "totalKolom\\s*\\(\\s*\\[\\s*gula\\s*,\\s*beras\\s*\\]\\s*,\\s*\"stok\"\\s*\\)",
+              "pesan": "panggil `totalKolom([gula, beras], \"stok\")`."
+            }
+          ],
+          "petunjuk": "Salin tipe KunciAngka apa adanya (detailnya dibahas di modul Manipulasi Tipe). Di dalam fungsi, jumlahkan x[kunci] as number.",
+          "tantangan": true,
+          "benar": "Sekarang totalKolom([gula], \"nama\") langsung ditolak karena nama bukan kolom angka. Rahasianya ada di modul Manipulasi Tipe."
+        }
+      ],
+      "penutup": "extends membatasi parameter tipe, keyof memastikan nama properti benar-benar ada. Keduanya membuat fungsi generic tetap aman."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti T extends { length: number }?",
+          "options": [
+            "T harus bernama length",
+            "T boleh tipe apa saja asalkan punya length bertipe number",
+            "T adalah turunan class Length",
+            "T selalu bertipe number"
+          ],
+          "answer": 1,
+          "explanation": "extends pada generic adalah syarat.",
+          "remedial": "Constraint membatasi T: string, array, atau object lain yang punya length: number boleh; number atau boolean ditolak."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "type Produk = { nama: string; harga: number };\nfunction ambil<T, K extends keyof T>(o: T, k: K): T[K] {\n  return o[k];\n}\nconst p: Produk = { nama: \"Kopi\", harga: 1 };\nconsole.log(ambil(p, \"warna\"));",
+          "options": [
+            "Mencetak undefined",
+            "Mencetak Kopi",
+            "Error, \"warna\" bukan nama properti Produk",
+            "Lolos, karena kunci bertipe string"
+          ],
+          "answer": 2,
+          "explanation": "K harus keyof T.",
+          "remedial": "K extends keyof T membuat kunci hanya boleh \"nama\" atau \"harga\". \"warna\" ditolak dengan error TS2345."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "function terpanjang<T extends { length: number }>(a: T, b: T): T {\n  return a.length >= b.length ? a : b;\n}\nconsole.log(terpanjang(\"teh\", \"kop\"));\nconsole.log(terpanjang([1, 2, 3], [9]).length);",
+          "options": [
+            "teh / 3",
+            "kopi / 3",
+            "teh / 4",
+            "kopi / 4"
+          ],
+          "answer": 0,
+          "explanation": "terpanjang memilih yang length-nya lebih besar; kalau sama memilih a.",
+          "remedial": "teh dan kop sama-sama 3 huruf. Karena memakai >=, yang dipilih a, yaitu teh. Array [1, 2, 3] lebih panjang dari [9], jadi hasilnya punya length 3."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Apa hasil keyof { nama: string; harga: number }?",
+      "options": [
+        "string | number",
+        "[\"nama\", \"harga\"]",
+        "\"nama\" | \"harga\"",
+        "{ nama: string }"
+      ],
+      "answer": 2,
+      "explanation": "keyof menghasilkan union nama-nama properti."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Tulis fungsi generic termurah<T extends { harga: number }>(a: T[]): T | undefined yang mengembalikan isi dengan harga terkecil. Uji dengan produk (Kopi 18000, Teh 12000, Jus 15000) dan cetak nama yang termurah, lalu uji dengan paket ({ kode: \"P1\", harga: 50000 }, { kode: \"P2\", harga: 45000 }) dan cetak kodenya.",
+      "starterCode": "function termurah(a: any[]) {\n  return a[0];\n}\n",
+      "solution": "function termurah<T extends { harga: number }>(a: T[]): T | undefined {\n  let hasil: T | undefined = undefined;\n  for (const x of a) {\n    if (hasil === undefined || x.harga < hasil.harga) hasil = x;\n  }\n  return hasil;\n}\nconst produk = [\n  { nama: \"Kopi\", harga: 18000 },\n  { nama: \"Teh\", harga: 12000 },\n  { nama: \"Jus\", harga: 15000 },\n];\nconst paket = [\n  { kode: \"P1\", harga: 50000 },\n  { kode: \"P2\", harga: 45000 },\n];\nconsole.log(termurah(produk)?.nama);\nconsole.log(termurah(paket)?.kode);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Teh\nP2\n"
+        }
+      ],
+      "hints": [
+        "Constraint T extends { harga: number } membuat x.harga boleh diakses.",
+        "Hasil tetap bertipe T, jadi ?.nama dan ?.kode sesuai jenis datanya."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "T extends X: T boleh apa saja asalkan memenuhi X.",
+        "keyof T: union semua nama properti T.",
+        "K extends keyof T memastikan nama properti benar-benar ada.",
+        "T[K]: tipe properti K di dalam T (indexed access).",
+        "Constraint secukupnya ({ harga: number }) membuat fungsi lebih serbaguna."
+      ]
+    }
+  ]
+}

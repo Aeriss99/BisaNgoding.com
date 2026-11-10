@@ -1,0 +1,185 @@
+{
+  "id": "ts-generics-02",
+  "moduleId": "ts-generics",
+  "order": 2,
+  "title": "Beberapa Parameter Tipe",
+  "estimatedMinutes": 13,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Fungsi generic boleh punya lebih dari satu parameter tipe:\n\n```ts\nfunction pasangkan<A, B>(a: A, b: B): [A, B] {\n  return [a, b];\n}\nconst p = pasangkan(\"kopi\", 18000); // [string, number]\n```\n\nContoh yang lebih berguna: fungsi `petakan` yang mengubah setiap isi array menjadi tipe lain, seperti `map` buatan sendiri:\n\n```ts\nfunction petakan<T, U>(a: T[], ubah: (x: T) => U): U[] {\n  const hasil: U[] = [];\n  for (const x of a) hasil.push(ubah(x));\n  return hasil;\n}\nconst panjang = petakan([\"kopi\", \"teh\"], (s) => s.length); // number[]\n```\n\nDi sini `T` adalah tipe isi awal dan `U` tipe hasil. TypeScript menyimpulkan `T = string` dari array dan `U = number` dari kembalian callback.\n\nIbarat mesin penggiling di pabrik: masuk biji kopi (T), keluar bubuk kopi (U). Mesinnya tidak peduli jenisnya, tapi selalu tahu apa yang masuk dan apa yang keluar."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nFungsi `kelompokkan` yang sangat sering dipakai:\n\n```ts\nfunction kelompokkan<T, K extends string>(a: T[], kunci: (x: T) => K): Record<K, T[]> {\n  const hasil = {} as Record<K, T[]>;\n  for (const x of a) {\n    const k = kunci(x);\n    (hasil[k] ??= []).push(x);\n  }\n  return hasil;\n}\n```\n\n`K extends string` artinya K harus berupa string (dibahas di materi berikutnya). `as Record<K, T[]>` diperlukan karena object kosong `{}` belum berisi kunci apa pun. Ini salah satu sedikit tempat `as` wajar dipakai: kita yakin akan mengisinya.\n\nOperator `??=` mengisi nilai hanya kalau masih `null`/`undefined`: kalau belum ada array untuk kunci itu, buat array kosong dulu."
+    },
+    {
+      "type": "runnable",
+      "code": "function petakan<T, U>(a: T[], ubah: (x: T) => U): U[] {\n  const hasil: U[] = [];\n  for (const x of a) hasil.push(ubah(x));\n  return hasil;\n}\ntype Barang = { nama: string; stok: number };\nconst gudang: Barang[] = [\n  { nama: \"gula\", stok: 5 },\n  { nama: \"beras\", stok: 0 },\n];\nconst nama = petakan(gudang, (b) => b.nama.toUpperCase());\nconst habis = petakan(gudang, (b) => b.stok === 0);\nconsole.log(nama);\nconsole.log(habis);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris terakhir?",
+        "options": [
+          "[ true, false ]",
+          "[ false, true ]",
+          "[ 5, 0 ]",
+          "[ GULA, BERAS ]"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 1,
+          "note": "T: tipe isi awal, U: tipe hasil."
+        },
+        {
+          "line": 11,
+          "note": "T = Barang, U = string."
+        },
+        {
+          "line": 12,
+          "note": "T = Barang, U = boolean."
+        }
+      ],
+      "explanation": "Callback memeriksa apakah stok sama dengan 0. Gula stoknya 5 (false), beras stoknya 0 (true).",
+      "tryThis": [
+        {
+          "task": "Arahkan perhatian ke tipe nama dan habis: masing-masing string[] dan boolean[].",
+          "hint": null
+        },
+        {
+          "task": "Ubah callback menjadi (b) => b.harga. Error apa yang muncul?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Parameter tipe yang tidak bisa disimpulkan**\n\n```ts\nfunction buat<T>(): T[] { return []; }\nconst a = buat(); // T = unknown: tidak ada petunjuk dari argumen\nconst b = buat<string>(); // tulis manual\n```\n\n**2. Memakai `as` di mana-mana**\n\n`as` memaksa TypeScript percaya. Wajar untuk object penampung yang akan diisi (seperti `{} as Record<K, T[]>`), tapi jangan dipakai untuk membungkam error yang sebenarnya.\n\n**3. Terlalu banyak parameter tipe**\n\nFungsi dengan `<A, B, C, D>` sulit dibaca dan dipakai. Biasanya tanda fungsi itu melakukan terlalu banyak hal."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- JavaScript modern punya `Object.groupBy` dan `Map.groupBy` (ES2024) yang melakukan hal sama dengan `kelompokkan`. Proyek yang targetnya lebih lama memakai versi buatan sendiri atau library seperti lodash `groupBy`.\n- Pola \"terima callback, kembalikan hasil bertipe U\" ada di `Array.prototype.map`, `Promise.then`, dan banyak API library. Membaca tipe di file deklarasinya (`map<U>(callbackfn: (value: T, ...) => U): U[]`) menjadi lebih mudah setelah memahami materi ini.\n- Di code review, `as` yang tidak perlu sering diminta dihapus. Aturan typescript-eslint `consistent-type-assertions` membantu membatasinya."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Gudang TS 2: Ubah dan Kelompokkan",
+      "pembuka": "Data gudang perlu diubah ke bentuk lain untuk laporan. Kita pakai fungsi generic dengan dua parameter tipe.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. petakan mengubah Barang menjadi teks laporan.",
+          "jawaban": "function petakan<T, U>(a: T[], ubah: (x: T) => U): U[] {\n  const hasil: U[] = [];\n  for (const x of a) hasil.push(ubah(x));\n  return hasil;\n}\ntype Barang = { nama: string; stok: number };\nconst gudang: Barang[] = [{ nama: \"gula\", stok: 5 }, { nama: \"beras\", stok: 0 }];\nconsole.log(petakan(gudang, (b) => `${b.nama}: ${b.stok}`));",
+          "keluaran": "[ gula: 5, beras: 0 ]",
+          "otomatis": true
+        },
+        {
+          "arahan": "Pakai `petakan` untuk menghasilkan array stok saja (`number[]`), lalu cetak totalnya dengan `reduce`: `Total stok: 5`.",
+          "jawaban": "function petakan<T, U>(a: T[], ubah: (x: T) => U): U[] {\n  const hasil: U[] = [];\n  for (const x of a) hasil.push(ubah(x));\n  return hasil;\n}\ntype Barang = { nama: string; stok: number };\nconst gudang: Barang[] = [{ nama: \"gula\", stok: 5 }, { nama: \"beras\", stok: 0 }];\nconsole.log(petakan(gudang, (b) => `${b.nama}: ${b.stok}`));\nconst stok = petakan(gudang, (b) => b.stok);\nconsole.log(\"Total stok:\", stok.reduce((a, n) => a + n, 0));",
+          "keluaran": "[ gula: 5, beras: 0 ]\nTotal stok: 5",
+          "wajib": [
+            {
+              "pola": "petakan\\(\\s*gudang\\s*,\\s*\\(b\\)\\s*=>\\s*b\\.stok\\s*\\)",
+              "pesan": "pakai `petakan(gudang, (b) => b.stok)`."
+            }
+          ],
+          "petunjuk": "const stok = petakan(gudang, (b) => b.stok); hasilnya number[]."
+        },
+        {
+          "arahan": "Buat fungsi `pasangkan<A, B>(a: A, b: B): [A, B]`. Pasangkan nama barang pertama dengan stoknya dan cetak hasilnya: `[ gula, 5 ]`.",
+          "jawaban": "function petakan<T, U>(a: T[], ubah: (x: T) => U): U[] {\n  const hasil: U[] = [];\n  for (const x of a) hasil.push(ubah(x));\n  return hasil;\n}\nfunction pasangkan<A, B>(a: A, b: B): [A, B] {\n  return [a, b];\n}\ntype Barang = { nama: string; stok: number };\nconst gudang: Barang[] = [{ nama: \"gula\", stok: 5 }, { nama: \"beras\", stok: 0 }];\nconsole.log(petakan(gudang, (b) => `${b.nama}: ${b.stok}`));\nconst stok = petakan(gudang, (b) => b.stok);\nconsole.log(\"Total stok:\", stok.reduce((a, n) => a + n, 0));\nconsole.log(pasangkan(gudang[0].nama, gudang[0].stok));",
+          "keluaran": "[ gula: 5, beras: 0 ]\nTotal stok: 5\n[ gula, 5 ]",
+          "wajib": [
+            {
+              "pola": "function\\s+pasangkan\\s*<\\s*A\\s*,\\s*B\\s*>",
+              "pesan": "tulis `function pasangkan<A, B>`."
+            }
+          ],
+          "petunjuk": "Dua parameter tipe A dan B, kembalian tuple [A, B].",
+          "tantangan": true
+        }
+      ],
+      "penutup": "Dua parameter tipe membuat fungsi bisa mengubah satu jenis data menjadi jenis lain dengan tipe yang tetap terjaga."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pada function petakan<T, U>(a: T[], ubah: (x: T) => U): U[], dari mana TypeScript tahu tipe U?",
+          "options": [
+            "Dari tipe kembalian callback ubah",
+            "U selalu sama dengan T",
+            "Selalu ditulis manual",
+            "Dari panjang array a"
+          ],
+          "answer": 0,
+          "explanation": "U disimpulkan dari callback.",
+          "remedial": "T disimpulkan dari array a, dan U dari nilai yang dikembalikan callback. Kalau callback mengembalikan boolean, hasil petakan bertipe boolean[]."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "function petakan<T, U>(a: T[], f: (x: T) => U): U[] {\n  return a.map(f);\n}\nconsole.log(petakan([\"kopi\", \"teh\"], (s) => s.length));",
+          "options": [
+            "7",
+            "[ 3, 4 ]",
+            "[ 4, 3 ]",
+            "[ kopi, teh ]"
+          ],
+          "answer": 2,
+          "explanation": "Callback mengubah setiap teks menjadi panjangnya.",
+          "remedial": "kopi punya 4 huruf dan teh 3 huruf, jadi hasilnya array number [ 4, 3 ]."
+        },
+        {
+          "question": "Apa tipe T pada const a = buat() kalau function buat<T>(): T[] tanpa argumen?",
+          "options": [
+            "never",
+            "unknown",
+            "string",
+            "any"
+          ],
+          "answer": 1,
+          "explanation": "Tanpa petunjuk, parameter tipe menjadi unknown.",
+          "remedial": "Tidak ada argumen yang bisa dipakai untuk menyimpulkan T, jadi TypeScript memakai unknown. Tulis buat<string>() kalau ingin tipe tertentu."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kapan as wajar dipakai pada kode generic?",
+      "options": [
+        "Untuk menggantikan semua parameter tipe",
+        "Untuk mengubah string menjadi number saat jalan",
+        "Untuk menghilangkan setiap error tipe",
+        "Untuk object penampung kosong yang pasti akan diisi"
+      ],
+      "answer": 3,
+      "explanation": "as hanya meyakinkan TypeScript, tidak mengubah nilai saat program jalan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Tulis fungsi generic hitungPer<T>(a: T[], kunci: (x: T) => string): Record<string, number> yang menghitung jumlah isi per kunci. Untuk pesanan [\"kopi\", \"teh\", \"kopi\", \"jus\", \"kopi\"] dengan kunci huruf pertama (x[0]), hasilnya { k: 3, t: 1, j: 1 }.",
+      "starterCode": "function hitungPer(a, kunci) {\n  return {};\n}\nconsole.log(hitungPer([\"kopi\", \"teh\", \"kopi\", \"jus\", \"kopi\"], (x) => x[0]));\n",
+      "solution": "function hitungPer<T>(a: T[], kunci: (x: T) => string): Record<string, number> {\n  const hasil: Record<string, number> = {};\n  for (const x of a) {\n    const k = kunci(x);\n    hasil[k] = (hasil[k] ?? 0) + 1;\n  }\n  return hasil;\n}\nconsole.log(hitungPer([\"kopi\", \"teh\", \"kopi\", \"jus\", \"kopi\"], (x) => x[0]));\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "{ k: 3, t: 1, j: 1 }\n"
+        }
+      ],
+      "hints": [
+        "Parameter tipe T untuk isi array; kunci adalah callback (x: T) => string.",
+        "Pakai hasil[k] = (hasil[k] ?? 0) + 1."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Fungsi generic boleh punya beberapa parameter tipe: <T, U>, <K, V>.",
+        "Setiap parameter tipe disimpulkan dari argumen yang memakainya.",
+        "Tanpa petunjuk, parameter tipe menjadi unknown; tulis manual kalau perlu.",
+        "as hanya untuk kasus wajar seperti penampung kosong.",
+        "Pola callback (x: T) => U ada di map, then, dan banyak API."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,187 @@
+{
+  "id": "ts-tipe-lanjut-06",
+  "moduleId": "ts-tipe-lanjut",
+  "order": 6,
+  "title": "Mapped, Conditional, dan Template Literal Types",
+  "estimatedMinutes": 15,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tiga cara membuat tipe baru secara otomatis:\n\n```ts\ntype Profil = { nama: string; email: string; umur: number };\n\n// 1. Mapped type: ulangi setiap kunci\ntype PesanGalat<T> = { [K in keyof T]?: string };\nconst galat: PesanGalat<Profil> = { email: \"Format email salah\" };\n\n// 2. Conditional type: pilih tipe berdasarkan syarat\ntype Jenis<T> = T extends string ? \"teks\" : \"bukan teks\";\ntype A = Jenis<\"halo\">; // \"teks\"\ntype B = Jenis<42>;     // \"bukan teks\"\n\n// 3. Template literal type: rangkai teks di level tipe\ntype NamaEvent = `ubah-${keyof Profil}`;\n// \"ubah-nama\" | \"ubah-email\" | \"ubah-umur\"\n```\n\nUtility types yang sudah kita pakai dibuat dengan mapped type, misalnya:\n\n```ts\ntype Partial<T> = { [K in keyof T]?: T[K] };\n```\n\nIbarat mesin cetak formulir: masukkan daftar kolom (keyof T), dan mesin mencetak formulir baru dengan kolom yang sama tapi isinya diatur ulang, misalnya kolom pesan galat untuk setiap isian."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`infer` mengambil sebagian tipe di dalam conditional type:\n\n```ts\ntype IsiArray<T> = T extends (infer U)[] ? U : T;\ntype A = IsiArray<string[]>; // string\ntype B = IsiArray<number>;   // number\n```\n\nMapped type bisa mengganti nama kunci dengan `as` dan template literal:\n\n```ts\ntype Pengubah<T> = {\n  [K in keyof T as `ubah${Capitalize<string & K>}`]: (nilai: T[K]) => void;\n};\ntype PengubahProfil = Pengubah<Profil>;\n// { ubahNama: (nilai: string) => void; ubahEmail: ...; ubahUmur: (nilai: number) => void }\n```\n\nConditional type **menyebar** ke setiap anggota union: `Jenis<string | number>` menjadi `\"teks\" | \"bukan teks\"`."
+    },
+    {
+      "type": "runnable",
+      "code": "type Profil = { nama: string; email: string; umur: number };\ntype PesanGalat<T> = { [K in keyof T]?: string };\n\nfunction validasi(p: Profil): PesanGalat<Profil> {\n  const galat: PesanGalat<Profil> = {};\n  if (p.nama.trim() === \"\") galat.nama = \"Nama wajib diisi\";\n  if (!p.email.includes(\"@\")) galat.email = \"Email tidak valid\";\n  if (p.umur < 13) galat.umur = \"Minimal 13 tahun\";\n  return galat;\n}\nconst hasil = validasi({ nama: \"Rina\", email: \"rina.contoh.id\", umur: 12 });\nconsole.log(Object.keys(hasil).join(\",\"));\nconsole.log(hasil.email);",
+      "predict": {
+        "question": "Tebak dulu: apa yang dicetak baris pertama?",
+        "options": [
+          "umur",
+          "email,umur",
+          "nama,email,umur",
+          "email"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 2,
+          "note": "Setiap kunci T menjadi kolom pesan opsional."
+        },
+        {
+          "line": 5,
+          "note": "Boleh kosong karena semua kolom opsional."
+        },
+        {
+          "line": 8,
+          "note": "Hanya kolom milik Profil yang bisa diisi."
+        }
+      ],
+      "explanation": "Nama Rina tidak kosong, jadi tidak ada galat nama. Email tanpa tanda @ dan umur 12 sama-sama gagal, sehingga galat berisi email dan umur.",
+      "tryThis": [
+        {
+          "task": "Tambahkan galat.alamat = \"x\" di dalam validasi. Baca error-nya.",
+          "hint": null
+        },
+        {
+          "task": "Hapus tanda ? di PesanGalat. Kenapa const galat = {} ditolak?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tipe yang terlalu pintar**\n\nTipe bertumpuk dengan conditional, infer, dan template literal bisa sulit dibaca dan pesan error-nya membingungkan. Pakai seperlunya, beri nama yang jelas, dan sertakan contoh.\n\n**2. Lupa `?` di mapped type**\n\n`{ [K in keyof T]: string }` mewajibkan semua kolom. Untuk pesan galat yang mungkin kosong, tambahkan `?`.\n\n**3. Kaget dengan sifat menyebar**\n\n`Jenis<string | number>` menghasilkan union dua hasil, bukan satu. Kalau tidak ingin menyebar, bungkus dengan kurung siku: `[T] extends [string] ? ...`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Sebagai developer aplikasi, kamu lebih sering **memakai** tipe seperti ini daripada menulisnya. Contoh: `FieldErrors<T>` di React Hook Form adalah mapped type, dan `z.infer<typeof skema>` di Zod memakai conditional type dengan `infer`.\n- Template literal types dipakai untuk nama event, nama route, dan kelas CSS, sehingga salah ketik tertangkap saat compile.\n- Menulis tipe lanjutan sendiri paling sering terjadi saat membuat library atau utilitas bersama tim. Di kode aplikasi biasa, tipe sederhana yang mudah dibaca lebih dihargai."
+    },
+    {
+      "type": "praktik_java",
+      "bahasa": "typescript",
+      "judul": "Profil TS 6: Validasi Formulir",
+      "pembuka": "Formulir pendaftaran butuh pesan galat untuk setiap kolom. Mapped type membuat tipenya otomatis.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu. Galat<Daftar> berisi pesan opsional untuk setiap kolom.",
+          "jawaban": "type Daftar = { nama: string; email: string; sandi: string };\ntype Galat<T> = { [K in keyof T]?: string };\nfunction periksa(d: Daftar): Galat<Daftar> {\n  const g: Galat<Daftar> = {};\n  if (d.nama === \"\") g.nama = \"Nama wajib diisi\";\n  return g;\n}\nconst g = periksa({ nama: \"\", email: \"rina@contoh.id\", sandi: \"123\" });\nconsole.log(Object.keys(g).join(\",\"));",
+          "keluaran": "nama",
+          "otomatis": true
+        },
+        {
+          "arahan": "Tambahkan aturan: sandi minimal 8 karakter, dengan pesan `\"Sandi minimal 8 karakter\"` di `g.sandi`. Baris terakhir harus `nama,sandi`.",
+          "jawaban": "type Daftar = { nama: string; email: string; sandi: string };\ntype Galat<T> = { [K in keyof T]?: string };\nfunction periksa(d: Daftar): Galat<Daftar> {\n  const g: Galat<Daftar> = {};\n  if (d.nama === \"\") g.nama = \"Nama wajib diisi\";\n  if (d.sandi.length < 8) g.sandi = \"Sandi minimal 8 karakter\";\n  return g;\n}\nconst g = periksa({ nama: \"\", email: \"rina@contoh.id\", sandi: \"123\" });\nconsole.log(Object.keys(g).join(\",\"));",
+          "keluaran": "nama,sandi",
+          "wajib": [
+            {
+              "pola": "g\\.sandi\\s*=",
+              "pesan": "isi `g.sandi`."
+            }
+          ],
+          "petunjuk": "Periksa d.sandi.length < 8, lalu isi g.sandi."
+        },
+        {
+          "arahan": "Setiap kolom di halaman punya id seperti `kolom-nama`. Buat `type NamaKolom` berupa template literal type: teks `kolom-` diikuti `keyof Daftar`. Buat fungsi `idKolom(k: keyof Daftar): NamaKolom`, lalu cetak setiap galat dengan id kolomnya, misalnya `kolom-nama: Nama wajib diisi`.",
+          "jawaban": "type Daftar = { nama: string; email: string; sandi: string };\ntype Galat<T> = { [K in keyof T]?: string };\ntype NamaKolom = `kolom-${keyof Daftar}`;\nfunction idKolom(k: keyof Daftar): NamaKolom {\n  return `kolom-${k}`;\n}\nfunction periksa(d: Daftar): Galat<Daftar> {\n  const g: Galat<Daftar> = {};\n  if (d.nama === \"\") g.nama = \"Nama wajib diisi\";\n  if (d.sandi.length < 8) g.sandi = \"Sandi minimal 8 karakter\";\n  return g;\n}\nconst g = periksa({ nama: \"\", email: \"rina@contoh.id\", sandi: \"123\" });\nconsole.log(Object.keys(g).join(\",\"));\nfor (const k of Object.keys(g) as (keyof Daftar)[]) {\n  console.log(idKolom(k) + \": \" + g[k]);\n}",
+          "keluaran": "nama,sandi\nkolom-nama: Nama wajib diisi\nkolom-sandi: Sandi minimal 8 karakter",
+          "wajib": [
+            {
+              "pola": "type\\s+NamaKolom\\s*=\\s*`kolom-\\$\\{\\s*keyof\\s+Daftar\\s*\\}`",
+              "pesan": "tulis type `NamaKolom` dengan template literal dan `keyof Daftar`."
+            }
+          ],
+          "petunjuk": "type NamaKolom memakai tanda backtick seperti template string, dengan keyof Daftar di dalam ${ }.",
+          "tantangan": true,
+          "benar": "Kalau kolom baru ditambahkan ke Daftar, tipe Galat dan NamaKolom ikut bertambah sendiri."
+        }
+      ],
+      "penutup": "Satu tipe Daftar menghasilkan tipe galat dan id kolom secara otomatis."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti { [K in keyof T]?: string }?",
+          "options": [
+            "Array berisi kunci T",
+            "T dengan properti yang sama persis",
+            "Setiap kunci T menjadi properti opsional bertipe string",
+            "Union dari semua nilai T"
+          ],
+          "answer": 2,
+          "explanation": "Mapped type mengulang setiap kunci.",
+          "remedial": "K in keyof T mengulang setiap kunci T. Tanda ? membuat setiap properti opsional, dan tipenya diganti menjadi string."
+        },
+        {
+          "question": "Apa output kode ini?",
+          "code": "type JenisNilai<T> = T extends string ? \"teks\" : T extends number ? \"angka\" : \"lain\";\nfunction jenis(x: string | number | boolean): string {\n  return typeof x === \"string\" ? \"teks\" : typeof x === \"number\" ? \"angka\" : \"lain\";\n}\nconst a: JenisNilai<\"halo\"> = \"teks\";\nconst b: JenisNilai<42> = \"angka\";\nconsole.log(a, b, jenis(true));",
+          "options": [
+            "teks teks lain",
+            "Error tipe",
+            "teks angka teks",
+            "teks angka lain"
+          ],
+          "answer": 3,
+          "explanation": "Conditional type dan fungsi jenis memakai aturan yang sama.",
+          "remedial": "a bertipe \"teks\" dan b bertipe \"angka\" dari conditional type. jenis(true) bukan string dan bukan number, jadi lain."
+        },
+        {
+          "question": "Apa yang terjadi saat kode ini diperiksa?",
+          "code": "type Ukuran = \"kecil\" | \"besar\";\ntype Kelas = `tombol-${Ukuran}`;\nconst k: Kelas = \"tombol-sedang\";",
+          "options": [
+            "Mencetak tombol-sedang",
+            "Error, Ukuran harus enum",
+            "Error, \"tombol-sedang\" tidak termasuk Kelas",
+            "Lolos tanpa error"
+          ],
+          "answer": 2,
+          "explanation": "Template literal type hanya berisi kombinasi yang tertulis.",
+          "remedial": "Kelas hanya berisi \"tombol-kecil\" dan \"tombol-besar\". Teks \"tombol-sedang\" ditolak (TS2322)."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Bagaimana Partial<T> bawaan TypeScript sebenarnya dibuat?",
+      "options": [
+        "Dengan class khusus di dalam compiler",
+        "Dengan menyalin object saat program berjalan",
+        "Dengan conditional type dan infer",
+        "Dengan mapped type yang menambahkan tanda tanya pada setiap kunci"
+      ],
+      "answer": 3,
+      "explanation": "type Partial<T> = { [K in keyof T]?: T[K] }."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Buat type Profil = { nama: string; email: string } dan type Bendera<T> berupa mapped type yang mengubah setiap properti T menjadi boolean. Buat fungsi diubah(lama: Profil, baru: Profil): Bendera<Profil> yang bernilai true untuk kolom yang berbeda. Untuk lama Rina dengan email rina@contoh.id dan baru Rina dengan email rina.p@contoh.id, cetak: nama false email true",
+      "starterCode": "type Profil = { nama: string; email: string };\n",
+      "solution": "type Profil = { nama: string; email: string };\ntype Bendera<T> = { [K in keyof T]: boolean };\nfunction diubah(lama: Profil, baru: Profil): Bendera<Profil> {\n  return { nama: lama.nama !== baru.nama, email: lama.email !== baru.email };\n}\nconst b = diubah({ nama: \"Rina\", email: \"rina@contoh.id\" }, { nama: \"Rina\", email: \"rina.p@contoh.id\" });\nconsole.log(\"nama\", b.nama, \"email\", b.email);\n",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "nama false email true\n"
+        }
+      ],
+      "hints": [
+        "type Bendera<T> = { [K in keyof T]: boolean }.",
+        "Setiap kolom bernilai lama.kolom !== baru.kolom."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Mapped type { [K in keyof T]: ... } membuat tipe baru dari setiap kunci.",
+        "Partial, Readonly, Pick, dan Record dibuat dengan mapped type.",
+        "Conditional type T extends X ? A : B memilih tipe; infer mengambil bagian tipe.",
+        "Template literal type merangkai teks di level tipe.",
+        "Pakai seperlunya: tipe yang mudah dibaca lebih berharga."
+      ]
+    }
+  ]
+}
