@@ -8,4 +8,4 @@ cp ../../public/tools.jar www/
 cp index.html www/
 node server.mjs "$PWD/www" 8080 &
 sleep 2
-node probe.mjs
+node probe2.mjs
