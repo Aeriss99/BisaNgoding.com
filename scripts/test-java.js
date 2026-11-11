@@ -70,6 +70,9 @@ function runJava(code, stdin, javaVersion, java8 = false) {
   try {
     out = spawnSync(javaCmd, ['-Dstdout.encoding=UTF-8', '-Duser.language=en', '-Duser.country=US', '-cp', cp ? runDir + path.delimiter + cp : runDir, className], {
       input: stdin,
+      // Folder kerja = folder kelas (seperti /files/ di browser), supaya file yang ditulis program (misalnya
+      // .properties untuk ResourceBundle) ada di classpath dan tidak mengotori folder repo.
+      cwd: runDir,
       timeout: cp ? 60000 : 15000,
       encoding: 'utf-8',
     });
