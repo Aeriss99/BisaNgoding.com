@@ -32,6 +32,20 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 await page.goto('http://localhost:8080/index.html');
 await page.evaluate(() => window.siap);
-const r = await page.evaluate(({ code, cp }) => window.jalankan(code, cp), { code: KODE, cp: cpDari('junit-', 'opentest4j', 'apiguardian') });
-console.log('===== param\n' + r.out + '\nERR ' + r.err);
+const r = await page.evaluate(({ code, cp }) => window.jalankan(code, cp), { code: KODE, cp: cpDari('bisangoding', 'junit-', 'opentest4j', 'apiguardian') });
+console.log('===== param dengan pengganti\n' + r.out + '\nERR ' + r.err);
+const KODE2 = `
+import java.lang.reflect.Array;
+public class Main {
+  public static void main(String[] a) {
+    int[] x = {1, 25, 50};
+    String[] s = {"", " ", "  "};
+    for (int k = 0; k < 5; k++) {
+      try { for (int i = 0; i < 3; i++) System.out.print(Array.get(x, i) + ","); System.out.println(" int ok"); } catch (Throwable t) { System.out.println("int " + t); }
+      try { for (int i = 0; i < 3; i++) System.out.print("[" + Array.get(s, i) + "]"); System.out.println(" str ok"); } catch (Throwable t) { System.out.println("str " + t); }
+    }
+  }
+}`;
+const r2 = await page.evaluate(({ code, cp }) => window.jalankan(code, cp), { code: KODE2, cp: '' });
+console.log('===== array get\n' + r2.out + '\nERR ' + r2.err);
 await browser.close();
