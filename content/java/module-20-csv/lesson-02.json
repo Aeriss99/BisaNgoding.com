@@ -1,0 +1,207 @@
+{
+  "id": "java-csv-02",
+  "moduleId": "csv",
+  "order": 2,
+  "title": "Header dan Pengaturan CSVFormat",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Baris pertama CSV biasanya berisi **nama kolom** (header). Membaca kolom dengan nomor (`get(2)`) rapuh: kalau pembuat file menambah kolom di tengah, semua nomor bergeser dan program diam-diam membaca kolom yang salah.\n\nMembaca dengan nama kolom (`get(\"selesai\")`) tetap benar walaupun urutan kolom berubah.\n\nCSV juga tidak selalu memakai koma. Excel dengan pengaturan Indonesia menyimpan CSV dengan **titik koma** (`;`), karena koma sudah dipakai sebagai pemisah desimal.\n\nIbarat mencari barang di gudang: mencari \"rak ketiga dari kiri\" kacau begitu ada rak baru; mencari rak berlabel \"Minuman\" selalu tepat."
+    },
+    {
+      "type": "theory",
+      "content": "`CSVFormat` diatur dengan *builder*:\n\n```java\nCSVFormat format = CSVFormat.DEFAULT.builder()\n        .setHeader()               // baris pertama adalah nama kolom\n        .setSkipHeaderRecord(true) // jangan ikut dibaca sebagai data\n        .build();\n```\n\n| Pengaturan | Gunanya |\n|---|---|\n| `setHeader()` | ambil nama kolom dari baris pertama |\n| `setHeader(\"id\", \"judul\")` | tentukan nama kolom sendiri (file tanpa header) |\n| `setSkipHeaderRecord(true)` | lewati baris header saat membaca data |\n| `setDelimiter(';')` | pemisah kolom selain koma |\n| `setTrim(true)` | buang spasi di awal dan akhir setiap kolom |\n| `setIgnoreEmptyLines(true)` | lewati baris kosong (bawaan: aktif) |\n| `setCommentMarker('#')` | lewati baris yang diawali `#` |\n\nSetelah header dikenal:\n\n| Method | Hasil |\n|---|---|\n| `parser.getHeaderNames()` | daftar nama kolom |\n| `r.get(\"judul\")` | isi kolom berdasarkan nama |\n| `r.isMapped(\"catatan\")` | apakah kolom itu ada di header |\n| `r.toMap()` | seluruh baris sebagai Map nama kolom ke isi |\n\nAda juga format siap pakai: `CSVFormat.EXCEL`, `CSVFormat.RFC4180`, dan `CSVFormat.TDF` (dipisah tab)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nString data = \"id;judul;selesai\\n3;Kirim laporan;false\\n\";\nCSVFormat format = CSVFormat.DEFAULT.builder()\n        .setDelimiter(';')\n        .setHeader()\n        .setSkipHeaderRecord(true)\n        .build();\nfor (CSVRecord r : CSVParser.parse(data, format)) {\n    System.out.println(r.get(\"judul\"));   // Kirim laporan\n}\n```\n\n`CSVFormat` tidak bisa diubah setelah dibuat (*immutable*), jadi aman disimpan sebagai konstanta dan dipakai berulang:\n\n```java\nprivate static final CSVFormat FORMAT_TODO = CSVFormat.DEFAULT.builder()\n        .setHeader().setSkipHeaderRecord(true).build();\n```\n\nNama kolom dibandingkan persis, termasuk huruf besar kecil dan spasi. `\"Judul\"` dan `\"judul\"` dianggap berbeda."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String data = \"judul,id\\nBelajar CSV,1\\n\";\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        for (CSVRecord r : CSVParser.parse(data, format)) {\n            System.out.println(\"get(0) = \" + r.get(0));\n            System.out.println(\"get(\\\"id\\\") = \" + r.get(\"id\"));\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: urutan kolom di file adalah judul lalu id. Apa yang tercetak untuk get(0)?",
+        "options": [
+          "get(0) = 1",
+          "get(0) = id",
+          "get(0) = Belajar CSV",
+          "get(0) = judul"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 10,
+          "note": "Baris pertama menjadi nama kolom."
+        },
+        {
+          "line": 11,
+          "note": "Header tidak ikut dibaca sebagai data."
+        },
+        {
+          "line": 15,
+          "note": "Mencari kolom bernama id."
+        }
+      ],
+      "explanation": "get(0) selalu kolom pertama, apa pun namanya. Di file ini kolom pertama adalah judul. get(\"id\") mencari berdasarkan nama, jadi tetap benar walaupun kolom id ada di urutan kedua.",
+      "tryThis": [
+        {
+          "task": "Tukar urutan header menjadi id,judul (dan isinya juga). Apakah get(\"id\") berubah?",
+          "hint": null
+        },
+        {
+          "task": "Hapus setSkipHeaderRecord(true). Apa yang terjadi dengan baris header?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `setSkipHeaderRecord(true)`**\n\nBaris header ikut dibaca sebagai data, lalu `Integer.parseInt(\"id\")` gagal dengan `NumberFormatException`.\n\n**2. Pemisah tidak cocok**\n\nFile dari Excel Indonesia memakai `;`. Dibaca dengan koma, seluruh baris menjadi satu kolom, dan `get(\"judul\")` gagal karena header hanya punya satu nama panjang.\n\n**3. Nama kolom salah ketik**\n\n`r.get(\"Judul\")` pada header `judul` gagal dengan `IllegalArgumentException: Mapping for Judul not found`. Simpan nama kolom sebagai konstanta.\n\n**4. Spasi tersembunyi**\n\nHeader `id, judul` (ada spasi setelah koma) membuat nama kolomnya `\" judul\"`. Pakai `setTrim(true)` untuk data yang diketik manusia.\n\n**5. BOM dari Excel**\n\nFile UTF-8 dari Excel sering diawali karakter tak terlihat (BOM), sehingga nama kolom pertama menjadi `\"\\uFEFFid\"`. Kalau `get(\"id\")` gagal padahal header terlihat benar, curigai BOM."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Fitur impor yang baik menerima header dengan urutan kolom bebas, dan menolak file dengan pesan jelas kalau kolom wajib tidak ada: periksa `parser.getHeaderNames()` sebelum membaca data.\n- Tim biasanya membuat **template CSV** (file contoh berisi header saja) yang bisa diunduh pengguna, supaya nama kolomnya pasti benar.\n- Pemisah `;` dan angka desimal dengan koma (`18000,50`) umum di Indonesia dan Eropa. Sistem yang menerima file dari banyak negara biasanya menanyakan atau mendeteksi pemisahnya.\n- Untuk file sangat besar, pemrosesan dilakukan baris demi baris (for-each pada parser), bukan dengan `getRecords()` yang memuat semuanya ke memori."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Impor Ekspor Todo 2: Kolom Bernama",
+      "pembuka": "CSV todo sekarang punya header.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Header dibaca, lalu kolom diambil dengan namanya.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String data = \"id,judul,selesai\\n1,Belajar CSV,false\\n2,Rapat tim,true\\n\";\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        try (CSVParser parser = CSVParser.parse(data, format)) {\n            System.out.println(parser.getHeaderNames());\n            for (CSVRecord r : parser) {\n                System.out.println(r.get(\"id\") + \". \" + r.get(\"judul\"));\n            }\n        }\n    }\n}\n",
+          "keluaran": "[id, judul, selesai]\n1. Belajar CSV\n2. Rapat tim",
+          "otomatis": true,
+          "benar": "`getHeaderNames()` menampilkan nama kolom.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "File dari Excel memakai titik koma. Baca `dariExcel` berisi `id;judul;selesai` dan `3;Kirim laporan;false` dengan format baru `formatExcel` yang memakai `setDelimiter(';')`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String data = \"id,judul,selesai\\n1,Belajar CSV,false\\n2,Rapat tim,true\\n\";\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        try (CSVParser parser = CSVParser.parse(data, format)) {\n            System.out.println(parser.getHeaderNames());\n            for (CSVRecord r : parser) {\n                System.out.println(r.get(\"id\") + \". \" + r.get(\"judul\"));\n            }\n        }\n\n        String dariExcel = \"id;judul;selesai\\n3;Kirim laporan;false\\n\";\n        CSVFormat formatExcel = CSVFormat.DEFAULT.builder()\n                .setDelimiter(';')\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        for (CSVRecord r : CSVParser.parse(dariExcel, formatExcel)) {\n            System.out.println(r.get(\"id\") + \". \" + r.get(\"judul\"));\n        }\n    }\n}\n",
+          "keluaran": "[id, judul, selesai]\n1. Belajar CSV\n2. Rapat tim\n3. Kirim laporan",
+          "wajib": [
+            {
+              "pola": "setDelimiter\\s*\\(\\s*';'\\s*\\)",
+              "pesan": "pakai `setDelimiter(';')`."
+            }
+          ],
+          "benar": "Pemisah lain cukup diatur di format.",
+          "petunjuk": "Buat format baru dengan `.setDelimiter(';')` di builder."
+        },
+        {
+          "arahan": "Data `berantakan` punya spasi di header dan isi: `id, judul , selesai` dan `4,  Rapikan kode  ,true`. Baca dengan format yang memakai `setTrim(true)`, lalu cetak judul di dalam kurung siku.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String data = \"id,judul,selesai\\n1,Belajar CSV,false\\n2,Rapat tim,true\\n\";\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        try (CSVParser parser = CSVParser.parse(data, format)) {\n            System.out.println(parser.getHeaderNames());\n            for (CSVRecord r : parser) {\n                System.out.println(r.get(\"id\") + \". \" + r.get(\"judul\"));\n            }\n        }\n\n        String dariExcel = \"id;judul;selesai\\n3;Kirim laporan;false\\n\";\n        CSVFormat formatExcel = CSVFormat.DEFAULT.builder()\n                .setDelimiter(';')\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        for (CSVRecord r : CSVParser.parse(dariExcel, formatExcel)) {\n            System.out.println(r.get(\"id\") + \". \" + r.get(\"judul\"));\n        }\n\n        String berantakan = \"id, judul , selesai\\n4,  Rapikan kode  ,true\\n\";\n        CSVFormat formatRapi = CSVFormat.DEFAULT.builder()\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .setTrim(true)\n                .build();\n        for (CSVRecord r : CSVParser.parse(berantakan, formatRapi)) {\n            System.out.println(\"[\" + r.get(\"judul\") + \"]\");\n        }\n    }\n}\n",
+          "keluaran": "[id, judul, selesai]\n1. Belajar CSV\n2. Rapat tim\n3. Kirim laporan\n[Rapikan kode]",
+          "wajib": [
+            {
+              "pola": "setTrim\\s*\\(\\s*true\\s*\\)",
+              "pesan": "pakai `setTrim(true)`."
+            }
+          ],
+          "benar": "Spasi di header dan isi dibuang, jadi `get(\"judul\")` tetap ketemu.",
+          "petunjuk": "Tambahkan `.setTrim(true)` ke builder baru `formatRapi`."
+        },
+        {
+          "arahan": "Tantangan: baca lagi `data` dengan `format`, lalu cetak setiap baris sebagai Map.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String data = \"id,judul,selesai\\n1,Belajar CSV,false\\n2,Rapat tim,true\\n\";\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        try (CSVParser parser = CSVParser.parse(data, format)) {\n            System.out.println(parser.getHeaderNames());\n            for (CSVRecord r : parser) {\n                System.out.println(r.get(\"id\") + \". \" + r.get(\"judul\"));\n            }\n        }\n\n        String dariExcel = \"id;judul;selesai\\n3;Kirim laporan;false\\n\";\n        CSVFormat formatExcel = CSVFormat.DEFAULT.builder()\n                .setDelimiter(';')\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        for (CSVRecord r : CSVParser.parse(dariExcel, formatExcel)) {\n            System.out.println(r.get(\"id\") + \". \" + r.get(\"judul\"));\n        }\n\n        String berantakan = \"id, judul , selesai\\n4,  Rapikan kode  ,true\\n\";\n        CSVFormat formatRapi = CSVFormat.DEFAULT.builder()\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .setTrim(true)\n                .build();\n        for (CSVRecord r : CSVParser.parse(berantakan, formatRapi)) {\n            System.out.println(\"[\" + r.get(\"judul\") + \"]\");\n        }\n\n        for (CSVRecord r : CSVParser.parse(data, format)) {\n            System.out.println(r.toMap());\n        }\n    }\n}\n",
+          "keluaran": "[id, judul, selesai]\n1. Belajar CSV\n2. Rapat tim\n3. Kirim laporan\n[Rapikan kode]\n{id=1, judul=Belajar CSV, selesai=false}\n{id=2, judul=Rapat tim, selesai=true}",
+          "wajib": [
+            {
+              "pola": "r\\.toMap\\(\\)",
+              "pesan": "pakai `r.toMap()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Map berguna untuk mencatat baris lengkap di log atau laporan kesalahan.",
+          "petunjuk": "Pakai `r.toMap()`."
+        }
+      ],
+      "penutup": "Kolom dibaca dengan nama. Berikutnya: menulis CSV."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa membaca kolom dengan nama lebih aman daripada dengan nomor?",
+          "options": [
+            "Karena lebih cepat",
+            "Karena nomor kolom dimulai dari 1",
+            "Karena get dengan nomor tidak ada",
+            "Karena tetap benar walaupun urutan kolom di file berubah"
+          ],
+          "answer": 3,
+          "explanation": "Urutan kolom bisa berubah.",
+          "remedial": "Pembuat file bisa menambah atau menukar kolom. Dengan nama kolom, program tetap membaca kolom yang dimaksud."
+        },
+        {
+          "question": "Header ikut terbaca sebagai data dan memicu NumberFormatException. Yang terlupa adalah...",
+          "options": [
+            "setSkipHeaderRecord(true)",
+            "setTrim(true)",
+            "setDelimiter(',')",
+            "setIgnoreEmptyLines(true)"
+          ],
+          "answer": 0,
+          "explanation": "Lewati baris header.",
+          "remedial": "`setHeader()` hanya mengambil nama kolom. Tanpa `setSkipHeaderRecord(true)`, baris itu juga diulang sebagai data biasa."
+        },
+        {
+          "question": "CSV dari Excel berbahasa Indonesia biasanya dipisah dengan...",
+          "options": [
+            "Koma",
+            "Titik koma",
+            "Tab",
+            "Garis tegak"
+          ],
+          "answer": 1,
+          "explanation": "Koma dipakai untuk desimal.",
+          "remedial": "Di pengaturan Indonesia, koma adalah pemisah desimal. Excel lalu memakai titik koma sebagai pemisah kolom CSV, sehingga perlu `setDelimiter(';')`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method untuk mengambil seluruh baris sebagai Map nama kolom ke isi adalah...",
+      "options": [
+        "r.getHeaderNames()",
+        "r.values()",
+        "r.toMap()",
+        "r.asMap(true)"
+      ],
+      "answer": 2,
+      "explanation": "Map dari CSVRecord."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca data gudang dari input (pemisah titik koma, baris pertama header) lalu mencetak nama: stok dikali harga untuk setiap barang. Program membaca kolom dengan nomor, padahal urutan kolom di file bisa berbeda-beda. Ubah supaya kolom dibaca dengan nama: nama, stok, dan harga.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setDelimiter(';')\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        for (CSVRecord r : format.parse(new InputStreamReader(System.in))) {\n            int nilai = Integer.parseInt(r.get(1)) * Integer.parseInt(r.get(2));\n            System.out.println(r.get(0) + \": \" + nilai);\n        }\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setDelimiter(';')\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        for (CSVRecord r : format.parse(new InputStreamReader(System.in))) {\n            int nilai = Integer.parseInt(r.get(\"stok\")) * Integer.parseInt(r.get(\"harga\"));\n            System.out.println(r.get(\"nama\") + \": \" + nilai);\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "nama;stok;harga\nKopi;3;18000\nTeh;10;8000\n",
+          "expectedOutput": "Kopi: 54000\nTeh: 80000\n"
+        },
+        {
+          "input": "harga;nama;stok\n12000;Roti;4\n",
+          "expectedOutput": "Roti: 48000\n"
+        }
+      ],
+      "hints": [
+        "Ganti r.get(0), r.get(1), r.get(2) dengan r.get(\"nama\"), r.get(\"stok\"), r.get(\"harga\").",
+        "Header sudah dibaca dengan setHeader(), jadi nama kolom bisa dipakai."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "setHeader() dan setSkipHeaderRecord(true) membaca header lalu melewatinya.",
+        "r.get(\"nama\") membaca berdasarkan nama kolom, tahan terhadap perubahan urutan.",
+        "setDelimiter(';') untuk CSV Excel Indonesia; setTrim(true) membuang spasi.",
+        "CSVFormat immutable: simpan sebagai konstanta."
+      ]
+    }
+  ]
+}

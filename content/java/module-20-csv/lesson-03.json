@@ -1,0 +1,207 @@
+{
+  "id": "java-csv-03",
+  "moduleId": "csv",
+  "order": 3,
+  "title": "Menulis CSV dengan CSVPrinter",
+  "estimatedMinutes": 15,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Fitur **ekspor** (unduh data sebagai CSV) ada di hampir semua aplikasi bisnis. Menulis CSV kelihatannya mudah: sambung nilai dengan koma. Tetapi begitu ada judul berisi koma, kutip, atau baris baru, file yang dihasilkan rusak dan kolomnya bergeser saat dibuka di Excel.\n\n**`CSVPrinter`** menulis CSV sesuai aturan RFC 4180: kolom yang perlu dibungkus kutip akan dibungkus, dan kutip di dalamnya digandakan.\n\nIbarat petugas pos yang membungkus barang pecah belah: kita cukup menyerahkan barangnya, petugas yang tahu barang mana perlu dibungkus."
+    },
+    {
+      "type": "theory",
+      "content": "```java\nCSVFormat format = CSVFormat.DEFAULT.builder()\n        .setHeader(\"id\", \"judul\", \"selesai\")   // header ditulis otomatis\n        .build();\ntry (CSVPrinter printer = new CSVPrinter(tujuan, format)) {\n    printer.printRecord(1, \"Belajar CSV\", false);\n}\n```\n\n`tujuan` adalah `Appendable`: `StringWriter`, `Writer` ke file, atau `StringBuilder`.\n\n| Method | Gunanya |\n|---|---|\n| `printRecord(a, b, c)` | tulis satu baris dari beberapa nilai |\n| `printRecord(list)` | tulis satu baris dari `Iterable` |\n| `printRecords(daftarBaris)` | tulis banyak baris sekaligus |\n| `flush()` | kirim isi yang masih tertahan ke tujuan |\n\nNilai bukan String diubah dengan `toString()`. Nilai `null` ditulis sebagai kolom kosong.\n\nSesuai RFC 4180, setiap baris diakhiri **CRLF** (`\\r\\n`), akhir baris gaya Windows, sehingga file terbuka rapi di Excel. Untuk akhir baris gaya Linux (`\\n`), pakai `setRecordSeparator(\"\\n\")`.\n\n`CSVPrinter` menutup tujuannya saat ditutup. Jangan membuat `CSVPrinter` langsung ke `System.out` dengan try-with-resources, karena `System.out` ikut tertutup dan cetakan berikutnya hilang."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nStringWriter hasil = new StringWriter();\ntry (CSVPrinter printer = new CSVPrinter(hasil, CSVFormat.DEFAULT)) {\n    printer.printRecord(\"Toko Maju, Jaya\", 25000);\n    printer.printRecord(\"Sabun \\\"wangi\\\"\", 9000);\n}\nSystem.out.print(hasil);\n```\n\n```text\n\"Toko Maju, Jaya\",25000\n\"Sabun \"\"wangi\"\"\",9000\n```\n\nKolom tanpa karakter khusus tidak dibungkus kutip (`QuoteMode.MINIMAL`, bawaan). Untuk membungkus semua kolom: `setQuoteMode(QuoteMode.ALL)`.\n\nDaftar object ditulis dengan perulangan biasa:\n\n```java\nfor (Todo t : daftar) {\n    printer.printRecord(t.getId(), t.getJudul(), t.isSelesai());\n}\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        StringWriter hasil = new StringWriter();\n        try (CSVPrinter printer = new CSVPrinter(hasil, CSVFormat.DEFAULT)) {\n            printer.printRecord(\"Kopi\", 18000);\n            printer.printRecord(\"Toko Maju, Jaya\", 25000);\n            printer.printRecord(\"Sabun \\\"wangi\\\"\", 9000);\n        }\n        System.out.print(hasil);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: bagaimana baris kedua ditulis?",
+        "options": [
+          "Toko Maju, Jaya,25000",
+          "'Toko Maju, Jaya',25000",
+          "Toko Maju; Jaya,25000",
+          "\"Toko Maju, Jaya\",25000"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "Printer menulis ke StringWriter."
+        },
+        {
+          "line": 11,
+          "note": "Kolom berisi koma."
+        },
+        {
+          "line": 12,
+          "note": "Kolom berisi kutip."
+        }
+      ],
+      "explanation": "CSVPrinter membungkus kolom dengan kutip hanya kalau perlu: kolom berisi koma, kutip, atau baris baru. Kutip di dalam kolom ditulis dua kali. Angka ditulis apa adanya.",
+      "tryThis": [
+        {
+          "task": "Tambahkan .setQuoteMode(QuoteMode.ALL) lewat builder. Apa yang berubah?",
+          "hint": null
+        },
+        {
+          "task": "Tulis baris dengan judul berisi baris baru, misalnya \"Baris\\nbaru\".",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyambung string dengan koma**\n\n`id + \",\" + judul` rusak untuk judul berisi koma. Bug ini sering baru ketahuan saat tim keuangan membuka ekspor di Excel dan kolomnya bergeser.\n\n**2. Lupa menutup atau flush**\n\nPrinter menyimpan sebagian tulisan di buffer. Tanpa `close()` atau `flush()`, baris terakhir bisa tidak tertulis ke file.\n\n**3. Membuat printer langsung ke `System.out` lalu menutupnya**\n\n`System.out` ikut tertutup. Tulis ke `StringWriter` dulu, atau panggil `flush()` tanpa menutup.\n\n**4. Ekspor yang bisa disalahgunakan (*CSV injection*)**\n\nKolom yang diawali `=`, `+`, `-`, atau `@` bisa dijalankan sebagai rumus saat dibuka di Excel. Untuk data yang diketik pengguna, tim biasanya menambahkan kutip satu di depan nilai seperti itu sebelum diekspor."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di aplikasi web, ekspor CSV dikirim sebagai respons HTTP dengan header `Content-Type: text/csv` dan `Content-Disposition: attachment; filename=\"todo.csv\"`, sehingga browser langsung mengunduhnya.\n- Untuk data besar, baris ditulis langsung ke aliran respons sambil dibaca dari database (*streaming*), bukan dikumpulkan dulu di memori.\n- Ekspor biasanya menyertakan header dan memakai format tanggal ISO (`2026-11-11`) supaya bisa dibaca ulang oleh sistem lain.\n- OWASP mencatat CSV injection sebagai risiko keamanan; aplikasi keuangan biasanya punya aturan khusus untuk ekspor."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Impor Ekspor Todo 3: Ekspor ke CSV",
+      "pembuka": "Sekarang kebalikannya: todo kita tulis menjadi CSV.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `CSVPrinter` menulis header dan dua baris ke `StringWriter`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        StringWriter hasil = new StringWriter();\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader(\"id\", \"judul\", \"selesai\")\n                .build();\n        try (CSVPrinter printer = new CSVPrinter(hasil, format)) {\n            printer.printRecord(1, \"Belajar CSV\", false);\n            printer.printRecord(2, \"Rapat tim\", true);\n        }\n        System.out.print(hasil);\n    }\n}\n",
+          "keluaran": "id,judul,selesai\n1,Belajar CSV,false\n2,Rapat tim,true",
+          "otomatis": true,
+          "benar": "Header ditulis otomatis dari `setHeader`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tulis juga todo 3 berjudul `Beli kopi, gula` (belum selesai) dan todo 4 berjudul `Baca \"Clean Code\"` (sudah selesai).",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        StringWriter hasil = new StringWriter();\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader(\"id\", \"judul\", \"selesai\")\n                .build();\n        try (CSVPrinter printer = new CSVPrinter(hasil, format)) {\n            printer.printRecord(1, \"Belajar CSV\", false);\n            printer.printRecord(2, \"Rapat tim\", true);\n            printer.printRecord(3, \"Beli kopi, gula\", false);\n            printer.printRecord(4, \"Baca \\\"Clean Code\\\"\", true);\n        }\n        System.out.print(hasil);\n    }\n}\n",
+          "keluaran": "id,judul,selesai\n1,Belajar CSV,false\n2,Rapat tim,true\n3,\"Beli kopi, gula\",false\n4,\"Baca \"\"Clean Code\"\"\",true",
+          "wajib": [
+            {
+              "pola": "printRecord\\s*\\(\\s*3\\s*,\\s*\"Beli kopi, gula\"\\s*,\\s*false\\s*\\)",
+              "pesan": "tulis todo 3."
+            },
+            {
+              "pola": "printRecord\\s*\\(\\s*4\\s*,",
+              "pesan": "tulis todo 4."
+            }
+          ],
+          "benar": "Kutip dan koma ditangani printer.",
+          "petunjuk": "Di String Java, kutip ditulis `\\\"`: `\"Baca \\\"Clean Code\\\"\"`."
+        },
+        {
+          "arahan": "Tulis todo 5 yang judulnya `null` dan belum selesai. Lihat bagaimana `null` ditulis.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        StringWriter hasil = new StringWriter();\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader(\"id\", \"judul\", \"selesai\")\n                .build();\n        try (CSVPrinter printer = new CSVPrinter(hasil, format)) {\n            printer.printRecord(1, \"Belajar CSV\", false);\n            printer.printRecord(2, \"Rapat tim\", true);\n            printer.printRecord(3, \"Beli kopi, gula\", false);\n            printer.printRecord(4, \"Baca \\\"Clean Code\\\"\", true);\n            printer.printRecord(5, null, false);\n        }\n        System.out.print(hasil);\n    }\n}\n",
+          "keluaran": "id,judul,selesai\n1,Belajar CSV,false\n2,Rapat tim,true\n3,\"Beli kopi, gula\",false\n4,\"Baca \"\"Clean Code\"\"\",true\n5,,false",
+          "wajib": [
+            {
+              "pola": "printRecord\\s*\\(\\s*5\\s*,\\s*null\\s*,\\s*false\\s*\\)",
+              "pesan": "tulis `printRecord(5, null, false)`."
+            }
+          ],
+          "benar": "`null` menjadi kolom kosong.",
+          "petunjuk": "`printer.printRecord(5, null, false);`"
+        },
+        {
+          "arahan": "Tantangan: tulis List berisi `new Todo(6, \"Kirim laporan\", false)` dan `new Todo(7, \"Rapikan kode\", true)` ke `StringWriter` baru dengan format yang sama, lewat perulangan, lalu cetak.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        StringWriter hasil = new StringWriter();\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader(\"id\", \"judul\", \"selesai\")\n                .build();\n        try (CSVPrinter printer = new CSVPrinter(hasil, format)) {\n            printer.printRecord(1, \"Belajar CSV\", false);\n            printer.printRecord(2, \"Rapat tim\", true);\n            printer.printRecord(3, \"Beli kopi, gula\", false);\n            printer.printRecord(4, \"Baca \\\"Clean Code\\\"\", true);\n            printer.printRecord(5, null, false);\n        }\n        System.out.print(hasil);\n\n        List<Todo> daftar = Arrays.asList(new Todo(6, \"Kirim laporan\", false), new Todo(7, \"Rapikan kode\", true));\n        StringWriter dariList = new StringWriter();\n        try (CSVPrinter printer = new CSVPrinter(dariList, format)) {\n            for (Todo t : daftar) {\n                printer.printRecord(t.id, t.judul, t.selesai);\n            }\n        }\n        System.out.print(dariList);\n    }\n}\n\nclass Todo {\n    final int id;\n    final String judul;\n    final boolean selesai;\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "id,judul,selesai\n1,Belajar CSV,false\n2,Rapat tim,true\n3,\"Beli kopi, gula\",false\n4,\"Baca \"\"Clean Code\"\"\",true\n5,,false\nid,judul,selesai\n6,Kirim laporan,false\n7,Rapikan kode,true",
+          "wajib": [
+            {
+              "pola": "for\\s*\\(\\s*Todo\\s+\\w+\\s*:\\s*daftar\\s*\\)",
+              "pesan": "ulangi `daftar` dengan for-each."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Header ikut tertulis lagi karena printer baru memakai format yang sama.",
+          "petunjuk": "Class `Todo` dengan field `id`, `judul`, `selesai`; di perulangan `printer.printRecord(t.id, t.judul, t.selesai)`."
+        }
+      ],
+      "penutup": "Todo bisa diekspor. Berikutnya: membaca dan menulis file CSV sungguhan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "CSVPrinter menulis kolom \"Beli kopi, gula\" sebagai...",
+          "options": [
+            "\"Beli kopi, gula\" dengan kutip",
+            "Beli kopi, gula tanpa kutip",
+            "Beli kopi; gula",
+            "Dua kolom terpisah"
+          ],
+          "answer": 0,
+          "explanation": "Kolom berisi koma dibungkus.",
+          "remedial": "Kolom yang berisi koma harus dibungkus kutip supaya terbaca sebagai satu kolom. CSVPrinter melakukannya otomatis."
+        },
+        {
+          "question": "Akhir baris bawaan CSVPrinter dengan CSVFormat.DEFAULT adalah...",
+          "options": [
+            "LF (\\n) saja",
+            "CRLF (\\r\\n) sesuai RFC 4180",
+            "Titik koma",
+            "Tidak ada akhir baris"
+          ],
+          "answer": 1,
+          "explanation": "Gaya Windows.",
+          "remedial": "RFC 4180 memakai CRLF. Untuk akhir baris gaya Linux, atur `setRecordSeparator(\"\\n\")`."
+        },
+        {
+          "question": "Kenapa CSVPrinter ke System.out tidak ditutup dengan try-with-resources?",
+          "options": [
+            "Karena CSVPrinter tidak bisa ditutup",
+            "Karena System.out bukan Appendable",
+            "Karena System.out ikut tertutup dan cetakan berikutnya hilang",
+            "Karena isinya akan terhapus"
+          ],
+          "answer": 2,
+          "explanation": "Penutupan merambat ke tujuan.",
+          "remedial": "Menutup printer berarti menutup tujuannya. Setelah `System.out` tertutup, `println` berikutnya tidak menampilkan apa-apa."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method CSVPrinter untuk menulis satu baris dari beberapa nilai adalah...",
+      "options": [
+        "println(a, b, c)",
+        "writeRow(a, b, c)",
+        "append(a, b, c)",
+        "printRecord(a, b, c)"
+      ],
+      "answer": 3,
+      "explanation": "Nama method diawali print."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca produk dari input dengan format nama|harga per baris, lalu mencetak CSV dua kolom: nama dan harga. Program menyambung string dengan koma sehingga nama berisi koma atau kutip merusak CSV. Konstanta FORMAT sudah disiapkan (akhir baris gaya Linux). Ubah program supaya menulis dengan CSVPrinter dan FORMAT itu.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    static final CSVFormat FORMAT = CSVFormat.DEFAULT.builder().setRecordSeparator(\"\\n\").build();\n\n    public static void main(String[] args) throws IOException {\n        Scanner in = new Scanner(System.in);\n        StringWriter hasil = new StringWriter();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\"\\\\|\");\n            hasil.append(d[0]).append(\",\").append(d[1]).append(\"\\n\");\n        }\n        System.out.print(hasil);\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    static final CSVFormat FORMAT = CSVFormat.DEFAULT.builder().setRecordSeparator(\"\\n\").build();\n\n    public static void main(String[] args) throws IOException {\n        Scanner in = new Scanner(System.in);\n        StringWriter hasil = new StringWriter();\n        try (CSVPrinter printer = new CSVPrinter(hasil, FORMAT)) {\n            while (in.hasNextLine()) {\n                String[] d = in.nextLine().split(\"\\\\|\");\n                printer.printRecord(d[0], d[1]);\n            }\n        }\n        System.out.print(hasil);\n    }\n}",
+      "tests": [
+        {
+          "input": "Kopi|18000\nToko Maju, Jaya|25000\nSabun \"wangi\"|9000\n",
+          "expectedOutput": "Kopi,18000\n\"Toko Maju, Jaya\",25000\n\"Sabun \"\"wangi\"\"\",9000\n"
+        }
+      ],
+      "hints": [
+        "Bungkus perulangan dengan try (CSVPrinter printer = new CSVPrinter(hasil, FORMAT)).",
+        "Ganti append dengan printer.printRecord(d[0], d[1])."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "CSVPrinter menulis CSV yang benar: membungkus kutip hanya bila perlu dan menggandakan kutip di dalam.",
+        "setHeader(\"a\", \"b\") menulis header otomatis; null ditulis kosong.",
+        "Akhir baris bawaan CRLF; setRecordSeparator(\"\\n\") untuk gaya Linux.",
+        "Tutup atau flush printer, tetapi jangan menutup System.out."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,211 @@
+{
+  "id": "java-csv-01",
+  "moduleId": "csv",
+  "order": 1,
+  "title": "Mengenal CSV dan Apache Commons CSV",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "**CSV** (*Comma-Separated Values*) adalah format tabel paling sederhana: satu baris teks untuk satu baris data, dan kolom dipisah koma. Excel, Google Sheets, database, dan hampir semua aplikasi bisnis bisa membuka dan membuat CSV. Karena itu CSV menjadi bahasa bersama untuk ekspor dan impor data: daftar transaksi dari bank, data produk dari toko online, laporan dari sistem lain.\n\n```text\nid,judul,selesai\n1,Belajar CSV,false\n2,Rapat tim,true\n```\n\nIbarat formulir isian berkolom yang difotokopi ke banyak kantor: semua kantor bisa membaca formulir itu, asalkan semua sepakat aturan pengisiannya."
+    },
+    {
+      "type": "theory",
+      "content": "Aturan CSV ditulis di standar **RFC 4180**. Bagian yang sering dilupakan:\n\n| Isi kolom | Cara menulis di CSV |\n|---|---|\n| teks biasa | `Belajar CSV` |\n| teks berisi koma | dibungkus kutip: `\"Beli kopi, gula\"` |\n| teks berisi kutip | kutip ditulis dua kali: `\"Baca \"\"Clean Code\"\"\"` |\n| teks berisi baris baru | dibungkus kutip, baris barunya ikut di dalam |\n\nKarena aturan ini, memotong baris dengan `split(\",\")` **tidak cukup**: koma di dalam kutip ikut terpotong.\n\nJava tidak punya pembaca CSV bawaan, jadi dipakai library. Yang paling umum adalah **Apache Commons CSV**:\n\n```java\ntry (CSVParser parser = CSVParser.parse(data, CSVFormat.DEFAULT)) {\n    for (CSVRecord r : parser) {\n        System.out.println(r.get(0) + \" | \" + r.get(1));\n    }\n}\n```\n\n| Class | Gunanya |\n|---|---|\n| `CSVFormat` | aturan format: pemisah, kutip, header. `CSVFormat.DEFAULT` mengikuti RFC 4180 |\n| `CSVParser` | pembaca; bisa diulang dengan for-each, harus ditutup |\n| `CSVRecord` | satu baris: `get(0)` kolom pertama, `size()` jumlah kolom, `getRecordNumber()` nomor baris data |\n\nSemua isi kolom dibaca sebagai `String`. Ubah sendiri ke angka atau boolean, misalnya dengan `Integer.parseInt`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nString data = \"1,Belajar CSV,false\\n2,\\\"Beli kopi, gula\\\",false\\n\";\ntry (CSVParser parser = CSVParser.parse(data, CSVFormat.DEFAULT)) {\n    for (CSVRecord r : parser) {\n        System.out.println(r.get(1));\n    }\n}\n```\n\n```text\nBelajar CSV\nBeli kopi, gula\n```\n\nKutip pembungkus dibuang, dan koma di dalamnya tetap menjadi bagian judul.\n\nDi String Java, kutip dua ditulis `\\\"`, sehingga baris CSV `2,\"Beli kopi, gula\",false` ditulis `\"2,\\\"Beli kopi, gula\\\",false\"`.\n\nCommons CSV bisa membaca dari `String`, dari `Reader` (file, `System.in`), atau dari `Path`. Di editor website ini Commons CSV sudah tersedia."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String baris = \"2,\\\"Beli kopi, gula\\\",true\";\n        String[] potong = baris.split(\",\");\n        System.out.println(\"split: \" + potong.length + \" kolom\");\n        for (CSVRecord r : CSVParser.parse(baris, CSVFormat.DEFAULT)) {\n            System.out.println(\"parser: \" + r.size() + \" kolom\");\n            System.out.println(\"judul: \" + r.get(1));\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: berapa kolom yang dihasilkan split(\",\")?",
+        "options": [
+          "split: 3 kolom",
+          "split: 4 kolom",
+          "split: 2 kolom",
+          "split: 1 kolom"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "Memotong di setiap koma, tanpa peduli kutip."
+        },
+        {
+          "line": 11,
+          "note": "Parser mengikuti aturan kutip."
+        },
+        {
+          "line": 13,
+          "note": "Kutip pembungkus sudah dibuang."
+        }
+      ],
+      "explanation": "Baris itu punya tiga kolom: nomor, judul, dan status. split memotong juga koma di dalam judul, sehingga hasilnya 4 potong dan judulnya terbelah menjadi dua.\n\nParser CSV tahu bahwa koma di dalam kutip adalah bagian dari isi kolom.",
+      "tryThis": [
+        {
+          "task": "Cetak potong[1] dan potong[2]. Apa isinya?",
+          "hint": null
+        },
+        {
+          "task": "Ganti judul menjadi \"Kopi \"\"tubruk\"\"\" lalu jalankan lagi.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai `split(\",\")`**\n\nBerjalan baik saat diuji dengan data sederhana, lalu rusak saat ada nama toko seperti `\"Toko Maju, Jaya\"`. Kesalahan ini sering baru ketahuan di produksi.\n\n**2. Lupa menutup CSVParser**\n\nParser yang membaca file memegang file itu terbuka. Pakai try-with-resources.\n\n**3. Menganggap semua kolom ada**\n\nBaris yang kolomnya kurang membuat `get(2)` gagal. Periksa `r.size()` atau pakai cara yang dibahas di materi Impor dengan Validasi.\n\n**4. Menulis CSV dengan menyambung string**\n\n`id + \",\" + judul` menghasilkan CSV rusak begitu judul berisi koma atau kutip. Menulis CSV juga lewat library (materi Menulis CSV)."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Contoh pemakaian CSV: impor daftar produk ke toko online, ekspor transaksi untuk tim keuangan, data mutasi rekening dari bank, dan pertukaran data dengan sistem lama yang tidak punya API.\n- Dependency Maven:\n\n```xml\n<dependency>\n  <groupId>org.apache.commons</groupId>\n  <artifactId>commons-csv</artifactId>\n  <version>1.12.0</version>\n</dependency>\n```\n\nEditor website ini memakai versi 1.10; class dan method di materi ini sama di versi terbaru.\n- Library lain yang sering ditemui: **OpenCSV** (memetakan baris ke object dengan anotasi) dan **Jackson CSV** (materi Jackson CSV). Untuk file Excel asli (`.xlsx`) dipakai **Apache POI**, bukan library CSV."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Impor Ekspor Todo 1: Membaca Baris Pertama",
+      "pembuka": "Mulai materi ini kita buat **Impor Ekspor Todo**: todo dibaca dari CSV dan ditulis kembali ke CSV.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Dua baris CSV dibaca dengan Commons CSV.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String data = \"1,Belajar CSV,false\\n2,Rapat tim,true\\n\";\n        try (CSVParser parser = CSVParser.parse(data, CSVFormat.DEFAULT)) {\n            for (CSVRecord r : parser) {\n                System.out.println(r.get(0) + \" | \" + r.get(1) + \" | \" + r.get(2));\n            }\n        }\n    }\n}\n",
+          "keluaran": "1 | Belajar CSV | false\n2 | Rapat tim | true",
+          "otomatis": true,
+          "benar": "`get(0)`, `get(1)`, `get(2)` mengambil kolom berdasarkan urutan.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan baris ketiga ke data: todo nomor 3 berjudul `Beli kopi, gula` yang belum selesai. Ingat, judul berisi koma harus dibungkus kutip.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String data = \"1,Belajar CSV,false\\n2,Rapat tim,true\\n3,\\\"Beli kopi, gula\\\",false\\n\";\n        try (CSVParser parser = CSVParser.parse(data, CSVFormat.DEFAULT)) {\n            for (CSVRecord r : parser) {\n                System.out.println(r.get(0) + \" | \" + r.get(1) + \" | \" + r.get(2));\n            }\n        }\n    }\n}\n",
+          "keluaran": "1 | Belajar CSV | false\n2 | Rapat tim | true\n3 | Beli kopi, gula | false",
+          "wajib": [
+            {
+              "pola": "3,\\\\\"Beli kopi, gula\\\\\",false",
+              "pesan": "tulis baris `3,\\\"Beli kopi, gula\\\",false`."
+            }
+          ],
+          "benar": "Koma di dalam kutip tidak memotong kolom.",
+          "petunjuk": "Di String Java: `3,\\\"Beli kopi, gula\\\",false\\n`."
+        },
+        {
+          "arahan": "Tambahkan baris keempat: todo nomor 4 berjudul `Baca \"Clean Code\"` yang sudah selesai.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String data = \"1,Belajar CSV,false\\n2,Rapat tim,true\\n3,\\\"Beli kopi, gula\\\",false\\n4,\\\"Baca \\\"\\\"Clean Code\\\"\\\"\\\",true\\n\";\n        try (CSVParser parser = CSVParser.parse(data, CSVFormat.DEFAULT)) {\n            for (CSVRecord r : parser) {\n                System.out.println(r.get(0) + \" | \" + r.get(1) + \" | \" + r.get(2));\n            }\n        }\n    }\n}\n",
+          "keluaran": "1 | Belajar CSV | false\n2 | Rapat tim | true\n3 | Beli kopi, gula | false\n4 | Baca \"Clean Code\" | true",
+          "wajib": [
+            {
+              "pola": "Clean Code\\\\\"\\\\\"\\\\\",true",
+              "pesan": "tulis kutip ganda: `\\\"Baca \\\"\\\"Clean Code\\\"\\\"\\\"`."
+            }
+          ],
+          "benar": "Parser mengubah kutip ganda menjadi satu kutip.",
+          "petunjuk": "Kutip di dalam kolom ditulis dua kali: `4,\\\"Baca \\\"\\\"Clean Code\\\"\\\"\\\",true`."
+        },
+        {
+          "arahan": "Tantangan: ubah isi perulangan supaya mencetak nomor baris, jumlah kolom, dan judul dengan bentuk `baris 1, 3 kolom: Belajar CSV`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String data = \"1,Belajar CSV,false\\n2,Rapat tim,true\\n3,\\\"Beli kopi, gula\\\",false\\n4,\\\"Baca \\\"\\\"Clean Code\\\"\\\"\\\",true\\n\";\n        try (CSVParser parser = CSVParser.parse(data, CSVFormat.DEFAULT)) {\n            for (CSVRecord r : parser) {\n                System.out.println(\"baris \" + r.getRecordNumber() + \", \" + r.size() + \" kolom: \" + r.get(1));\n            }\n        }\n    }\n}\n",
+          "keluaran": "baris 1, 3 kolom: Belajar CSV\nbaris 2, 3 kolom: Rapat tim\nbaris 3, 3 kolom: Beli kopi, gula\nbaris 4, 3 kolom: Baca \"Clean Code\"",
+          "wajib": [
+            {
+              "pola": "r\\.getRecordNumber\\(\\)",
+              "pesan": "pakai `r.getRecordNumber()`."
+            },
+            {
+              "pola": "r\\.size\\(\\)",
+              "pesan": "pakai `r.size()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Nomor baris berguna saat melaporkan baris mana yang salah ketika impor.",
+          "petunjuk": "Pakai `r.getRecordNumber()` dan `r.size()`."
+        }
+      ],
+      "penutup": "Todo bisa dibaca dari CSV. Berikutnya: membaca berdasarkan nama kolom."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa split(\",\") tidak cocok untuk membaca CSV?",
+          "options": [
+            "Karena split lambat untuk file besar",
+            "Karena split tidak bisa dipakai di Java 8",
+            "Karena koma di dalam kolom berkutip ikut terpotong",
+            "Karena CSV tidak memakai koma"
+          ],
+          "answer": 2,
+          "explanation": "Ingat aturan kutip.",
+          "remedial": "CSV mengizinkan koma di dalam kolom asalkan kolom itu dibungkus kutip. `split` tidak mengenal aturan itu, jadi kolomnya terbelah."
+        },
+        {
+          "question": "Di CSV, judul berisi kutip seperti Baca \"Clean Code\" ditulis...",
+          "options": [
+            "Baca \"Clean Code\"",
+            "\"Baca \\\"Clean Code\\\"\"",
+            "'Baca \"Clean Code\"'",
+            "\"Baca \"\"Clean Code\"\"\""
+          ],
+          "answer": 3,
+          "explanation": "Kutip ditulis dua kali.",
+          "remedial": "RFC 4180: kolom berisi kutip dibungkus kutip, dan setiap kutip di dalamnya ditulis dua kali. Garis miring terbalik bukan aturan CSV."
+        },
+        {
+          "question": "Tipe nilai yang dikembalikan r.get(0) adalah...",
+          "options": [
+            "String",
+            "int",
+            "Object sesuai isi kolom",
+            "CSVRecord"
+          ],
+          "answer": 0,
+          "explanation": "CSV hanya berisi teks.",
+          "remedial": "CSV tidak menyimpan tipe data. Semua kolom dibaca sebagai `String`, lalu diubah sendiri, misalnya dengan `Integer.parseInt`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Format bawaan Commons CSV yang mengikuti RFC 4180 adalah...",
+      "options": [
+        "CSVFormat.JSON",
+        "CSVFormat.DEFAULT",
+        "CSVParser.DEFAULT",
+        "CSVRecord.DEFAULT"
+      ],
+      "answer": 1,
+      "explanation": "Format ada di class CSVFormat."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca daftar belanja dari input dengan format nama,harga per baris, lalu mencetak Total: jumlah harga. Program memakai split dan gagal saat nama barang berisi koma (ditulis dengan kutip, misalnya \"Kopi, gula\",25000). Ubah program supaya membaca input dengan Commons CSV.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner in = new Scanner(System.in);\n        int total = 0;\n        while (in.hasNextLine()) {\n            String[] kolom = in.nextLine().split(\",\");\n            total += Integer.parseInt(kolom[1]);\n        }\n        System.out.println(\"Total: \" + total);\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        int total = 0;\n        for (CSVRecord r : CSVFormat.DEFAULT.parse(new InputStreamReader(System.in))) {\n            total += Integer.parseInt(r.get(1));\n        }\n        System.out.println(\"Total: \" + total);\n    }\n}",
+      "tests": [
+        {
+          "input": "Roti,12000\n\"Kopi, gula\",25000\nTeh,8000\n",
+          "expectedOutput": "Total: 45000\n"
+        },
+        {
+          "input": "\"Sabun \"\"wangi\"\"\",9000\n",
+          "expectedOutput": "Total: 9000\n"
+        }
+      ],
+      "hints": [
+        "CSVFormat.DEFAULT.parse(new InputStreamReader(System.in)) menghasilkan parser yang bisa diulang dengan for-each.",
+        "Harga ada di r.get(1); ubah dengan Integer.parseInt."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "CSV: satu baris satu data, kolom dipisah koma, aturannya di RFC 4180.",
+        "Kolom berisi koma atau baris baru dibungkus kutip; kutip di dalamnya ditulis dua kali.",
+        "split(\",\") tidak cukup; pakai library seperti Apache Commons CSV.",
+        "CSVParser dibaca dengan for-each, setiap baris CSVRecord, semua nilainya String."
+      ]
+    }
+  ]
+}
