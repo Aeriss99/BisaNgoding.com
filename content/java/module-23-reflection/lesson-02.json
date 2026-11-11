@@ -1,0 +1,215 @@
+{
+  "id": "java-reflection-02",
+  "moduleId": "reflection",
+  "order": 2,
+  "title": "Membaca dan Mengubah Field",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Jackson menulis semua properti object menjadi JSON, Hibernate menyalin isi kolom database ke field entity, dan alat pembanding di test memeriksa setiap field dua object. Semuanya membaca dan menulis **field** dari class yang tidak mereka kenal sebelumnya.\n\nReflection memberi akses ke field lewat object **`Field`**, termasuk field `private`.\n\nIbarat kunci serep yang dipegang pengelola gedung: penghuni biasa hanya bisa masuk lewat pintu depan (getter), tetapi pengelola bisa membuka setiap ruangan untuk pemeriksaan."
+    },
+    {
+      "type": "theory",
+      "content": "Dua cara mengambil field:\n\n| Method | Field yang didapat |\n|---|---|\n| `getDeclaredFields()` | semua field yang **ditulis di class itu**, termasuk private, tanpa warisan |\n| `getFields()` | hanya field **public**, termasuk dari class induk |\n| `getDeclaredField(\"judul\")` | satu field berdasarkan nama |\n\nIsi object `Field`:\n\n| Method | Gunanya |\n|---|---|\n| `getName()`, `getType()` | nama dan tipe field |\n| `get(obj)` | baca nilai field di object `obj` |\n| `set(obj, nilai)` | ubah nilai field |\n| `getModifiers()` | angka modifier, dibaca dengan `Modifier.isStatic(...)`, `Modifier.isPrivate(...)` |\n| `setAccessible(true)` | izinkan akses ke field private |\n\nUntuk field static, object-nya diisi `null`: `f.get(null)`.\n\nTanpa `setAccessible(true)`, membaca field private melempar `IllegalAccessException`. Method `get` dan `set` juga melempar exception checked ini, jadi contoh di materi ini memakai `throws Exception` di main."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nTodo t = new Todo(1, \"Belajar reflection\");\nField judul = Todo.class.getDeclaredField(\"judul\");\njudul.setAccessible(true);\nSystem.out.println(judul.get(t));          // Belajar reflection\njudul.set(t, \"Diubah lewat reflection\");\n```\n\nInilah cara framework mengisi object tanpa setter. Hibernate misalnya bisa mengisi field `private` entity langsung dari hasil query.\n\nMencetak semua field sebuah object, cara kerja sederhana `toString` buatan Lombok dan alat debugging:\n\n```java\nfor (Field f : o.getClass().getDeclaredFields()) {\n    f.setAccessible(true);\n    System.out.println(f.getName() + \"=\" + f.get(o));\n}\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Akun a = new Akun(\"Sari\", 50000);\n        for (Field f : Akun.class.getDeclaredFields()) {\n            String jenis = Modifier.isStatic(f.getModifiers()) ? \"static\" : \"biasa\";\n            System.out.println(f.getName() + \" (\" + jenis + \")\");\n        }\n        System.out.println(\"public saja: \" + Akun.class.getFields().length);\n    }\n}\n\nclass Akun {\n    private String nama;\n    private int saldo;\n    public static int jumlahAkun;\n\n    Akun(String nama, int saldo) {\n        this.nama = nama;\n        this.saldo = saldo;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: berapa field public yang dikembalikan getFields()?",
+        "options": [
+          "public saja: 0",
+          "public saja: 3",
+          "public saja: 1",
+          "public saja: 2"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Semua field yang ditulis di Akun."
+        },
+        {
+          "line": 8,
+          "note": "Membaca modifier."
+        },
+        {
+          "line": 11,
+          "note": "Hanya field public."
+        }
+      ],
+      "explanation": "getDeclaredFields mengembalikan ketiga field, termasuk yang private. getFields hanya mengembalikan field public, yaitu jumlahAkun. Field static tetap dihitung sebagai field class.",
+      "tryThis": [
+        {
+          "task": "Ubah saldo menjadi public lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Cetak juga Modifier.isPrivate(f.getModifiers()) untuk setiap field.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `getFields()` untuk mencari field private**\n\nHasilnya kosong. Pakai `getDeclaredFields()`.\n\n**2. Lupa `setAccessible(true)`**\n\n`IllegalAccessException` saat membaca field private.\n\n**3. Tipe nilai tidak cocok saat `set`**\n\n`f.set(obj, \"14\")` untuk field `int` melempar `IllegalArgumentException`. Periksa `f.getType()` dan ubah nilainya lebih dulu.\n\n**4. Field warisan tidak ikut**\n\n`getDeclaredFields()` tidak mengembalikan field dari class induk. Untuk semuanya, ulangi juga `getSuperclass()` sampai `Object`.\n\n**5. Membongkar enkapsulasi di kode aplikasi**\n\nMengubah field private dari luar melewati aturan yang dijaga class itu. Di aplikasi, pakai method publiknya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Field reflection dipakai Hibernate (akses berbasis field), Jackson (kalau field diberi anotasi), dan alat pembanding seperti AssertJ `usingRecursiveComparison()` di test.\n- Spring Boot memakai pola yang mirip dengan tantangan materi ini: nilai teks dari `application.properties` diubah ke tipe field (`int`, `boolean`, `Duration`) lalu diisikan ke object konfigurasi.\n- Di Java 17 ke atas, `setAccessible(true)` ke field class milik JDK (misalnya isi `String`) ditolak tanpa `--add-opens`. Ke class aplikasi sendiri tetap boleh.\n- Mengubah field `final` lewat reflection tidak bisa diandalkan dan dilarang untuk record. Anggap field `final` tidak bisa diubah."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Mini Framework 2: Isi Rahasia Todo",
+      "pembuka": "Kita intip dan ubah field private `Todo`.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Semua field `Todo` beserta tipenya.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        for (Field f : Todo.class.getDeclaredFields()) {\n            System.out.println(f.getName() + \" : \" + f.getType().getSimpleName());\n        }\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "id : int\njudul : String\nselesai : boolean\njumlahDibuat : int",
+          "otomatis": true,
+          "benar": "Field private dan static ikut terlihat.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Buat `Todo t = new Todo(1, \"Belajar reflection\")`, ambil field `judul`, izinkan akses, lalu cetak `Isi judul: ` diikuti nilainya.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        for (Field f : Todo.class.getDeclaredFields()) {\n            System.out.println(f.getName() + \" : \" + f.getType().getSimpleName());\n        }\n\n        Todo t = new Todo(1, \"Belajar reflection\");\n        Field judul = Todo.class.getDeclaredField(\"judul\");\n        judul.setAccessible(true);\n        System.out.println(\"Isi judul: \" + judul.get(t));\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "id : int\njudul : String\nselesai : boolean\njumlahDibuat : int\nIsi judul: Belajar reflection",
+          "wajib": [
+            {
+              "pola": "getDeclaredField\\s*\\(\\s*\"judul\"\\s*\\)",
+              "pesan": "ambil field dengan `getDeclaredField(\"judul\")`."
+            },
+            {
+              "pola": "setAccessible\\s*\\(\\s*true\\s*\\)",
+              "pesan": "panggil `setAccessible(true)`."
+            }
+          ],
+          "benar": "Field private terbaca tanpa getter.",
+          "petunjuk": "`Field judul = Todo.class.getDeclaredField(\"judul\"); judul.setAccessible(true);` lalu `judul.get(t)`."
+        },
+        {
+          "arahan": "Ubah judul menjadi `Judul diubah lewat reflection` dengan `set`, lalu cetak `t.getJudul()`.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        for (Field f : Todo.class.getDeclaredFields()) {\n            System.out.println(f.getName() + \" : \" + f.getType().getSimpleName());\n        }\n\n        Todo t = new Todo(1, \"Belajar reflection\");\n        Field judul = Todo.class.getDeclaredField(\"judul\");\n        judul.setAccessible(true);\n        System.out.println(\"Isi judul: \" + judul.get(t));\n\n        judul.set(t, \"Judul diubah lewat reflection\");\n        System.out.println(t.getJudul());\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "id : int\njudul : String\nselesai : boolean\njumlahDibuat : int\nIsi judul: Belajar reflection\nJudul diubah lewat reflection",
+          "wajib": [
+            {
+              "pola": "judul\\.set\\s*\\(\\s*t\\s*,",
+              "pesan": "pakai `judul.set(t, ...)`."
+            }
+          ],
+          "benar": "Inilah cara framework mengisi object tanpa setter.",
+          "petunjuk": "`judul.set(t, \"...\");`"
+        },
+        {
+          "arahan": "Tantangan: buat `static String keTeks(Object o)` yang menghasilkan `Todo{id=1, judul=..., selesai=false}` dari semua field non-static, lalu cetak `keTeks(t)`.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    static String keTeks(Object o) throws IllegalAccessException {\n        StringBuilder sb = new StringBuilder(o.getClass().getSimpleName() + \"{\");\n        boolean pertama = true;\n        for (Field f : o.getClass().getDeclaredFields()) {\n            if (Modifier.isStatic(f.getModifiers())) {\n                continue;\n            }\n            f.setAccessible(true);\n            if (!pertama) {\n                sb.append(\", \");\n            }\n            sb.append(f.getName()).append(\"=\").append(f.get(o));\n            pertama = false;\n        }\n        return sb.append(\"}\").toString();\n    }\n\n    public static void main(String[] args) throws Exception {\n        for (Field f : Todo.class.getDeclaredFields()) {\n            System.out.println(f.getName() + \" : \" + f.getType().getSimpleName());\n        }\n\n        Todo t = new Todo(1, \"Belajar reflection\");\n        Field judul = Todo.class.getDeclaredField(\"judul\");\n        judul.setAccessible(true);\n        System.out.println(\"Isi judul: \" + judul.get(t));\n\n        judul.set(t, \"Judul diubah lewat reflection\");\n        System.out.println(t.getJudul());\n        System.out.println(keTeks(t));\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "id : int\njudul : String\nselesai : boolean\njumlahDibuat : int\nIsi judul: Belajar reflection\nJudul diubah lewat reflection\nTodo{id=1, judul=Judul diubah lewat reflection, selesai=false}",
+          "wajib": [
+            {
+              "pola": "static\\s+String\\s+keTeks\\s*\\(\\s*Object\\s+\\w+\\s*\\)",
+              "pesan": "buat `static String keTeks(Object o)`."
+            },
+            {
+              "pola": "Modifier\\.isStatic",
+              "pesan": "lewati field static dengan `Modifier.isStatic`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "`toString` buatan Lombok dan alat debugging bekerja dengan ide yang sama.",
+          "petunjuk": "Lewati field dengan `Modifier.isStatic(f.getModifiers())`, dan pakai `StringBuilder`. Method melempar `IllegalAccessException`."
+        }
+      ],
+      "penutup": "Field bisa dibaca dan diubah. Berikutnya: memanggil method dan membuat object."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Untuk mendapatkan field private dari sebuah class, method yang tepat adalah...",
+          "options": [
+            "getFields()",
+            "getMethods()",
+            "getInterfaces()",
+            "getDeclaredFields()"
+          ],
+          "answer": 3,
+          "explanation": "Declared berarti yang ditulis di class itu.",
+          "remedial": "`getDeclaredFields()` mengembalikan semua field yang ditulis di class itu, apa pun aksesnya. `getFields()` hanya field public."
+        },
+        {
+          "question": "Membaca field private dengan f.get(obj) tanpa setAccessible(true) menghasilkan...",
+          "options": [
+            "IllegalAccessException",
+            "Nilai field seperti biasa",
+            "null",
+            "NullPointerException"
+          ],
+          "answer": 0,
+          "explanation": "Akses dicek.",
+          "remedial": "Java tetap memeriksa hak akses lewat reflection. `setAccessible(true)` mematikan pemeriksaan itu untuk object `Field` tersebut."
+        },
+        {
+          "question": "Membaca nilai field static lewat reflection ditulis...",
+          "options": [
+            "f.get()",
+            "f.get(null)",
+            "f.get(Todo.class)",
+            "f.getStatic()"
+          ],
+          "answer": 1,
+          "explanation": "Tidak butuh object.",
+          "remedial": "Field static milik class, bukan object. Parameter object diisi `null`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Untuk memeriksa apakah sebuah field static, dipakai...",
+      "options": [
+        "f.isStatic()",
+        "f.getType() == static",
+        "Modifier.isStatic(f.getModifiers())",
+        "Field.STATIC"
+      ],
+      "answer": 2,
+      "explanation": "Kelas Modifier."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca pengaturan dengan format nama=nilai per baris, lalu mengisikannya ke field object Pengaturan dengan reflection dan mencetak semua field. Field bisa bertipe String, int, atau boolean, jadi nilai teks harus diubah sesuai tipe field. Lengkapi bagian yang ditandai TODO.",
+      "starterCode": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Pengaturan p = new Pengaturan();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\"=\");\n            // TODO: isi field bernama d[0] dengan nilai d[1]\n        }\n        for (Field f : Pengaturan.class.getDeclaredFields()) {\n            System.out.println(f.getName() + \" = \" + f.get(p));\n        }\n    }\n}\n\nclass Pengaturan {\n    String tema = \"terang\";\n    int ukuranHuruf = 14;\n    boolean notifikasi = true;\n}",
+      "solution": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Pengaturan p = new Pengaturan();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\"=\");\n            Field f = Pengaturan.class.getDeclaredField(d[0]);\n            if (f.getType() == int.class) {\n                f.set(p, Integer.parseInt(d[1]));\n            } else if (f.getType() == boolean.class) {\n                f.set(p, Boolean.parseBoolean(d[1]));\n            } else {\n                f.set(p, d[1]);\n            }\n        }\n        for (Field f : Pengaturan.class.getDeclaredFields()) {\n            System.out.println(f.getName() + \" = \" + f.get(p));\n        }\n    }\n}\n\nclass Pengaturan {\n    String tema = \"terang\";\n    int ukuranHuruf = 14;\n    boolean notifikasi = true;\n}",
+      "tests": [
+        {
+          "input": "tema=gelap\nukuranHuruf=18\n",
+          "expectedOutput": "tema = gelap\nukuranHuruf = 18\nnotifikasi = true\n"
+        },
+        {
+          "input": "notifikasi=false\n",
+          "expectedOutput": "tema = terang\nukuranHuruf = 14\nnotifikasi = false\n"
+        }
+      ],
+      "hints": [
+        "Field f = Pengaturan.class.getDeclaredField(d[0]);",
+        "Bandingkan f.getType() dengan int.class dan boolean.class, lalu f.set(p, nilai yang sudah diubah)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "getDeclaredFields: semua field di class itu; getFields: field public termasuk warisan.",
+        "f.get(obj) membaca, f.set(obj, nilai) mengubah; static memakai null.",
+        "setAccessible(true) diperlukan untuk field private.",
+        "Tipe nilai harus cocok dengan f.getType()."
+      ]
+    }
+  ]
+}

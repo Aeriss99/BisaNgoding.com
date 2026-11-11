@@ -1,0 +1,207 @@
+{
+  "id": "java-reflection-05",
+  "moduleId": "reflection",
+  "order": 5,
+  "title": "Proyek Kecil: Validator Buatan Sendiri",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Validation kita memakai `@NotBlank` dan `@Size`, lalu `validator.validate(obj)` mengembalikan daftar pelanggaran. Sekarang kita buat versi kecilnya sendiri dengan anotasi dan reflection, supaya jelas apa yang terjadi di balik Hibernate Validator.\n\nIbarat belajar cara kerja mesin dengan membongkar mainan mobil: mesinnya jauh lebih sederhana, tetapi prinsipnya sama dengan mobil sungguhan."
+    },
+    {
+      "type": "theory",
+      "content": "Rancangan validator kita:\n\n| Anotasi | Aturan |\n|---|---|\n| `@Wajib` | tidak null dan tidak hanya spasi |\n| `@Panjang(maks = 20)` | panjang teks maksimal |\n| `@Rentang(min = 1, maks = 3)` | angka di antara min dan maks |\n\nAlgoritmanya:\n\n1. Ambil semua field object dengan `getDeclaredFields()`.\n2. Untuk setiap field, baca nilainya dengan `setAccessible(true)` dan `get`.\n3. Untuk setiap anotasi aturan di field itu, periksa nilainya.\n4. Kumpulkan pesan pelanggaran ke List.\n\n```java\nPanjang p = f.getAnnotation(Panjang.class);\nif (p != null && nilai != null && nilai.toString().length() > p.maks()) {\n    salah.add(f.getName() + \": maksimal \" + p.maks() + \" huruf\");\n}\n```\n\nNilai field `int` dikembalikan `get` sebagai `Integer`, jadi diperiksa dengan `instanceof Integer` sebelum di-cast.\n\nSeperti Bean Validation, setiap aturan berdiri sendiri: `@Panjang` tidak memeriksa null, itu tugas `@Wajib`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nclass FormTodo {\n    @Wajib\n    @Panjang(maks = 20)\n    String judul;\n\n    @Wajib\n    String pemilik;\n}\n```\n\n```java\nperiksa(new FormTodo(\"\", null))\n// [judul: wajib diisi, pemilik: wajib diisi]\n```\n\nPerbandingan dengan Hibernate Validator:\n\n| Validator kecil kita | Hibernate Validator |\n|---|---|\n| `if` untuk setiap anotasi di satu method | setiap constraint punya class `ConstraintValidator` sendiri |\n| membaca field setiap kali | membaca anotasi sekali lalu menyimpannya (*metadata cache*) |\n| hanya field langsung | field warisan, getter, object bersarang (`@Valid`), group, pesan dari file |\n\nVersi kecil cukup untuk memahami idenya. Untuk proyek sungguhan, pakai library yang sudah teruji."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Daftar d = new Daftar();\n        d.email = \"sari\";\n        for (Field f : Daftar.class.getDeclaredFields()) {\n            Pola p = f.getAnnotation(Pola.class);\n            String nilai = (String) f.get(d);\n            if (p != null && !nilai.matches(p.value())) {\n                System.out.println(f.getName() + \" tidak cocok dengan \" + p.value());\n            }\n        }\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Pola {\n    String value();\n}\n\nclass Daftar {\n    @Pola(\".+@.+\")\n    String email;\n\n    @Pola(\"[0-9]+\")\n    String hp = \"0812\";\n}",
+      "predict": {
+        "question": "Tebak dulu: field mana yang dilaporkan?",
+        "options": [
+          "hp tidak cocok dengan [0-9]+",
+          "email tidak cocok dengan .+@.+",
+          "email tidak cocok dengan [0-9]+",
+          "Tidak ada yang dilaporkan"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 10,
+          "note": "Aturan dibaca dari anotasi."
+        },
+        {
+          "line": 12,
+          "note": "Nilai dicocokkan dengan regex dari anotasi."
+        }
+      ],
+      "explanation": "Setiap field diperiksa dengan regex dari anotasinya sendiri. email berisi sari tanpa tanda @, jadi tidak cocok. hp berisi angka saja, jadi lolos. Aturan bisa ditambah ke field baru tanpa mengubah kode pemeriksa.",
+      "tryThis": [
+        {
+          "task": "Ubah hp menjadi \"0812-34\" lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan field baru dengan @Pola(\"[A-Z].*\") dan isi huruf kecil.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Satu aturan mengurus semuanya**\n\nKalau `@Panjang` juga menolak null, field opsional yang kosong ikut ditolak. Biarkan setiap anotasi punya satu tugas.\n\n**2. Cast tanpa memeriksa tipe**\n\n`(Integer) nilai` pada field String melempar `ClassCastException`. Periksa dengan `instanceof` dulu.\n\n**3. Membaca anotasi di setiap pemanggilan untuk data besar**\n\nReflection di setiap baris dari jutaan baris terasa lambat. Library sungguhan membaca anotasi sekali, lalu menyimpan hasilnya.\n\n**4. Membuat ulang yang sudah ada**\n\nUntuk proyek sungguhan, Bean Validation sudah lengkap dan standar. Validator buatan sendiri cocok untuk aturan yang sangat khusus atau untuk belajar."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola \"anotasi + kode pembaca\" ini dipakai di mana-mana: mapper CSV dan Excel (`@CsvBindByName` di OpenCSV), pemetaan kolom laporan, aturan izin (`@PreAuthorize` di Spring Security), dan dokumentasi API (`@Operation` di OpenAPI).\n- Library biasanya membaca anotasi sekali saat aplikasi mulai, lalu menyimpan hasilnya di `Map<Class<?>, Metadata>`, supaya pemanggilan berikutnya cepat.\n- Saat kode review, anotasi buatan sendiri diperlakukan seperti API: diberi Javadoc, nama yang jelas, dan test.\n- Kalau aturan bisa dinyatakan dengan Bean Validation, tim lebih memilih constraint buatan sendiri (`ConstraintValidator`, materi Validation) daripada validator baru dari nol."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Mini Framework 5: Validator Mini",
+      "pembuka": "Kita buat validator kecil untuk `FormTodo`.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Method `periksa` membaca `@Wajib` dari setiap field.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    static List<String> periksa(Object o) throws IllegalAccessException {\n        List<String> salah = new ArrayList<>();\n        for (Field f : o.getClass().getDeclaredFields()) {\n            f.setAccessible(true);\n            Object nilai = f.get(o);\n            if (f.isAnnotationPresent(Wajib.class) && (nilai == null || nilai.toString().trim().isEmpty())) {\n                salah.add(f.getName() + \": wajib diisi\");\n            }\n            Panjang p = f.getAnnotation(Panjang.class);\n            if (p != null && nilai != null && nilai.toString().length() > p.maks()) {\n                salah.add(f.getName() + \": maksimal \" + p.maks() + \" huruf\");\n            }\n        }\n        return salah;\n    }\n\n    public static void main(String[] args) throws Exception {\n        System.out.println(periksa(new FormTodo(\"Belajar\", \"Sari\")));\n        System.out.println(periksa(new FormTodo(\"\", null)));\n    }\n}\n\nclass FormTodo {\n    @Wajib\n    @Panjang(maks = 20)\n    String judul;\n\n    @Wajib\n    String pemilik;\n\n    FormTodo(String judul, String pemilik) {\n        this.judul = judul;\n        this.pemilik = pemilik;\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Wajib {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Panjang {\n    int maks();\n}\n",
+          "keluaran": "[]\n[judul: wajib diisi, pemilik: wajib diisi]",
+          "otomatis": true,
+          "benar": "Judul kosong dan pemilik null dilaporkan.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Periksa juga todo berjudul `Belajar reflection sampai bisa` (31 huruf) dengan pemilik `Sari`. `@Panjang(maks = 20)` sudah ada di judul.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    static List<String> periksa(Object o) throws IllegalAccessException {\n        List<String> salah = new ArrayList<>();\n        for (Field f : o.getClass().getDeclaredFields()) {\n            f.setAccessible(true);\n            Object nilai = f.get(o);\n            if (f.isAnnotationPresent(Wajib.class) && (nilai == null || nilai.toString().trim().isEmpty())) {\n                salah.add(f.getName() + \": wajib diisi\");\n            }\n            Panjang p = f.getAnnotation(Panjang.class);\n            if (p != null && nilai != null && nilai.toString().length() > p.maks()) {\n                salah.add(f.getName() + \": maksimal \" + p.maks() + \" huruf\");\n            }\n        }\n        return salah;\n    }\n\n    public static void main(String[] args) throws Exception {\n        System.out.println(periksa(new FormTodo(\"Belajar\", \"Sari\")));\n        System.out.println(periksa(new FormTodo(\"\", null)));\n        System.out.println(periksa(new FormTodo(\"Belajar reflection sampai bisa\", \"Sari\")));\n    }\n}\n\nclass FormTodo {\n    @Wajib\n    @Panjang(maks = 20)\n    String judul;\n\n    @Wajib\n    String pemilik;\n\n    FormTodo(String judul, String pemilik) {\n        this.judul = judul;\n        this.pemilik = pemilik;\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Wajib {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Panjang {\n    int maks();\n}\n",
+          "keluaran": "[]\n[judul: wajib diisi, pemilik: wajib diisi]\n[judul: maksimal 20 huruf]",
+          "wajib": [
+            {
+              "pola": "new\\s+FormTodo\\s*\\(\\s*\"Belajar reflection sampai bisa\"",
+              "pesan": "periksa judul 31 huruf itu."
+            }
+          ],
+          "benar": "Aturan dibaca dari atribut `maks` anotasi.",
+          "petunjuk": "Satu baris `System.out.println(periksa(new FormTodo(...)));`."
+        },
+        {
+          "arahan": "Tambahkan anotasi `@Rentang(min, maks)` untuk angka, field `@Rentang(min = 1, maks = 3) int prioritas` di `FormTodo` (beserta parameter constructor), dan pemeriksaannya di `periksa` dengan pesan `prioritas: harus 1 sampai 3`. Perbarui pembuatan `FormTodo` yang lama dengan prioritas yang valid, lalu periksa `new FormTodo(\"Rapat\", \"Budi\", 5)`.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    static List<String> periksa(Object o) throws IllegalAccessException {\n        List<String> salah = new ArrayList<>();\n        for (Field f : o.getClass().getDeclaredFields()) {\n            f.setAccessible(true);\n            Object nilai = f.get(o);\n            if (f.isAnnotationPresent(Wajib.class) && (nilai == null || nilai.toString().trim().isEmpty())) {\n                salah.add(f.getName() + \": wajib diisi\");\n            }\n            Panjang p = f.getAnnotation(Panjang.class);\n            if (p != null && nilai != null && nilai.toString().length() > p.maks()) {\n                salah.add(f.getName() + \": maksimal \" + p.maks() + \" huruf\");\n            }\n            Rentang r = f.getAnnotation(Rentang.class);\n            if (r != null && nilai instanceof Integer) {\n                int n = (Integer) nilai;\n                if (n < r.min() || n > r.maks()) {\n                    salah.add(f.getName() + \": harus \" + r.min() + \" sampai \" + r.maks());\n                }\n            }\n        }\n        return salah;\n    }\n\n    public static void main(String[] args) throws Exception {\n        System.out.println(periksa(new FormTodo(\"Belajar\", \"Sari\", 2)));\n        System.out.println(periksa(new FormTodo(\"\", null, 1)));\n        System.out.println(periksa(new FormTodo(\"Belajar reflection sampai bisa\", \"Sari\", 1)));\n        System.out.println(periksa(new FormTodo(\"Rapat\", \"Budi\", 5)));\n    }\n}\n\nclass FormTodo {\n    @Wajib\n    @Panjang(maks = 20)\n    String judul;\n\n    @Wajib\n    String pemilik;\n\n    @Rentang(min = 1, maks = 3)\n    int prioritas;\n\n    FormTodo(String judul, String pemilik, int prioritas) {\n        this.judul = judul;\n        this.pemilik = pemilik;\n        this.prioritas = prioritas;\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Wajib {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Panjang {\n    int maks();\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Rentang {\n    int min();\n\n    int maks();\n}\n",
+          "keluaran": "[]\n[judul: wajib diisi, pemilik: wajib diisi]\n[judul: maksimal 20 huruf]\n[prioritas: harus 1 sampai 3]",
+          "wajib": [
+            {
+              "pola": "@interface\\s+Rentang",
+              "pesan": "buat `@interface Rentang`."
+            },
+            {
+              "pola": "nilai\\s+instanceof\\s+Integer",
+              "pesan": "periksa `nilai instanceof Integer`."
+            },
+            {
+              "pola": "new\\s+FormTodo\\s*\\(\\s*\"Rapat\"\\s*,\\s*\"Budi\"\\s*,\\s*5\\s*\\)",
+              "pesan": "periksa prioritas 5."
+            }
+          ],
+          "benar": "Aturan baru tidak mengubah aturan lama.",
+          "petunjuk": "Di `periksa`: `Rentang r = f.getAnnotation(Rentang.class); if (r != null && nilai instanceof Integer) { ... }`."
+        },
+        {
+          "arahan": "Tantangan: buat `static int jumlahAturan(Class<?> kelas)` yang menghitung semua anotasi di semua field, lalu cetak `Aturan: 4`.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    static List<String> periksa(Object o) throws IllegalAccessException {\n        List<String> salah = new ArrayList<>();\n        for (Field f : o.getClass().getDeclaredFields()) {\n            f.setAccessible(true);\n            Object nilai = f.get(o);\n            if (f.isAnnotationPresent(Wajib.class) && (nilai == null || nilai.toString().trim().isEmpty())) {\n                salah.add(f.getName() + \": wajib diisi\");\n            }\n            Panjang p = f.getAnnotation(Panjang.class);\n            if (p != null && nilai != null && nilai.toString().length() > p.maks()) {\n                salah.add(f.getName() + \": maksimal \" + p.maks() + \" huruf\");\n            }\n            Rentang r = f.getAnnotation(Rentang.class);\n            if (r != null && nilai instanceof Integer) {\n                int n = (Integer) nilai;\n                if (n < r.min() || n > r.maks()) {\n                    salah.add(f.getName() + \": harus \" + r.min() + \" sampai \" + r.maks());\n                }\n            }\n        }\n        return salah;\n    }\n\n    static int jumlahAturan(Class<?> kelas) {\n        int n = 0;\n        for (Field f : kelas.getDeclaredFields()) {\n            n += f.getAnnotations().length;\n        }\n        return n;\n    }\n\n    public static void main(String[] args) throws Exception {\n        System.out.println(periksa(new FormTodo(\"Belajar\", \"Sari\", 2)));\n        System.out.println(periksa(new FormTodo(\"\", null, 1)));\n        System.out.println(periksa(new FormTodo(\"Belajar reflection sampai bisa\", \"Sari\", 1)));\n        System.out.println(periksa(new FormTodo(\"Rapat\", \"Budi\", 5)));\n        System.out.println(\"Aturan: \" + jumlahAturan(FormTodo.class));\n    }\n}\n\nclass FormTodo {\n    @Wajib\n    @Panjang(maks = 20)\n    String judul;\n\n    @Wajib\n    String pemilik;\n\n    @Rentang(min = 1, maks = 3)\n    int prioritas;\n\n    FormTodo(String judul, String pemilik, int prioritas) {\n        this.judul = judul;\n        this.pemilik = pemilik;\n        this.prioritas = prioritas;\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Wajib {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Panjang {\n    int maks();\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Rentang {\n    int min();\n\n    int maks();\n}\n",
+          "keluaran": "[]\n[judul: wajib diisi, pemilik: wajib diisi]\n[judul: maksimal 20 huruf]\n[prioritas: harus 1 sampai 3]\nAturan: 4",
+          "wajib": [
+            {
+              "pola": "getAnnotations\\(\\)",
+              "pesan": "pakai `getAnnotations()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Library memakai cara seperti ini untuk menyusun metadata sekali di awal.",
+          "petunjuk": "Jumlahkan `f.getAnnotations().length` untuk setiap field."
+        }
+      ],
+      "penutup": "Validator mini selesai. Berikutnya: membungkus object dengan Dynamic Proxy."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa @Panjang tidak memeriksa nilai null?",
+          "options": [
+            "Karena null tidak punya panjang sehingga selalu valid",
+            "Karena reflection tidak bisa membaca null",
+            "Supaya field opsional yang kosong tidak ikut ditolak; null diurus @Wajib",
+            "Karena anotasi tidak boleh punya if"
+          ],
+          "answer": 2,
+          "explanation": "Satu anotasi satu tugas.",
+          "remedial": "Memisahkan aturan membuat setiap anotasi bisa digabung bebas. Field yang boleh kosong tetapi kalau diisi maksimal 20 huruf cukup memakai `@Panjang`."
+        },
+        {
+          "question": "Nilai field int yang dibaca dengan f.get(o) bertipe...",
+          "options": [
+            "int",
+            "String",
+            "Number dengan nilai null",
+            "Integer"
+          ],
+          "answer": 3,
+          "explanation": "get mengembalikan Object.",
+          "remedial": "`get` mengembalikan `Object`, sehingga nilai primitif dibungkus: `int` menjadi `Integer`."
+        },
+        {
+          "question": "Kelebihan Hibernate Validator dibanding validator kecil buatan sendiri adalah...",
+          "options": [
+            "Membaca anotasi sekali dan mendukung object bersarang, group, dan pesan dari file",
+            "Tidak memakai reflection sama sekali",
+            "Bisa memeriksa tanpa anotasi",
+            "Selalu lebih cepat ditulis"
+          ],
+          "answer": 0,
+          "explanation": "Lihat tabel perbandingan.",
+          "remedial": "Hibernate Validator menyimpan metadata anotasi, mendukung `@Valid`, group, dan pesan terjemahan. Prinsip dasarnya sama: anotasi dibaca lewat reflection."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Sebelum nilai field di-cast menjadi Integer, sebaiknya diperiksa dengan...",
+      "options": [
+        "nilai == Integer",
+        "nilai instanceof Integer",
+        "nilai.isInteger()",
+        "Integer.check(nilai)"
+      ],
+      "answer": 1,
+      "explanation": "Hindari ClassCastException."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca produk dengan format nama;harga per baris, memeriksanya dengan validator buatan sendiri, lalu mencetak valid atau daftar pesan dipisah koma. Field harga sudah diberi @Rentang(min = 1000, maks = 1000000), tetapi method periksa belum mendukung @Rentang. Tambahkan pemeriksaan dengan pesan harga: harus 1000 sampai 1000000.",
+      "starterCode": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    static List<String> periksa(Object o) throws IllegalAccessException {\n        List<String> salah = new ArrayList<>();\n        for (Field f : o.getClass().getDeclaredFields()) {\n            f.setAccessible(true);\n            Object nilai = f.get(o);\n            if (f.isAnnotationPresent(Wajib.class) && (nilai == null || nilai.toString().trim().isEmpty())) {\n                salah.add(f.getName() + \": wajib diisi\");\n            }\n        }\n        return salah;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            List<String> salah = periksa(new Produk(d[0], Integer.parseInt(d[1])));\n            System.out.println(salah.isEmpty() ? \"valid\" : String.join(\", \", salah));\n        }\n    }\n}\n\nclass Produk {\n    @Wajib\n    String nama;\n\n    @Rentang(min = 1000, maks = 1000000)\n    int harga;\n\n    Produk(String nama, int harga) {\n        this.nama = nama;\n        this.harga = harga;\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Wajib {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Rentang {\n    int min();\n\n    int maks();\n}",
+      "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    static List<String> periksa(Object o) throws IllegalAccessException {\n        List<String> salah = new ArrayList<>();\n        for (Field f : o.getClass().getDeclaredFields()) {\n            f.setAccessible(true);\n            Object nilai = f.get(o);\n            if (f.isAnnotationPresent(Wajib.class) && (nilai == null || nilai.toString().trim().isEmpty())) {\n                salah.add(f.getName() + \": wajib diisi\");\n            }\n            Rentang r = f.getAnnotation(Rentang.class);\n            if (r != null && nilai instanceof Integer) {\n                int n = (Integer) nilai;\n                if (n < r.min() || n > r.maks()) {\n                    salah.add(f.getName() + \": harus \" + r.min() + \" sampai \" + r.maks());\n                }\n            }\n        }\n        return salah;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            List<String> salah = periksa(new Produk(d[0], Integer.parseInt(d[1])));\n            System.out.println(salah.isEmpty() ? \"valid\" : String.join(\", \", salah));\n        }\n    }\n}\n\nclass Produk {\n    @Wajib\n    String nama;\n\n    @Rentang(min = 1000, maks = 1000000)\n    int harga;\n\n    Produk(String nama, int harga) {\n        this.nama = nama;\n        this.harga = harga;\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Wajib {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Rentang {\n    int min();\n\n    int maks();\n}",
+      "tests": [
+        {
+          "input": "Kopi;18000\nPermen;500\n;2000000\n",
+          "expectedOutput": "valid\nharga: harus 1000 sampai 1000000\nnama: wajib diisi, harga: harus 1000 sampai 1000000\n"
+        }
+      ],
+      "hints": [
+        "Rentang r = f.getAnnotation(Rentang.class); lalu periksa r != null dan nilai instanceof Integer.",
+        "Pesan: f.getName() + \": harus \" + r.min() + \" sampai \" + r.maks()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Validator buatan sendiri: ulangi field, baca nilai, periksa setiap anotasi aturan, kumpulkan pesan.",
+        "Satu anotasi satu tugas; null diurus @Wajib.",
+        "Nilai primitif datang sebagai pembungkus; periksa dengan instanceof sebelum cast.",
+        "Library sungguhan membaca anotasi sekali dan mendukung jauh lebih banyak fitur."
+      ]
+    }
+  ]
+}

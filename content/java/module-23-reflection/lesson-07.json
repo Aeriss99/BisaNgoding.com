@@ -1,0 +1,207 @@
+{
+  "id": "java-reflection-07",
+  "moduleId": "reflection",
+  "order": 7,
+  "title": "Proyek: Mini JUnit dengan Reflection",
+  "estimatedMinutes": 20,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya menggabungkan semua yang dipelajari di modul ini menjadi alat yang kita kenal sejak modul Unit Test: **penjalan test**. Kita buat **MiniUji**, versi kecil JUnit:\n\n- `@Uji` menandai method test, `@SebelumSetiap` menandai method persiapan.\n- `MiniUji.jalankan(KelasTest.class)` menemukan method bertanda, membuat object baru untuk setiap test, menjalankan persiapan, menjalankan test, dan melaporkan hasilnya.\n\nIbarat juri lomba masak: setiap peserta mendapat dapur bersih yang sama (object baru dan persiapan), lalu juri mencicipi dan mencatat lulus atau tidaknya."
+    },
+    {
+      "type": "theory",
+      "content": "Bagian modul ini yang dipakai MiniUji:\n\n| Langkah | Alat reflection |\n|---|---|\n| menemukan method test | `getDeclaredMethods()` + `isAnnotationPresent(Uji.class)` |\n| urutan test yang tetap | urutkan dengan `Comparator.comparing(Method::getName)` |\n| object baru per test | `getDeclaredConstructor().newInstance()` |\n| menjalankan persiapan dan test | `method.invoke(objek)` |\n| mengenali test gagal | `InvocationTargetException`, penyebabnya `AssertionError` |\n\nKenapa **object baru untuk setiap test**? Supaya test tidak saling memengaruhi. Kalau test A mengubah isi field, test B tetap mulai dari keadaan bersih. JUnit 5 melakukan hal yang sama secara bawaan.\n\n`Periksa.sama(harapan, hasil)` adalah versi kecil `assertEquals`: kalau tidak sama, ia melempar `AssertionError` dengan pesan yang jelas."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nclass KeranjangTest {\n    Keranjang k;\n\n    @SebelumSetiap\n    void siapkan() {\n        k = new Keranjang();\n        k.tambah(\"kopi\", 2);\n    }\n\n    @Uji\n    void tambahBarangSama() {\n        k.tambah(\"kopi\", 3);\n        Periksa.sama(5, k.total());\n    }\n}\n```\n\n```text\nLULUS barangBaru\nLULUS tambahBarangSama\n2 dari 2 lulus\n```\n\nBandingkan dengan JUnit yang sungguhan:\n\n| MiniUji | JUnit 5 |\n|---|---|\n| `@Uji`, `@SebelumSetiap` | `@Test`, `@BeforeEach` (plus `@AfterEach`, `@BeforeAll`, `@Disabled`, ...) |\n| `Periksa.sama` | `assertEquals` dan puluhan assertion lain |\n| satu class | menemukan semua class test di proyek, laporan untuk IDE, Maven, dan CI |"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        MiniUji.jalankan(HitungTest.class);\n    }\n}\n\nclass HitungTest {\n    int nilai;\n\n    @Uji\n    void a() {\n        nilai++;\n        Periksa.sama(1, nilai);\n    }\n\n    @Uji\n    void b() {\n        nilai++;\n        Periksa.sama(1, nilai);\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Uji {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface SebelumSetiap {\n}\n\nclass Periksa {\n    static void sama(Object harapan, Object hasil) {\n        if (!Objects.equals(harapan, hasil)) {\n            throw new AssertionError(\"harapan \" + harapan + \" tetapi \" + hasil);\n        }\n    }\n}\n\nclass MiniUji {\n    static void jalankan(Class<?> kelas) throws Exception {\n        List<Method> uji = new ArrayList<>();\n        Method sebelum = null;\n        for (Method m : kelas.getDeclaredMethods()) {\n            if (m.isAnnotationPresent(Uji.class)) {\n                uji.add(m);\n            }\n            if (m.isAnnotationPresent(SebelumSetiap.class)) {\n                sebelum = m;\n            }\n        }\n        uji.sort(Comparator.comparing(Method::getName));\n        int lulus = 0;\n        for (Method m : uji) {\n            Object objek = kelas.getDeclaredConstructor().newInstance();\n            if (sebelum != null) {\n                sebelum.invoke(objek);\n            }\n            try {\n                m.invoke(objek);\n                System.out.println(\"LULUS \" + m.getName());\n                lulus++;\n            } catch (InvocationTargetException e) {\n                System.out.println(\"GAGAL \" + m.getName() + \": \" + e.getCause().getMessage());\n            }\n        }\n        System.out.println(lulus + \" dari \" + uji.size() + \" lulus\");\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: kedua test menambah nilai lalu memeriksa sama dengan 1. Apa baris terakhirnya?",
+        "options": [
+          "1 dari 2 lulus",
+          "0 dari 2 lulus",
+          "GAGAL b: harapan 1 tetapi 2",
+          "2 dari 2 lulus"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 60,
+          "note": "Object baru untuk setiap test."
+        },
+        {
+          "line": 57,
+          "note": "Urutan test tetap."
+        },
+        {
+          "line": 68,
+          "note": "AssertionError dari test terbungkus di sini."
+        }
+      ],
+      "explanation": "Setiap test mendapat object HitungTest baru, jadi nilai selalu mulai dari 0. Test b tidak melihat perubahan dari test a, dan keduanya lulus.\n\nKalau object dibuat sekali untuk semua test, test kedua akan gagal karena nilai sudah 1 sebelum ditambah.",
+      "tryThis": [
+        {
+          "task": "Pindahkan pembuatan object ke luar perulangan di MiniUji, lalu jalankan lagi.",
+          "hint": null
+        },
+        {
+          "task": "Ubah harapan di test b menjadi 2.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Satu object untuk semua test**\n\nTest lulus kalau dijalankan sendiri, tetapi gagal kalau dijalankan bersama. Masalah klasik di test yang berbagi keadaan.\n\n**2. Bergantung pada urutan method dari reflection**\n\nHasil bisa berbeda di JVM lain. Tetapkan urutan, atau lebih baik, buat test yang tidak peduli urutan.\n\n**3. Menangkap `Exception` saja untuk menandai test gagal**\n\n`AssertionError` turunan `Error`, bukan `Exception`. Di MiniUji, keduanya datang terbungkus `InvocationTargetException`, jadi tetap tertangkap.\n\n**4. Membuat penjalan test sendiri untuk proyek sungguhan**\n\nPakai JUnit. MiniUji dibuat untuk memahami cara kerjanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- JUnit 5 terdiri dari **JUnit Platform** (penjalan dan penemu test, dipakai IDE dan Maven Surefire) dan **Jupiter** (anotasi `@Test` dan kawan-kawan). Penjalan `JalankanTest` yang dipakai editor website ini di modul Unit Test memanggil JUnit Platform.\n- Ekstensi JUnit seperti `@ExtendWith(MockitoExtension.class)` memakai reflection untuk mengisi field `@Mock` dan `@InjectMocks` sebelum test berjalan.\n- Spring Framework pada dasarnya bekerja dengan ide yang sama: memindai class bertanda `@Component`, membuat object lewat constructor, mengisi dependency, dan membungkus dengan proxy kalau perlu.\n- Memahami cara kerja ini membuat pesan error framework seperti `No qualifying bean`, `InvocationTargetException`, atau `NoSuchMethodException: <init>()` jauh lebih mudah dipahami."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Mini Framework 7: Mini JUnit",
+      "pembuka": "Kita rakit **MiniUji** untuk menguji class `Keranjang`.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. MiniUji menemukan dua method `@Uji` dan menjalankannya.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        MiniUji.jalankan(KeranjangTest.class);\n    }\n}\n\nclass Keranjang {\n    private final Map<String, Integer> isi = new TreeMap<>();\n\n    void tambah(String barang, int jumlah) {\n        isi.merge(barang, jumlah, Integer::sum);\n    }\n\n    int total() {\n        int t = 0;\n        for (int n : isi.values()) {\n            t += n;\n        }\n        return t;\n    }\n\n    int jenis() {\n        return isi.size();\n    }\n}\n\nclass KeranjangTest {\n    Keranjang k;\n\n    @SebelumSetiap\n    void siapkan() {\n        k = new Keranjang();\n        k.tambah(\"kopi\", 2);\n    }\n\n    @Uji\n    void tambahBarangSama() {\n        k.tambah(\"kopi\", 3);\n        Periksa.sama(5, k.total());\n        Periksa.sama(1, k.jenis());\n    }\n\n    @Uji\n    void barangBaru() {\n        k.tambah(\"teh\", 1);\n        Periksa.sama(2, k.jenis());\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Uji {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface SebelumSetiap {\n}\n\nclass Periksa {\n    static void sama(Object harapan, Object hasil) {\n        if (!Objects.equals(harapan, hasil)) {\n            throw new AssertionError(\"harapan \" + harapan + \" tetapi \" + hasil);\n        }\n    }\n}\n\nclass MiniUji {\n    static void jalankan(Class<?> kelas) throws Exception {\n        List<Method> uji = new ArrayList<>();\n        Method sebelum = null;\n        for (Method m : kelas.getDeclaredMethods()) {\n            if (m.isAnnotationPresent(Uji.class)) {\n                uji.add(m);\n            }\n            if (m.isAnnotationPresent(SebelumSetiap.class)) {\n                sebelum = m;\n            }\n        }\n        uji.sort(Comparator.comparing(Method::getName));\n        int lulus = 0;\n        for (Method m : uji) {\n            Object objek = kelas.getDeclaredConstructor().newInstance();\n            if (sebelum != null) {\n                sebelum.invoke(objek);\n            }\n            try {\n                m.invoke(objek);\n                System.out.println(\"LULUS \" + m.getName());\n                lulus++;\n            } catch (InvocationTargetException e) {\n                System.out.println(\"GAGAL \" + m.getName() + \": \" + e.getCause().getMessage());\n            }\n        }\n        System.out.println(lulus + \" dari \" + uji.size() + \" lulus\");\n    }\n}\n",
+          "keluaran": "LULUS barangBaru\nLULUS tambahBarangSama\n2 dari 2 lulus",
+          "otomatis": true,
+          "benar": "Setiap test mendapat keranjang baru berisi dua kopi.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan test `@Uji void totalAwal()` yang memeriksa total awal keranjang sama dengan 3. Jalankan dan lihat test yang gagal.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        MiniUji.jalankan(KeranjangTest.class);\n    }\n}\n\nclass Keranjang {\n    private final Map<String, Integer> isi = new TreeMap<>();\n\n    void tambah(String barang, int jumlah) {\n        isi.merge(barang, jumlah, Integer::sum);\n    }\n\n    int total() {\n        int t = 0;\n        for (int n : isi.values()) {\n            t += n;\n        }\n        return t;\n    }\n\n    int jenis() {\n        return isi.size();\n    }\n}\n\nclass KeranjangTest {\n    Keranjang k;\n\n    @SebelumSetiap\n    void siapkan() {\n        k = new Keranjang();\n        k.tambah(\"kopi\", 2);\n    }\n\n    @Uji\n    void tambahBarangSama() {\n        k.tambah(\"kopi\", 3);\n        Periksa.sama(5, k.total());\n        Periksa.sama(1, k.jenis());\n    }\n\n    @Uji\n    void barangBaru() {\n        k.tambah(\"teh\", 1);\n        Periksa.sama(2, k.jenis());\n    }\n\n    @Uji\n    void totalAwal() {\n        Periksa.sama(3, k.total());\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Uji {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface SebelumSetiap {\n}\n\nclass Periksa {\n    static void sama(Object harapan, Object hasil) {\n        if (!Objects.equals(harapan, hasil)) {\n            throw new AssertionError(\"harapan \" + harapan + \" tetapi \" + hasil);\n        }\n    }\n}\n\nclass MiniUji {\n    static void jalankan(Class<?> kelas) throws Exception {\n        List<Method> uji = new ArrayList<>();\n        Method sebelum = null;\n        for (Method m : kelas.getDeclaredMethods()) {\n            if (m.isAnnotationPresent(Uji.class)) {\n                uji.add(m);\n            }\n            if (m.isAnnotationPresent(SebelumSetiap.class)) {\n                sebelum = m;\n            }\n        }\n        uji.sort(Comparator.comparing(Method::getName));\n        int lulus = 0;\n        for (Method m : uji) {\n            Object objek = kelas.getDeclaredConstructor().newInstance();\n            if (sebelum != null) {\n                sebelum.invoke(objek);\n            }\n            try {\n                m.invoke(objek);\n                System.out.println(\"LULUS \" + m.getName());\n                lulus++;\n            } catch (InvocationTargetException e) {\n                System.out.println(\"GAGAL \" + m.getName() + \": \" + e.getCause().getMessage());\n            }\n        }\n        System.out.println(lulus + \" dari \" + uji.size() + \" lulus\");\n    }\n}\n",
+          "keluaran": "LULUS barangBaru\nLULUS tambahBarangSama\nGAGAL totalAwal: harapan 3 tetapi 2\n2 dari 3 lulus",
+          "wajib": [
+            {
+              "pola": "@Uji\\s+void\\s+totalAwal\\s*\\(\\s*\\)",
+              "pesan": "buat `@Uji void totalAwal()`."
+            },
+            {
+              "pola": "Periksa\\.sama\\s*\\(\\s*3\\s*,\\s*k\\.total\\(\\)\\s*\\)",
+              "pesan": "periksa `Periksa.sama(3, k.total())`."
+            }
+          ],
+          "benar": "Pesan kegagalan datang dari `AssertionError` di dalam test.",
+          "petunjuk": "`Periksa.sama(3, k.total());` padahal persiapan hanya menambah 2 kopi."
+        },
+        {
+          "arahan": "Tambahkan test `setiapUjiMulaiBersih` yang memeriksa total sama dengan 2, untuk membuktikan perubahan dari test lain tidak terbawa.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        MiniUji.jalankan(KeranjangTest.class);\n    }\n}\n\nclass Keranjang {\n    private final Map<String, Integer> isi = new TreeMap<>();\n\n    void tambah(String barang, int jumlah) {\n        isi.merge(barang, jumlah, Integer::sum);\n    }\n\n    int total() {\n        int t = 0;\n        for (int n : isi.values()) {\n            t += n;\n        }\n        return t;\n    }\n\n    int jenis() {\n        return isi.size();\n    }\n}\n\nclass KeranjangTest {\n    Keranjang k;\n\n    @SebelumSetiap\n    void siapkan() {\n        k = new Keranjang();\n        k.tambah(\"kopi\", 2);\n    }\n\n    @Uji\n    void tambahBarangSama() {\n        k.tambah(\"kopi\", 3);\n        Periksa.sama(5, k.total());\n        Periksa.sama(1, k.jenis());\n    }\n\n    @Uji\n    void barangBaru() {\n        k.tambah(\"teh\", 1);\n        Periksa.sama(2, k.jenis());\n    }\n\n    @Uji\n    void setiapUjiMulaiBersih() {\n        Periksa.sama(2, k.total());\n    }\n\n    @Uji\n    void totalAwal() {\n        Periksa.sama(3, k.total());\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Uji {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface SebelumSetiap {\n}\n\nclass Periksa {\n    static void sama(Object harapan, Object hasil) {\n        if (!Objects.equals(harapan, hasil)) {\n            throw new AssertionError(\"harapan \" + harapan + \" tetapi \" + hasil);\n        }\n    }\n}\n\nclass MiniUji {\n    static void jalankan(Class<?> kelas) throws Exception {\n        List<Method> uji = new ArrayList<>();\n        Method sebelum = null;\n        for (Method m : kelas.getDeclaredMethods()) {\n            if (m.isAnnotationPresent(Uji.class)) {\n                uji.add(m);\n            }\n            if (m.isAnnotationPresent(SebelumSetiap.class)) {\n                sebelum = m;\n            }\n        }\n        uji.sort(Comparator.comparing(Method::getName));\n        int lulus = 0;\n        for (Method m : uji) {\n            Object objek = kelas.getDeclaredConstructor().newInstance();\n            if (sebelum != null) {\n                sebelum.invoke(objek);\n            }\n            try {\n                m.invoke(objek);\n                System.out.println(\"LULUS \" + m.getName());\n                lulus++;\n            } catch (InvocationTargetException e) {\n                System.out.println(\"GAGAL \" + m.getName() + \": \" + e.getCause().getMessage());\n            }\n        }\n        System.out.println(lulus + \" dari \" + uji.size() + \" lulus\");\n    }\n}\n",
+          "keluaran": "LULUS barangBaru\nLULUS setiapUjiMulaiBersih\nLULUS tambahBarangSama\nGAGAL totalAwal: harapan 3 tetapi 2\n3 dari 4 lulus",
+          "wajib": [
+            {
+              "pola": "@Uji\\s+void\\s+setiapUjiMulaiBersih\\s*\\(\\s*\\)",
+              "pesan": "buat `@Uji void setiapUjiMulaiBersih()`."
+            }
+          ],
+          "benar": "Walaupun `tambahBarangSama` menambah kopi, test ini tetap melihat keranjang bersih.",
+          "petunjuk": "`@Uji void setiapUjiMulaiBersih() { Periksa.sama(2, k.total()); }`"
+        },
+        {
+          "arahan": "Tantangan: perbaiki `totalAwal` supaya harapannya benar, sehingga semua test lulus.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        MiniUji.jalankan(KeranjangTest.class);\n    }\n}\n\nclass Keranjang {\n    private final Map<String, Integer> isi = new TreeMap<>();\n\n    void tambah(String barang, int jumlah) {\n        isi.merge(barang, jumlah, Integer::sum);\n    }\n\n    int total() {\n        int t = 0;\n        for (int n : isi.values()) {\n            t += n;\n        }\n        return t;\n    }\n\n    int jenis() {\n        return isi.size();\n    }\n}\n\nclass KeranjangTest {\n    Keranjang k;\n\n    @SebelumSetiap\n    void siapkan() {\n        k = new Keranjang();\n        k.tambah(\"kopi\", 2);\n    }\n\n    @Uji\n    void tambahBarangSama() {\n        k.tambah(\"kopi\", 3);\n        Periksa.sama(5, k.total());\n        Periksa.sama(1, k.jenis());\n    }\n\n    @Uji\n    void barangBaru() {\n        k.tambah(\"teh\", 1);\n        Periksa.sama(2, k.jenis());\n    }\n\n    @Uji\n    void setiapUjiMulaiBersih() {\n        Periksa.sama(2, k.total());\n    }\n\n    @Uji\n    void totalAwal() {\n        Periksa.sama(2, k.total());\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Uji {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface SebelumSetiap {\n}\n\nclass Periksa {\n    static void sama(Object harapan, Object hasil) {\n        if (!Objects.equals(harapan, hasil)) {\n            throw new AssertionError(\"harapan \" + harapan + \" tetapi \" + hasil);\n        }\n    }\n}\n\nclass MiniUji {\n    static void jalankan(Class<?> kelas) throws Exception {\n        List<Method> uji = new ArrayList<>();\n        Method sebelum = null;\n        for (Method m : kelas.getDeclaredMethods()) {\n            if (m.isAnnotationPresent(Uji.class)) {\n                uji.add(m);\n            }\n            if (m.isAnnotationPresent(SebelumSetiap.class)) {\n                sebelum = m;\n            }\n        }\n        uji.sort(Comparator.comparing(Method::getName));\n        int lulus = 0;\n        for (Method m : uji) {\n            Object objek = kelas.getDeclaredConstructor().newInstance();\n            if (sebelum != null) {\n                sebelum.invoke(objek);\n            }\n            try {\n                m.invoke(objek);\n                System.out.println(\"LULUS \" + m.getName());\n                lulus++;\n            } catch (InvocationTargetException e) {\n                System.out.println(\"GAGAL \" + m.getName() + \": \" + e.getCause().getMessage());\n            }\n        }\n        System.out.println(lulus + \" dari \" + uji.size() + \" lulus\");\n    }\n}\n",
+          "keluaran": "LULUS barangBaru\nLULUS setiapUjiMulaiBersih\nLULUS tambahBarangSama\nLULUS totalAwal\n4 dari 4 lulus",
+          "wajib": [
+            {
+              "pola": "void\\s+totalAwal\\s*\\(\\s*\\)\\s*\\{\\s*Periksa\\.sama\\s*\\(\\s*2\\s*,\\s*k\\.total\\(\\)\\s*\\)",
+              "pesan": "ubah harapan `totalAwal` menjadi 2."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Test yang gagal kadang salah di test-nya sendiri, bukan di kode yang diuji.",
+          "petunjuk": "Persiapan menambah 2 kopi, jadi totalnya 2."
+        }
+      ],
+      "penutup": "Selamat, Mini Framework selesai! Kamu sekarang tahu apa yang terjadi di balik JUnit, Bean Validation, dan Spring."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa MiniUji membuat object baru untuk setiap method test?",
+          "options": [
+            "Supaya test tidak saling memengaruhi lewat field",
+            "Supaya test lebih cepat",
+            "Karena method tidak bisa dipanggil dua kali",
+            "Karena anotasi hanya terbaca sekali"
+          ],
+          "answer": 0,
+          "explanation": "Keadaan bersih.",
+          "remedial": "Object baru berarti field mulai dari nilai awal di setiap test. Perubahan oleh satu test tidak terlihat oleh test lain."
+        },
+        {
+          "question": "Periksa.sama melempar AssertionError di dalam test. MiniUji menerimanya sebagai...",
+          "options": [
+            "AssertionError langsung",
+            "InvocationTargetException dengan penyebab AssertionError",
+            "IllegalAccessException",
+            "NoSuchMethodException"
+          ],
+          "answer": 1,
+          "explanation": "Lewat invoke.",
+          "remedial": "Semua yang dilempar method yang dipanggil lewat `invoke` dibungkus `InvocationTargetException`. Pesan kegagalan diambil dari `getCause()`."
+        },
+        {
+          "question": "Anotasi JUnit 5 yang sepadan dengan @SebelumSetiap adalah...",
+          "options": [
+            "@BeforeAll",
+            "@Test",
+            "@BeforeEach",
+            "@ExtendWith"
+          ],
+          "answer": 2,
+          "explanation": "Sebelum setiap test.",
+          "remedial": "`@BeforeEach` dijalankan sebelum setiap method test pada object test yang baru, sama seperti `@SebelumSetiap` di MiniUji."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Untuk menemukan method test, MiniUji memakai...",
+      "options": [
+        "getFields() dan getType()",
+        "Class.forName untuk setiap method",
+        "Proxy.newProxyInstance",
+        "getDeclaredMethods() dan isAnnotationPresent(Uji.class)"
+      ],
+      "answer": 3,
+      "explanation": "Method bertanda."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Tambahkan dukungan anotasi @Abaikan ke MiniUji, seperti @Disabled di JUnit. Test yang diberi @Abaikan tidak dijalankan, dan dicetak LEWAT nama: alasan (alasan dari elemen value). Baris ringkasan menjadi lulus dari jumlah lulus, n dilewati. Anotasi @Abaikan dan class test sudah ada; ubah method jalankan di MiniUji.",
+      "starterCode": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        MiniUji.jalankan(KeranjangTest.class);\n    }\n}\n\nclass Keranjang {\n    private final Map<String, Integer> isi = new TreeMap<>();\n\n    void tambah(String barang, int jumlah) {\n        isi.merge(barang, jumlah, Integer::sum);\n    }\n\n    int total() {\n        int t = 0;\n        for (int n : isi.values()) {\n            t += n;\n        }\n        return t;\n    }\n\n    int jenis() {\n        return isi.size();\n    }\n}\n\nclass KeranjangTest {\n    Keranjang k;\n\n    @SebelumSetiap\n    void siapkan() {\n        k = new Keranjang();\n    }\n\n    @Uji\n    void kosong() {\n        Periksa.sama(0, k.total());\n    }\n\n    @Uji\n    @Abaikan(\"menunggu fitur diskon\")\n    void diskon() {\n        Periksa.sama(1, 2);\n    }\n\n    @Uji\n    void jenisBertambah() {\n        k.tambah(\"teh\", 1);\n        k.tambah(\"roti\", 2);\n        Periksa.sama(2, k.jenis());\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Uji {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface SebelumSetiap {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Abaikan {\n    String value() default \"\";\n}\n\nclass Periksa {\n    static void sama(Object harapan, Object hasil) {\n        if (!Objects.equals(harapan, hasil)) {\n            throw new AssertionError(\"harapan \" + harapan + \" tetapi \" + hasil);\n        }\n    }\n}\n\nclass MiniUji {\n    static void jalankan(Class<?> kelas) throws Exception {\n        List<Method> uji = new ArrayList<>();\n        Method sebelum = null;\n        for (Method m : kelas.getDeclaredMethods()) {\n            if (m.isAnnotationPresent(Uji.class)) {\n                uji.add(m);\n            }\n            if (m.isAnnotationPresent(SebelumSetiap.class)) {\n                sebelum = m;\n            }\n        }\n        uji.sort(Comparator.comparing(Method::getName));\n        int lulus = 0;\n        for (Method m : uji) {\n            Object objek = kelas.getDeclaredConstructor().newInstance();\n            if (sebelum != null) {\n                sebelum.invoke(objek);\n            }\n            try {\n                m.invoke(objek);\n                System.out.println(\"LULUS \" + m.getName());\n                lulus++;\n            } catch (InvocationTargetException e) {\n                System.out.println(\"GAGAL \" + m.getName() + \": \" + e.getCause().getMessage());\n            }\n        }\n        System.out.println(lulus + \" dari \" + uji.size() + \" lulus, 0 dilewati\");\n    }\n}",
+      "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        MiniUji.jalankan(KeranjangTest.class);\n    }\n}\n\nclass Keranjang {\n    private final Map<String, Integer> isi = new TreeMap<>();\n\n    void tambah(String barang, int jumlah) {\n        isi.merge(barang, jumlah, Integer::sum);\n    }\n\n    int total() {\n        int t = 0;\n        for (int n : isi.values()) {\n            t += n;\n        }\n        return t;\n    }\n\n    int jenis() {\n        return isi.size();\n    }\n}\n\nclass KeranjangTest {\n    Keranjang k;\n\n    @SebelumSetiap\n    void siapkan() {\n        k = new Keranjang();\n    }\n\n    @Uji\n    void kosong() {\n        Periksa.sama(0, k.total());\n    }\n\n    @Uji\n    @Abaikan(\"menunggu fitur diskon\")\n    void diskon() {\n        Periksa.sama(1, 2);\n    }\n\n    @Uji\n    void jenisBertambah() {\n        k.tambah(\"teh\", 1);\n        k.tambah(\"roti\", 2);\n        Periksa.sama(2, k.jenis());\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Uji {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface SebelumSetiap {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Abaikan {\n    String value() default \"\";\n}\n\nclass Periksa {\n    static void sama(Object harapan, Object hasil) {\n        if (!Objects.equals(harapan, hasil)) {\n            throw new AssertionError(\"harapan \" + harapan + \" tetapi \" + hasil);\n        }\n    }\n}\n\nclass MiniUji {\n    static void jalankan(Class<?> kelas) throws Exception {\n        List<Method> uji = new ArrayList<>();\n        Method sebelum = null;\n        for (Method m : kelas.getDeclaredMethods()) {\n            if (m.isAnnotationPresent(Uji.class)) {\n                uji.add(m);\n            }\n            if (m.isAnnotationPresent(SebelumSetiap.class)) {\n                sebelum = m;\n            }\n        }\n        uji.sort(Comparator.comparing(Method::getName));\n        int lulus = 0;\n        int dilewati = 0;\n        for (Method m : uji) {\n            if (m.isAnnotationPresent(Abaikan.class)) {\n                System.out.println(\"LEWAT \" + m.getName() + \": \" + m.getAnnotation(Abaikan.class).value());\n                dilewati++;\n                continue;\n            }\n            Object objek = kelas.getDeclaredConstructor().newInstance();\n            if (sebelum != null) {\n                sebelum.invoke(objek);\n            }\n            try {\n                m.invoke(objek);\n                System.out.println(\"LULUS \" + m.getName());\n                lulus++;\n            } catch (InvocationTargetException e) {\n                System.out.println(\"GAGAL \" + m.getName() + \": \" + e.getCause().getMessage());\n            }\n        }\n        System.out.println(lulus + \" dari \" + uji.size() + \" lulus, \" + dilewati + \" dilewati\");\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "LEWAT diskon: menunggu fitur diskon\nLULUS jenisBertambah\nLULUS kosong\n2 dari 3 lulus, 1 dilewati\n"
+        }
+      ],
+      "hints": [
+        "Di awal perulangan test, periksa m.isAnnotationPresent(Abaikan.class); kalau ya, cetak LEWAT, tambah penghitung, lalu continue.",
+        "Alasan diambil dari m.getAnnotation(Abaikan.class).value()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "MiniUji menemukan method @Uji, membuat object baru per test, menjalankan @SebelumSetiap, lalu test.",
+        "Kegagalan datang sebagai InvocationTargetException dengan penyebab AssertionError.",
+        "Urutan ditetapkan dengan mengurutkan nama method.",
+        "JUnit, Spring, dan Mockito bekerja dengan prinsip yang sama: anotasi + reflection + proxy."
+      ]
+    }
+  ]
+}
