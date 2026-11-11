@@ -22,7 +22,5 @@ async function jalan(html, berkas) {
   }
   await page.close();
 }
-const java8 = fs.readdirSync('p6').filter((f) => f.endsWith('.java') && !f.startsWith('j21')).sort();
-await jalan('index.html', java8);
-await jalan('index21.html', fs.readdirSync('p6').filter((f) => f.startsWith('j21')));
+await jalan('index21.html', ['j21_a.java', 'a_i18n.java', 'c_thread.java', 'b_refleksi.java', 'e_hibernate.java']);
 await browser.close();
