@@ -1,0 +1,186 @@
+{
+  "id": "java-logging-05",
+  "moduleId": "logging",
+  "order": 5,
+  "title": "Konfigurasi logback.xml",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sejauh ini level diatur dengan kode `aturLevel(...)`. Di proyek sungguhan, pengaturan log **tidak** ditulis di kode Java, melainkan di file `logback.xml`. Dengan begitu level, format, dan tujuan log bisa diubah tanpa mengompilasi ulang aplikasi, dan server produksi bisa memakai pengaturan yang berbeda dari laptop developer.\n\nIbarat panel listrik rumah: kabel di dalam tembok (kode) dipasang sekali, sedangkan sakelar dan sekring di panel (logback.xml) bisa diatur kapan saja tanpa membongkar tembok."
+    },
+    {
+      "type": "theory",
+      "content": "Logback mencari file `logback.xml` di classpath. Di proyek Maven, letaknya `src/main/resources/logback.xml`. Kalau tidak ada, Logback memakai pengaturan bawaan: semua level DEBUG ke atas, dengan format panjang.\n\nTiga bagian utama:\n\n```xml\n<configuration>\n  <appender name=\"CONSOLE\" class=\"ch.qos.logback.core.ConsoleAppender\">   <!-- 1. tujuan -->\n    <encoder>\n      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>   <!-- 2. format -->\n    </encoder>\n  </appender>\n\n  <logger name=\"com.bisangoding.todolist.TodoService\" level=\"DEBUG\"/>   <!-- 3. level per logger -->\n\n  <root level=\"INFO\">\n    <appender-ref ref=\"CONSOLE\"/>\n  </root>\n</configuration>\n```\n\nIsi pola (pattern) yang paling sering dipakai:\n\n| Kode | Ditampilkan |\n|---|---|\n| `%d{HH:mm:ss.SSS}` | waktu, dengan format tanggal Java |\n| `%thread` | nama thread |\n| `%-5level` | level, dirapikan selebar 5 huruf |\n| `%logger{36}` | nama logger, disingkat kalau lebih dari 36 huruf |\n| `%msg` | pesan |\n| `%n` | ganti baris |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nPola yang dipakai website ini kira-kira `%-5level %logger{36} - %msg%n`, tanpa waktu dan thread.\n\nHasil pola `%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n` di aplikasi Todolist (dijalankan dengan `mvn exec:java`, sehingga nama thread-nya `com.bisangoding.todolist.App.main()`):\n\n```text\n13:07:46.752 [com.bisangoding.todolist.App.main()] INFO  com.bisangoding.todolist.App - Aplikasi Todolist mulai\n13:07:46.754 [com.bisangoding.todolist.App.main()] INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 1. [ ] Belajar logging\n```\n\nUntuk menjalankan class `App` dari Maven dipakai plugin `exec-maven-plugin`, dengan `mainClass` diatur di `pom.xml`. Pilihan `-q` (quiet) menyembunyikan baris `[INFO]` milik Maven, sehingga yang tampil hanya keluaran aplikasi.\n\nUntuk test, Logback mencari `logback-test.xml` lebih dulu. File di `src/test/resources/logback-test.xml` membuat log saat `mvn test` bisa diatur berbeda, misalnya lebih sepi."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `logback.xml` diletakkan di folder yang salah**\n\nFile di akar proyek atau di `src/main/java` tidak terbaca. Logback diam-diam memakai pengaturan bawaan (DEBUG dengan format panjang). Letakkan di `src/main/resources`.\n\n**2. XML tidak valid**\n\nTag yang tidak ditutup membuat Logback mencetak pesan error-nya sendiri di awal (diawali `ERROR in ch.qos.logback...`) lalu kembali ke pengaturan bawaan. Baca baris-baris awal keluaran saat log terlihat aneh.\n\n**3. Lupa `<appender-ref>` di root**\n\nAppender yang tidak dirujuk dari `root` atau `logger` tidak pernah dipakai, sehingga tidak ada log yang tampil sama sekali.\n\n**4. Mengubah `logback.xml` tanpa build ulang**\n\n`mvn exec:java` tanpa `compile` memakai salinan lama di `target/classes`. Jalankan `mvn compile exec:java` supaya file terbaru ikut tersalin."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Spring Boot mencari `logback-spring.xml`, yang mendukung pengaturan per profile:\n\n```xml\n<springProfile name=\"dev\">\n  <root level=\"DEBUG\"/>\n</springProfile>\n<springProfile name=\"prod\">\n  <root level=\"INFO\"/>\n</springProfile>\n```\n\n- Untuk pengaturan sederhana, tim Spring Boot cukup memakai `application.properties` (`logging.level...`, `logging.pattern.console`) tanpa membuat file XML sama sekali.\n- Server produksi biasanya menulis log dalam bentuk **JSON** supaya bisa dicari dengan alat seperti Elasticsearch, Grafana Loki, atau Datadog. Logback 1.5 punya `JsonEncoder` bawaan. Keluaran aslinya untuk aplikasi Todolist (dipotong):\n\n```json\n{\"level\":\"INFO\",\"threadName\":\"com.bisangoding.todolist.App.main()\",\"loggerName\":\"com.bisangoding.todolist.App\",\"message\":\"Aplikasi Todolist mulai\", ...}\n```"
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Log Todolist 5: Mengatur Lewat logback.xml",
+      "folder": "~/todolist",
+      "pembuka": "Proyek Todolist di laptop Sari sudah memakai SLF4J dan Logback (lihat `pom.xml`). `App` dan `TodoService` sudah punya logger seperti di materi sebelumnya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Belum ada `logback.xml`. Aku jalankan aplikasinya dengan `mvn -q compile exec:java`.",
+          "terima": [
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q",
+            "mvn -q compile exec:java -Dexec.mainClass=com.bisangoding.todolist.App"
+          ],
+          "keluaran": "13:07:38.293 [com.bisangoding.todolist.App.main()] INFO com.bisangoding.todolist.App -- Aplikasi Todolist mulai\n13:07:38.295 [com.bisangoding.todolist.App.main()] DEBUG com.bisangoding.todolist.TodoService -- Menambah todo dengan judul 'Belajar logging'\n13:07:38.296 [com.bisangoding.todolist.App.main()] INFO com.bisangoding.todolist.TodoService -- Todo baru disimpan: 1. [ ] Belajar logging\n13:07:38.301 [com.bisangoding.todolist.App.main()] DEBUG com.bisangoding.todolist.TodoService -- Menambah todo dengan judul 'Beli kopi'\n13:07:38.301 [com.bisangoding.todolist.App.main()] INFO com.bisangoding.todolist.TodoService -- Todo baru disimpan: 2. [ ] Beli kopi\n13:07:38.302 [com.bisangoding.todolist.App.main()] DEBUG com.bisangoding.todolist.App -- Jumlah todo sekarang 2\n13:07:38.304 [com.bisangoding.todolist.App.main()] WARN com.bisangoding.todolist.App -- Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\n13:07:38.304 [com.bisangoding.todolist.App.main()] INFO com.bisangoding.todolist.App -- Aplikasi selesai",
+          "petunjuk": "",
+          "otomatis": true,
+          "benar": "Tanpa `logback.xml`, Logback memakai pengaturan bawaan: DEBUG ikut tampil, dan setiap baris panjang sekali.\n\nSekarang giliranmu."
+        },
+        {
+          "arahan": "Aku sudah membuat `src/main/resources/logback.xml`. Tampilkan isinya dengan `cat`.",
+          "terima": [
+            "cat src/main/resources/logback.xml"
+          ],
+          "keluaran": "<configuration>\n  <appender name=\"CONSOLE\" class=\"ch.qos.logback.core.ConsoleAppender\">\n    <encoder>\n      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>\n    </encoder>\n  </appender>\n\n  <root level=\"INFO\">\n    <appender-ref ref=\"CONSOLE\"/>\n  </root>\n</configuration>",
+          "petunjuk": "Ketik `cat src/main/resources/logback.xml`.",
+          "benar": "Satu appender ke konsol, pola dengan waktu dan thread, dan level ROOT INFO."
+        },
+        {
+          "arahan": "Jalankan aplikasinya lagi.",
+          "terima": [
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q",
+            "mvn -q compile exec:java -Dexec.mainClass=com.bisangoding.todolist.App"
+          ],
+          "keluaran": "13:07:46.752 [com.bisangoding.todolist.App.main()] INFO  com.bisangoding.todolist.App - Aplikasi Todolist mulai\n13:07:46.754 [com.bisangoding.todolist.App.main()] INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 1. [ ] Belajar logging\n13:07:46.758 [com.bisangoding.todolist.App.main()] INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 2. [ ] Beli kopi\n13:07:46.760 [com.bisangoding.todolist.App.main()] WARN  com.bisangoding.todolist.App - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\n13:07:46.760 [com.bisangoding.todolist.App.main()] INFO  com.bisangoding.todolist.App - Aplikasi selesai",
+          "petunjuk": "Perintah yang sama dengan contohku: `mvn -q compile exec:java`.",
+          "benar": "DEBUG hilang, kolom level rapi selebar 5 huruf, dan nama logger yang panjang disingkat menjadi `c.bisangoding.todolist.TodoService`."
+        },
+        {
+          "arahan": "Aku mengganti `<root level=\"INFO\">` menjadi `<root level=\"DEBUG\">`. Jalankan lagi.",
+          "terima": [
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q",
+            "mvn -q compile exec:java -Dexec.mainClass=com.bisangoding.todolist.App"
+          ],
+          "keluaran": "13:07:49.934 [com.bisangoding.todolist.App.main()] INFO  com.bisangoding.todolist.App - Aplikasi Todolist mulai\n13:07:49.936 [com.bisangoding.todolist.App.main()] DEBUG c.bisangoding.todolist.TodoService - Menambah todo dengan judul 'Belajar logging'\n13:07:49.937 [com.bisangoding.todolist.App.main()] INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 1. [ ] Belajar logging\n13:07:49.942 [com.bisangoding.todolist.App.main()] DEBUG c.bisangoding.todolist.TodoService - Menambah todo dengan judul 'Beli kopi'\n13:07:49.942 [com.bisangoding.todolist.App.main()] INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 2. [ ] Beli kopi\n13:07:49.943 [com.bisangoding.todolist.App.main()] DEBUG com.bisangoding.todolist.App - Jumlah todo sekarang 2\n13:07:49.944 [com.bisangoding.todolist.App.main()] WARN  com.bisangoding.todolist.App - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\n13:07:49.945 [com.bisangoding.todolist.App.main()] INFO  com.bisangoding.todolist.App - Aplikasi selesai",
+          "petunjuk": "Jalankan dengan `mvn -q compile exec:java` supaya file yang baru ikut terbaca.",
+          "benar": "Baris DEBUG kembali, tanpa mengubah satu baris pun kode Java."
+        },
+        {
+          "arahan": "Sekarang ROOT kuubah ke `WARN`. Jalankan lagi.",
+          "terima": [
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q",
+            "mvn -q compile exec:java -Dexec.mainClass=com.bisangoding.todolist.App"
+          ],
+          "keluaran": "13:07:53.159 [com.bisangoding.todolist.App.main()] WARN  com.bisangoding.todolist.App - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan",
+          "petunjuk": "Masih perintah yang sama.",
+          "tantangan": true,
+          "benar": "Hanya satu peringatan yang tersisa. Inilah tampilan log server yang hanya ingin tahu masalah."
+        },
+        {
+          "arahan": "ROOT kukembalikan ke INFO, lalu kutambahkan pengaturan khusus untuk `TodoService`. Lihat isi filenya.",
+          "terima": [
+            "cat src/main/resources/logback.xml"
+          ],
+          "keluaran": "<configuration>\n  <appender name=\"CONSOLE\" class=\"ch.qos.logback.core.ConsoleAppender\">\n    <encoder>\n      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>\n    </encoder>\n  </appender>\n\n  <logger name=\"com.bisangoding.todolist.TodoService\" level=\"DEBUG\"/>\n\n  <root level=\"INFO\">\n    <appender-ref ref=\"CONSOLE\"/>\n  </root>\n</configuration>",
+          "petunjuk": "Pakai `cat` seperti tadi.",
+          "benar": "Ada baris `<logger name=\"com.bisangoding.todolist.TodoService\" level=\"DEBUG\"/>`, sama dengan `aturLevel` di materi 4."
+        },
+        {
+          "arahan": "Jalankan aplikasinya untuk melihat hasil pengaturan per logger.",
+          "terima": [
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q",
+            "mvn -q compile exec:java -Dexec.mainClass=com.bisangoding.todolist.App"
+          ],
+          "keluaran": "13:07:56.435 [com.bisangoding.todolist.App.main()] INFO  com.bisangoding.todolist.App - Aplikasi Todolist mulai\n13:07:56.436 [com.bisangoding.todolist.App.main()] DEBUG c.bisangoding.todolist.TodoService - Menambah todo dengan judul 'Belajar logging'\n13:07:56.437 [com.bisangoding.todolist.App.main()] INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 1. [ ] Belajar logging\n13:07:56.442 [com.bisangoding.todolist.App.main()] DEBUG c.bisangoding.todolist.TodoService - Menambah todo dengan judul 'Beli kopi'\n13:07:56.443 [com.bisangoding.todolist.App.main()] INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 2. [ ] Beli kopi\n13:07:56.445 [com.bisangoding.todolist.App.main()] WARN  com.bisangoding.todolist.App - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\n13:07:56.445 [com.bisangoding.todolist.App.main()] INFO  com.bisangoding.todolist.App - Aplikasi selesai",
+          "petunjuk": "Perintahnya sama.",
+          "tantangan": true,
+          "benar": "DEBUG hanya muncul dari `TodoService`. Log DEBUG dari `App` (jumlah todo) tetap tersembunyi karena `App` mengikuti ROOT."
+        }
+      ],
+      "penutup": "Pengaturan log sekarang ada di `logback.xml`: bisa diubah tanpa menyentuh kode Java."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di proyek Maven, file logback.xml diletakkan di...",
+          "options": [
+            "src/main/java",
+            "src/main/resources",
+            "Folder paling atas proyek",
+            "target"
+          ],
+          "answer": 1,
+          "explanation": "Folder resources ikut masuk classpath.",
+          "remedial": "Maven menyalin isi `src/main/resources` ke `target/classes`, yang menjadi classpath aplikasi. Logback mencari `logback.xml` di classpath."
+        },
+        {
+          "question": "Apa yang terjadi kalau Logback tidak menemukan logback.xml?",
+          "options": [
+            "Aplikasi gagal dijalankan",
+            "Semua log dimatikan",
+            "Logback memakai pengaturan bawaan: level DEBUG dengan format panjang",
+            "Log ditulis ke file log.txt"
+          ],
+          "answer": 2,
+          "explanation": "Ada pengaturan bawaan.",
+          "remedial": "Tanpa file pengaturan, Logback tetap bekerja dengan pengaturan bawaannya: semua pesan DEBUG ke atas ditulis ke konsol dengan format waktu, thread, level, nama logger lengkap, lalu pesan."
+        },
+        {
+          "question": "Kode %-5level di pola log berarti...",
+          "options": [
+            "Hanya 5 level yang ditampilkan",
+            "Level dikurangi 5",
+            "Tampilkan 5 log terakhir",
+            "Level ditampilkan dan dirapikan selebar 5 huruf"
+          ],
+          "answer": 3,
+          "explanation": "Lebar kolom tetap.",
+          "remedial": "Angka di depan kode pola mengatur lebar kolom. `-5` berarti rata kiri selebar 5 huruf, sehingga `INFO` diberi satu spasi tambahan dan kolom sesudahnya sejajar dengan baris `DEBUG` atau `ERROR`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Baris di logback.xml yang membuat semua class di package com.bisangoding tampil sampai DEBUG adalah...",
+      "options": [
+        "<logger name=\"com.bisangoding\" level=\"DEBUG\"/>",
+        "<root level=\"com.bisangoding\"/>",
+        "<debug package=\"com.bisangoding\"/>",
+        "<appender name=\"com.bisangoding\" level=\"DEBUG\"/>"
+      ],
+      "answer": 0,
+      "explanation": "Tag logger dengan nama package."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi level ROOT supaya hanya peringatan dan error yang tampil.",
+      "code": "<root level=\"___\">",
+      "answers": [
+        "WARN"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Pengaturan log ditulis di src/main/resources/logback.xml, bukan di kode Java.",
+        "Tiga bagian: appender (tujuan), encoder pattern (format), logger dan root (level).",
+        "Pola umum: %d, %thread, %-5level, %logger{36}, %msg, %n.",
+        "Tanpa logback.xml, Logback memakai bawaan: DEBUG dengan format panjang."
+      ]
+    }
+  ],
+  "runnable": false
+}

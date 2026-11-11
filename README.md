@@ -6,7 +6,7 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 
 | Kelas | Isi |
 | --- | --- |
-| **Java** | Java Dasar, Proyek Todolist, OOP, Collection, Record & Sealed Class, Standard Classes, Generics, Lambda, Stream, Date & Time |
+| **Java** | Java Dasar, Proyek Todolist, OOP, Collection, Record & Sealed Class, Standard Classes, Generics, Lambda, Stream, Date & Time, Input Output, Proyek Todolist OOP, Maven, Unit Test, Logging, Lombok, JDBC, Proyek Todolist Database, Validation, JSON |
 | **JavaScript** | JavaScript Dasar, Proyek Todolist, JavaScript OOP, JavaScript DOM, Standard Library, Async, dan Modules |
 | **TypeScript** | Tipe dasar, object dan interface, fungsi, union dan narrowing, generics, class, utility types, async dan module, tooling (tsc, tsconfig, npm) dan proyek Todolist; kode diperiksa compiler TypeScript asli (strict) di browser |
 | **Node.js** | Node.js dasar, ESM dan CommonJS, npm, file system, async dan event loop, stream, HTTP server, Express 5, middleware dan validasi Zod, REST API berlapis, autentikasi (bcrypt, JWT), PostgreSQL dengan Prisma, testing (node:test, Supertest), produksi dan deploy, proyek REST API Todolist; kode Node.js jalan di browser |
@@ -96,6 +96,8 @@ Materi hanya berupa file JSON, tanpa perlu mengubah kode:
 3. Jalankan `npm run build && npm run test:content`. Untuk kelas Java, jalankan juga `npm run test:java`.
 
 Jenis kartu dan field-nya ada di `src/types/schema.ts`. Kode Java yang dijalankan di browser harus kompatibel dengan **Java 8**, karena CheerpJ menjalankan Java 8. Pelajaran yang butuh fitur lebih baru diberi `"javaVersion": 17` dan dipraktikkan di komputer pelajar.
+
+Library Java untuk editor (JUnit 5, Mockito, Logback, Lombok, H2, Hibernate Validator, Jackson) ada di `public/java-lib` dan dipasang otomatis sesuai `import` di kode, lewat aturan di `src/lib/javaPustaka.json`. Sumber `bisangoding.jar` (penjalan test JUnit dan format log) ada di `pustaka-java/`, dibangun dengan `pustaka-java/bangun.sh`.
 
 ## Deploy
 

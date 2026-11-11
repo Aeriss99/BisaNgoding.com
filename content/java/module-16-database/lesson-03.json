@@ -1,0 +1,226 @@
+{
+  "id": "java-database-03",
+  "moduleId": "database",
+  "order": 3,
+  "title": "Mencari dan Mengubah Data",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Mengambil semua baris hanya berguna kalau datanya sedikit. Aplikasi sungguhan selalu bertanya lebih spesifik: todo yang belum selesai, lima terbaru, berapa yang sudah selesai. Data juga berubah: todo diselesaikan, todo dihapus.\n\nIbarat bertanya ke pustakawan: bukan \"berikan semua buku\", tapi \"buku tentang Java, terbitan terbaru, tiga saja\". Semakin jelas pertanyaannya, semakin cepat dan tepat jawabannya."
+    },
+    {
+      "type": "theory",
+      "content": "| Bagian | Fungsinya | Contoh |\n|---|---|---|\n| `WHERE` | menyaring baris | `WHERE selesai = FALSE` |\n| `LIKE` | mencari pola teks; `%` berarti teks apa saja | `WHERE judul LIKE '%buku%'` |\n| `ORDER BY` | mengurutkan; `DESC` dari besar ke kecil | `ORDER BY id DESC` |\n| `LIMIT` | membatasi jumlah baris | `LIMIT 2` |\n| `COUNT(*)` | menghitung baris | `SELECT COUNT(*) FROM todo` |\n| `AS` | memberi nama kolom hasil | `COUNT(*) AS jumlah_selesai` |\n\nMengubah dan menghapus:\n\n```sql\nUPDATE todo SET selesai = TRUE WHERE id = 2;\nDELETE FROM todo WHERE id = 4;\n```\n\n`WHERE` pada UPDATE dan DELETE **sangat penting**. Tanpa WHERE, semua baris di tabel ikut diubah atau dihapus."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```sql\nSELECT * FROM todo WHERE selesai = FALSE;               -- yang belum selesai\nSELECT * FROM todo ORDER BY id DESC LIMIT 2;            -- dua terbaru\nSELECT COUNT(*) AS jumlah_selesai FROM todo WHERE selesai = TRUE;\n```\n\nUrutan penulisan bagian-bagian SELECT selalu:\n\n```text\nSELECT kolom FROM tabel WHERE syarat ORDER BY kolom LIMIT jumlah\n```\n\nKlien `mysql` bisa dijalankan dengan pilihan `--safe-updates`. Dalam mode itu MySQL menolak UPDATE dan DELETE yang tidak memakai WHERE berdasarkan kolom kunci, pengaman yang sangat berguna saat bekerja di database penting."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. UPDATE atau DELETE tanpa WHERE**\n\n`DELETE FROM todo;` menghapus semua todo, dan tidak ada tombol undo. Biasakan menulis WHERE lebih dulu, atau jalankan SELECT dengan WHERE yang sama untuk memastikan baris mana yang kena.\n\n**2. Membandingkan dengan NULL memakai `=`**\n\n`WHERE catatan = NULL` tidak pernah benar. Pakai `WHERE catatan IS NULL`.\n\n**3. Salah ketik kata kunci**\n\n`SELEC * FROM todo` ditolak dengan `ERROR 1064 ... You have an error in your SQL syntax`. Bagian setelah kata `near` menunjukkan di mana MySQL mulai bingung.\n\n**4. LIKE tanpa `%`**\n\n`WHERE judul LIKE 'buku'` hanya cocok dengan judul yang persis \"buku\". Untuk \"memuat kata buku\", tulis `'%buku%'`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- **Index** membuat WHERE dan ORDER BY cepat. Tanpa index, MySQL membaca seluruh tabel. Kolom yang sering dicari diberi index: `CREATE INDEX idx_todo_selesai ON todo (selesai);`. Primary key otomatis ber-index.\n- `EXPLAIN SELECT ...` menunjukkan cara MySQL menjalankan query, dipakai untuk menyelidiki query lambat.\n- Data penting jarang benar-benar dihapus. Banyak aplikasi memakai **soft delete**: kolom `dihapus_pada` diisi waktu, dan query biasa menambahkan `WHERE dihapus_pada IS NULL`.\n- Perubahan data massal di produksi dijalankan di dalam **transaksi**, sehingga bisa dibatalkan kalau hasilnya tidak sesuai (materi Transaction).\n\n```sql\nSTART TRANSACTION;\nUPDATE todo SET selesai = TRUE WHERE id = 1;\nSELECT * FROM todo;   -- periksa dulu\nROLLBACK;             -- batalkan, atau COMMIT untuk menyimpan\n```"
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Toko Database 3: Bertanya ke Database",
+      "folder": "~",
+      "pembuka": "Tabel `todo` berisi empat baris dari materi sebelumnya. Sekarang kita ajukan pertanyaan yang lebih spesifik.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Aku masuk ke database todolist.",
+          "terima": [
+            "mysql -u root -p todolist",
+            "mysql -uroot -p todolist",
+            "mysql -u root -p -D todolist"
+          ],
+          "keluaran": "Enter password:\nReading table information for completion of table and column names\nYou can turn off this feature to get a quicker startup with -A\n\nWelcome to the MySQL monitor.  Commands end with ; or \\g.\nYour MySQL connection id is 20\nServer version: 8.4.13 MySQL Community Server - GPL\n\nCopyright (c) 2000, 2026, Oracle and/or its affiliates.\n\nOracle is a registered trademark of Oracle Corporation and/or its\naffiliates. Other names may be trademarks of their respective\nowners.\n\nType 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.",
+          "petunjuk": "",
+          "otomatis": true,
+          "benar": "Masuk ke database `todolist`.\n\n(Sandi diketik tanpa terlihat di layar. Di praktik ini sandinya sudah kuketikkan.)\n\nSekarang giliranmu.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Tampilkan todo yang belum selesai: `SELECT * FROM todo WHERE selesai = FALSE;`.",
+          "terima": [
+            "SELECT * FROM todo WHERE selesai = FALSE;",
+            "select * from todo where selesai = false;"
+          ],
+          "keluaran": "+----+---------------+---------+\n| id | judul         | selesai |\n+----+---------------+---------+\n|  1 | Belajar MySQL |       0 |\n|  2 | Beli kopi     |       0 |\n|  3 | Olahraga pagi |       0 |\n|  4 | Baca buku     |       0 |\n+----+---------------+---------+\n4 rows in set (0.00 sec)",
+          "petunjuk": "Ketik SELECT dengan WHERE seperti contoh.",
+          "benar": "Semua masih belum selesai.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Selesaikan todo nomor 2: `UPDATE todo SET selesai = TRUE WHERE id = 2;`.",
+          "terima": [
+            "UPDATE todo SET selesai = TRUE WHERE id = 2;",
+            "update todo set selesai = true where id = 2;"
+          ],
+          "keluaran": "Query OK, 1 row affected (0.00 sec)\nRows matched: 1  Changed: 1  Warnings: 0",
+          "petunjuk": "Jangan lupa bagian `WHERE id = 2`.",
+          "benar": "`Rows matched: 1  Changed: 1`: tepat satu baris yang berubah.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Tampilkan hanya yang sudah selesai.",
+          "terima": [
+            "SELECT * FROM todo WHERE selesai = TRUE;",
+            "select * from todo where selesai = true;"
+          ],
+          "keluaran": "+----+-----------+---------+\n| id | judul     | selesai |\n+----+-----------+---------+\n|  2 | Beli kopi |       1 |\n+----+-----------+---------+\n1 row in set (0.00 sec)",
+          "petunjuk": "Seperti langkah kedua, tapi syaratnya `selesai = TRUE`.",
+          "tantangan": true,
+          "benar": "Hanya \"Beli kopi\".",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Cari todo yang judulnya memuat kata buku: `SELECT * FROM todo WHERE judul LIKE '%buku%';`.",
+          "terima": [
+            "SELECT * FROM todo WHERE judul LIKE '%buku%';"
+          ],
+          "keluaran": "+----+-----------+---------+\n| id | judul     | selesai |\n+----+-----------+---------+\n|  4 | Baca buku |       0 |\n+----+-----------+---------+\n1 row in set (0.00 sec)",
+          "petunjuk": "Tanda `%` di kedua sisi artinya teks apa saja sebelum dan sesudahnya.",
+          "benar": "Satu baris yang cocok.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Tampilkan dua todo terbaru: urutkan berdasarkan id dari besar ke kecil, lalu batasi 2.",
+          "terima": [
+            "SELECT * FROM todo ORDER BY id DESC LIMIT 2;",
+            "select * from todo order by id desc limit 2;"
+          ],
+          "keluaran": "+----+---------------+---------+\n| id | judul         | selesai |\n+----+---------------+---------+\n|  4 | Baca buku     |       0 |\n|  3 | Olahraga pagi |       0 |\n+----+---------------+---------+\n2 rows in set (0.00 sec)",
+          "petunjuk": "Urutannya: `SELECT * FROM todo ORDER BY id DESC LIMIT 2;`.",
+          "benar": "id 4 dan 3: yang terakhir ditambahkan.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Hitung berapa todo yang sudah selesai, dengan nama kolom hasil `jumlah_selesai`.",
+          "terima": [
+            "SELECT COUNT(*) AS jumlah_selesai FROM todo WHERE selesai = TRUE;",
+            "select count(*) as jumlah_selesai from todo where selesai = true;",
+            "select COUNT(*) as jumlah_selesai from todo where selesai = true;"
+          ],
+          "keluaran": "+----------------+\n| jumlah_selesai |\n+----------------+\n|              1 |\n+----------------+\n1 row in set (0.00 sec)",
+          "petunjuk": "Pakai `SELECT COUNT(*) AS jumlah_selesai FROM todo WHERE selesai = TRUE;`.",
+          "benar": "1 todo sudah selesai.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Hapus todo nomor 4: `DELETE FROM todo WHERE id = 4;`.",
+          "terima": [
+            "DELETE FROM todo WHERE id = 4;",
+            "delete from todo where id = 4;"
+          ],
+          "keluaran": "Query OK, 1 row affected (0.01 sec)",
+          "petunjuk": "Ketik DELETE lengkap dengan WHERE.",
+          "benar": "Satu baris dihapus.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Coba ketik dengan sengaja salah: `SELEC * FROM todo;` dan baca pesan error-nya.",
+          "terima": [
+            "SELEC * FROM todo;",
+            "selec * from todo;"
+          ],
+          "keluaran": "ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'SELEC * FROM todo' at line 1",
+          "petunjuk": "Ketik persis dengan salah ketiknya: `SELEC * FROM todo;`.",
+          "benar": "ERROR 1064: kesalahan sintaks. Teks setelah `near` menunjukkan bagian yang membingungkan MySQL.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Keluar dari klien MySQL.",
+          "terima": [
+            "exit",
+            "exit;",
+            "quit",
+            "\\q"
+          ],
+          "keluaran": "Bye",
+          "petunjuk": "Ketik `exit`.",
+          "tantangan": true,
+          "benar": "Selesai untuk sesi ini.",
+          "folderBaru": "~"
+        }
+      ],
+      "penutup": "Kamu sudah bisa mencari, mengurutkan, menghitung, mengubah, dan menghapus data dengan SQL. Mulai materi berikutnya, SQL yang sama dikirim dari kode Java lewat JDBC."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang terjadi pada perintah DELETE FROM todo; (tanpa WHERE)?",
+          "options": [
+            "Hanya baris pertama yang dihapus",
+            "Semua baris di tabel todo dihapus",
+            "Tabel todo dihapus beserta strukturnya",
+            "MySQL selalu menolak perintah itu"
+          ],
+          "answer": 1,
+          "explanation": "Tanpa WHERE berarti semua baris.",
+          "remedial": "WHERE membatasi baris yang kena. Tanpa WHERE, DELETE berlaku untuk seluruh baris. Strukturnya tetap ada (yang menghapus tabel adalah `DROP TABLE`). Hanya mode `--safe-updates` yang menolaknya."
+        },
+        {
+          "question": "Pola LIKE yang cocok dengan semua judul yang memuat kata kopi adalah...",
+          "options": [
+            "'kopi'",
+            "'*kopi*'",
+            "'%kopi%'",
+            "'kopi%'"
+          ],
+          "answer": 2,
+          "explanation": "% berarti teks apa saja.",
+          "remedial": "`%` di kedua sisi berarti boleh ada teks apa pun sebelum dan sesudah \"kopi\". `'kopi%'` hanya cocok dengan judul yang diawali kopi."
+        },
+        {
+          "question": "Urutan penulisan yang benar adalah...",
+          "options": [
+            "SELECT * FROM todo ORDER BY id WHERE selesai = FALSE LIMIT 5;",
+            "SELECT * FROM todo LIMIT 5 WHERE selesai = FALSE ORDER BY id;",
+            "SELECT * WHERE selesai = FALSE FROM todo ORDER BY id LIMIT 5;",
+            "SELECT * FROM todo WHERE selesai = FALSE ORDER BY id LIMIT 5;"
+          ],
+          "answer": 3,
+          "explanation": "SELECT, FROM, WHERE, ORDER BY, LIMIT.",
+          "remedial": "Bagian SELECT punya urutan tetap. WHERE selalu sebelum ORDER BY, dan LIMIT paling akhir."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Cara yang benar memeriksa kolom catatan yang kosong (NULL) adalah...",
+      "options": [
+        "WHERE catatan IS NULL",
+        "WHERE catatan = NULL",
+        "WHERE catatan = ''",
+        "WHERE NULL(catatan)"
+      ],
+      "answer": 0,
+      "explanation": "NULL dibandingkan dengan IS."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi perintah untuk mengurutkan dari id terbesar.",
+      "code": "SELECT * FROM todo ORDER BY id ___;",
+      "answers": [
+        "DESC"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "WHERE menyaring, LIKE mencari pola dengan %, ORDER BY mengurutkan, LIMIT membatasi.",
+        "COUNT(*) menghitung baris; AS memberi nama kolom hasil.",
+        "UPDATE ... SET ... WHERE dan DELETE FROM ... WHERE mengubah dan menghapus data.",
+        "UPDATE dan DELETE tanpa WHERE mengenai semua baris."
+      ]
+    }
+  ],
+  "runnable": false
+}

@@ -1,0 +1,215 @@
+{
+  "id": "java-json-04",
+  "moduleId": "json",
+  "order": 4,
+  "title": "JsonNode: Membaca Tanpa Class",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Respons API cuaca bisa berisi puluhan properti, padahal aplikasi hanya butuh nama kota dan suhu. Membuat class lengkap untuk semuanya melelahkan.\n\nJackson punya cara kedua: membaca JSON menjadi **pohon** (*tree model*) dari object **`JsonNode`**, lalu mengambil bagian yang dibutuhkan saja.\n\nIbarat membuka koran: tidak perlu membaca semuanya untuk tahu jadwal kereta, cukup buka halaman yang dicari."
+    },
+    {
+      "type": "theory",
+      "content": "```java\nJsonNode akar = mapper.readTree(json);\n```\n\nSetiap bagian JSON adalah `JsonNode`: object, array, teks, dan angka.\n\n| Method | Gunanya |\n|---|---|\n| `get(\"nama\")` | ambil properti; **null** kalau tidak ada |\n| `path(\"nama\")` | ambil properti; *missing node* kalau tidak ada (tidak pernah null) |\n| `get(0)` | elemen array ke-0 |\n| `asText()`, `asInt()`, `asBoolean()` | ubah menjadi nilai Java |\n| `asText(\"bawaan\")`, `asInt(-1)` | dengan nilai cadangan kalau tidak ada |\n| `size()` | jumlah elemen array atau properti object |\n| `isArray()`, `isObject()`, `has(\"nama\")` | memeriksa bentuk |\n\nArray bisa langsung diulang dengan for-each:\n\n```java\nfor (JsonNode s : cuaca.get(\"suhu\")) {\n    System.out.println(s.asInt());\n}\n```\n\nMembuat JSON baru juga bisa tanpa class:\n\n```java\nObjectNode o = mapper.createObjectNode();\no.put(\"kota\", \"Bandung\");\no.putArray(\"suhu\").add(22).add(25);\nSystem.out.println(o);   // {\"kota\":\"Bandung\",\"suhu\":[22,25]}\n```\n\n`ObjectNode` dan `ArrayNode` ada di paket `com.fasterxml.jackson.databind.node`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nJsonNode akar = mapper.readTree(\"{\\\"nama\\\":\\\"Sari\\\",\\\"umur\\\":20}\");\n\nSystem.out.println(akar.get(\"nama\"));           // \"Sari\"  (dengan kutip, masih JSON)\nSystem.out.println(akar.get(\"nama\").asText());  // Sari    (teks Java)\nSystem.out.println(akar.path(\"kota\").asText(\"-\"));   // -\n```\n\nPerbedaan `get` dan `path` penting saat mengambil properti bertingkat:\n\n```java\nakar.get(\"alamat\").get(\"kota\")     // NullPointerException kalau alamat tidak ada\nakar.path(\"alamat\").path(\"kota\")   // missing node, aman\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.databind.node.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        String json = \"{\\\"nama\\\":\\\"Sari\\\",\\\"alamat\\\":{\\\"kota\\\":\\\"Bandung\\\"},\\\"hobi\\\":[\\\"baca\\\",\\\"lari\\\"]}\";\n        JsonNode akar = mapper.readTree(json);\n        System.out.println(akar.get(\"alamat\").get(\"kota\").asText());\n        System.out.println(akar.get(\"hobi\").size());\n        System.out.println(akar.path(\"umur\").asInt(-1));\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: JSON tidak punya umur. Apa yang tercetak di baris ketiga?",
+        "options": [
+          "-1",
+          "0",
+          "null",
+          "NullPointerException"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 11,
+          "note": "JSON menjadi pohon JsonNode."
+        },
+        {
+          "line": 12,
+          "note": "Turun dua tingkat."
+        },
+        {
+          "line": 13,
+          "note": "Jumlah elemen array."
+        },
+        {
+          "line": 14,
+          "note": "path tidak pernah null."
+        }
+      ],
+      "explanation": "path mengembalikan missing node untuk properti yang tidak ada, dan asInt(-1) memakai nilai cadangan -1. Dengan get, hasilnya null dan memanggil asInt akan memicu NullPointerException.",
+      "tryThis": [
+        {
+          "task": "Ganti path(\"umur\") menjadi get(\"umur\") lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Cetak akar.get(\"hobi\").get(1).asText().",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `get` berantai pada properti yang mungkin tidak ada**\n\n`akar.get(\"alamat\").get(\"kota\")` gagal dengan NullPointerException kalau `alamat` tidak ada. Pakai `path` untuk data dari luar.\n\n**2. Mencetak node teks tanpa `asText()`**\n\n`System.out.println(akar.get(\"nama\"))` mencetak `\"Sari\"` lengkap dengan kutip, karena node dicetak sebagai JSON.\n\n**3. `asInt()` pada teks**\n\n`\"umur\":\"dua puluh\"` dengan `asInt()` menghasilkan 0 tanpa error. Kalau nilai harus angka, periksa dengan `isInt()` atau baca ke class.\n\n**4. Memakai JsonNode untuk semua hal**\n\nUntuk data yang bentuknya tetap dan dipakai di banyak tempat, class lebih aman: salah ketik nama properti ketahuan saat compile."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- JsonNode sering dipakai untuk membaca respons API pihak ketiga yang besar, mengambil beberapa nilai, dan mengabaikan sisanya.\n- Juga dipakai saat bentuk JSON baru diketahui ketika program berjalan, misalnya webhook dengan banyak jenis event: baca `akar.path(\"type\").asText()` dulu, lalu putuskan class tujuan dengan `mapper.treeToValue(akar, EventPembayaran.class)`.\n- **JSON Pointer** mempersingkat jalur: `akar.at(\"/alamat/kota\").asText()`.\n- Untuk test API, alat seperti REST Assured dan JsonPath memakai ide yang sama: mengambil nilai dari jalur di dalam JSON."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JSON 4: Laporan Cuaca",
+      "pembuka": "Todolist JSON ingin menampilkan cuaca. Kita baca respons API cuaca tanpa membuat class.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Ambil kota dan status hujan dari JSON cuaca.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.databind.node.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        JsonNode cuaca = mapper.readTree(\"{\\\"kota\\\":\\\"Bandung\\\",\\\"suhu\\\":[22,25,27,24],\\\"hujan\\\":true}\");\n        System.out.println(cuaca.get(\"kota\").asText());\n        System.out.println(cuaca.get(\"hujan\").asBoolean());\n    }\n}\n",
+          "keluaran": "Bandung\ntrue",
+          "otomatis": true,
+          "benar": "`asText()` dan `asBoolean()` mengubah node menjadi nilai Java.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Ulangi array `suhu` dan cetak suhu tertinggi dengan bentuk `Tertinggi: 27`.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.databind.node.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        JsonNode cuaca = mapper.readTree(\"{\\\"kota\\\":\\\"Bandung\\\",\\\"suhu\\\":[22,25,27,24],\\\"hujan\\\":true}\");\n        System.out.println(cuaca.get(\"kota\").asText());\n        System.out.println(cuaca.get(\"hujan\").asBoolean());\n\n        int tertinggi = Integer.MIN_VALUE;\n        for (JsonNode s : cuaca.get(\"suhu\")) {\n            tertinggi = Math.max(tertinggi, s.asInt());\n        }\n        System.out.println(\"Tertinggi: \" + tertinggi);\n    }\n}\n",
+          "keluaran": "Bandung\ntrue\nTertinggi: 27",
+          "wajib": [
+            {
+              "pola": "for\\s*\\(\\s*JsonNode\\s+\\w+\\s*:\\s*cuaca\\.get\\s*\\(\\s*\"suhu\"\\s*\\)\\s*\\)",
+              "pesan": "ulangi `cuaca.get(\"suhu\")`."
+            }
+          ],
+          "benar": "Array JSON bisa diulang langsung.",
+          "petunjuk": "`for (JsonNode s : cuaca.get(\"suhu\"))` lalu `Math.max(tertinggi, s.asInt())`."
+        },
+        {
+          "arahan": "JSON cuaca tidak punya `angin`. Cetak `\"Angin: \"` diikuti nilainya, dengan cadangan `\"tidak ada data\"`.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.databind.node.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        JsonNode cuaca = mapper.readTree(\"{\\\"kota\\\":\\\"Bandung\\\",\\\"suhu\\\":[22,25,27,24],\\\"hujan\\\":true}\");\n        System.out.println(cuaca.get(\"kota\").asText());\n        System.out.println(cuaca.get(\"hujan\").asBoolean());\n\n        int tertinggi = Integer.MIN_VALUE;\n        for (JsonNode s : cuaca.get(\"suhu\")) {\n            tertinggi = Math.max(tertinggi, s.asInt());\n        }\n        System.out.println(\"Tertinggi: \" + tertinggi);\n        System.out.println(\"Angin: \" + cuaca.path(\"angin\").asText(\"tidak ada data\"));\n    }\n}\n",
+          "keluaran": "Bandung\ntrue\nTertinggi: 27\nAngin: tidak ada data",
+          "wajib": [
+            {
+              "pola": "cuaca\\.path\\s*\\(\\s*\"angin\"\\s*\\)\\.asText\\s*\\(\\s*\"tidak ada data\"\\s*\\)",
+              "pesan": "pakai `cuaca.path(\"angin\").asText(\"tidak ada data\")`."
+            }
+          ],
+          "benar": "Tidak ada NullPointerException.",
+          "petunjuk": "Pakai `path`, bukan `get`: `cuaca.path(\"angin\").asText(\"tidak ada data\")`."
+        },
+        {
+          "arahan": "Tantangan: buat `ObjectNode` baru berisi `kota` dan `tertinggi`, lalu cetak.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.databind.node.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        JsonNode cuaca = mapper.readTree(\"{\\\"kota\\\":\\\"Bandung\\\",\\\"suhu\\\":[22,25,27,24],\\\"hujan\\\":true}\");\n        System.out.println(cuaca.get(\"kota\").asText());\n        System.out.println(cuaca.get(\"hujan\").asBoolean());\n\n        int tertinggi = Integer.MIN_VALUE;\n        for (JsonNode s : cuaca.get(\"suhu\")) {\n            tertinggi = Math.max(tertinggi, s.asInt());\n        }\n        System.out.println(\"Tertinggi: \" + tertinggi);\n        System.out.println(\"Angin: \" + cuaca.path(\"angin\").asText(\"tidak ada data\"));\n\n        ObjectNode ringkas = mapper.createObjectNode();\n        ringkas.put(\"kota\", cuaca.get(\"kota\").asText());\n        ringkas.put(\"tertinggi\", tertinggi);\n        System.out.println(ringkas);\n    }\n}\n",
+          "keluaran": "Bandung\ntrue\nTertinggi: 27\nAngin: tidak ada data\n{\"kota\":\"Bandung\",\"tertinggi\":27}",
+          "wajib": [
+            {
+              "pola": "mapper\\.createObjectNode\\(\\)",
+              "pesan": "buat dengan `mapper.createObjectNode()`."
+            },
+            {
+              "pola": "\\.put\\s*\\(\\s*\"tertinggi\"",
+              "pesan": "isi properti `tertinggi`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "JSON baru dibuat tanpa class sama sekali.",
+          "petunjuk": "`ObjectNode ringkas = mapper.createObjectNode();` lalu dua kali `put`."
+        }
+      ],
+      "penutup": "Membaca sebagian JSON jadi mudah. Berikutnya: mengatur bentuk JSON dengan anotasi."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Properti kota tidak ada di JSON. Hasil akar.get(\"kota\") adalah...",
+          "options": [
+            "Missing node",
+            "null",
+            "String kosong",
+            "Exception"
+          ],
+          "answer": 1,
+          "explanation": "get mengembalikan null.",
+          "remedial": "`get` mengembalikan `null` untuk properti yang tidak ada. `path` mengembalikan *missing node* yang aman dipanggil method lanjutan."
+        },
+        {
+          "question": "Kenapa akar.get(\"nama\") dicetak dengan tanda kutip?",
+          "options": [
+            "Karena nama mengandung kutip",
+            "Karena Jackson salah membaca",
+            "Karena node dicetak sebagai JSON; asText() mengambil teksnya",
+            "Karena println menambah kutip"
+          ],
+          "answer": 2,
+          "explanation": "Node masih JSON.",
+          "remedial": "`toString()` pada `JsonNode` menghasilkan JSON, sehingga teks tetap berkutip. `asText()` mengembalikan String Java tanpa kutip."
+        },
+        {
+          "question": "Cara mengulang setiap elemen array suhu adalah...",
+          "options": [
+            "for (int s : akar.get(\"suhu\"))",
+            "akar.get(\"suhu\").forEachInt()",
+            "for (String s : akar.get(\"suhu\").asText())",
+            "for (JsonNode s : akar.get(\"suhu\"))"
+          ],
+          "answer": 3,
+          "explanation": "JsonNode bisa diulang.",
+          "remedial": "`JsonNode` mengimplementasikan `Iterable<JsonNode>`, sehingga array JSON bisa diulang langsung dengan for-each. Setiap elemen juga `JsonNode`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method untuk membuat object JSON baru tanpa class adalah...",
+      "options": [
+        "mapper.createObjectNode()",
+        "mapper.readTree()",
+        "new JsonNode()",
+        "mapper.writeValueAsString()"
+      ],
+      "answer": 0,
+      "explanation": "Hasilnya ObjectNode."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca satu baris JSON berbentuk {\"pesanan\":[{\"id\":1,\"total\":20000,\"status\":\"LUNAS\"}, ...]} lalu mencetak Lunas: jumlah pesanan, total Rp jumlah total. Hanya pesanan dengan status LUNAS yang dihitung. Saat ini program selalu mencetak 0. Lengkapi perhitungannya dengan JsonNode.",
+      "starterCode": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.databind.node.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        JsonNode akar = mapper.readTree(new Scanner(System.in).nextLine());\n        int jumlah = 0;\n        int total = 0;\n        System.out.println(\"Lunas: \" + jumlah + \" pesanan, total Rp\" + total);\n    }\n}",
+      "solution": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.databind.node.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        JsonNode akar = mapper.readTree(new Scanner(System.in).nextLine());\n        int jumlah = 0;\n        int total = 0;\n        for (JsonNode p : akar.get(\"pesanan\")) {\n            if (p.get(\"status\").asText().equals(\"LUNAS\")) {\n                jumlah++;\n                total += p.get(\"total\").asInt();\n            }\n        }\n        System.out.println(\"Lunas: \" + jumlah + \" pesanan, total Rp\" + total);\n    }\n}",
+      "tests": [
+        {
+          "input": "{\"pesanan\":[{\"id\":1,\"total\":20000,\"status\":\"LUNAS\"},{\"id\":2,\"total\":15000,\"status\":\"MENUNGGU\"},{\"id\":3,\"total\":32000,\"status\":\"LUNAS\"}]}\n",
+          "expectedOutput": "Lunas: 2 pesanan, total Rp52000\n"
+        },
+        {
+          "input": "{\"pesanan\":[]}\n",
+          "expectedOutput": "Lunas: 0 pesanan, total Rp0\n"
+        }
+      ],
+      "hints": [
+        "Ulangi akar.get(\"pesanan\") dengan for-each.",
+        "Bandingkan p.get(\"status\").asText() dengan \"LUNAS\", lalu tambahkan p.get(\"total\").asInt()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "readTree mengubah JSON menjadi pohon JsonNode.",
+        "get mengembalikan null kalau tidak ada; path mengembalikan missing node yang aman.",
+        "asText, asInt, asBoolean mengubah node menjadi nilai Java, bisa dengan nilai cadangan.",
+        "createObjectNode dan putArray membuat JSON baru tanpa class."
+      ]
+    }
+  ]
+}

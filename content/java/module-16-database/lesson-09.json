@@ -1,0 +1,183 @@
+{
+  "id": "java-database-09",
+  "moduleId": "database",
+  "order": 9,
+  "title": "Koneksi ke MySQL dan Connection Pool",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Semua praktik JDBC di website ini memakai H2. Di laptop atau server, kode yang sama dihubungkan ke MySQL sungguhan. Yang berubah hanya tiga hal: **driver** di `pom.xml`, **URL** koneksi, dan cara menyimpan **sandi**.\n\nSetelah itu ada satu masalah lagi: membuka koneksi baru ke MySQL butuh waktu (jabat tangan jaringan, login, pengaturan). Aplikasi web yang membuka koneksi baru untuk setiap permintaan akan lambat. Solusinya **connection pool**.\n\nIbarat pangkalan ojek: daripada memanggil pengemudi dari rumahnya setiap kali ada penumpang, beberapa pengemudi sudah menunggu di pangkalan. Penumpang langsung berangkat, dan pengemudi kembali ke pangkalan setelah selesai."
+    },
+    {
+      "type": "theory",
+      "content": "Driver MySQL ditambahkan di `pom.xml`:\n\n```xml\n<dependency>\n  <groupId>com.mysql</groupId>\n  <artifactId>mysql-connector-j</artifactId>\n  <version>9.1.0</version>\n</dependency>\n```\n\nURL dan sandi:\n\n```java\nString url = \"jdbc:mysql://localhost:3306/todolist\";\nString sandi = System.getenv(\"DB_PASSWORD\");\nConnection koneksi = DriverManager.getConnection(url, \"root\", sandi);\n```\n\nSandi dibaca dari **environment variable**, bukan ditulis di kode. Di terminal Linux/macOS diatur dengan `export DB_PASSWORD=...`, di Windows PowerShell dengan `$env:DB_PASSWORD=\"...\"`. Kode bisa di-commit ke GitHub tanpa membocorkan sandi.\n\n**HikariCP** adalah connection pool paling populer di Java (bawaan Spring Boot):\n\n```xml\n<dependency>\n  <groupId>com.zaxxer</groupId>\n  <artifactId>HikariCP</artifactId>\n  <version>6.2.1</version>\n</dependency>\n```\n\n```java\nHikariConfig config = new HikariConfig();\nconfig.setJdbcUrl(\"jdbc:mysql://localhost:3306/todolist\");\nconfig.setUsername(\"root\");\nconfig.setPassword(System.getenv(\"DB_PASSWORD\"));\nconfig.setMaximumPoolSize(10);\ntry (HikariDataSource ds = new HikariDataSource(config)) {\n    try (Connection c = ds.getConnection()) {   // pinjam dari pool\n        ...\n    }                                          // close() = kembalikan ke pool\n}\n```\n\n`HikariDataSource` adalah `DataSource`: antarmuka standar Java untuk \"sumber koneksi\". Kode repository cukup menerima `DataSource`, tanpa tahu koneksinya dari pool atau bukan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKeluaran asli program HikariCP yang meminjam koneksi tiga kali (dengan Logback):\n\n```text\n14:33:07.899 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...\n14:33:08.377 INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@1b68ee43\n14:33:08.378 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.\nPinjam koneksi ke-1: Belajar MySQL\nPinjam koneksi ke-2: Beli kopi\nPinjam koneksi ke-3: Olahraga pagi\n14:33:08.408 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...\n```\n\nKoneksi pertama butuh hampir setengah detik (dari 07.899 ke 08.377). Tiga peminjaman berikutnya hampir tanpa jeda, karena koneksinya dipakai ulang dari pool.\n\n`close()` pada koneksi dari pool **tidak** memutus koneksi ke MySQL, tetapi mengembalikannya ke pool. Karena itu try-with-resources tetap wajib."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `No suitable driver found for jdbc:mysql://...`**\n\nDependency `mysql-connector-j` belum ada di `pom.xml`, atau URL salah ketik.\n\n**2. `Access denied for user 'root'@'localhost' (using password: NO)`**\n\nEnvironment variable `DB_PASSWORD` belum diatur di terminal itu, sehingga `getenv` mengembalikan null. Kalau `(using password: YES)`, sandinya salah.\n\n**3. `Communications link failure`**\n\nServer MySQL tidak berjalan atau alamat/port-nya salah. Periksa layanan MySQL dan angka port (bawaan 3306).\n\n**4. Koneksi dari pool tidak dikembalikan**\n\nLupa `close()` membuat pool kehabisan koneksi. Setelah 30 detik, `getConnection()` gagal dengan pesan `Connection is not available, request timed out`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Spring Boot otomatis membuat `HikariDataSource` dari `application.properties`. Tidak perlu menulis kode pool sama sekali:\n\n```properties\nspring.datasource.url=jdbc:mysql://localhost:3306/todolist\nspring.datasource.username=todolist_app\nspring.datasource.password=${DB_PASSWORD}\nspring.datasource.hikari.maximum-pool-size=10\n```\n\n- Ukuran pool tidak perlu besar. Pedoman dari tim HikariCP: mulai dari jumlah inti CPU server database dikali 2, ditambah sedikit. Pool yang terlalu besar justru membebani MySQL.\n- Di server produksi, sandi disimpan di tempat khusus rahasia (environment variable dari platform, AWS Secrets Manager, Vault, Kubernetes Secret), tidak pernah di repository.\n- Peringatan `SLF4J: Defaulting to no-operation (NOP) logger implementation` muncul kalau library memakai SLF4J tetapi tidak ada mesin log seperti Logback. Log HikariCP lalu tidak tampil sama sekali. Tambahkan `logback-classic` (dan `slf4j-api` versi 2) ke dependency."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Toko Database 9: Terhubung ke MySQL",
+      "folder": "~/todolist",
+      "pembuka": "Proyek Todolist di laptop Sari punya class `App` yang membaca tabel `todo` dari MySQL dengan JDBC. MySQL sudah berjalan dan berisi data dari materi SQL.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Ini kode `App.java`.",
+          "terima": [
+            "cat src/main/java/com/bisangoding/todolist/App.java"
+          ],
+          "keluaran": "package com.bisangoding.todolist;\n\nimport java.sql.Connection;\nimport java.sql.DriverManager;\nimport java.sql.ResultSet;\nimport java.sql.SQLException;\nimport java.sql.Statement;\n\npublic class App {\n    public static void main(String[] args) throws SQLException {\n        String url = \"jdbc:mysql://localhost:3306/todolist\";\n        String sandi = System.getenv(\"DB_PASSWORD\");\n        try (Connection koneksi = DriverManager.getConnection(url, \"root\", sandi);\n             Statement st = koneksi.createStatement();\n             ResultSet rs = st.executeQuery(\"SELECT id, judul, selesai FROM todo ORDER BY id\")) {\n            System.out.println(\"Terhubung ke \" + koneksi.getMetaData().getDatabaseProductName() + \" \"\n                    + koneksi.getMetaData().getDatabaseProductVersion());\n            while (rs.next()) {\n                System.out.println(rs.getInt(\"id\") + \". [\" + (rs.getBoolean(\"selesai\") ? \"x\" : \" \") + \"] \" + rs.getString(\"judul\"));\n            }\n        }\n    }\n}",
+          "petunjuk": "",
+          "otomatis": true,
+          "benar": "URL ke MySQL lokal, sandi dari environment variable `DB_PASSWORD`.\n\nSekarang giliranmu."
+        },
+        {
+          "arahan": "Atur sandi database di terminal ini: `export DB_PASSWORD=rahasia`.",
+          "terima": [
+            "export DB_PASSWORD=rahasia"
+          ],
+          "keluaran": "",
+          "petunjuk": "Ketik `export DB_PASSWORD=rahasia` (tanpa spasi di sekitar `=`).",
+          "benar": "Tidak ada keluaran. Variabel ini hanya berlaku di jendela terminal ini."
+        },
+        {
+          "arahan": "Jalankan aplikasinya dengan `mvn -q compile exec:java`.",
+          "terima": [
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q"
+          ],
+          "keluaran": "[ERROR] Failed to execute goal org.codehaus.mojo:exec-maven-plugin:3.5.0:java (default-cli) on project todolist: An exception occurred while executing the Java class. No suitable driver found for jdbc:mysql://localhost:3306/todolist -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException",
+          "petunjuk": "Ketik `mvn -q compile exec:java`.",
+          "benar": "`No suitable driver found`: driver MySQL belum ada di pom.xml."
+        },
+        {
+          "arahan": "Aku sudah menambahkan dependency `mysql-connector-j`. Jalankan lagi.",
+          "terima": [
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q"
+          ],
+          "keluaran": "Terhubung ke MySQL 8.4.13\n1. [ ] Belajar MySQL\n2. [x] Beli kopi\n3. [ ] Olahraga pagi\n5. [ ] Masak",
+          "petunjuk": "Perintah yang sama.",
+          "tantangan": true,
+          "benar": "Terhubung ke MySQL 8.4.13 dan membaca isi tabel `todo` yang dibuat di materi SQL."
+        },
+        {
+          "arahan": "Apa jadinya kalau sandinya salah? Jalankan dengan sandi sementara: `DB_PASSWORD=salah mvn -q compile exec:java`.",
+          "terima": [
+            "DB_PASSWORD=salah mvn -q compile exec:java",
+            "DB_PASSWORD=salah mvn -q exec:java"
+          ],
+          "keluaran": "[ERROR] Failed to execute goal org.codehaus.mojo:exec-maven-plugin:3.5.0:java (default-cli) on project todolist: An exception occurred while executing the Java class. Access denied for user 'root'@'localhost' (using password: YES) -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException",
+          "petunjuk": "Variabel ditulis di depan perintah: `DB_PASSWORD=salah mvn -q compile exec:java`.",
+          "benar": "`Access denied ... (using password: YES)`: sandi dikirim tapi salah."
+        },
+        {
+          "arahan": "Aku mematikan server MySQL sebentar. Jalankan aplikasinya lagi.",
+          "terima": [
+            "mvn -q exec:java",
+            "mvn exec:java -q",
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q"
+          ],
+          "keluaran": "[ERROR] Failed to execute goal org.codehaus.mojo:exec-maven-plugin:3.5.0:java (default-cli) on project todolist: An exception occurred while executing the Java class. Communications link failure\n[ERROR]\n[ERROR] The last packet sent successfully to the server was 0 milliseconds ago. The driver has not received any packets from the server. Connection refused\n[ERROR] -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException",
+          "petunjuk": "Jalankan seperti biasa.",
+          "tantangan": true,
+          "benar": "`Communications link failure`: aplikasi tidak bisa menghubungi server sama sekali."
+        },
+        {
+          "arahan": "MySQL sudah kunyalakan lagi, dan `App` kuubah memakai HikariCP dengan Logback. Jalankan.",
+          "terima": [
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q"
+          ],
+          "keluaran": "14:33:07.899 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...\n14:33:08.377 INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@1b68ee43\n14:33:08.378 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.\nPinjam koneksi ke-1: Belajar MySQL\nPinjam koneksi ke-2: Beli kopi\nPinjam koneksi ke-3: Olahraga pagi\n14:33:08.408 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...\n14:33:08.412 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.",
+          "petunjuk": "Perintahnya sama.",
+          "benar": "Pool dimulai, satu koneksi disiapkan, lalu dipinjam tiga kali tanpa membuka koneksi baru. Saat program selesai, pool ditutup dengan rapi."
+        }
+      ],
+      "penutup": "Selamat, modul JDBC selesai! Kamu sudah menulis SQL, mengirimnya dari Java dengan aman, memakai transaksi, dan menghubungkan aplikasi ke MySQL lewat connection pool."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa sandi database dibaca dengan System.getenv(\"DB_PASSWORD\")?",
+          "options": [
+            "Supaya koneksi lebih cepat",
+            "Karena MySQL melarang sandi di Java",
+            "Supaya sandi tidak tertulis di kode dan tidak ikut ter-commit",
+            "Supaya sandi otomatis dienkripsi"
+          ],
+          "answer": 2,
+          "explanation": "Rahasia di luar kode.",
+          "remedial": "Kode masuk ke repository dan dibaca banyak orang. Environment variable diatur terpisah di setiap komputer atau server, sehingga sandi tidak pernah tersimpan di kode."
+        },
+        {
+          "question": "Pesan Access denied ... (using password: NO) paling mungkin berarti...",
+          "options": [
+            "Sandi yang dikirim salah",
+            "Server MySQL mati",
+            "Driver MySQL belum dipasang",
+            "Variabel DB_PASSWORD belum diatur sehingga sandi kosong"
+          ],
+          "answer": 3,
+          "explanation": "NO = tidak ada sandi dikirim.",
+          "remedial": "`using password: NO` berarti tidak ada sandi yang dikirim. Biasanya `getenv` mengembalikan null karena variabelnya belum diatur di terminal itu."
+        },
+        {
+          "question": "Apa yang terjadi saat close() dipanggil pada koneksi yang dipinjam dari HikariCP?",
+          "options": [
+            "Koneksi dikembalikan ke pool untuk dipakai lagi",
+            "Koneksi ke MySQL diputus permanen",
+            "Pool ditutup",
+            "Tidak terjadi apa-apa sehingga close tidak perlu"
+          ],
+          "answer": 0,
+          "explanation": "Dikembalikan ke pangkalan.",
+          "remedial": "Koneksi dari pool membungkus koneksi asli. `close()`-nya mengembalikan koneksi ke pool, bukan memutusnya. Tanpa `close()`, pool kehabisan koneksi."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pesan Communications link failure saat menghubungi MySQL paling mungkin berarti...",
+      "options": [
+        "Sandi salah",
+        "Server MySQL tidak berjalan atau alamatnya salah",
+        "Tabel tidak ada",
+        "Query SQL salah ketik"
+      ],
+      "answer": 1,
+      "explanation": "Tidak bisa menghubungi server."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi artifactId driver MySQL di pom.xml.",
+      "code": "<artifactId>___</artifactId>",
+      "answers": [
+        "mysql-connector-j"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Untuk MySQL: tambahkan mysql-connector-j dan pakai URL jdbc:mysql://localhost:3306/nama_db.",
+        "Sandi dibaca dari environment variable, bukan ditulis di kode.",
+        "Connection pool (HikariCP) memakai ulang koneksi; close() mengembalikannya ke pool.",
+        "Kenali error umum: No suitable driver, Access denied, Communications link failure."
+      ]
+    }
+  ],
+  "runnable": false
+}

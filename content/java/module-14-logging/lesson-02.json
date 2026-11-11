@@ -1,0 +1,232 @@
+{
+  "id": "java-logging-02",
+  "moduleId": "logging",
+  "order": 2,
+  "title": "Level Log",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tidak semua catatan sama pentingnya. \"Pengguna menambah todo\" berguna untuk statistik, \"koneksi database putus\" harus segera ditangani. Kalau semua dicatat sama rata, pesan penting tenggelam di antara ribuan pesan biasa.\n\nSetiap pesan log punya **level**. Pengaturan logger menentukan level minimal yang ditampilkan.\n\nIbarat sistem kode warna di rumah sakit: kode hijau dicatat saja, kode kuning diperhatikan perawat, kode merah memanggil dokter jaga. Petugas malam hanya diganggu oleh kode yang benar-benar penting."
+    },
+    {
+      "type": "theory",
+      "content": "Lima level SLF4J, dari yang paling rinci sampai paling gawat:\n\n| Level | Dipakai untuk | Contoh |\n|---|---|---|\n| `TRACE` | jejak sangat rinci, hampir tidak pernah dinyalakan | \"masuk method hitung\" |\n| `DEBUG` | detail untuk developer saat mencari bug | \"judul sebelum dirapikan: '  Belajar '\" |\n| `INFO` | kejadian penting yang normal | \"todo baru disimpan\", \"aplikasi mulai\" |\n| `WARN` | sesuatu yang tidak beres tapi aplikasi tetap jalan | \"nomor todo tidak ditemukan\" |\n| `ERROR` | kegagalan yang perlu ditangani | \"gagal menulis ke database\" |\n\nKalau level logger diatur `INFO`, maka INFO, WARN, dan ERROR ditampilkan, sedangkan DEBUG dan TRACE disembunyikan. Pengaturan bawaan aplikasi biasanya `INFO`, termasuk di website ini.\n\n`log.isDebugEnabled()` bernilai true kalau DEBUG sedang ditampilkan. Dipakai untuk membungkus perhitungan mahal yang hanya dibutuhkan pesan DEBUG."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nlog.debug(\"Menambah todo dengan judul '{}'\", judul);   // detail, biasanya disembunyikan\nlog.info(\"Todo baru disimpan: {}\", t);                  // kejadian normal\nlog.warn(\"Gagal menyelesaikan: {}\", e.getMessage());    // perlu perhatian\n```\n\nDi proyek sungguhan level diatur di file `logback.xml` (materi 5). Di website ini editornya hanya satu file, jadi level diatur dengan method kecil `aturLevel` yang sudah disediakan di class Main:\n\n```java\naturLevel(Logger.ROOT_LOGGER_NAME, \"DEBUG\");   // semua logger menampilkan DEBUG ke atas\n```\n\n`Logger.ROOT_LOGGER_NAME` (isinya `\"ROOT\"`) adalah logger induk dari semua logger. Mengatur ROOT berarti mengatur semuanya sekaligus."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        aturLevel(Logger.ROOT_LOGGER_NAME, \"WARN\");\n        log.trace(\"trace: masuk method hitung\");\n        log.debug(\"debug: nilai x = 7\");\n        log.info(\"info: pesanan 12 dibayar\");\n        log.warn(\"warn: stok tinggal 2\");\n        log.error(\"error: koneksi ke bank terputus\");\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: level diatur WARN. Apa baris pertama yang tampil?",
+        "options": [
+          "INFO  Main - info: pesanan 12 dibayar",
+          "TRACE Main - trace: masuk method hitung",
+          "WARN  Main - warn: stok tinggal 2",
+          "DEBUG Main - debug: nilai x = 7"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 14,
+          "note": "Level minimal: WARN."
+        },
+        {
+          "line": 17,
+          "note": "INFO di bawah WARN, tidak tampil."
+        },
+        {
+          "line": 19,
+          "note": "ERROR di atas WARN, tampil."
+        }
+      ],
+      "explanation": "Urutan level dari rendah ke tinggi adalah TRACE, DEBUG, INFO, WARN, ERROR. Dengan level WARN, hanya WARN dan ERROR yang lolos, jadi hanya dua baris yang tercetak.\n\nPesan yang disembunyikan tidak hilang dari kode. Cukup ubah level menjadi DEBUG, dan semua kecuali TRACE akan tampil lagi.",
+      "tryThis": [
+        {
+          "task": "Ganti \"WARN\" menjadi \"DEBUG\". Berapa baris yang tampil?",
+          "hint": null
+        },
+        {
+          "task": "Ganti menjadi \"TRACE\". Sekarang semua tampil?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Semua pesan memakai INFO**\n\nLog produksi jadi sangat ramai, dan pesan WARN atau ERROR yang penting sulit ditemukan.\n\n**2. Memakai ERROR untuk kejadian biasa**\n\n\"Pengguna salah memasukkan nomor todo\" bukan error aplikasi, cukup WARN atau bahkan INFO. Banyak tim memasang alarm otomatis untuk setiap ERROR. Kalau ERROR dipakai sembarangan, alarm berbunyi terus dan akhirnya diabaikan.\n\n**3. Membiarkan level DEBUG menyala di server produksi**\n\nLog membengkak menjadi gigabyte per hari, memperlambat aplikasi, dan bisa ikut mencatat data sensitif.\n\n**4. Perhitungan mahal di argumen DEBUG**\n\n```java\nlog.debug(\"Laporan: {}\", buatLaporanLengkap());   // tetap dijalankan walau DEBUG mati\n```\n\nArgumen dihitung sebelum logger memutuskan pesan tampil atau tidak. Bungkus dengan `if (log.isDebugEnabled())`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\nPedoman level yang umum di tim backend:\n\n| Level | Pertanyaan pemandu |\n|---|---|\n| ERROR | Apakah seseorang harus bangun tengah malam untuk ini? |\n| WARN | Apakah ini perlu diperiksa besok pagi? |\n| INFO | Apakah ini membantu memahami apa yang terjadi hari ini? |\n| DEBUG | Apakah ini hanya berguna saat sedang mencari bug? |\n\nDi Spring Boot, level bisa diatur tanpa menyentuh `logback.xml`, cukup di `application.properties`:\n\n```properties\nlogging.level.root=INFO\nlogging.level.com.bisangoding.todolist=DEBUG\n```\n\nSaat ada masalah di server, tim menyalakan DEBUG untuk satu package saja selama beberapa menit (Spring Boot Actuator bisa mengubahnya tanpa restart), lalu mematikannya lagi."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Log Todolist 2: Memilih Level",
+      "pembuka": "`TodoService` punya log DEBUG untuk judul yang masuk. Kita atur level mana yang tampil.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Level bawaannya INFO, jadi log DEBUG di `tambah` disembunyikan.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        log.info(\"Aplikasi Todolist mulai\");\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        service.tambah(\"Belajar logging\");\n        service.tambah(\"Beli kopi\");\n        try {\n            service.selesaikan(9);\n        } catch (TodoTidakDitemukanException e) {\n            log.warn(\"Gagal menyelesaikan: {}\", e.getMessage());\n        }\n        log.info(\"Aplikasi selesai\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        log.debug(\"Menambah todo dengan judul '{}'\", judul);\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "INFO  Main - Aplikasi Todolist mulai\nINFO  TodoService - Todo baru disimpan: 1. [ ] Belajar logging\nINFO  TodoService - Todo baru disimpan: 2. [ ] Beli kopi\nWARN  Main - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\nINFO  Main - Aplikasi selesai",
+          "otomatis": true,
+          "benar": "Pesan DEBUG ada di kode, tapi tidak tampil.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Nyalakan DEBUG untuk semua logger: tulis `aturLevel(Logger.ROOT_LOGGER_NAME, \"DEBUG\");` di baris pertama `main`.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        aturLevel(Logger.ROOT_LOGGER_NAME, \"DEBUG\");\n        log.info(\"Aplikasi Todolist mulai\");\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        service.tambah(\"Belajar logging\");\n        service.tambah(\"Beli kopi\");\n        try {\n            service.selesaikan(9);\n        } catch (TodoTidakDitemukanException e) {\n            log.warn(\"Gagal menyelesaikan: {}\", e.getMessage());\n        }\n        log.info(\"Aplikasi selesai\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        log.debug(\"Menambah todo dengan judul '{}'\", judul);\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "INFO  Main - Aplikasi Todolist mulai\nDEBUG TodoService - Menambah todo dengan judul 'Belajar logging'\nINFO  TodoService - Todo baru disimpan: 1. [ ] Belajar logging\nDEBUG TodoService - Menambah todo dengan judul 'Beli kopi'\nINFO  TodoService - Todo baru disimpan: 2. [ ] Beli kopi\nWARN  Main - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\nINFO  Main - Aplikasi selesai",
+          "wajib": [
+            {
+              "pola": "aturLevel\\s*\\(\\s*Logger\\.ROOT_LOGGER_NAME\\s*,\\s*\"DEBUG\"\\s*\\)",
+              "pesan": "panggil `aturLevel(Logger.ROOT_LOGGER_NAME, \"DEBUG\")`."
+            }
+          ],
+          "benar": "Baris DEBUG dari `TodoService` muncul, lengkap dengan judul sebelum dirapikan.",
+          "petunjuk": "Method `aturLevel` sudah ada di class Main, tinggal dipanggil."
+        },
+        {
+          "arahan": "Sekarang ganti `\"DEBUG\"` menjadi `\"WARN\"`. Mana yang masih tampil?",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        aturLevel(Logger.ROOT_LOGGER_NAME, \"WARN\");\n        log.info(\"Aplikasi Todolist mulai\");\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        service.tambah(\"Belajar logging\");\n        service.tambah(\"Beli kopi\");\n        try {\n            service.selesaikan(9);\n        } catch (TodoTidakDitemukanException e) {\n            log.warn(\"Gagal menyelesaikan: {}\", e.getMessage());\n        }\n        log.info(\"Aplikasi selesai\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        log.debug(\"Menambah todo dengan judul '{}'\", judul);\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "WARN  Main - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan",
+          "wajib": [
+            {
+              "pola": "aturLevel\\s*\\(\\s*Logger\\.ROOT_LOGGER_NAME\\s*,\\s*\"WARN\"\\s*\\)",
+              "pesan": "atur level `\"WARN\"`."
+            }
+          ],
+          "benar": "Hanya satu baris: peringatan nomor 9. Begini tampilan log di server yang hanya ingin melihat masalah.",
+          "petunjuk": "Cukup ganti teks levelnya."
+        },
+        {
+          "arahan": "Kembalikan ke `\"DEBUG\"`, lalu setelah dua `tambah` di main catat `log.debug(\"Jumlah todo sekarang {}\", service.semua().size());`.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        aturLevel(Logger.ROOT_LOGGER_NAME, \"DEBUG\");\n        log.info(\"Aplikasi Todolist mulai\");\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        service.tambah(\"Belajar logging\");\n        service.tambah(\"Beli kopi\");\n        log.debug(\"Jumlah todo sekarang {}\", service.semua().size());\n        try {\n            service.selesaikan(9);\n        } catch (TodoTidakDitemukanException e) {\n            log.warn(\"Gagal menyelesaikan: {}\", e.getMessage());\n        }\n        log.info(\"Aplikasi selesai\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        log.debug(\"Menambah todo dengan judul '{}'\", judul);\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "INFO  Main - Aplikasi Todolist mulai\nDEBUG TodoService - Menambah todo dengan judul 'Belajar logging'\nINFO  TodoService - Todo baru disimpan: 1. [ ] Belajar logging\nDEBUG TodoService - Menambah todo dengan judul 'Beli kopi'\nINFO  TodoService - Todo baru disimpan: 2. [ ] Beli kopi\nDEBUG Main - Jumlah todo sekarang 2\nWARN  Main - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\nINFO  Main - Aplikasi selesai",
+          "wajib": [
+            {
+              "pola": "aturLevel\\s*\\(\\s*Logger\\.ROOT_LOGGER_NAME\\s*,\\s*\"DEBUG\"\\s*\\)",
+              "pesan": "kembalikan level ke `\"DEBUG\"`."
+            },
+            {
+              "pola": "log\\.debug\\s*\\(\\s*\"Jumlah todo sekarang \\{\\}\"",
+              "pesan": "catat `log.debug(\"Jumlah todo sekarang {}\", ...)`."
+            }
+          ],
+          "benar": "Log DEBUG dari Main muncul karena level ROOT berlaku untuk semua logger.",
+          "petunjuk": "Satu baris `log.debug(...)` dengan placeholder."
+        },
+        {
+          "arahan": "Tantangan: di bawah log jumlah tadi, catat setiap todo dengan `log.debug(\"Isi: {}\", t);` di dalam perulangan. Karena perulangan itu hanya berguna saat DEBUG, bungkus seluruh perulangannya dengan pemeriksaan level.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        aturLevel(Logger.ROOT_LOGGER_NAME, \"DEBUG\");\n        log.info(\"Aplikasi Todolist mulai\");\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        service.tambah(\"Belajar logging\");\n        service.tambah(\"Beli kopi\");\n        log.debug(\"Jumlah todo sekarang {}\", service.semua().size());\n        if (log.isDebugEnabled()) {\n            for (Todo t : service.semua()) {\n                log.debug(\"Isi: {}\", t);\n            }\n        }\n        try {\n            service.selesaikan(9);\n        } catch (TodoTidakDitemukanException e) {\n            log.warn(\"Gagal menyelesaikan: {}\", e.getMessage());\n        }\n        log.info(\"Aplikasi selesai\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        log.debug(\"Menambah todo dengan judul '{}'\", judul);\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "INFO  Main - Aplikasi Todolist mulai\nDEBUG TodoService - Menambah todo dengan judul 'Belajar logging'\nINFO  TodoService - Todo baru disimpan: 1. [ ] Belajar logging\nDEBUG TodoService - Menambah todo dengan judul 'Beli kopi'\nINFO  TodoService - Todo baru disimpan: 2. [ ] Beli kopi\nDEBUG Main - Jumlah todo sekarang 2\nDEBUG Main - Isi: 1. [ ] Belajar logging\nDEBUG Main - Isi: 2. [ ] Beli kopi\nWARN  Main - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\nINFO  Main - Aplikasi selesai",
+          "wajib": [
+            {
+              "pola": "if\\s*\\(\\s*log\\.isDebugEnabled\\(\\)\\s*\\)",
+              "pesan": "bungkus dengan `if (log.isDebugEnabled())`."
+            },
+            {
+              "pola": "log\\.debug\\s*\\(\\s*\"Isi: \\{\\}\"\\s*,\\s*t\\s*\\)",
+              "pesan": "catat `log.debug(\"Isi: {}\", t)` di dalam perulangan."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Saat level INFO, perulangan itu bahkan tidak dijalankan.",
+          "petunjuk": "Pakai `if (log.isDebugEnabled()) { for (Todo t : service.semua()) { ... } }`."
+        }
+      ],
+      "penutup": "Kamu sudah bisa memilih level dan mengatur level yang tampil. Berikutnya: menulis isi pesan log yang benar-benar membantu."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Level logger diatur INFO. Pesan level mana yang ditampilkan?",
+          "options": [
+            "Hanya INFO",
+            "DEBUG dan INFO",
+            "Semua level",
+            "INFO, WARN, dan ERROR"
+          ],
+          "answer": 3,
+          "explanation": "Level minimal dan di atasnya.",
+          "remedial": "Pengaturan level berarti \"tampilkan level ini dan yang lebih gawat\". Urutannya TRACE, DEBUG, INFO, WARN, ERROR, jadi INFO menampilkan tiga level teratas."
+        },
+        {
+          "question": "Pengguna memasukkan nomor todo yang tidak ada, dan aplikasi menampilkan pesan gagal lalu tetap berjalan. Level yang paling tepat adalah...",
+          "options": [
+            "WARN",
+            "ERROR",
+            "TRACE",
+            "DEBUG"
+          ],
+          "answer": 0,
+          "explanation": "Tidak beres, tapi aplikasi tetap jalan.",
+          "remedial": "Kejadian ini perlu diketahui tapi bukan kegagalan aplikasi. ERROR disimpan untuk masalah yang harus ditangani, seperti database mati, supaya alarm tidak berbunyi untuk hal biasa."
+        },
+        {
+          "question": "Kenapa log.debug(\"Laporan: {}\", buatLaporanLengkap()) sebaiknya dibungkus if (log.isDebugEnabled())?",
+          "options": [
+            "Karena debug tidak bisa memakai placeholder",
+            "Karena buatLaporanLengkap() tetap dijalankan walau DEBUG disembunyikan",
+            "Karena isDebugEnabled mempercepat semua log",
+            "Karena tanpa if pesannya tampil dua kali"
+          ],
+          "answer": 1,
+          "explanation": "Argumen dihitung lebih dulu.",
+          "remedial": "Java menghitung semua argumen sebelum memanggil `log.debug`. Kalau DEBUG mati, hasil perhitungan itu dibuang percuma. Dengan `if (log.isDebugEnabled())`, perhitungan hanya dilakukan saat pesannya benar-benar akan ditulis."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Urutan level log dari yang paling rinci ke paling gawat adalah...",
+      "options": [
+        "DEBUG, TRACE, INFO, ERROR, WARN",
+        "INFO, DEBUG, WARN, ERROR, TRACE",
+        "TRACE, DEBUG, INFO, WARN, ERROR",
+        "ERROR, WARN, INFO, DEBUG, TRACE"
+      ],
+      "answer": 2,
+      "explanation": "Dari rinci ke gawat."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca level log di baris pertama input (misalnya INFO atau DEBUG), lalu membaca suhu pasien di baris-baris berikutnya. Atur level ROOT sesuai baris pertama dengan method aturLevel yang sudah tersedia. Untuk setiap suhu, catat DEBUG \"Membaca suhu \" diikuti nilainya, lalu: di atas 39 catat ERROR \"Bahaya, suhu \" diikuti nilainya; di atas 37.5 catat WARN \"Demam, suhu \" diikuti nilainya; selain itu INFO \"Normal, suhu \" diikuti nilainya. Pakai placeholder.",
+      "starterCode": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        String level = in.nextLine().trim();\n        while (in.hasNextLine()) {\n            double suhu = Double.parseDouble(in.nextLine().trim());\n            System.out.println(\"Suhu \" + suhu);\n        }\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        aturLevel(Logger.ROOT_LOGGER_NAME, in.nextLine().trim());\n        while (in.hasNextLine()) {\n            double suhu = Double.parseDouble(in.nextLine().trim());\n            log.debug(\"Membaca suhu {}\", suhu);\n            if (suhu > 39) {\n                log.error(\"Bahaya, suhu {}\", suhu);\n            } else if (suhu > 37.5) {\n                log.warn(\"Demam, suhu {}\", suhu);\n            } else {\n                log.info(\"Normal, suhu {}\", suhu);\n            }\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "INFO\n36.5\n38.2\n40.1\n",
+          "expectedOutput": "INFO  Main - Normal, suhu 36.5\nWARN  Main - Demam, suhu 38.2\nERROR Main - Bahaya, suhu 40.1\n"
+        },
+        {
+          "input": "DEBUG\n37.0\n",
+          "expectedOutput": "DEBUG Main - Membaca suhu 37.0\nINFO  Main - Normal, suhu 37.0\n"
+        },
+        {
+          "input": "WARN\n36.0\n39.5\n",
+          "expectedOutput": "ERROR Main - Bahaya, suhu 39.5\n"
+        }
+      ],
+      "hints": [
+        "Baris pertama dipakai langsung: aturLevel(Logger.ROOT_LOGGER_NAME, in.nextLine().trim());",
+        "Periksa kondisi dari yang paling gawat: if (suhu > 39) ... else if (suhu > 37.5) ... else ..."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Lima level: TRACE, DEBUG, INFO, WARN, ERROR.",
+        "Level logger menentukan level minimal yang ditampilkan; bawaan biasanya INFO.",
+        "ERROR untuk kegagalan yang harus ditangani, WARN untuk yang perlu diperhatikan.",
+        "Bungkus perhitungan mahal dengan if (log.isDebugEnabled())."
+      ]
+    }
+  ]
+}

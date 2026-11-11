@@ -1,0 +1,231 @@
+{
+  "id": "java-database-08",
+  "moduleId": "database",
+  "order": 8,
+  "title": "Transaction",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Transfer uang dari Sari ke Budi butuh **dua** perintah: kurangi saldo Sari, tambah saldo Budi. Bagaimana kalau perintah pertama berhasil lalu server mati sebelum perintah kedua? Uang Sari hilang, Budi tidak menerima apa-apa.\n\n**Transaction** (transaksi) mengikat beberapa perintah menjadi satu kesatuan: **semua berhasil, atau semua dibatalkan**.\n\nIbarat jual beli di kasir: barang diserahkan dan uang dibayar dalam satu transaksi. Kalau kartu pembayaran ditolak, barang dikembalikan ke rak. Tidak ada keadaan setengah jadi di mana barang dibawa pulang tapi uang tidak dibayar."
+    },
+    {
+      "type": "theory",
+      "content": "Secara bawaan JDBC memakai **auto-commit**: setiap perintah langsung disimpan permanen begitu selesai. Untuk transaksi, auto-commit dimatikan:\n\n```java\nc.setAutoCommit(false);        // mulai transaksi\ntry {\n    // beberapa executeUpdate\n    c.commit();                // simpan semua perubahan\n} catch (SQLException e) {\n    c.rollback();              // batalkan semua perubahan sejak transaksi dimulai\n    throw e;\n} finally {\n    c.setAutoCommit(true);     // kembalikan ke keadaan semula\n}\n```\n\nSifat transaksi dikenal dengan singkatan **ACID**:\n\n| Huruf | Artinya |\n|---|---|\n| Atomicity | semua atau tidak sama sekali |\n| Consistency | aturan (seperti saldo tidak boleh minus) tetap terjaga |\n| Isolation | transaksi yang berjalan bersamaan tidak saling mengacaukan |\n| Durability | yang sudah di-commit tetap tersimpan walau server mati |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nTabel `rekening` punya aturan `CHECK (saldo >= 0)`. Kalau transfer melebihi saldo, perintah pengurangan ditolak database dengan `SQLException`.\n\nTanpa transaksi:\n\n```text\nUPDATE saldo + 200000 untuk Sari   -> berhasil, langsung tersimpan\nUPDATE saldo - 200000 untuk Budi   -> ditolak (saldo jadi minus)\nHasil: Sari mendapat uang yang tidak pernah dikurangi dari siapa pun\n```\n\nDengan transaksi, penolakan perintah kedua memicu `rollback()`, dan perintah pertama ikut dibatalkan. Saldo kembali seperti sebelum transfer.\n\nDi klien `mysql` hal yang sama dilakukan dengan `START TRANSACTION;`, lalu `COMMIT;` atau `ROLLBACK;`."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            c.setAutoCommit(false);\n            try (Statement st = c.createStatement()) {\n                st.executeUpdate(\"DELETE FROM produk\");\n                try (ResultSet rs = st.executeQuery(\"SELECT COUNT(*) FROM produk\")) {\n                    rs.next();\n                    System.out.println(\"Setelah DELETE: \" + rs.getInt(1));\n                }\n                c.rollback();\n                try (ResultSet rs = st.executeQuery(\"SELECT COUNT(*) FROM produk\")) {\n                    rs.next();\n                    System.out.println(\"Setelah rollback: \" + rs.getInt(1));\n                }\n            }\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: semua produk dihapus, lalu rollback. Apa baris terakhir yang tercetak?",
+        "options": [
+          "Setelah rollback: 0",
+          "Setelah rollback: 4",
+          "Setelah DELETE: 4",
+          "Setelah rollback: 3"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 18,
+          "note": "Mulai transaksi: perubahan belum permanen."
+        },
+        {
+          "line": 20,
+          "note": "Semua produk terhapus, tapi belum di-commit."
+        },
+        {
+          "line": 25,
+          "note": "Batalkan semua perubahan sejak transaksi dimulai."
+        }
+      ],
+      "explanation": "Selama transaksi berjalan, DELETE terlihat berhasil: hitungan menjadi 0. Tetapi karena belum di-commit, rollback mengembalikan tabel ke keadaan sebelum transaksi, sehingga keempat produk kembali.\n\nInilah jaring pengaman yang dipakai saat menjalankan perubahan data yang berisiko.",
+      "tryThis": [
+        {
+          "task": "Ganti c.rollback() dengan c.commit(). Berapa hasil hitungan terakhir?",
+          "hint": null
+        },
+        {
+          "task": "Ubah DELETE menjadi DELETE FROM produk WHERE harga < 5000.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `commit()`**\n\nSetelah `setAutoCommit(false)`, perubahan yang tidak di-commit akan hilang saat koneksi ditutup. Program tampak berhasil, tetapi datanya tidak pernah tersimpan.\n\n**2. Menangkap exception tanpa `rollback()`**\n\nTransaksi tetap terbuka dengan perubahan setengah jadi, dan bisa ikut ter-commit oleh kode berikutnya yang memakai koneksi yang sama.\n\n**3. Tidak mengembalikan auto-commit**\n\nKoneksi yang dipakai ulang (misalnya dari connection pool) tetap dalam mode transaksi, membuat kode lain berperilaku aneh. Kembalikan di `finally`.\n\n**4. Transaksi terlalu lama**\n\nSelama transaksi berjalan, baris yang diubah dikunci. Jangan menunggu masukan pengguna atau memanggil layanan lain yang lambat di tengah transaksi."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\nDi Spring, transaksi cukup ditandai dengan anotasi. Spring yang memanggil `setAutoCommit`, `commit`, dan `rollback`:\n\n```java\n@Service\n@RequiredArgsConstructor\npublic class TransferService {\n    private final RekeningRepository rekeningRepository;\n\n    @Transactional\n    public void transfer(long dari, long ke, long jumlah) {\n        rekeningRepository.tambahSaldo(ke, jumlah);\n        rekeningRepository.kurangiSaldo(dari, jumlah);   // kalau gagal, semua di-rollback\n    }\n}\n```\n\nKonsepnya sama persis dengan yang ditulis manual di materi ini. Kesalahan klasik di Spring: memanggil method `@Transactional` dari method lain di class yang sama, sehingga transaksinya tidak aktif. Memahami transaksi JDBC membantu mengenali masalah seperti itu.\n\nAturan keuangan seperti \"saldo tidak boleh minus\" dijaga di dua tempat: di kode aplikasi (pesan yang ramah) dan di database (`CHECK`, sebagai pengaman terakhir)."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Toko Database 8: Transfer Saldo",
+      "pembuka": "Toko kita punya fitur dompet: pelanggan bisa saling mengirim saldo. Tabel `rekening` melarang saldo minus.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Transfer 30000 dari Sari ke Budi dengan dua UPDATE.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:bank;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE rekening (id INT PRIMARY KEY, nama VARCHAR(50) NOT NULL, saldo INT NOT NULL CHECK (saldo >= 0))\");\n            st.executeUpdate(\"INSERT INTO rekening VALUES (1, 'Sari', 100000), (2, 'Budi', 50000)\");\n        }\n    }\n\n    static void cetakSaldo(Connection c) throws SQLException {\n        try (Statement st = c.createStatement();\n             ResultSet rs = st.executeQuery(\"SELECT nama, saldo FROM rekening ORDER BY id\")) {\n            while (rs.next()) {\n                System.out.println(\"  \" + rs.getString(\"nama\") + \": \" + rs.getInt(\"saldo\"));\n            }\n        }\n    }\n\n    static void transfer(Connection c, int dari, int ke, int jumlah) throws SQLException {\n        try (PreparedStatement tambah = c.prepareStatement(\"UPDATE rekening SET saldo = saldo + ? WHERE id = ?\");\n             PreparedStatement kurang = c.prepareStatement(\"UPDATE rekening SET saldo = saldo - ? WHERE id = ?\")) {\n            tambah.setInt(1, jumlah);\n            tambah.setInt(2, ke);\n            tambah.executeUpdate();\n            kurang.setInt(1, jumlah);\n            kurang.setInt(2, dari);\n            kurang.executeUpdate();\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            System.out.println(\"Awal:\");\n            cetakSaldo(c);\n            transfer(c, 1, 2, 30000);\n            System.out.println(\"Transfer 30000 dari Sari ke Budi berhasil\");\n            cetakSaldo(c);\n        }\n    }\n}\n",
+          "keluaran": "Awal:\n  Sari: 100000\n  Budi: 50000\nTransfer 30000 dari Sari ke Budi berhasil\n  Sari: 70000\n  Budi: 80000",
+          "otomatis": true,
+          "benar": "Berhasil: Sari berkurang, Budi bertambah.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Sekarang coba transfer yang seharusnya gagal: 200000 dari Budi (rekening 2) ke Sari (rekening 1). Bungkus dengan try-catch `SQLException`, cetak pesan gagal, lalu cetak saldo lagi.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:bank;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE rekening (id INT PRIMARY KEY, nama VARCHAR(50) NOT NULL, saldo INT NOT NULL CHECK (saldo >= 0))\");\n            st.executeUpdate(\"INSERT INTO rekening VALUES (1, 'Sari', 100000), (2, 'Budi', 50000)\");\n        }\n    }\n\n    static void cetakSaldo(Connection c) throws SQLException {\n        try (Statement st = c.createStatement();\n             ResultSet rs = st.executeQuery(\"SELECT nama, saldo FROM rekening ORDER BY id\")) {\n            while (rs.next()) {\n                System.out.println(\"  \" + rs.getString(\"nama\") + \": \" + rs.getInt(\"saldo\"));\n            }\n        }\n    }\n\n    static void transfer(Connection c, int dari, int ke, int jumlah) throws SQLException {\n        try (PreparedStatement tambah = c.prepareStatement(\"UPDATE rekening SET saldo = saldo + ? WHERE id = ?\");\n             PreparedStatement kurang = c.prepareStatement(\"UPDATE rekening SET saldo = saldo - ? WHERE id = ?\")) {\n            tambah.setInt(1, jumlah);\n            tambah.setInt(2, ke);\n            tambah.executeUpdate();\n            kurang.setInt(1, jumlah);\n            kurang.setInt(2, dari);\n            kurang.executeUpdate();\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            System.out.println(\"Awal:\");\n            cetakSaldo(c);\n            transfer(c, 1, 2, 30000);\n            System.out.println(\"Transfer 30000 dari Sari ke Budi berhasil\");\n            cetakSaldo(c);\n            try {\n                transfer(c, 2, 1, 200000);\n            } catch (SQLException e) {\n                System.out.println(\"Transfer 200000 dari Budi ke Sari gagal\");\n            }\n            cetakSaldo(c);\n        }\n    }\n}\n",
+          "keluaran": "Awal:\n  Sari: 100000\n  Budi: 50000\nTransfer 30000 dari Sari ke Budi berhasil\n  Sari: 70000\n  Budi: 80000\nTransfer 200000 dari Budi ke Sari gagal\n  Sari: 270000\n  Budi: 80000",
+          "wajib": [
+            {
+              "pola": "transfer\\s*\\(\\s*c\\s*,\\s*2\\s*,\\s*1\\s*,\\s*200000\\s*\\)",
+              "pesan": "panggil `transfer(c, 2, 1, 200000)`."
+            },
+            {
+              "pola": "catch\\s*\\(\\s*SQLException\\s+e\\s*\\)",
+              "pesan": "tangkap `SQLException`."
+            }
+          ],
+          "benar": "Transfer gagal, tapi Sari tetap mendapat 200000! UPDATE pertama sudah tersimpan sebelum UPDATE kedua ditolak. Uang tercipta dari udara.",
+          "petunjuk": "Di catch cetak `\"Transfer 200000 dari Budi ke Sari gagal\"`, lalu panggil `cetakSaldo(c);` di luar try."
+        },
+        {
+          "arahan": "Perbaiki method `transfer` dengan transaksi: `c.setAutoCommit(false);` di awal, `c.commit();` setelah kedua UPDATE, di catch `c.rollback();` lalu `throw e;`, dan `c.setAutoCommit(true);` di finally.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:bank;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE rekening (id INT PRIMARY KEY, nama VARCHAR(50) NOT NULL, saldo INT NOT NULL CHECK (saldo >= 0))\");\n            st.executeUpdate(\"INSERT INTO rekening VALUES (1, 'Sari', 100000), (2, 'Budi', 50000)\");\n        }\n    }\n\n    static void cetakSaldo(Connection c) throws SQLException {\n        try (Statement st = c.createStatement();\n             ResultSet rs = st.executeQuery(\"SELECT nama, saldo FROM rekening ORDER BY id\")) {\n            while (rs.next()) {\n                System.out.println(\"  \" + rs.getString(\"nama\") + \": \" + rs.getInt(\"saldo\"));\n            }\n        }\n    }\n\n    static void transfer(Connection c, int dari, int ke, int jumlah) throws SQLException {\n        c.setAutoCommit(false);\n        try (PreparedStatement tambah = c.prepareStatement(\"UPDATE rekening SET saldo = saldo + ? WHERE id = ?\");\n             PreparedStatement kurang = c.prepareStatement(\"UPDATE rekening SET saldo = saldo - ? WHERE id = ?\")) {\n            tambah.setInt(1, jumlah);\n            tambah.setInt(2, ke);\n            tambah.executeUpdate();\n            kurang.setInt(1, jumlah);\n            kurang.setInt(2, dari);\n            kurang.executeUpdate();\n            c.commit();\n        } catch (SQLException e) {\n            c.rollback();\n            throw e;\n        } finally {\n            c.setAutoCommit(true);\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            System.out.println(\"Awal:\");\n            cetakSaldo(c);\n            transfer(c, 1, 2, 30000);\n            System.out.println(\"Transfer 30000 dari Sari ke Budi berhasil\");\n            cetakSaldo(c);\n            try {\n                transfer(c, 2, 1, 200000);\n            } catch (SQLException e) {\n                System.out.println(\"Transfer 200000 dari Budi ke Sari gagal\");\n            }\n            cetakSaldo(c);\n        }\n    }\n}\n",
+          "keluaran": "Awal:\n  Sari: 100000\n  Budi: 50000\nTransfer 30000 dari Sari ke Budi berhasil\n  Sari: 70000\n  Budi: 80000\nTransfer 200000 dari Budi ke Sari gagal\n  Sari: 70000\n  Budi: 80000",
+          "wajib": [
+            {
+              "pola": "c\\.setAutoCommit\\s*\\(\\s*false\\s*\\)",
+              "pesan": "mulai dengan `c.setAutoCommit(false)`."
+            },
+            {
+              "pola": "c\\.commit\\s*\\(\\s*\\)",
+              "pesan": "simpan dengan `c.commit()`."
+            },
+            {
+              "pola": "c\\.rollback\\s*\\(\\s*\\)",
+              "pesan": "batalkan dengan `c.rollback()` di catch."
+            },
+            {
+              "pola": "finally\\s*\\{\\s*c\\.setAutoCommit\\s*\\(\\s*true\\s*\\)",
+              "pesan": "kembalikan `c.setAutoCommit(true)` di finally."
+            }
+          ],
+          "benar": "Saldo kembali utuh setelah transfer yang gagal. Penambahan untuk Sari ikut dibatalkan.",
+          "petunjuk": "Tambahkan `catch (SQLException e) { c.rollback(); throw e; } finally { c.setAutoCommit(true); }` pada try milik PreparedStatement."
+        },
+        {
+          "arahan": "Tantangan: ubah `transfer` supaya mengembalikan `boolean`: `true` setelah commit, `false` setelah rollback (tanpa melempar exception lagi). Lalu ganti isi main menjadi tiga transfer: 30000 dari 1 ke 2, 200000 dari 2 ke 1, dan 50000 dari 2 ke 1, masing-masing mencetak `Transfer N berhasil` atau `Transfer N gagal`, lalu saldo akhir.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:bank;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE rekening (id INT PRIMARY KEY, nama VARCHAR(50) NOT NULL, saldo INT NOT NULL CHECK (saldo >= 0))\");\n            st.executeUpdate(\"INSERT INTO rekening VALUES (1, 'Sari', 100000), (2, 'Budi', 50000)\");\n        }\n    }\n\n    static void cetakSaldo(Connection c) throws SQLException {\n        try (Statement st = c.createStatement();\n             ResultSet rs = st.executeQuery(\"SELECT nama, saldo FROM rekening ORDER BY id\")) {\n            while (rs.next()) {\n                System.out.println(\"  \" + rs.getString(\"nama\") + \": \" + rs.getInt(\"saldo\"));\n            }\n        }\n    }\n\n    static boolean transfer(Connection c, int dari, int ke, int jumlah) throws SQLException {\n        c.setAutoCommit(false);\n        try (PreparedStatement tambah = c.prepareStatement(\"UPDATE rekening SET saldo = saldo + ? WHERE id = ?\");\n             PreparedStatement kurang = c.prepareStatement(\"UPDATE rekening SET saldo = saldo - ? WHERE id = ?\")) {\n            tambah.setInt(1, jumlah);\n            tambah.setInt(2, ke);\n            tambah.executeUpdate();\n            kurang.setInt(1, jumlah);\n            kurang.setInt(2, dari);\n            kurang.executeUpdate();\n            c.commit();\n            return true;\n        } catch (SQLException e) {\n            c.rollback();\n            return false;\n        } finally {\n            c.setAutoCommit(true);\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            System.out.println(\"Awal:\");\n            cetakSaldo(c);\n            System.out.println(transfer(c, 1, 2, 30000) ? \"Transfer 1 berhasil\" : \"Transfer 1 gagal\");\n            System.out.println(transfer(c, 2, 1, 200000) ? \"Transfer 2 berhasil\" : \"Transfer 2 gagal\");\n            System.out.println(transfer(c, 2, 1, 50000) ? \"Transfer 3 berhasil\" : \"Transfer 3 gagal\");\n            cetakSaldo(c);\n        }\n    }\n}\n",
+          "keluaran": "Awal:\n  Sari: 100000\n  Budi: 50000\nTransfer 1 berhasil\nTransfer 2 gagal\nTransfer 3 berhasil\n  Sari: 120000\n  Budi: 30000",
+          "wajib": [
+            {
+              "pola": "static\\s+boolean\\s+transfer\\s*\\(",
+              "pesan": "ubah menjadi `static boolean transfer(...)`."
+            },
+            {
+              "pola": "return\\s+false\\s*;",
+              "pesan": "kembalikan `false` setelah rollback."
+            },
+            {
+              "pola": "transfer\\s*\\(\\s*c\\s*,\\s*2\\s*,\\s*1\\s*,\\s*50000\\s*\\)",
+              "pesan": "tambahkan transfer ketiga `transfer(c, 2, 1, 50000)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Transfer kedua gagal tanpa merusak apa pun, dan transfer ketiga tetap berjalan normal.",
+          "petunjuk": "Tipe kembalian menjadi `static boolean transfer(...)`. Di try: `c.commit(); return true;`. Di catch: `c.rollback(); return false;`. Di main pakai operator `? :`."
+        }
+      ],
+      "penutup": "Transfer saldo di toko kita sekarang aman: berhasil semua atau batal semua. Materi terakhir: menghubungkan kode ini ke MySQL sungguhan dengan connection pool."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa arti setAutoCommit(false)?",
+          "options": [
+            "Semua perubahan dibatalkan",
+            "Koneksi ditutup otomatis",
+            "Perubahan tidak langsung disimpan sampai commit dipanggil",
+            "Perintah SQL tidak bisa dijalankan"
+          ],
+          "answer": 2,
+          "explanation": "Memulai transaksi.",
+          "remedial": "Dengan auto-commit mati, setiap perubahan menunggu keputusan: `commit()` untuk menyimpan semuanya, atau `rollback()` untuk membatalkannya."
+        },
+        {
+          "question": "Transfer menjalankan dua UPDATE dalam satu transaksi. UPDATE kedua gagal dan rollback dipanggil. Apa yang terjadi pada UPDATE pertama?",
+          "options": [
+            "Tetap tersimpan",
+            "Dijalankan ulang otomatis",
+            "Menjadi UPDATE kedua",
+            "Ikut dibatalkan"
+          ],
+          "answer": 3,
+          "explanation": "Semua atau tidak sama sekali.",
+          "remedial": "Rollback membatalkan semua perubahan sejak transaksi dimulai, termasuk UPDATE pertama yang sudah berhasil dijalankan. Itulah sifat atomicity."
+        },
+        {
+          "question": "Kenapa setAutoCommit(true) dipanggil di dalam finally?",
+          "options": [
+            "Supaya koneksi kembali normal walaupun transaksi gagal",
+            "Supaya commit dijalankan dua kali",
+            "Karena finally lebih cepat",
+            "Supaya exception tidak terlempar"
+          ],
+          "answer": 0,
+          "explanation": "Bersihkan keadaan koneksi.",
+          "remedial": "Koneksi sering dipakai ulang, terutama lewat connection pool. Kalau mode transaksi tidak dikembalikan, kode berikutnya yang memakai koneksi itu ikut berada dalam transaksi tanpa sadar."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Huruf A pada ACID (Atomicity) berarti...",
+      "options": [
+        "Data dikirim secara otomatis",
+        "Semua perintah dalam transaksi berhasil, atau semuanya dibatalkan",
+        "Transaksi selalu cepat",
+        "Hanya satu pengguna boleh memakai database"
+      ],
+      "answer": 1,
+      "explanation": "Tidak ada keadaan setengah jadi."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Toko mencatat penjualan dengan dua langkah: menambah baris di tabel penjualan, lalu mengurangi stok produk. Stok tidak boleh minus (dijaga CHECK di database). Program membaca penjualan dari input dengan format idProduk jumlah per baris. Saat ini, penjualan yang stoknya kurang tetap tercatat di tabel penjualan walaupun stoknya gagal dikurangi. Ubah method jual memakai transaksi: commit kalau kedua langkah berhasil, rollback kalau ada yang gagal, dan kembalikan auto-commit di finally. Laporan di akhir harus menunjukkan penjualan yang gagal tidak tercatat.",
+      "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT PRIMARY KEY, nama VARCHAR(50) NOT NULL, stok INT NOT NULL CHECK (stok >= 0))\");\n            st.execute(\"CREATE TABLE penjualan (id INT AUTO_INCREMENT PRIMARY KEY, produk_id INT NOT NULL, jumlah INT NOT NULL)\");\n            st.executeUpdate(\"INSERT INTO produk VALUES (1, 'Pensil', 10), (2, 'Buku', 3)\");\n        }\n    }\n\n    static void laporan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement();\n             ResultSet rs = st.executeQuery(\"SELECT (SELECT SUM(stok) FROM produk), (SELECT COUNT(*) FROM penjualan)\")) {\n            rs.next();\n            System.out.println(\"Stok total \" + rs.getInt(1) + \", penjualan tercatat \" + rs.getInt(2));\n        }\n    }\n\n    static boolean jual(Connection c, int produkId, int jumlah) throws SQLException {\n        try (PreparedStatement catat = c.prepareStatement(\"INSERT INTO penjualan (produk_id, jumlah) VALUES (?, ?)\");\n             PreparedStatement kurangi = c.prepareStatement(\"UPDATE produk SET stok = stok - ? WHERE id = ?\")) {\n            catat.setInt(1, produkId);\n            catat.setInt(2, jumlah);\n            catat.executeUpdate();\n            kurangi.setInt(1, jumlah);\n            kurangi.setInt(2, produkId);\n            kurangi.executeUpdate();\n            return true;\n        } catch (SQLException e) {\n            return false;\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            while (in.hasNextLine()) {\n                String[] d = in.nextLine().split(\" \");\n                int id = Integer.parseInt(d[0]);\n                int jumlah = Integer.parseInt(d[1]);\n                System.out.println(\"Jual \" + jumlah + \" produk \" + id + \": \" + (jual(c, id, jumlah) ? \"berhasil\" : \"gagal\"));\n            }\n            laporan(c);\n        }\n    }\n}",
+      "solution": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT PRIMARY KEY, nama VARCHAR(50) NOT NULL, stok INT NOT NULL CHECK (stok >= 0))\");\n            st.execute(\"CREATE TABLE penjualan (id INT AUTO_INCREMENT PRIMARY KEY, produk_id INT NOT NULL, jumlah INT NOT NULL)\");\n            st.executeUpdate(\"INSERT INTO produk VALUES (1, 'Pensil', 10), (2, 'Buku', 3)\");\n        }\n    }\n\n    static void laporan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement();\n             ResultSet rs = st.executeQuery(\"SELECT (SELECT SUM(stok) FROM produk), (SELECT COUNT(*) FROM penjualan)\")) {\n            rs.next();\n            System.out.println(\"Stok total \" + rs.getInt(1) + \", penjualan tercatat \" + rs.getInt(2));\n        }\n    }\n\n    static boolean jual(Connection c, int produkId, int jumlah) throws SQLException {\n        c.setAutoCommit(false);\n        try (PreparedStatement catat = c.prepareStatement(\"INSERT INTO penjualan (produk_id, jumlah) VALUES (?, ?)\");\n             PreparedStatement kurangi = c.prepareStatement(\"UPDATE produk SET stok = stok - ? WHERE id = ?\")) {\n            catat.setInt(1, produkId);\n            catat.setInt(2, jumlah);\n            catat.executeUpdate();\n            kurangi.setInt(1, jumlah);\n            kurangi.setInt(2, produkId);\n            kurangi.executeUpdate();\n            c.commit();\n            return true;\n        } catch (SQLException e) {\n            c.rollback();\n            return false;\n        } finally {\n            c.setAutoCommit(true);\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            while (in.hasNextLine()) {\n                String[] d = in.nextLine().split(\" \");\n                int id = Integer.parseInt(d[0]);\n                int jumlah = Integer.parseInt(d[1]);\n                System.out.println(\"Jual \" + jumlah + \" produk \" + id + \": \" + (jual(c, id, jumlah) ? \"berhasil\" : \"gagal\"));\n            }\n            laporan(c);\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "1 4\n2 5\n2 3\n",
+          "expectedOutput": "Jual 4 produk 1: berhasil\nJual 5 produk 2: gagal\nJual 3 produk 2: berhasil\nStok total 6, penjualan tercatat 2\n"
+        },
+        {
+          "input": "2 4\n",
+          "expectedOutput": "Jual 4 produk 2: gagal\nStok total 13, penjualan tercatat 0\n"
+        }
+      ],
+      "hints": [
+        "Panggil c.setAutoCommit(false) di awal method, c.commit() setelah kedua executeUpdate.",
+        "Di catch panggil c.rollback() sebelum return false, dan c.setAutoCommit(true) di finally."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Transaksi menjadikan beberapa perintah satu kesatuan: semua berhasil atau semua batal.",
+        "setAutoCommit(false) memulai; commit() menyimpan; rollback() membatalkan.",
+        "Kembalikan setAutoCommit(true) di finally.",
+        "ACID: Atomicity, Consistency, Isolation, Durability; di Spring cukup @Transactional."
+      ]
+    }
+  ]
+}

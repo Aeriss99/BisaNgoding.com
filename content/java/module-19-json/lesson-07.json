@@ -1,0 +1,202 @@
+{
+  "id": "java-json-07",
+  "moduleId": "json",
+  "order": 7,
+  "title": "Proyek: Todolist Disimpan ke JSON",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul Input Output, Todolist disimpan ke file CSV. Sekarang kita ganti formatnya menjadi JSON, cukup dengan membuat repository baru: **`TodoRepositoryJson`**. `TodoService` dan class lain tidak berubah sama sekali.\n\nJSON lebih kaya dari CSV: bisa berisi object bersarang, daftar, dan null, dan tidak ada masalah saat judul mengandung koma.\n\nIbarat mengganti lemari arsip kertas dengan lemari arsip bermap berlabel: petugas (service) tetap meminta dan menyerahkan dokumen dengan cara yang sama, hanya cara menyimpannya yang lebih rapi."
+    },
+    {
+      "type": "theory",
+      "content": "Rencana `TodoRepositoryJson`:\n\n| Saat | Yang dilakukan |\n|---|---|\n| dibuat | baca seluruh file ke `List<Todo>` (kosong kalau file belum ada) |\n| `simpan`, `hapus`, `perbarui` | ubah List, lalu tulis ulang seluruh file |\n| `semua`, `cari` | baca dari List di memori |\n\nJackson bisa langsung membaca dan menulis file:\n\n```java\nList<Todo> data = mapper.readValue(file, new TypeReference<List<Todo>>() {});\nmapper.writerWithDefaultPrettyPrinter().writeValue(file, data);\n```\n\n`readValue` dan `writeValue` ke file melempar `IOException`. Karena interface `TodoRepository` tidak punya `throws`, exception itu dibungkus `UncheckedIOException`, sama seperti `SQLException` dibungkus di repository JDBC.\n\n`Todo` memakai `@JsonCreator`, sehingga `id` dan `judul` tetap `final`.\n\nNomor todo baru dihitung dari id terbesar ditambah 1, supaya tidak bentrok setelah ada todo yang dihapus dan aplikasi dibuka ulang."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nprivate void tulis() {\n    try {\n        mapper.writerWithDefaultPrettyPrinter().writeValue(file, data);\n    } catch (IOException e) {\n        throw new UncheckedIOException(e);\n    }\n}\n\npublic void perbarui(Todo todo) {\n    tulis();\n}\n```\n\nDi repository memori, `perbarui` kosong karena object di List sudah ikut berubah. Di repository file, perubahan baru aman setelah file ditulis ulang. Inilah gunanya method `perbarui` di interface sejak Proyek Todolist OOP.\n\nIsi file `todo.json` setelah dua todo ditambah dan todo 1 diselesaikan:\n\n```json\n[ {\n  \"id\" : 1,\n  \"judul\" : \"Belajar JSON\",\n  \"selesai\" : true\n}, {\n  \"id\" : 2,\n  \"judul\" : \"Beli kopi\",\n  \"selesai\" : false\n} ]\n```\n\nDi contoh, `Files.deleteIfExists` di awal main membuat setiap percobaan mulai dari file kosong. Di aplikasi sungguhan baris itu tidak ada, karena justru isi file lama yang ingin dipertahankan."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        File file = new File(\"todo.json\");\n        Files.deleteIfExists(file.toPath());   // contoh selalu mulai dari file kosong\n        TodoService service = new TodoService(new TodoRepositoryJson(file));\n        service.tambah(\"Belajar JSON\");\n        service.selesaikan(1);\n        TodoService dibukaLagi = new TodoService(new TodoRepositoryJson(file));\n        System.out.println(dibukaLagi.semua().get(0));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    @JsonCreator\n    Todo(@JsonProperty(\"id\") int id, @JsonProperty(\"judul\") String judul, @JsonProperty(\"selesai\") boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryJson implements TodoRepository {\n    private final ObjectMapper mapper = new ObjectMapper();\n    private final File file;\n    private final List<Todo> data;\n\n    TodoRepositoryJson(File file) {\n        this.file = file;\n        this.data = baca();\n    }\n\n    private List<Todo> baca() {\n        if (!file.exists()) {\n            return new ArrayList<>();\n        }\n        try {\n            return mapper.readValue(file, new TypeReference<List<Todo>>() {});\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    private void tulis() {\n        try {\n            mapper.writerWithDefaultPrettyPrinter().writeValue(file, data);\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    public Todo simpan(String judul) {\n        int id = 1;\n        for (Todo t : data) {\n            id = Math.max(id, t.getId() + 1);\n        }\n        Todo t = new Todo(id, judul, false);\n        data.add(t);\n        tulis();\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        if (t == null) {\n            return false;\n        }\n        data.remove(t);\n        tulis();\n        return true;\n    }\n\n    public void perbarui(Todo todo) {\n        tulis();\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: repository kedua dibuat dari file yang sama. Apa yang tercetak?",
+        "options": [
+          "1. [ ] Belajar JSON",
+          "null",
+          "0. [x] Belajar JSON",
+          "1. [x] Belajar JSON"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 13,
+          "note": "Mulai dari file kosong."
+        },
+        {
+          "line": 17,
+          "note": "Seolah aplikasi dibuka ulang."
+        },
+        {
+          "line": 83,
+          "note": "Isi file dibaca saat repository dibuat."
+        },
+        {
+          "line": 91,
+          "note": "Setiap perubahan ditulis ke file."
+        }
+      ],
+      "explanation": "Repository pertama menulis file setiap kali ada perubahan, termasuk saat todo diselesaikan lewat perbarui. Repository kedua tidak berbagi List apa pun dengan yang pertama; ia membaca ulang file, sehingga status selesai ikut terbawa.",
+      "tryThis": [
+        {
+          "task": "Kosongkan isi method perbarui lalu jalankan. Apa yang berubah?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan todo kedua lewat service, lalu cetak semua todo dari repository kedua.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa menulis file di `perbarui`**\n\nPerubahan hanya ada di memori. Selama aplikasi berjalan semua terlihat benar, tetapi setelah dibuka ulang perubahan hilang. Bug seperti ini baru ketahuan dengan test yang membuka ulang repository.\n\n**2. Id dihitung dari jumlah data**\n\n`data.size() + 1` menghasilkan id yang sudah dipakai setelah ada todo yang dihapus. Pakai id terbesar ditambah 1.\n\n**3. File rusak karena tulisan setengah jalan**\n\nKalau aplikasi mati saat menulis, file berisi JSON yang terpotong dan tidak bisa dibaca lagi. Tulis dulu ke file sementara, lalu ganti nama dengan `Files.move(..., StandardCopyOption.ATOMIC_MOVE)`.\n\n**4. Dua aplikasi menulis file yang sama**\n\nTulisan yang satu menimpa yang lain. File JSON cocok untuk satu pengguna; untuk banyak pengguna, pakai database."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- File JSON umum dipakai untuk konfigurasi, cache kecil, data contoh untuk test (*fixture*), dan ekspor atau impor data. Data utama aplikasi dengan banyak pengguna disimpan di database.\n- Di REST API, alurnya sama dengan materi ini, hanya sumbernya berbeda: JSON datang lewat HTTP, dibaca menjadi DTO, divalidasi, diproses service, dan hasilnya dikembalikan sebagai JSON.\n- Banyak database modern menyimpan JSON langsung: kolom `JSON` di MySQL, `jsonb` di PostgreSQL, dan MongoDB yang seluruh datanya berbentuk dokumen JSON.\n- Format **JSON Lines** (satu object JSON per baris) sering dipakai untuk log dan data besar, karena bisa ditambah baris baru tanpa menulis ulang seluruh file."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JSON 7: Disimpan ke File",
+      "pembuka": "Todolist kita simpan ke file `todo.json` dengan `TodoRepositoryJson`.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Dua todo ditambah, todo 1 diselesaikan, lalu isi file dicetak.",
+          "jawaban": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        File file = new File(\"todo.json\");\n        Files.deleteIfExists(file.toPath());   // contoh selalu mulai dari file kosong\n        TodoService service = new TodoService(new TodoRepositoryJson(file));\n        service.tambah(\"Belajar JSON\");\n        service.tambah(\"Beli kopi\");\n        service.selesaikan(1);\n        System.out.println(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    @JsonCreator\n    Todo(@JsonProperty(\"id\") int id, @JsonProperty(\"judul\") String judul, @JsonProperty(\"selesai\") boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryJson implements TodoRepository {\n    private final ObjectMapper mapper = new ObjectMapper();\n    private final File file;\n    private final List<Todo> data;\n\n    TodoRepositoryJson(File file) {\n        this.file = file;\n        this.data = baca();\n    }\n\n    private List<Todo> baca() {\n        if (!file.exists()) {\n            return new ArrayList<>();\n        }\n        try {\n            return mapper.readValue(file, new TypeReference<List<Todo>>() {});\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    private void tulis() {\n        try {\n            mapper.writerWithDefaultPrettyPrinter().writeValue(file, data);\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    public Todo simpan(String judul) {\n        int id = 1;\n        for (Todo t : data) {\n            id = Math.max(id, t.getId() + 1);\n        }\n        Todo t = new Todo(id, judul, false);\n        data.add(t);\n        tulis();\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        if (t == null) {\n            return false;\n        }\n        data.remove(t);\n        tulis();\n        return true;\n    }\n\n    public void perbarui(Todo todo) {\n        tulis();\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "[ {\n  \"id\" : 1,\n  \"judul\" : \"Belajar JSON\",\n  \"selesai\" : true\n}, {\n  \"id\" : 2,\n  \"judul\" : \"Beli kopi\",\n  \"selesai\" : false\n} ]",
+          "otomatis": true,
+          "benar": "File berisi array JSON yang rapi.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Buat `TodoService dibukaLagi` dari repository baru dengan file yang sama, lalu cetak semua todo-nya.",
+          "jawaban": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        File file = new File(\"todo.json\");\n        Files.deleteIfExists(file.toPath());   // contoh selalu mulai dari file kosong\n        TodoService service = new TodoService(new TodoRepositoryJson(file));\n        service.tambah(\"Belajar JSON\");\n        service.tambah(\"Beli kopi\");\n        service.selesaikan(1);\n        System.out.println(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));\n\n        TodoService dibukaLagi = new TodoService(new TodoRepositoryJson(file));\n        for (Todo t : dibukaLagi.semua()) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    @JsonCreator\n    Todo(@JsonProperty(\"id\") int id, @JsonProperty(\"judul\") String judul, @JsonProperty(\"selesai\") boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryJson implements TodoRepository {\n    private final ObjectMapper mapper = new ObjectMapper();\n    private final File file;\n    private final List<Todo> data;\n\n    TodoRepositoryJson(File file) {\n        this.file = file;\n        this.data = baca();\n    }\n\n    private List<Todo> baca() {\n        if (!file.exists()) {\n            return new ArrayList<>();\n        }\n        try {\n            return mapper.readValue(file, new TypeReference<List<Todo>>() {});\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    private void tulis() {\n        try {\n            mapper.writerWithDefaultPrettyPrinter().writeValue(file, data);\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    public Todo simpan(String judul) {\n        int id = 1;\n        for (Todo t : data) {\n            id = Math.max(id, t.getId() + 1);\n        }\n        Todo t = new Todo(id, judul, false);\n        data.add(t);\n        tulis();\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        if (t == null) {\n            return false;\n        }\n        data.remove(t);\n        tulis();\n        return true;\n    }\n\n    public void perbarui(Todo todo) {\n        tulis();\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "[ {\n  \"id\" : 1,\n  \"judul\" : \"Belajar JSON\",\n  \"selesai\" : true\n}, {\n  \"id\" : 2,\n  \"judul\" : \"Beli kopi\",\n  \"selesai\" : false\n} ]\n1. [x] Belajar JSON\n2. [ ] Beli kopi",
+          "wajib": [
+            {
+              "pola": "TodoService\\s+dibukaLagi\\s*=\\s*new\\s+TodoService\\s*\\(\\s*new\\s+TodoRepositoryJson\\s*\\(\\s*file\\s*\\)\\s*\\)",
+              "pesan": "buat `dibukaLagi` dari `new TodoRepositoryJson(file)`."
+            }
+          ],
+          "benar": "Data bertahan walaupun repository dibuat ulang, seperti aplikasi yang ditutup lalu dibuka lagi.",
+          "petunjuk": "`new TodoService(new TodoRepositoryJson(file))`, lalu ulangi `dibukaLagi.semua()`."
+        },
+        {
+          "arahan": "Tantangan: lewat `dibukaLagi`, hapus todo 2 dan tambah `\"Rapikan kode\"`. Lalu buat repository ketiga dari file yang sama dan cetak semua todo-nya.",
+          "jawaban": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        File file = new File(\"todo.json\");\n        Files.deleteIfExists(file.toPath());   // contoh selalu mulai dari file kosong\n        TodoService service = new TodoService(new TodoRepositoryJson(file));\n        service.tambah(\"Belajar JSON\");\n        service.tambah(\"Beli kopi\");\n        service.selesaikan(1);\n        System.out.println(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));\n\n        TodoService dibukaLagi = new TodoService(new TodoRepositoryJson(file));\n        for (Todo t : dibukaLagi.semua()) {\n            System.out.println(t);\n        }\n\n        dibukaLagi.hapus(2);\n        dibukaLagi.tambah(\"Rapikan kode\");\n        for (Todo t : new TodoService(new TodoRepositoryJson(file)).semua()) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    @JsonCreator\n    Todo(@JsonProperty(\"id\") int id, @JsonProperty(\"judul\") String judul, @JsonProperty(\"selesai\") boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryJson implements TodoRepository {\n    private final ObjectMapper mapper = new ObjectMapper();\n    private final File file;\n    private final List<Todo> data;\n\n    TodoRepositoryJson(File file) {\n        this.file = file;\n        this.data = baca();\n    }\n\n    private List<Todo> baca() {\n        if (!file.exists()) {\n            return new ArrayList<>();\n        }\n        try {\n            return mapper.readValue(file, new TypeReference<List<Todo>>() {});\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    private void tulis() {\n        try {\n            mapper.writerWithDefaultPrettyPrinter().writeValue(file, data);\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    public Todo simpan(String judul) {\n        int id = 1;\n        for (Todo t : data) {\n            id = Math.max(id, t.getId() + 1);\n        }\n        Todo t = new Todo(id, judul, false);\n        data.add(t);\n        tulis();\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        if (t == null) {\n            return false;\n        }\n        data.remove(t);\n        tulis();\n        return true;\n    }\n\n    public void perbarui(Todo todo) {\n        tulis();\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "[ {\n  \"id\" : 1,\n  \"judul\" : \"Belajar JSON\",\n  \"selesai\" : true\n}, {\n  \"id\" : 2,\n  \"judul\" : \"Beli kopi\",\n  \"selesai\" : false\n} ]\n1. [x] Belajar JSON\n2. [ ] Beli kopi\n1. [x] Belajar JSON\n2. [ ] Rapikan kode",
+          "wajib": [
+            {
+              "pola": "dibukaLagi\\.hapus\\s*\\(\\s*2\\s*\\)",
+              "pesan": "hapus todo 2 lewat `dibukaLagi`."
+            },
+            {
+              "pola": "dibukaLagi\\.tambah\\s*\\(\\s*\"Rapikan kode\"\\s*\\)",
+              "pesan": "tambah `\"Rapikan kode\"`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Todo baru mendapat nomor 2 lagi, karena id terbesar yang tersisa adalah 1. Semua perubahan bertahan di file.",
+          "petunjuk": "`dibukaLagi.hapus(2);`, `dibukaLagi.tambah(\"Rapikan kode\");`, lalu `new TodoService(new TodoRepositoryJson(file)).semua()`."
+        }
+      ],
+      "penutup": "Selamat, Todolist JSON selesai! Todo disimpan sebagai JSON, dan service tidak perlu tahu formatnya."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Saat mengganti penyimpanan CSV menjadi JSON, class yang perlu dibuat atau diubah adalah...",
+          "options": [
+            "Hanya repository baru, TodoRepositoryJson",
+            "TodoService dan semua view",
+            "Semua class di proyek",
+            "Interface TodoRepository"
+          ],
+          "answer": 0,
+          "explanation": "Lapisan penyimpanan saja.",
+          "remedial": "`TodoService` bergantung pada interface `TodoRepository`, bukan pada CSV. Repository baru yang mengimplementasikan interface yang sama bisa langsung dipakai."
+        },
+        {
+          "question": "Kenapa method perbarui di TodoRepositoryJson memanggil tulis()?",
+          "options": [
+            "Supaya data di memori dihapus",
+            "Supaya perubahan object ikut tersimpan ke file",
+            "Karena interface mewajibkan nama tulis",
+            "Supaya file dibaca ulang"
+          ],
+          "answer": 1,
+          "explanation": "File harus mengikuti memori.",
+          "remedial": "Object di List sudah berubah, tetapi file belum. Tanpa menulis ulang, perubahan hilang saat aplikasi dibuka kembali."
+        },
+        {
+          "question": "Kenapa IOException dibungkus UncheckedIOException di repository?",
+          "options": [
+            "Karena IOException tidak bisa ditangkap",
+            "Supaya error tidak pernah muncul",
+            "Karena interface TodoRepository tidak punya throws IOException",
+            "Karena Jackson melempar UncheckedIOException sendiri"
+          ],
+          "answer": 2,
+          "explanation": "Detail penyimpanan tetap di repository.",
+          "remedial": "Menambah `throws IOException` ke interface akan memaksa service dan view ikut mengurus detail file. Membungkusnya menjaga interface tetap bersih, sama seperti `SQLException` di repository JDBC."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Untuk menulis List ke file JSON yang rapi dengan Jackson, dipakai...",
+      "options": [
+        "mapper.readValue(file, data)",
+        "Files.write(file, data.toString())",
+        "mapper.readTree(file).add(data)",
+        "mapper.writerWithDefaultPrettyPrinter().writeValue(file, data)"
+      ],
+      "answer": 3,
+      "explanation": "writeValue ke file."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca perintah tambah judul atau selesai nomor per baris, menjalankannya lewat TodoService, lalu membuat repository baru dari file yang sama dan mencetak semua todo. Todo yang diselesaikan seharusnya bertanda [x], tetapi setelah file dibaca ulang tandanya hilang. Temukan dan perbaiki bug di TodoRepositoryJson.",
+      "starterCode": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        File file = new File(\"todo-perintah.json\");\n        Files.deleteIfExists(file.toPath());\n        TodoService service = new TodoService(new TodoRepositoryJson(file));\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\" \", 2);\n            if (d[0].equals(\"tambah\")) {\n                service.tambah(d[1]);\n            } else if (d[0].equals(\"selesai\")) {\n                service.selesaikan(Integer.parseInt(d[1]));\n            }\n        }\n        for (Todo t : new TodoService(new TodoRepositoryJson(file)).semua()) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    @JsonCreator\n    Todo(@JsonProperty(\"id\") int id, @JsonProperty(\"judul\") String judul, @JsonProperty(\"selesai\") boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryJson implements TodoRepository {\n    private final ObjectMapper mapper = new ObjectMapper();\n    private final File file;\n    private final List<Todo> data;\n\n    TodoRepositoryJson(File file) {\n        this.file = file;\n        this.data = baca();\n    }\n\n    private List<Todo> baca() {\n        if (!file.exists()) {\n            return new ArrayList<>();\n        }\n        try {\n            return mapper.readValue(file, new TypeReference<List<Todo>>() {});\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    private void tulis() {\n        try {\n            mapper.writerWithDefaultPrettyPrinter().writeValue(file, data);\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    public Todo simpan(String judul) {\n        int id = 1;\n        for (Todo t : data) {\n            id = Math.max(id, t.getId() + 1);\n        }\n        Todo t = new Todo(id, judul, false);\n        data.add(t);\n        tulis();\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        if (t == null) {\n            return false;\n        }\n        data.remove(t);\n        tulis();\n        return true;\n    }\n\n    public void perbarui(Todo todo) {\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}",
+      "solution": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        File file = new File(\"todo-perintah.json\");\n        Files.deleteIfExists(file.toPath());\n        TodoService service = new TodoService(new TodoRepositoryJson(file));\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\" \", 2);\n            if (d[0].equals(\"tambah\")) {\n                service.tambah(d[1]);\n            } else if (d[0].equals(\"selesai\")) {\n                service.selesaikan(Integer.parseInt(d[1]));\n            }\n        }\n        for (Todo t : new TodoService(new TodoRepositoryJson(file)).semua()) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    @JsonCreator\n    Todo(@JsonProperty(\"id\") int id, @JsonProperty(\"judul\") String judul, @JsonProperty(\"selesai\") boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryJson implements TodoRepository {\n    private final ObjectMapper mapper = new ObjectMapper();\n    private final File file;\n    private final List<Todo> data;\n\n    TodoRepositoryJson(File file) {\n        this.file = file;\n        this.data = baca();\n    }\n\n    private List<Todo> baca() {\n        if (!file.exists()) {\n            return new ArrayList<>();\n        }\n        try {\n            return mapper.readValue(file, new TypeReference<List<Todo>>() {});\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    private void tulis() {\n        try {\n            mapper.writerWithDefaultPrettyPrinter().writeValue(file, data);\n        } catch (IOException e) {\n            throw new UncheckedIOException(e);\n        }\n    }\n\n    public Todo simpan(String judul) {\n        int id = 1;\n        for (Todo t : data) {\n            id = Math.max(id, t.getId() + 1);\n        }\n        Todo t = new Todo(id, judul, false);\n        data.add(t);\n        tulis();\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        if (t == null) {\n            return false;\n        }\n        data.remove(t);\n        tulis();\n        return true;\n    }\n\n    public void perbarui(Todo todo) {\n        tulis();\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}",
+      "tests": [
+        {
+          "input": "tambah Belajar JSON\ntambah Beli kopi\nselesai 2\n",
+          "expectedOutput": "1. [ ] Belajar JSON\n2. [x] Beli kopi\n"
+        },
+        {
+          "input": "tambah Rapikan kode\nselesai 1\ntambah Kirim laporan\n",
+          "expectedOutput": "1. [x] Rapikan kode\n2. [ ] Kirim laporan\n"
+        }
+      ],
+      "hints": [
+        "Lihat method yang dipanggil service saat menyelesaikan todo.",
+        "Method perbarui harus memanggil tulis()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "TodoRepositoryJson membaca file saat dibuat dan menulis ulang file di setiap perubahan.",
+        "readValue(file, TypeReference) dan writeValue(file, data) bekerja langsung dengan file.",
+        "IOException dibungkus UncheckedIOException supaya interface tetap bersih.",
+        "Service tidak berubah: hanya lapisan penyimpanan yang diganti."
+      ]
+    }
+  ]
+}

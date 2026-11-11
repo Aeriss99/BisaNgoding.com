@@ -1,0 +1,211 @@
+{
+  "id": "java-logging-07",
+  "moduleId": "logging",
+  "order": 7,
+  "title": "MDC dan Log Terstruktur",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi web melayani ratusan pengguna sekaligus. Log dari semua permintaan bercampur:\n\n```text\nINFO  TodoService - Todo baru disimpan: 8. [ ] Belajar\nWARN  Pengolah - Permintaan ditolak: Judul tidak boleh kosong\nINFO  TodoService - Todo baru disimpan: 9. [ ] Beli kopi\n```\n\nPenolakan itu milik permintaan siapa? Kalau setiap pesan harus ditulis ulang dengan id permintaan dan nama pengguna, kodenya jadi berantakan.\n\n**MDC** (Mapped Diagnostic Context) menyimpan keterangan seperti id permintaan, lalu Logback menempelkannya otomatis ke **setiap** baris log berikutnya, dari class mana pun.\n\nIbarat gelang pasien rumah sakit: dipasang sekali di pintu masuk, lalu setiap dokter, laboratorium, dan apotek yang menangani pasien itu langsung tahu identitasnya tanpa bertanya ulang."
+    },
+    {
+      "type": "theory",
+      "content": "MDC bekerja seperti `Map<String, String>` milik thread yang sedang berjalan:\n\n| Method | Fungsinya |\n|---|---|\n| `MDC.put(\"requestId\", \"R-101\")` | menyimpan keterangan |\n| `MDC.get(\"requestId\")` | membaca keterangan |\n| `MDC.remove(\"requestId\")` | menghapus satu keterangan |\n| `MDC.clear()` | menghapus semua keterangan |\n\nIsi MDC ditampilkan oleh pola log. Di `logback.xml`, `%X{requestId}` menampilkan satu kunci, `%X` atau `%mdc` menampilkan semuanya:\n\n```xml\n<pattern>%d{HH:mm:ss} %-5level [%X{requestId}] %logger{36} - %msg%n</pattern>\n```\n\nPola website ini menampilkan isi MDC di dalam kurung siku setelah nama logger, dan tidak menampilkan apa-apa kalau MDC kosong:\n\n```text\nINFO  Pengolah [requestId=R-101] - Permintaan diterima\n```\n\nKarena MDC melekat pada thread, keterangannya **wajib dibersihkan** setelah permintaan selesai. Thread di server dipakai ulang untuk permintaan berikutnya, dan keterangan lama akan ikut terbawa ke log pengguna lain."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nPola yang aman: pasang di awal, bersihkan di `finally`:\n\n```java\nvoid tangani(String idPermintaan, String pengguna, String judul) {\n    MDC.put(\"requestId\", idPermintaan);\n    MDC.put(\"pengguna\", pengguna);\n    try {\n        log.info(\"Permintaan diterima\");\n        service.tambah(judul);          // log di TodoService ikut membawa requestId\n    } finally {\n        MDC.clear();                    // tetap dijalankan walau ada exception\n    }\n}\n```\n\nLog dari `TodoService` ikut membawa keterangan itu, padahal `TodoService` tidak tahu apa-apa soal MDC:\n\n```text\nINFO  Pengolah [pengguna=sari, requestId=R-101] - Permintaan diterima\nINFO  TodoService [pengguna=sari, requestId=R-101] - Todo baru disimpan: 1. [ ] Belajar MDC\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        MDC.put(\"requestId\", \"R-7\");\n        log.info(\"Mulai memproses\");\n        MDC.remove(\"requestId\");\n        log.info(\"Selesai memproses\");\n\n        MDC.put(\"requestId\", \"R-8\");\n        log.info(\"Mulai memproses\");\n        log.info(\"Lupa dibersihkan\");\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: MDC tidak dibersihkan setelah R-8. Baris terakhir yang tampil adalah...",
+        "options": [
+          "INFO  Main - Lupa dibersihkan",
+          "INFO  Main [requestId=R-8] - Lupa dibersihkan",
+          "INFO  Main [requestId=R-7] - Lupa dibersihkan",
+          "INFO  Main [requestId=] - Lupa dibersihkan"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "Pasang keterangan."
+        },
+        {
+          "line": 11,
+          "note": "Dibersihkan: baris berikutnya tanpa keterangan."
+        },
+        {
+          "line": 16,
+          "note": "Keterangan R-8 masih menempel."
+        }
+      ],
+      "explanation": "Setelah MDC.remove, baris \"Selesai memproses\" tampil tanpa kurung siku. Untuk R-8 tidak ada yang membersihkan, jadi keterangan requestId=R-8 terus menempel di setiap log sesudahnya.\n\nDi server, thread yang sama akan melayani permintaan lain, dan log permintaan itu salah tercatat sebagai R-8. Karena itu pembersihan ditaruh di finally.",
+      "tryThis": [
+        {
+          "task": "Tambahkan MDC.clear(); sebelum log terakhir.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan MDC.put(\"pengguna\", \"sari\"); setelah R-8. Bagaimana tampilan kurung sikunya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tidak membersihkan MDC**\n\nKeterangan bocor ke permintaan berikutnya yang memakai thread yang sama. Selalu `MDC.remove` atau `MDC.clear` di `finally`.\n\n**2. Membersihkan tanpa `finally`**\n\nKalau terjadi exception sebelum baris pembersihan, baris itu terlewat dan MDC bocor.\n\n**3. Menyimpan data rahasia di MDC**\n\nIsi MDC tercetak di setiap baris log. Aturannya sama dengan pesan log: id boleh, sandi dan token tidak.\n\n**4. Mengira MDC terbawa ke thread lain**\n\nPekerjaan yang dijalankan di thread lain (misalnya lewat `ExecutorService`) tidak membawa MDC thread asalnya. Isinya harus disalin manual dengan `MDC.getCopyOfContextMap()` dan `MDC.setContextMap(...)`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di aplikasi web, id permintaan biasanya dipasang oleh satu **filter** di awal setiap request HTTP, sehingga semua controller dan service otomatis mendapatkannya. Id itu juga dikirim balik ke pengguna dalam header, misalnya `X-Request-Id`. Saat pengguna melapor error, cukup sebutkan id itu, dan tim mencari semua log dengan id yang sama.\n- Di sistem dengan banyak layanan (microservices), **trace id** yang sama diteruskan dari satu layanan ke layanan lain. Spring Boot 3 dengan Micrometer Tracing memasang `traceId` dan `spanId` ke MDC secara otomatis.\n- Log **terstruktur** (JSON) memasukkan isi MDC sebagai field tersendiri, sehingga bisa dicari dengan tepat, misalnya `requestId: \"R-101\"`:\n\n```json\n{\"level\":\"WARN\",\"logger\":\"Pengolah\",\"message\":\"Permintaan ditolak: Judul tidak boleh kosong\",\"mdc\":{\"requestId\":\"R-102\",\"pengguna\":\"budi\"}}\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Log Todolist 7: Jejak per Permintaan",
+      "pembuka": "Class `Pengolah` meniru server yang menangani permintaan tambah todo dari banyak pengguna. Kita beri setiap permintaan identitas.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Dua permintaan, tapi dari log tidak terlihat mana milik siapa.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        Pengolah p = new Pengolah(new TodoService(new TodoRepositoryMemori()));\n        p.tangani(\"R-101\", \"sari\", \"Belajar MDC\");\n        p.tangani(\"R-102\", \"budi\", \"   \");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n\nclass Pengolah {\n    private static final Logger log = LoggerFactory.getLogger(Pengolah.class);\n    private final TodoService service;\n\n    Pengolah(TodoService service) {\n        this.service = service;\n    }\n\n    void tangani(String idPermintaan, String pengguna, String judul) {\n        log.info(\"Permintaan diterima\");\n        try {\n            service.tambah(judul);\n        } catch (IllegalArgumentException e) {\n            log.warn(\"Permintaan ditolak: {}\", e.getMessage());\n        }\n        log.info(\"Permintaan selesai\");\n    }\n}\n",
+          "keluaran": "INFO  Pengolah - Permintaan diterima\nINFO  TodoService - Todo baru disimpan: 1. [ ] Belajar MDC\nINFO  Pengolah - Permintaan selesai\nINFO  Pengolah - Permintaan diterima\nWARN  Pengolah - Permintaan ditolak: Judul tidak boleh kosong\nINFO  Pengolah - Permintaan selesai",
+          "otomatis": true,
+          "benar": "Baris \"Permintaan ditolak\" tidak jelas milik siapa.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Di awal `tangani`, pasang id permintaan ke MDC: `MDC.put(\"requestId\", idPermintaan);`.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        Pengolah p = new Pengolah(new TodoService(new TodoRepositoryMemori()));\n        p.tangani(\"R-101\", \"sari\", \"Belajar MDC\");\n        p.tangani(\"R-102\", \"budi\", \"   \");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n\nclass Pengolah {\n    private static final Logger log = LoggerFactory.getLogger(Pengolah.class);\n    private final TodoService service;\n\n    Pengolah(TodoService service) {\n        this.service = service;\n    }\n\n    void tangani(String idPermintaan, String pengguna, String judul) {\n        MDC.put(\"requestId\", idPermintaan);\n        log.info(\"Permintaan diterima\");\n        try {\n            service.tambah(judul);\n        } catch (IllegalArgumentException e) {\n            log.warn(\"Permintaan ditolak: {}\", e.getMessage());\n        }\n        log.info(\"Permintaan selesai\");\n    }\n}\n",
+          "keluaran": "INFO  Pengolah [requestId=R-101] - Permintaan diterima\nINFO  TodoService [requestId=R-101] - Todo baru disimpan: 1. [ ] Belajar MDC\nINFO  Pengolah [requestId=R-101] - Permintaan selesai\nINFO  Pengolah [requestId=R-102] - Permintaan diterima\nWARN  Pengolah [requestId=R-102] - Permintaan ditolak: Judul tidak boleh kosong\nINFO  Pengolah [requestId=R-102] - Permintaan selesai",
+          "wajib": [
+            {
+              "pola": "MDC\\.put\\s*\\(\\s*\"requestId\"\\s*,\\s*idPermintaan\\s*\\)",
+              "pesan": "pasang `MDC.put(\"requestId\", idPermintaan)`."
+            }
+          ],
+          "benar": "Semua log membawa `[requestId=...]`, termasuk log dari `TodoService` yang tidak diubah sama sekali.",
+          "petunjuk": "Tulis sebelum `log.info(\"Permintaan diterima\");`."
+        },
+        {
+          "arahan": "Tambahkan juga nama pengguna ke MDC dengan kunci `pengguna`.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        Pengolah p = new Pengolah(new TodoService(new TodoRepositoryMemori()));\n        p.tangani(\"R-101\", \"sari\", \"Belajar MDC\");\n        p.tangani(\"R-102\", \"budi\", \"   \");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n\nclass Pengolah {\n    private static final Logger log = LoggerFactory.getLogger(Pengolah.class);\n    private final TodoService service;\n\n    Pengolah(TodoService service) {\n        this.service = service;\n    }\n\n    void tangani(String idPermintaan, String pengguna, String judul) {\n        MDC.put(\"requestId\", idPermintaan);\n        MDC.put(\"pengguna\", pengguna);\n        log.info(\"Permintaan diterima\");\n        try {\n            service.tambah(judul);\n        } catch (IllegalArgumentException e) {\n            log.warn(\"Permintaan ditolak: {}\", e.getMessage());\n        }\n        log.info(\"Permintaan selesai\");\n    }\n}\n",
+          "keluaran": "INFO  Pengolah [pengguna=sari, requestId=R-101] - Permintaan diterima\nINFO  TodoService [pengguna=sari, requestId=R-101] - Todo baru disimpan: 1. [ ] Belajar MDC\nINFO  Pengolah [pengguna=sari, requestId=R-101] - Permintaan selesai\nINFO  Pengolah [pengguna=budi, requestId=R-102] - Permintaan diterima\nWARN  Pengolah [pengguna=budi, requestId=R-102] - Permintaan ditolak: Judul tidak boleh kosong\nINFO  Pengolah [pengguna=budi, requestId=R-102] - Permintaan selesai",
+          "wajib": [
+            {
+              "pola": "MDC\\.put\\s*\\(\\s*\"pengguna\"\\s*,\\s*pengguna\\s*\\)",
+              "pesan": "pasang `MDC.put(\"pengguna\", pengguna)`."
+            }
+          ],
+          "benar": "Sekarang terlihat jelas: permintaan budi yang ditolak.",
+          "petunjuk": "Satu baris lagi: `MDC.put(\"pengguna\", pengguna);`."
+        },
+        {
+          "arahan": "Tantangan: di akhir main tambahkan `log.info(\"Menunggu permintaan berikutnya\");`, jalankan, dan perhatikan masalahnya. Lalu perbaiki `tangani`: bungkus semua isinya (setelah dua `MDC.put`) dengan try, dan bersihkan MDC di finally.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        Pengolah p = new Pengolah(new TodoService(new TodoRepositoryMemori()));\n        p.tangani(\"R-101\", \"sari\", \"Belajar MDC\");\n        p.tangani(\"R-102\", \"budi\", \"   \");\n        log.info(\"Menunggu permintaan berikutnya\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n\nclass Pengolah {\n    private static final Logger log = LoggerFactory.getLogger(Pengolah.class);\n    private final TodoService service;\n\n    Pengolah(TodoService service) {\n        this.service = service;\n    }\n\n    void tangani(String idPermintaan, String pengguna, String judul) {\n        MDC.put(\"requestId\", idPermintaan);\n        MDC.put(\"pengguna\", pengguna);\n        try {\n            log.info(\"Permintaan diterima\");\n            try {\n                service.tambah(judul);\n            } catch (IllegalArgumentException e) {\n                log.warn(\"Permintaan ditolak: {}\", e.getMessage());\n            }\n            log.info(\"Permintaan selesai\");\n        } finally {\n            MDC.clear();\n        }\n    }\n}\n",
+          "keluaran": "INFO  Pengolah [pengguna=sari, requestId=R-101] - Permintaan diterima\nINFO  TodoService [pengguna=sari, requestId=R-101] - Todo baru disimpan: 1. [ ] Belajar MDC\nINFO  Pengolah [pengguna=sari, requestId=R-101] - Permintaan selesai\nINFO  Pengolah [pengguna=budi, requestId=R-102] - Permintaan diterima\nWARN  Pengolah [pengguna=budi, requestId=R-102] - Permintaan ditolak: Judul tidak boleh kosong\nINFO  Pengolah [pengguna=budi, requestId=R-102] - Permintaan selesai\nINFO  Main - Menunggu permintaan berikutnya",
+          "wajib": [
+            {
+              "pola": "finally\\s*\\{\\s*MDC\\.clear\\(\\)\\s*;",
+              "pesan": "bersihkan dengan `finally { MDC.clear(); }`."
+            },
+            {
+              "pola": "log\\.info\\s*\\(\\s*\"Menunggu permintaan berikutnya\"\\s*\\)",
+              "pesan": "tambahkan log \"Menunggu permintaan berikutnya\" di akhir main."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Baris terakhir bersih, tanpa keterangan dari permintaan sebelumnya.",
+          "petunjuk": "Tanpa pembersihan, baris terakhir ikut membawa keterangan budi. Pakai `try { ... } finally { MDC.clear(); }`."
+        }
+      ],
+      "penutup": "Selamat, modul Logging selesai! Todolist sekarang punya log yang jelas, berlevel, teratur lewat `logback.xml`, dan bisa ditelusuri per permintaan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa kegunaan utama MDC?",
+          "options": [
+            "Menyimpan log ke database",
+            "Mempercepat penulisan log",
+            "Menempelkan keterangan seperti id permintaan ke setiap baris log secara otomatis",
+            "Menyembunyikan log DEBUG"
+          ],
+          "answer": 2,
+          "explanation": "Keterangan dipasang sekali, ikut di semua log.",
+          "remedial": "Setelah `MDC.put(\"requestId\", ...)`, semua log dari thread itu, dari class mana pun, membawa keterangan tersebut. Developer bisa mengelompokkan log per permintaan tanpa menulis id di setiap pesan."
+        },
+        {
+          "question": "Kenapa MDC.clear() ditaruh di dalam finally?",
+          "options": [
+            "Karena MDC hanya bisa dipakai di finally",
+            "Supaya log lebih cepat",
+            "Karena clear melempar exception",
+            "Supaya tetap dijalankan walau terjadi exception"
+          ],
+          "answer": 3,
+          "explanation": "finally selalu dijalankan.",
+          "remedial": "Kalau `MDC.clear()` ditulis di akhir blok try biasa dan terjadi exception di tengah, baris itu terlewat. Keterangan lama lalu bocor ke permintaan berikutnya yang memakai thread yang sama."
+        },
+        {
+          "question": "Pola Logback untuk menampilkan nilai MDC dengan kunci requestId adalah...",
+          "options": [
+            "%X{requestId}",
+            "%mdc(requestId)",
+            "{requestId}",
+            "%requestId"
+          ],
+          "answer": 0,
+          "explanation": "X untuk MDC.",
+          "remedial": "`%X{kunci}` menampilkan satu nilai MDC. `%X` tanpa kunci (atau `%mdc`) menampilkan semua isinya. `{}` saja adalah placeholder pesan, bukan MDC."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Saat pekerjaan dipindah ke thread lain lewat ExecutorService, isi MDC...",
+      "options": [
+        "Ikut terbawa otomatis",
+        "Tidak ikut terbawa, harus disalin sendiri",
+        "Dihapus dari thread asal",
+        "Berubah menjadi null di thread asal"
+      ],
+      "answer": 1,
+      "explanation": "MDC milik satu thread."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca data paket dari input dengan format idPaket;alamat per baris (alamat boleh kosong). Saat ini id paket ditulis berulang di pesan. Ubah supaya id paket dipasang ke MDC dengan kunci paket, lalu catat INFO \"Mengirim ke [alamat]\" dengan alamat di dalam kurung siku (pakai placeholder), lalu WARN \"Alamat kosong\" kalau alamat kosong atau INFO \"Paket terkirim\" kalau tidak. Bersihkan kunci paket di finally setelah setiap paket, sehingga baris terakhir \"Semua paket diproses\" tampil tanpa keterangan MDC. Supaya alamat kosong terbaca, pecah baris dengan split(\";\", -1).",
+      "starterCode": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            log.info(\"Mengirim paket {} ke {}\", d[0], d[1]);\n            if (d[1].isEmpty()) {\n                log.warn(\"Alamat kosong\");\n            } else {\n                log.info(\"Paket terkirim\");\n            }\n        }\n        log.info(\"Semua paket diproses\");\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            MDC.put(\"paket\", d[0]);\n            try {\n                log.info(\"Mengirim ke [{}]\", d[1]);\n                if (d[1].isEmpty()) {\n                    log.warn(\"Alamat kosong\");\n                } else {\n                    log.info(\"Paket terkirim\");\n                }\n            } finally {\n                MDC.remove(\"paket\");\n            }\n        }\n        log.info(\"Semua paket diproses\");\n    }\n}",
+      "tests": [
+        {
+          "input": "P-01;Bandung\nP-02;\n",
+          "expectedOutput": "INFO  Main [paket=P-01] - Mengirim ke [Bandung]\nINFO  Main [paket=P-01] - Paket terkirim\nINFO  Main [paket=P-02] - Mengirim ke []\nWARN  Main [paket=P-02] - Alamat kosong\nINFO  Main - Semua paket diproses\n"
+        },
+        {
+          "input": "P-10;Jakarta Selatan\n",
+          "expectedOutput": "INFO  Main [paket=P-10] - Mengirim ke [Jakarta Selatan]\nINFO  Main [paket=P-10] - Paket terkirim\nINFO  Main - Semua paket diproses\n"
+        }
+      ],
+      "hints": [
+        "Pasang MDC.put(\"paket\", d[0]); di awal setiap putaran, lalu bungkus sisanya dengan try-finally.",
+        "Di finally: MDC.remove(\"paket\");"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "MDC menyimpan keterangan per thread, lalu ditempel ke setiap baris log.",
+        "MDC.put di awal, MDC.remove atau MDC.clear di finally.",
+        "Pola %X{kunci} menampilkan nilai MDC di logback.xml.",
+        "Di aplikasi web, requestId atau traceId dipasang filter di setiap permintaan."
+      ]
+    }
+  ]
+}

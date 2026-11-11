@@ -1,0 +1,219 @@
+{
+  "id": "java-logging-04",
+  "moduleId": "logging",
+  "order": 4,
+  "title": "Nama Logger dan Hierarki",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi sungguhan tidak hanya berisi kode buatan tim. Ada library database, library HTTP, framework, dan semuanya ikut menulis log. Kalau semua logger dinyalakan di DEBUG, log aplikasi tenggelam di antara ribuan baris dari library.\n\nLogback mengatur level **per logger**, dan logger tersusun bertingkat mengikuti namanya.\n\nIbarat sakelar lampu di gedung bertingkat: ada sakelar utama gedung, sakelar per lantai, dan sakelar per ruangan. Lampu ruangan mengikuti sakelar lantainya, kecuali ruangan itu punya pengaturan sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "Logger yang dibuat dengan `LoggerFactory.getLogger(TodoService.class)` diberi nama lengkap class-nya, misalnya `com.bisangoding.todolist.TodoService`. Titik di nama itu membentuk tingkat:\n\n```text\nROOT\n└── com\n    └── com.bisangoding\n        └── com.bisangoding.todolist\n            ├── com.bisangoding.todolist.TodoService\n            └── com.bisangoding.todolist.TodoRepositoryMemori\n```\n\nAturannya:\n\n1. Logger yang **tidak punya level sendiri** mengikuti level induk terdekat yang punya.\n2. ROOT selalu punya level, jadi semua logger pasti punya level.\n3. Mengatur `com.bisangoding.todolist` berarti mengatur semua class di package itu sekaligus.\n\nLogger juga boleh diberi nama bebas dengan teks, misalnya `LoggerFactory.getLogger(\"audit\")`, untuk catatan khusus seperti jejak transaksi.\n\nDi website ini semua class ada di satu file tanpa package, jadi nama logger ditulis sebagai teks yang meniru nama class lengkap, misalnya `getLogger(\"com.bisangoding.toko.kasir.Kasir\")`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nPengaturan yang umum: aplikasi sendiri DEBUG, library cukup WARN.\n\n```java\naturLevel(Logger.ROOT_LOGGER_NAME, \"INFO\");   // bawaan\naturLevel(\"com.bisangoding\", \"DEBUG\");        // semua kode tim\naturLevel(\"org.hibernate\", \"WARN\");           // library database, hanya masalah\n```\n\n| Logger | Level sendiri | Level yang berlaku |\n|---|---|---|\n| `com.bisangoding.todolist.TodoService` | tidak ada | DEBUG (dari `com.bisangoding`) |\n| `org.hibernate.SQL` | tidak ada | WARN (dari `org.hibernate`) |\n| `com.zaxxer.hikari.HikariPool` | tidak ada | INFO (dari ROOT) |\n\nDi `logback.xml` (materi berikutnya), pengaturan yang sama ditulis sebagai `<logger name=\"com.bisangoding\" level=\"DEBUG\"/>`."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        aturLevel(\"org.hibernate\", \"WARN\");\n        aturLevel(\"com.bisangoding\", \"DEBUG\");\n\n        Logger sql = LoggerFactory.getLogger(\"org.hibernate.SQL\");\n        Logger pool = LoggerFactory.getLogger(\"com.zaxxer.hikari.HikariPool\");\n        Logger service = LoggerFactory.getLogger(\"com.bisangoding.todolist.TodoService\");\n\n        sql.info(\"select id, judul from todo\");\n        sql.warn(\"query lambat: 3200 ms\");\n        pool.debug(\"isi pool: 10 koneksi\");\n        pool.info(\"HikariPool-1 siap\");\n        service.debug(\"menambah todo 'Belajar'\");\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: mana yang tampil dari logger com.zaxxer.hikari.HikariPool?",
+        "options": [
+          "INFO  com.zaxxer.hikari.HikariPool - HikariPool-1 siap",
+          "DEBUG com.zaxxer.hikari.HikariPool - isi pool: 10 koneksi",
+          "INFO  org.hibernate.SQL - select id, judul from todo",
+          "INFO  c.zaxxer.hikari.HikariPool - isi pool: 10 koneksi"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 12,
+          "note": "Semua logger di bawah org.hibernate."
+        },
+        {
+          "line": 19,
+          "note": "INFO di bawah WARN: disembunyikan."
+        },
+        {
+          "line": 21,
+          "note": "HikariPool tidak diatur, ikut ROOT (INFO)."
+        },
+        {
+          "line": 23,
+          "note": "Mengikuti com.bisangoding: DEBUG tampil."
+        }
+      ],
+      "explanation": "org.hibernate.SQL tidak punya level sendiri, jadi mengikuti org.hibernate (WARN): hanya peringatan query lambat yang tampil. HikariPool tidak diatur sama sekali, jadi mengikuti ROOT yang bawaannya INFO: pesan DEBUG-nya disembunyikan, pesan INFO-nya tampil. TodoService mengikuti com.bisangoding (DEBUG).\n\nNama logger yang panjang disingkat oleh Logback di depannya, misalnya c.bisangoding.todolist.TodoService, supaya muat dalam batas panjang pola.",
+      "tryThis": [
+        {
+          "task": "Tambahkan aturLevel(\"com.zaxxer\", \"DEBUG\"); di awal. Baris apa yang bertambah?",
+          "hint": null
+        },
+        {
+          "task": "Atur \"org.hibernate.SQL\" ke \"DEBUG\". Apakah query select sekarang tampil?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyalakan DEBUG di ROOT untuk mencari bug**\n\nSemua library ikut menulis DEBUG, dan dalam beberapa detik ada ribuan baris. Nyalakan DEBUG hanya untuk package yang diselidiki.\n\n**2. Salah ketik nama logger di pengaturan**\n\n`com.bisangodng` (kurang huruf i) tidak cocok dengan logger mana pun, dan Logback tidak memberi peringatan. Pengaturannya diam-diam tidak berlaku.\n\n**3. Mengira pengaturan logger anak memengaruhi induknya**\n\nMengatur `com.bisangoding.todolist.TodoService` ke DEBUG tidak membuat `TodoRepositoryMemori` ikut DEBUG. Pengaturan hanya menurun ke bawah.\n\n**4. Logger dengan nama teks yang tidak konsisten**\n\n`getLogger(\"todo\")`, `getLogger(\"Todo\")`, dan `getLogger(\"todolist\")` adalah tiga logger berbeda. Untuk logger biasa pakai `getLogger(NamaClass.class)`; nama teks hanya untuk keperluan khusus seperti `audit`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\nPengaturan level per logger yang sering dijumpai di aplikasi Spring Boot:\n\n```properties\nlogging.level.root=INFO\nlogging.level.com.bisangoding=DEBUG\nlogging.level.org.hibernate.SQL=DEBUG\nlogging.level.org.hibernate.orm.jdbc.bind=TRACE\n```\n\nDua baris terakhir adalah trik terkenal untuk melihat query SQL yang dikirim Hibernate beserta nilai parameternya, sangat berguna saat menyelidiki data yang salah tersimpan. Setelah selesai, matikan lagi.\n\nLogger khusus seperti `audit` sering diarahkan ke file terpisah (materi 6) yang disimpan lebih lama, karena catatan transaksi kadang diminta oleh auditor atau tim keamanan."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Log Todolist 4: Sakelar per Bagian Toko",
+      "pembuka": "Aplikasi toko punya tiga bagian dengan logger masing-masing. Kita atur levelnya per bagian.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Semua logger mengikuti ROOT (INFO), jadi pesan DEBUG belum tampil.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        Kasir kasir = new Kasir();\n        Gudang gudang = new Gudang();\n        Stok stok = new Stok();\n        kasir.bayar(\"A-17\", 45000);\n        stok.kurangi(\"Kopi\", 3);\n        gudang.kirim(\"A-17\");\n    }\n}\n\nclass Kasir {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.kasir.Kasir\");\n\n    void bayar(String pesanan, int jumlah) {\n        log.debug(\"Menghitung pembayaran {}\", pesanan);\n        log.info(\"Pesanan {} dibayar {}\", pesanan, jumlah);\n    }\n}\n\nclass Gudang {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.gudang.Gudang\");\n\n    void kirim(String pesanan) {\n        log.debug(\"Mengemas pesanan {}\", pesanan);\n        log.info(\"Pesanan {} dikirim\", pesanan);\n    }\n}\n\nclass Stok {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.gudang.Stok\");\n\n    void kurangi(String barang, int sisa) {\n        log.debug(\"Mengurangi stok {}\", barang);\n        log.info(\"Stok {} tinggal {}\", barang, sisa);\n        if (sisa < 5) {\n            log.warn(\"Stok {} hampir habis\", barang);\n        }\n    }\n}\n",
+          "keluaran": "INFO  com.bisangoding.toko.kasir.Kasir - Pesanan A-17 dibayar 45000\nINFO  com.bisangoding.toko.gudang.Stok - Stok Kopi tinggal 3\nWARN  com.bisangoding.toko.gudang.Stok - Stok Kopi hampir habis\nINFO  com.bisangoding.toko.gudang.Gudang - Pesanan A-17 dikirim",
+          "otomatis": true,
+          "benar": "Kasir, Gudang, dan Stok masing-masing punya logger dengan nama lengkap.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Nyalakan DEBUG untuk semua yang ada di bagian gudang: atur logger `\"com.bisangoding.toko.gudang\"` ke `\"DEBUG\"` di awal main.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        aturLevel(\"com.bisangoding.toko.gudang\", \"DEBUG\");\n        Kasir kasir = new Kasir();\n        Gudang gudang = new Gudang();\n        Stok stok = new Stok();\n        kasir.bayar(\"A-17\", 45000);\n        stok.kurangi(\"Kopi\", 3);\n        gudang.kirim(\"A-17\");\n    }\n}\n\nclass Kasir {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.kasir.Kasir\");\n\n    void bayar(String pesanan, int jumlah) {\n        log.debug(\"Menghitung pembayaran {}\", pesanan);\n        log.info(\"Pesanan {} dibayar {}\", pesanan, jumlah);\n    }\n}\n\nclass Gudang {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.gudang.Gudang\");\n\n    void kirim(String pesanan) {\n        log.debug(\"Mengemas pesanan {}\", pesanan);\n        log.info(\"Pesanan {} dikirim\", pesanan);\n    }\n}\n\nclass Stok {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.gudang.Stok\");\n\n    void kurangi(String barang, int sisa) {\n        log.debug(\"Mengurangi stok {}\", barang);\n        log.info(\"Stok {} tinggal {}\", barang, sisa);\n        if (sisa < 5) {\n            log.warn(\"Stok {} hampir habis\", barang);\n        }\n    }\n}\n",
+          "keluaran": "INFO  com.bisangoding.toko.kasir.Kasir - Pesanan A-17 dibayar 45000\nDEBUG com.bisangoding.toko.gudang.Stok - Mengurangi stok Kopi\nINFO  com.bisangoding.toko.gudang.Stok - Stok Kopi tinggal 3\nWARN  com.bisangoding.toko.gudang.Stok - Stok Kopi hampir habis\nDEBUG com.bisangoding.toko.gudang.Gudang - Mengemas pesanan A-17\nINFO  com.bisangoding.toko.gudang.Gudang - Pesanan A-17 dikirim",
+          "wajib": [
+            {
+              "pola": "aturLevel\\s*\\(\\s*\"com\\.bisangoding\\.toko\\.gudang\"\\s*,\\s*\"DEBUG\"\\s*\\)",
+              "pesan": "atur `\"com.bisangoding.toko.gudang\"` ke `\"DEBUG\"`."
+            }
+          ],
+          "benar": "Gudang dan Stok sama-sama menampilkan DEBUG, karena keduanya ada di bawah `toko.gudang`. Kasir tidak berubah.",
+          "petunjuk": "Satu baris: `aturLevel(\"com.bisangoding.toko.gudang\", \"DEBUG\");`."
+        },
+        {
+          "arahan": "Stok terlalu ramai. Di bawah baris tadi, atur khusus `\"com.bisangoding.toko.gudang.Stok\"` ke `\"WARN\"`.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        aturLevel(\"com.bisangoding.toko.gudang\", \"DEBUG\");\n        aturLevel(\"com.bisangoding.toko.gudang.Stok\", \"WARN\");\n        Kasir kasir = new Kasir();\n        Gudang gudang = new Gudang();\n        Stok stok = new Stok();\n        kasir.bayar(\"A-17\", 45000);\n        stok.kurangi(\"Kopi\", 3);\n        gudang.kirim(\"A-17\");\n    }\n}\n\nclass Kasir {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.kasir.Kasir\");\n\n    void bayar(String pesanan, int jumlah) {\n        log.debug(\"Menghitung pembayaran {}\", pesanan);\n        log.info(\"Pesanan {} dibayar {}\", pesanan, jumlah);\n    }\n}\n\nclass Gudang {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.gudang.Gudang\");\n\n    void kirim(String pesanan) {\n        log.debug(\"Mengemas pesanan {}\", pesanan);\n        log.info(\"Pesanan {} dikirim\", pesanan);\n    }\n}\n\nclass Stok {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.gudang.Stok\");\n\n    void kurangi(String barang, int sisa) {\n        log.debug(\"Mengurangi stok {}\", barang);\n        log.info(\"Stok {} tinggal {}\", barang, sisa);\n        if (sisa < 5) {\n            log.warn(\"Stok {} hampir habis\", barang);\n        }\n    }\n}\n",
+          "keluaran": "INFO  com.bisangoding.toko.kasir.Kasir - Pesanan A-17 dibayar 45000\nWARN  com.bisangoding.toko.gudang.Stok - Stok Kopi hampir habis\nDEBUG com.bisangoding.toko.gudang.Gudang - Mengemas pesanan A-17\nINFO  com.bisangoding.toko.gudang.Gudang - Pesanan A-17 dikirim",
+          "wajib": [
+            {
+              "pola": "aturLevel\\s*\\(\\s*\"com\\.bisangoding\\.toko\\.gudang\\.Stok\"\\s*,\\s*\"WARN\"\\s*\\)",
+              "pesan": "atur `\"com.bisangoding.toko.gudang.Stok\"` ke `\"WARN\"`."
+            }
+          ],
+          "benar": "Dari Stok hanya peringatan \"hampir habis\" yang tersisa, sementara Gudang tetap DEBUG.",
+          "petunjuk": "Pengaturan logger anak menimpa pengaturan induknya."
+        },
+        {
+          "arahan": "Tantangan: tambahkan logger kedua di Kasir bernama `\"audit\"` (field `audit`) yang mencatat INFO `Pembayaran {} sebesar {} diterima`. Lalu ganti pengaturan di main: ROOT ke `\"WARN\"`, dan `\"audit\"` ke `\"INFO\"`.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        aturLevel(Logger.ROOT_LOGGER_NAME, \"WARN\");\n        aturLevel(\"audit\", \"INFO\");\n        Kasir kasir = new Kasir();\n        Gudang gudang = new Gudang();\n        Stok stok = new Stok();\n        kasir.bayar(\"A-17\", 45000);\n        stok.kurangi(\"Kopi\", 3);\n        gudang.kirim(\"A-17\");\n    }\n}\n\nclass Kasir {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.kasir.Kasir\");\n    private static final Logger audit = LoggerFactory.getLogger(\"audit\");\n\n    void bayar(String pesanan, int jumlah) {\n        log.debug(\"Menghitung pembayaran {}\", pesanan);\n        log.info(\"Pesanan {} dibayar {}\", pesanan, jumlah);\n        audit.info(\"Pembayaran {} sebesar {} diterima\", pesanan, jumlah);\n    }\n}\n\nclass Gudang {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.gudang.Gudang\");\n\n    void kirim(String pesanan) {\n        log.debug(\"Mengemas pesanan {}\", pesanan);\n        log.info(\"Pesanan {} dikirim\", pesanan);\n    }\n}\n\nclass Stok {\n    private static final Logger log = LoggerFactory.getLogger(\"com.bisangoding.toko.gudang.Stok\");\n\n    void kurangi(String barang, int sisa) {\n        log.debug(\"Mengurangi stok {}\", barang);\n        log.info(\"Stok {} tinggal {}\", barang, sisa);\n        if (sisa < 5) {\n            log.warn(\"Stok {} hampir habis\", barang);\n        }\n    }\n}\n",
+          "keluaran": "INFO  audit - Pembayaran A-17 sebesar 45000 diterima\nWARN  com.bisangoding.toko.gudang.Stok - Stok Kopi hampir habis",
+          "wajib": [
+            {
+              "pola": "LoggerFactory\\.getLogger\\s*\\(\\s*\"audit\"\\s*\\)",
+              "pesan": "buat logger dengan `LoggerFactory.getLogger(\"audit\")`."
+            },
+            {
+              "pola": "aturLevel\\s*\\(\\s*Logger\\.ROOT_LOGGER_NAME\\s*,\\s*\"WARN\"\\s*\\)",
+              "pesan": "atur ROOT ke `\"WARN\"`."
+            },
+            {
+              "pola": "aturLevel\\s*\\(\\s*\"audit\"\\s*,\\s*\"INFO\"\\s*\\)",
+              "pesan": "atur `\"audit\"` ke `\"INFO\"`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Log sekarang hanya berisi jejak audit dan peringatan. Pola ini dipakai untuk catatan yang wajib disimpan walau log lain dimatikan.",
+          "petunjuk": "Field baru: `private static final Logger audit = LoggerFactory.getLogger(\"audit\");`. Pengaturan lama di main diganti dua baris baru."
+        }
+      ],
+      "penutup": "Kamu sudah bisa mengatur level per bagian aplikasi. Berikutnya kita pindahkan semua pengaturan ini ke tempat yang semestinya: file `logback.xml`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Logger com.bisangoding.todolist.TodoService tidak diberi level, sedangkan com.bisangoding diatur DEBUG dan ROOT diatur INFO. Level yang berlaku untuk TodoService adalah...",
+          "options": [
+            "INFO",
+            "DEBUG",
+            "Tidak ada level, jadi tidak mencatat apa pun",
+            "TRACE"
+          ],
+          "answer": 1,
+          "explanation": "Ikut induk terdekat yang punya level.",
+          "remedial": "Logback naik dari nama logger ke induknya sampai menemukan level yang diatur. Induk terdekat yang diatur adalah `com.bisangoding` (DEBUG), jadi itu yang berlaku, bukan ROOT."
+        },
+        {
+          "question": "Pengaturan mana yang membuat semua class di package com.bisangoding.todolist menampilkan DEBUG?",
+          "options": [
+            "aturLevel(\"TodoService\", \"DEBUG\")",
+            "aturLevel(\"todolist.*\", \"DEBUG\")",
+            "aturLevel(\"com.bisangoding.todolist\", \"DEBUG\")",
+            "aturLevel(\"com.bisangoding.todolist.TodoService\", \"DEBUG\")"
+          ],
+          "answer": 2,
+          "explanation": "Atur di tingkat package.",
+          "remedial": "Nama package adalah induk dari semua logger class di dalamnya. Pola seperti `todolist.*` tidak dikenal Logback, dan mengatur satu class hanya berlaku untuk class itu."
+        },
+        {
+          "question": "Kenapa library seperti org.hibernate biasanya diatur WARN di aplikasi?",
+          "options": [
+            "Karena library tidak boleh menulis log",
+            "Supaya library berjalan lebih cepat",
+            "Karena WARN adalah level tertinggi",
+            "Supaya log aplikasi tidak tenggelam di antara pesan rinci dari library"
+          ],
+          "answer": 3,
+          "explanation": "Hanya masalah dari library yang perlu dilihat.",
+          "remedial": "Library menulis banyak pesan INFO dan DEBUG tentang cara kerjanya sendiri. Dalam keadaan normal tim hanya perlu tahu kalau ada masalah, jadi level WARN sudah cukup."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Logger yang namanya ditulis dengan teks bebas, misalnya untuk jejak transaksi, dibuat dengan...",
+      "options": [
+        "LoggerFactory.getLogger(\"audit\")",
+        "new Logger(\"audit\")",
+        "Logger.audit()",
+        "LoggerFactory.getLogger(audit.class)"
+      ],
+      "answer": 0,
+      "explanation": "getLogger juga menerima String."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca perintah dari input. Baris \"SET nama LEVEL\" mengatur level logger bernama nama dengan method aturLevel yang sudah tersedia. Baris \"LOG nama LEVEL pesan\" menulis pesan ke logger bernama nama dengan level itu (DEBUG, INFO, WARN, atau ERROR). Kode awal mengabaikan perintah SET dan selalu menulis dengan level INFO. Lengkapi programnya sehingga level dan hierarki logger bekerja.",
+      "starterCode": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\" \", 4);\n            if (d[0].equals(\"LOG\")) {\n                LoggerFactory.getLogger(d[1]).info(d[3]);\n            }\n        }\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    // Di website ini level diatur lewat kode. Di proyek sungguhan diatur di logback.xml (materi 5).\n    static void aturLevel(String nama, String level) {\n        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(nama)).setLevel(ch.qos.logback.classic.Level.toLevel(level));\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\" \", 4);\n            if (d[0].equals(\"SET\")) {\n                aturLevel(d[1], d[2]);\n            } else {\n                Logger l = LoggerFactory.getLogger(d[1]);\n                switch (d[2]) {\n                    case \"DEBUG\":\n                        l.debug(d[3]);\n                        break;\n                    case \"INFO\":\n                        l.info(d[3]);\n                        break;\n                    case \"WARN\":\n                        l.warn(d[3]);\n                        break;\n                    default:\n                        l.error(d[3]);\n                }\n            }\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "SET com.bisangoding DEBUG\nLOG com.bisangoding.toko.Kasir DEBUG menghitung diskon\nLOG org.hibernate.SQL DEBUG select * from produk\nLOG org.hibernate.SQL WARN query lambat\n",
+          "expectedOutput": "DEBUG com.bisangoding.toko.Kasir - menghitung diskon\nWARN  org.hibernate.SQL - query lambat\n"
+        },
+        {
+          "input": "SET ROOT WARN\nSET audit INFO\nLOG audit INFO kasir sari membuka laci\nLOG com.bisangoding.toko.Gudang INFO stok diperbarui\nLOG com.bisangoding.toko.Gudang ERROR stok minus\n",
+          "expectedOutput": "INFO  audit - kasir sari membuka laci\nERROR com.bisangoding.toko.Gudang - stok minus\n"
+        }
+      ],
+      "hints": [
+        "Pecah baris dengan split(\" \", 4): bagian 0 perintah, 1 nama logger, 2 level, 3 pesan.",
+        "Untuk LOG, ambil logger dengan LoggerFactory.getLogger(d[1]) lalu pilih method sesuai level dengan switch."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Nama logger biasanya nama lengkap class; titik membentuk tingkat.",
+        "Logger tanpa level mengikuti induk terdekat; ROOT paling atas.",
+        "Atur package aplikasi ke DEBUG dan library ke WARN saat menyelidiki bug.",
+        "getLogger(\"audit\") membuat logger khusus dengan nama teks."
+      ]
+    }
+  ]
+}

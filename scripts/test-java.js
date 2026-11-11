@@ -23,6 +23,17 @@ const JDK21_JAVA = fs.existsSync('/usr/lib/jvm/java-21-openjdk-amd64/bin/java')
   ? '/usr/lib/jvm/java-21-openjdk-amd64/bin/java'
   : 'java';
 
+// Library Java (JUnit, Mockito, Logback, Lombok, H2, Jackson, Hibernate Validator): aturan sama dengan di browser.
+const ATURAN_PUSTAKA = JSON.parse(fs.readFileSync(path.join(__dirname, '../src/lib/javaPustaka.json'), 'utf-8')).aturan;
+function classpathPustaka(code) {
+  const jar = [];
+  for (const a of ATURAN_PUSTAKA) {
+    if (!new RegExp(a.pola).test(code)) continue;
+    for (const j of a.jar) if (!jar.includes(j)) jar.push(j);
+  }
+  return jar.map((j) => path.join(__dirname, '../public/java-lib', j)).join(path.delimiter);
+}
+
 let errors = 0;
 let report =
   '# Laporan Test Java\n\n| File | Kartu | Pesan Error |\n|---|---|---|\n';
@@ -46,18 +57,20 @@ function runJava(code, stdin, javaVersion, java8 = false) {
   const file = path.join(runDir, `${className}.java`);
   fs.writeFileSync(file, code);
 
+  const cp = classpathPustaka(code);
   try {
     // Kartu praktik_java dijalankan di browser dengan compiler Java 8, jadi diperiksa dengan --release 8.
-    execSync(`${javacCmd} ${java8 ? '--release 8 -nowarn ' : ''}${file}`, { stdio: 'pipe' });
+    // Kode yang memakai library selalu Java 8 (library di browser juga Java 8).
+    execSync(`${javacCmd} ${java8 || cp ? '--release 8 -nowarn -encoding UTF-8 ' : ''}${cp ? `-cp "${cp}" ` : ''}${file}`, { stdio: 'pipe' });
   } catch (e) {
     return { success: false, error: e.stderr?.toString() || e.message };
   }
 
   let out;
   try {
-    out = spawnSync(javaCmd, ['-cp', runDir, className], {
+    out = spawnSync(javaCmd, ['-Dstdout.encoding=UTF-8', '-Duser.language=en', '-Duser.country=US', '-cp', cp ? runDir + path.delimiter + cp : runDir, className], {
       input: stdin,
-      timeout: 15000,
+      timeout: cp ? 60000 : 15000,
       encoding: 'utf-8',
     });
   } catch (e) {

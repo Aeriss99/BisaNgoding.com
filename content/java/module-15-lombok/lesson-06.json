@@ -1,0 +1,219 @@
+{
+  "id": "java-lombok-06",
+  "moduleId": "lombok",
+  "order": 6,
+  "title": "Slf4j dan NonNull",
+  "estimatedMinutes": 15,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Dua baris yang hampir selalu ada di class service: deklarasi logger, dan pemeriksaan parameter yang tidak boleh `null`. Keduanya ditulis berulang di puluhan class.\n\nLombok menyediakan `@Slf4j` untuk logger dan `@NonNull` untuk pemeriksaan null.\n\nIbarat petugas keamanan di pintu masuk gedung: setiap tamu diperiksa identitasnya sebelum masuk. Tamu tanpa identitas ditolak di pintu dengan alasan yang jelas, bukan dibiarkan masuk lalu menimbulkan masalah di lantai sepuluh."
+    },
+    {
+      "type": "theory",
+      "content": "**`@Slf4j`** di atas class membuat field logger SLF4J bernama `log`:\n\n```java\n@Slf4j\nclass TodoService { ... }\n\n// sama dengan menulis:\n// private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TodoService.class);\n```\n\nImport-nya `lombok.extern.slf4j.Slf4j`. Ada juga `@Log4j2` dan `@Log` untuk library logging lain, tapi `@Slf4j` yang paling umum.\n\n**`@NonNull`** pada parameter atau field menambahkan pemeriksaan di awal method atau constructor. Kalau nilainya `null`, langsung dilempar `NullPointerException` dengan pesan yang jelas:\n\n```text\njudul is marked non-null but is null\n```\n\nField `@NonNull` juga ikut masuk ke `@RequiredArgsConstructor`, walaupun tidak `final`.\n\nTanpa `@NonNull`, null baru ketahuan jauh di dalam method, misalnya saat `judul.trim()` dipanggil, dengan pesan yang lebih sulit dilacak."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@Slf4j\n@RequiredArgsConstructor\nclass TodoService {\n    @NonNull\n    private final List<Todo> data;\n\n    Todo tambah(@NonNull String judul) {\n        Todo t = new Todo(data.size() + 1, judul.trim());\n        data.add(t);\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n}\n```\n\n`service.tambah(null)` sekarang ditolak di baris pertama method dengan pesan `judul is marked non-null but is null`, dan `new TodoService(null)` ditolak dengan `data is marked non-null but is null`."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport lombok.*;\nimport lombok.extern.slf4j.Slf4j;\n\npublic class Main {\n    public static void main(String[] args) {\n        Transfer t = new Transfer();\n        t.kirim(\"sari\", \"budi\", 50000);\n        try {\n            t.kirim(\"sari\", null, 10000);\n        } catch (NullPointerException e) {\n            System.out.println(e.getMessage());\n        }\n    }\n}\n\n@Slf4j\nclass Transfer {\n    void kirim(@NonNull String dari, @NonNull String ke, long jumlah) {\n        log.info(\"Transfer {} dari {} ke {}\", jumlah, dari, ke);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: ke bernilai null. Apa yang tercetak dari println di dalam catch?",
+        "options": [
+          "dari is marked non-null but is null",
+          "null",
+          "ke is marked non-null but is null",
+          "java.lang.NullPointerException"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 18,
+          "note": "Field log dibuat otomatis."
+        },
+        {
+          "line": 20,
+          "note": "Kedua parameter diperiksa di awal method."
+        },
+        {
+          "line": 21,
+          "note": "Tidak sampai dijalankan untuk transfer kedua."
+        }
+      ],
+      "explanation": "Transfer pertama berhasil dan dicatat dengan logger buatan @Slf4j. Transfer kedua ditolak sebelum isi method dijalankan, karena parameter ke bertanda @NonNull bernilai null. Pesannya langsung menyebut nama parameter yang bermasalah.",
+      "tryThis": [
+        {
+          "task": "Ganti null dengan \"ani\". Apa yang tercetak?",
+          "hint": null
+        },
+        {
+          "task": "Hapus @NonNull dari parameter ke lalu kirim null lagi. Apa yang tercatat di log?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Masih menulis field `log` sendiri bersama `@Slf4j`**\n\nLombok membuat field bernama `log`. Kalau sudah ada field `log` buatan sendiri, compile gagal karena nama ganda. Pilih salah satu.\n\n**2. `@Slf4j` tanpa library SLF4J di proyek**\n\nLombok hanya menulis kode yang memakai SLF4J, bukan menyediakan library-nya. Tanpa dependency `slf4j-api` (atau `logback-classic`), compile gagal dengan `package org.slf4j does not exist`.\n\n**3. Mengira `@NonNull` memeriksa teks kosong**\n\n`@NonNull` hanya menolak `null`. Teks `\"\"` atau `\"   \"` tetap lolos. Aturan seperti \"judul tidak boleh kosong\" tetap ditulis sendiri, atau memakai Bean Validation (modul Validation).\n\n**4. Memakai `@NonNull` dari package lain**\n\nAda banyak anotasi bernama `NonNull` (dari Spring, JetBrains, Jakarta). Hanya `lombok.NonNull` yang menambahkan pemeriksaan otomatis. Yang lain hanya penanda untuk IDE."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\nBentuk class service yang sangat umum di proyek Spring Boot yang memakai Lombok:\n\n```java\n@Slf4j\n@Service\n@RequiredArgsConstructor\npublic class PesananService {\n    private final PesananRepository pesananRepository;\n    private final PembayaranClient pembayaranClient;\n\n    public Pesanan buat(@NonNull PesananBaru data) {\n        log.info(\"Membuat pesanan untuk {}\", data.getPelanggan());\n        ...\n    }\n}\n```\n\nTiga anotasi di atas class menggantikan deklarasi logger, constructor, dan penyimpanan dependency.\n\nUntuk memeriksa masukan dari pengguna (form, JSON), tim memakai **Bean Validation** dengan `@NotNull`, `@NotBlank`, dan sejenisnya (modul Validation), karena pesannya bisa dikembalikan ke pengguna. `@NonNull` Lombok dipakai untuk menjaga kesalahan programmer di dalam kode."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Ringkas 6: Logger dan Penjaga Null",
+      "pembuka": "`TodoService` versi Lombok: logger dari `@Slf4j`, lalu kita tambahkan penjaga null.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Tidak ada deklarasi logger, tapi `log.info` bisa dipakai karena `@Slf4j`.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\nimport lombok.extern.slf4j.Slf4j;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService service = new TodoService(new ArrayList<>());\n        service.tambah(\"Belajar Lombok\");\n        service.tambah(\"  Beli kopi \");\n    }\n}\n\n@Getter\n@ToString\n@AllArgsConstructor\nclass Todo {\n    private final int id;\n    private final String judul;\n}\n\n@Slf4j\n@RequiredArgsConstructor\nclass TodoService {\n    private final List<Todo> data;\n\n    Todo tambah(String judul) {\n        Todo t = new Todo(data.size() + 1, judul.trim());\n        data.add(t);\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n}\n",
+          "keluaran": "INFO  TodoService - Todo baru disimpan: Todo(id=1, judul=Belajar Lombok)\nINFO  TodoService - Todo baru disimpan: Todo(id=2, judul=Beli kopi)",
+          "otomatis": true,
+          "benar": "Field `log` dibuat Lombok saat compile.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tolak judul null: tambahkan `@NonNull` di depan parameter `judul` pada method `tambah`. Lalu di main coba `service.tambah(null)` di dalam try, dan di catch cetak `\"Ditolak: \" + e.getMessage()`.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\nimport lombok.extern.slf4j.Slf4j;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService service = new TodoService(new ArrayList<>());\n        service.tambah(\"Belajar Lombok\");\n        service.tambah(\"  Beli kopi \");\n        try {\n            service.tambah(null);\n        } catch (NullPointerException e) {\n            System.out.println(\"Ditolak: \" + e.getMessage());\n        }\n    }\n}\n\n@Getter\n@ToString\n@AllArgsConstructor\nclass Todo {\n    private final int id;\n    private final String judul;\n}\n\n@Slf4j\n@RequiredArgsConstructor\nclass TodoService {\n    private final List<Todo> data;\n\n    Todo tambah(@NonNull String judul) {\n        Todo t = new Todo(data.size() + 1, judul.trim());\n        data.add(t);\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n}\n",
+          "keluaran": "INFO  TodoService - Todo baru disimpan: Todo(id=1, judul=Belajar Lombok)\nINFO  TodoService - Todo baru disimpan: Todo(id=2, judul=Beli kopi)\nDitolak: judul is marked non-null but is null",
+          "wajib": [
+            {
+              "pola": "tambah\\s*\\(\\s*@NonNull\\s+String\\s+judul\\s*\\)",
+              "pesan": "tulis `tambah(@NonNull String judul)`."
+            },
+            {
+              "pola": "service\\.tambah\\s*\\(\\s*null\\s*\\)",
+              "pesan": "coba `service.tambah(null)`."
+            }
+          ],
+          "benar": "Ditolak dengan pesan yang langsung menyebut parameter `judul`.",
+          "petunjuk": "Parameter ditulis `@NonNull String judul`. Exception yang ditangkap adalah `NullPointerException`."
+        },
+        {
+          "arahan": "Jaga juga constructor-nya: tambahkan `@NonNull` di atas field `data`. Lalu coba `new TodoService(null)` dengan cara yang sama.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\nimport lombok.extern.slf4j.Slf4j;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService service = new TodoService(new ArrayList<>());\n        service.tambah(\"Belajar Lombok\");\n        service.tambah(\"  Beli kopi \");\n        try {\n            service.tambah(null);\n        } catch (NullPointerException e) {\n            System.out.println(\"Ditolak: \" + e.getMessage());\n        }\n        try {\n            new TodoService(null);\n        } catch (NullPointerException e) {\n            System.out.println(\"Ditolak: \" + e.getMessage());\n        }\n    }\n}\n\n@Getter\n@ToString\n@AllArgsConstructor\nclass Todo {\n    private final int id;\n    private final String judul;\n}\n\n@Slf4j\n@RequiredArgsConstructor\nclass TodoService {\n    @NonNull\n    private final List<Todo> data;\n\n    Todo tambah(@NonNull String judul) {\n        Todo t = new Todo(data.size() + 1, judul.trim());\n        data.add(t);\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n}\n",
+          "keluaran": "INFO  TodoService - Todo baru disimpan: Todo(id=1, judul=Belajar Lombok)\nINFO  TodoService - Todo baru disimpan: Todo(id=2, judul=Beli kopi)\nDitolak: judul is marked non-null but is null\nDitolak: data is marked non-null but is null",
+          "wajib": [
+            {
+              "pola": "@NonNull\\s+private\\s+final\\s+List<Todo>\\s+data",
+              "pesan": "pasang `@NonNull` di atas field `data`."
+            },
+            {
+              "pola": "new\\s+TodoService\\s*\\(\\s*null\\s*\\)",
+              "pesan": "coba `new TodoService(null)`."
+            }
+          ],
+          "benar": "Constructor menolak `null` sebelum service sempat dipakai.",
+          "petunjuk": "Field `@NonNull` diperiksa oleh constructor buatan `@RequiredArgsConstructor`."
+        },
+        {
+          "arahan": "Tantangan: penolakan sebaiknya dicatat dengan logger, bukan println. Beri class `Main` logger dari Lombok, lalu ganti kedua `System.out.println` di blok catch menjadi `log.warn(\"Ditolak: {}\", e.getMessage());`.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\nimport lombok.extern.slf4j.Slf4j;\n\n@Slf4j\npublic class Main {\n    public static void main(String[] args) {\n        TodoService service = new TodoService(new ArrayList<>());\n        service.tambah(\"Belajar Lombok\");\n        service.tambah(\"  Beli kopi \");\n        try {\n            service.tambah(null);\n        } catch (NullPointerException e) {\n            log.warn(\"Ditolak: {}\", e.getMessage());\n        }\n        try {\n            new TodoService(null);\n        } catch (NullPointerException e) {\n            log.warn(\"Ditolak: {}\", e.getMessage());\n        }\n    }\n}\n\n@Getter\n@ToString\n@AllArgsConstructor\nclass Todo {\n    private final int id;\n    private final String judul;\n}\n\n@Slf4j\n@RequiredArgsConstructor\nclass TodoService {\n    @NonNull\n    private final List<Todo> data;\n\n    Todo tambah(@NonNull String judul) {\n        Todo t = new Todo(data.size() + 1, judul.trim());\n        data.add(t);\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n}\n",
+          "keluaran": "INFO  TodoService - Todo baru disimpan: Todo(id=1, judul=Belajar Lombok)\nINFO  TodoService - Todo baru disimpan: Todo(id=2, judul=Beli kopi)\nWARN  Main - Ditolak: judul is marked non-null but is null\nWARN  Main - Ditolak: data is marked non-null but is null",
+          "wajib": [
+            {
+              "pola": "@Slf4j\\s+public\\s+class\\s+Main",
+              "pesan": "pasang `@Slf4j` di atas `public class Main`."
+            },
+            {
+              "pola": "log\\.warn\\s*\\(\\s*\"Ditolak: \\{\\}\"\\s*,\\s*e\\.getMessage\\(\\)\\s*\\)",
+              "pesan": "catat `log.warn(\"Ditolak: {}\", e.getMessage())`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Semua catatan sekarang lewat logger, dengan nama logger `Main` untuk penolakan.",
+          "petunjuk": "Anotasi yang sama dengan di `TodoService`, dipasang di atas `public class Main`."
+        }
+      ],
+      "penutup": "Logger dan penjaga null cukup dengan dua anotasi. Materi terakhir: memasang Lombok di proyek Maven sungguhan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "@Slf4j di atas class TodoService membuat...",
+          "options": [
+            "Library SLF4J ikut terunduh",
+            "File logback.xml baru",
+            "Method log() di setiap method",
+            "Field logger bernama log untuk class TodoService"
+          ],
+          "answer": 3,
+          "explanation": "Field log yang siap dipakai.",
+          "remedial": "`@Slf4j` setara dengan menulis `private static final Logger log = LoggerFactory.getLogger(TodoService.class);`. Library SLF4J tetap harus ada di dependency proyek."
+        },
+        {
+          "question": "Parameter judul diberi @NonNull. Apa yang terjadi kalau method dipanggil dengan judul \"\"?",
+          "options": [
+            "Method berjalan biasa, karena \"\" bukan null",
+            "NullPointerException",
+            "IllegalArgumentException",
+            "Compile gagal"
+          ],
+          "answer": 0,
+          "explanation": "@NonNull hanya menolak null.",
+          "remedial": "Teks kosong tetap sebuah object String, bukan `null`. Untuk menolak teks kosong, tetap perlu pemeriksaan sendiri atau anotasi validasi seperti `@NotBlank`."
+        },
+        {
+          "question": "Pesan NullPointerException dari @NonNull pada parameter email adalah...",
+          "options": [
+            "null",
+            "email is marked non-null but is null",
+            "email cannot be empty",
+            "Parameter ke-2 bernilai null"
+          ],
+          "answer": 1,
+          "explanation": "Pesannya menyebut nama parameter.",
+          "remedial": "Lombok menulis pemeriksaan `if (email == null) throw new NullPointerException(\"email is marked non-null but is null\");` di awal method."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Field mana yang ikut masuk constructor buatan @RequiredArgsConstructor?",
+      "options": [
+        "Hanya field public",
+        "Semua field",
+        "Field final dan field bertanda @NonNull",
+        "Hanya field static"
+      ],
+      "answer": 2,
+      "explanation": "Field yang wajib diisi."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca data pendaftaran dari input dengan format nama;email per baris; email kosong dianggap null. Class Registrasi sekarang mencetak dengan println dan langsung error saat email null. Ubah class Registrasi: pakai logger dari @Slf4j untuk mencatat INFO \"Terdaftar NAMA dengan email EMAIL\" (email ditulis huruf kecil, pakai placeholder), dan tolak nama atau email yang null dengan @NonNull, sehingga main mencetak pesan penolakannya.",
+      "starterCode": "import java.util.*;\n\nimport lombok.*;\nimport lombok.extern.slf4j.Slf4j;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        Registrasi r = new Registrasi();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            String email = d[1].isEmpty() ? null : d[1];\n            try {\n                r.daftar(d[0], email);\n            } catch (NullPointerException e) {\n                System.out.println(\"Gagal: \" + e.getMessage());\n            }\n        }\n    }\n}\n\nclass Registrasi {\n    void daftar(String nama, String email) {\n        System.out.println(\"Terdaftar \" + nama + \" \" + email.toLowerCase());\n    }\n}",
+      "solution": "import java.util.*;\n\nimport lombok.*;\nimport lombok.extern.slf4j.Slf4j;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        Registrasi r = new Registrasi();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            String email = d[1].isEmpty() ? null : d[1];\n            try {\n                r.daftar(d[0], email);\n            } catch (NullPointerException e) {\n                System.out.println(\"Gagal: \" + e.getMessage());\n            }\n        }\n    }\n}\n\n@Slf4j\nclass Registrasi {\n    void daftar(@NonNull String nama, @NonNull String email) {\n        log.info(\"Terdaftar {} dengan email {}\", nama, email.toLowerCase());\n    }\n}",
+      "tests": [
+        {
+          "input": "sari;Sari@Contoh.ID\nbudi;\n",
+          "expectedOutput": "INFO  Registrasi - Terdaftar sari dengan email sari@contoh.id\nGagal: email is marked non-null but is null\n"
+        },
+        {
+          "input": "ani;ANI@contoh.id\n",
+          "expectedOutput": "INFO  Registrasi - Terdaftar ani dengan email ani@contoh.id\n"
+        }
+      ],
+      "hints": [
+        "Pasang @Slf4j di atas class Registrasi lalu ganti println dengan log.info.",
+        "Tambahkan @NonNull di depan kedua parameter daftar."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@Slf4j membuat field log (logger SLF4J) untuk class itu.",
+        "@NonNull menolak null di awal method atau constructor dengan pesan \"x is marked non-null but is null\".",
+        "@NonNull tidak menolak teks kosong.",
+        "Field @NonNull ikut masuk @RequiredArgsConstructor."
+      ]
+    }
+  ]
+}

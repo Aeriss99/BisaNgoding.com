@@ -1,0 +1,212 @@
+{
+  "id": "java-database-07",
+  "moduleId": "database",
+  "order": 7,
+  "title": "Generated Key dan Batch",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Dua kebutuhan yang sangat sering muncul setelah bisa INSERT:\n\n1. **Mengetahui id baru.** Kolom `id` diisi AUTO_INCREMENT oleh database. Aplikasi biasanya butuh id itu, misalnya untuk menampilkan \"Todo nomor 5 ditambahkan\" atau menyimpan data terkait.\n2. **Memasukkan banyak baris sekaligus.** Impor seribu produk dari file dengan seribu kali perjalanan ke database sangat lambat.\n\nIbarat mengirim paket lewat ekspedisi: setiap paket mendapat nomor resi dari petugas (generated key), dan kalau mengirim seratus paket, semuanya diserahkan dalam satu karung, bukan seratus kali bolak-balik ke loket (batch)."
+    },
+    {
+      "type": "theory",
+      "content": "**Generated key**: minta database mengembalikan kunci yang dibuatnya.\n\n```java\nPreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);\nps.executeUpdate();\nResultSet kunci = ps.getGeneratedKeys();\nkunci.next();\nint idBaru = kunci.getInt(1);\n```\n\n**Batch**: kumpulkan beberapa set parameter, lalu kirim bersama.\n\n```java\nfor (String n : daftarNama) {\n    ps.setString(1, n);\n    ps.addBatch();                 // simpan ke antrean\n}\nint[] hasil = ps.executeBatch();   // kirim sekaligus; satu angka per baris\n```\n\nDriver MySQL baru benar-benar mengirim batch sebagai satu perintah besar kalau URL-nya diberi `rewriteBatchedStatements=true`, misalnya `jdbc:mysql://localhost:3306/todolist?rewriteBatchedStatements=true`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nstatic int tambah(Connection c, String nama, int harga, int stok) throws SQLException {\n    String sql = \"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\";\n    try (PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {\n        ps.setString(1, nama);\n        ps.setInt(2, harga);\n        ps.setInt(3, stok);\n        ps.executeUpdate();\n        try (ResultSet kunci = ps.getGeneratedKeys()) {\n            kunci.next();\n            return kunci.getInt(1);\n        }\n    }\n}\n```\n\nJangan mencari id baru dengan `SELECT MAX(id) FROM produk`. Kalau dua pengguna menambah produk hampir bersamaan, keduanya bisa mendapat id yang sama. `getGeneratedKeys` selalu mengembalikan id milik INSERT itu sendiri."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            try (Statement st = c.createStatement()) {\n                st.executeUpdate(\"DELETE FROM produk WHERE id = 4\");\n            }\n            try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO produk (nama, harga) VALUES (?, ?)\", Statement.RETURN_GENERATED_KEYS)) {\n                ps.setString(1, \"Penggaris\");\n                ps.setInt(2, 4000);\n                ps.executeUpdate();\n                try (ResultSet k = ps.getGeneratedKeys()) {\n                    k.next();\n                    System.out.println(\"id baru: \" + k.getInt(1));\n                }\n            }\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: produk nomor 4 dihapus dulu, lalu satu produk ditambahkan. Berapa id barunya?",
+        "options": [
+          "id baru: 5",
+          "id baru: 4",
+          "id baru: 1",
+          "id baru: 3"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 19,
+          "note": "id 4 dihapus."
+        },
+        {
+          "line": 21,
+          "note": "Minta id yang dibuat database."
+        },
+        {
+          "line": 27,
+          "note": "Kolom pertama hasil generated key."
+        }
+      ],
+      "explanation": "AUTO_INCREMENT tidak memakai ulang nomor yang sudah pernah dipakai. Walaupun id 4 sudah dihapus, produk baru mendapat 5. Karena itu id tidak bisa ditebak dari jumlah baris atau dari id terbesar yang tersisa, dan harus diambil lewat getGeneratedKeys.",
+      "tryThis": [
+        {
+          "task": "Tambahkan produk kedua dengan cara yang sama. Berapa id-nya?",
+          "hint": null
+        },
+        {
+          "task": "Hapus baris DELETE. Berapa id produk baru sekarang?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `Statement.RETURN_GENERATED_KEYS`**\n\nTanpa tanda itu, `getGeneratedKeys()` bisa kosong atau melempar `SQLException` tergantung driver. Selalu sebutkan saat `prepareStatement`.\n\n**2. Lupa `kunci.next()`**\n\nHasil generated key juga ResultSet, jadi kursornya mulai sebelum baris pertama.\n\n**3. Batch yang sangat besar sekaligus**\n\nMenambah sejuta baris ke satu batch memakan banyak memori. Kirim per kelompok, misalnya setiap 1000 baris panggil `executeBatch()`.\n\n**4. Batch tanpa transaksi**\n\nKalau baris ke-500 gagal, baris 1 sampai 499 mungkin sudah tersimpan. Untuk impor yang harus \"semua atau tidak sama sekali\", bungkus dengan transaksi (materi berikutnya)."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di JPA/Hibernate, id dari AUTO_INCREMENT (strategi `IDENTITY`) otomatis diisi ke object setelah `save()`, memakai mekanisme generated key yang sama di dalamnya.\n- Impor data massal (misalnya ribuan produk dari file Excel atau CSV) hampir selalu memakai batch, sering dengan ukuran 500 sampai 1000 baris per batch.\n- Banyak sistem memakai **UUID** sebagai id (dibuat di aplikasi, bukan oleh database), sehingga id sudah diketahui sebelum INSERT dan tidak bisa ditebak dari luar.\n\n```text\nAUTO_INCREMENT : 1, 2, 3, ...           mudah dibaca, bisa ditebak\nUUID           : 3f2b8c1e-9d4a-4c7e-...  sulit ditebak, aman dibuat di banyak server\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Toko Database 7: Produk Baru dan Impor",
+      "pembuka": "Kasir toko ingin tahu nomor produk baru, dan gudang ingin menambah banyak produk sekaligus.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Method `tambah` mengembalikan id buatan database.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static int tambah(Connection c, String nama, int harga, int stok) throws SQLException {\n        String sql = \"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\";\n        try (PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {\n            ps.setString(1, nama);\n            ps.setInt(2, harga);\n            ps.setInt(3, stok);\n            ps.executeUpdate();\n            try (ResultSet kunci = ps.getGeneratedKeys()) {\n                kunci.next();\n                return kunci.getInt(1);\n            }\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            int id = tambah(c, \"Gunting\", 15000, 25);\n            System.out.println(\"Produk baru bernomor \" + id);\n        }\n    }\n}\n",
+          "keluaran": "Produk baru bernomor 5",
+          "otomatis": true,
+          "benar": "Empat produk awal bernomor 1 sampai 4, jadi Gunting mendapat nomor 5.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan produk kedua: `Lem` seharga 5000 stok 50, simpan id-nya di `int id2`, lalu cetak dengan format yang sama.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static int tambah(Connection c, String nama, int harga, int stok) throws SQLException {\n        String sql = \"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\";\n        try (PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {\n            ps.setString(1, nama);\n            ps.setInt(2, harga);\n            ps.setInt(3, stok);\n            ps.executeUpdate();\n            try (ResultSet kunci = ps.getGeneratedKeys()) {\n                kunci.next();\n                return kunci.getInt(1);\n            }\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            int id = tambah(c, \"Gunting\", 15000, 25);\n            System.out.println(\"Produk baru bernomor \" + id);\n            int id2 = tambah(c, \"Lem\", 5000, 50);\n            System.out.println(\"Produk baru bernomor \" + id2);\n        }\n    }\n}\n",
+          "keluaran": "Produk baru bernomor 5\nProduk baru bernomor 6",
+          "wajib": [
+            {
+              "pola": "int\\s+id2\\s*=\\s*tambah\\s*\\(\\s*c\\s*,\\s*\"Lem\"\\s*,\\s*5000\\s*,\\s*50\\s*\\)",
+              "pesan": "tulis `int id2 = tambah(c, \"Lem\", 5000, 50);`."
+            }
+          ],
+          "benar": "Nomor 6, lanjutan dari nomor sebelumnya.",
+          "petunjuk": "Polanya sama dengan baris Gunting."
+        },
+        {
+          "arahan": "Aku sudah menambahkan method `tambahBanyak` yang memakai batch. Panggil dengan `Arrays.asList(\"Map biru\", \"Map merah\", \"Map hijau\")` dan harga 4000, simpan hasilnya di `int n`, lalu cetak `n + \" produk ditambahkan sekaligus\"`.",
+          "kodeAwal": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static int tambah(Connection c, String nama, int harga, int stok) throws SQLException {\n        String sql = \"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\";\n        try (PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {\n            ps.setString(1, nama);\n            ps.setInt(2, harga);\n            ps.setInt(3, stok);\n            ps.executeUpdate();\n            try (ResultSet kunci = ps.getGeneratedKeys()) {\n                kunci.next();\n                return kunci.getInt(1);\n            }\n        }\n    }\n\n    static int tambahBanyak(Connection c, List<String> nama, int harga) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, 0)\")) {\n            for (String n : nama) {\n                ps.setString(1, n);\n                ps.setInt(2, harga);\n                ps.addBatch();\n            }\n            int[] hasil = ps.executeBatch();\n            return hasil.length;\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            int id = tambah(c, \"Gunting\", 15000, 25);\n            System.out.println(\"Produk baru bernomor \" + id);\n            int id2 = tambah(c, \"Lem\", 5000, 50);\n            System.out.println(\"Produk baru bernomor \" + id2);\n        }\n    }\n}\n",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static int tambah(Connection c, String nama, int harga, int stok) throws SQLException {\n        String sql = \"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\";\n        try (PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {\n            ps.setString(1, nama);\n            ps.setInt(2, harga);\n            ps.setInt(3, stok);\n            ps.executeUpdate();\n            try (ResultSet kunci = ps.getGeneratedKeys()) {\n                kunci.next();\n                return kunci.getInt(1);\n            }\n        }\n    }\n\n    static int tambahBanyak(Connection c, List<String> nama, int harga) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, 0)\")) {\n            for (String n : nama) {\n                ps.setString(1, n);\n                ps.setInt(2, harga);\n                ps.addBatch();\n            }\n            int[] hasil = ps.executeBatch();\n            return hasil.length;\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            int id = tambah(c, \"Gunting\", 15000, 25);\n            System.out.println(\"Produk baru bernomor \" + id);\n            int id2 = tambah(c, \"Lem\", 5000, 50);\n            System.out.println(\"Produk baru bernomor \" + id2);\n            int n = tambahBanyak(c, Arrays.asList(\"Map biru\", \"Map merah\", \"Map hijau\"), 4000);\n            System.out.println(n + \" produk ditambahkan sekaligus\");\n        }\n    }\n}\n",
+          "keluaran": "Produk baru bernomor 5\nProduk baru bernomor 6\n3 produk ditambahkan sekaligus",
+          "wajib": [
+            {
+              "pola": "int\\s+n\\s*=\\s*tambahBanyak\\s*\\(\\s*c\\s*,\\s*Arrays\\.asList\\s*\\(\\s*\"Map biru\"\\s*,\\s*\"Map merah\"\\s*,\\s*\"Map hijau\"\\s*\\)\\s*,\\s*4000\\s*\\)",
+              "pesan": "panggil `tambahBanyak(c, Arrays.asList(\"Map biru\", \"Map merah\", \"Map hijau\"), 4000)`."
+            }
+          ],
+          "benar": "Tiga produk dikirim dalam satu batch.",
+          "petunjuk": "Method-nya sudah ada di class Main; tinggal dipanggil dari main."
+        },
+        {
+          "arahan": "Tantangan: buat method `static int jumlahProduk(Connection c)` yang mengembalikan hasil `SELECT COUNT(*) FROM produk`, lalu cetak `Total produk: ` diikuti hasilnya.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static int tambah(Connection c, String nama, int harga, int stok) throws SQLException {\n        String sql = \"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\";\n        try (PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {\n            ps.setString(1, nama);\n            ps.setInt(2, harga);\n            ps.setInt(3, stok);\n            ps.executeUpdate();\n            try (ResultSet kunci = ps.getGeneratedKeys()) {\n                kunci.next();\n                return kunci.getInt(1);\n            }\n        }\n    }\n\n    static int tambahBanyak(Connection c, List<String> nama, int harga) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, 0)\")) {\n            for (String n : nama) {\n                ps.setString(1, n);\n                ps.setInt(2, harga);\n                ps.addBatch();\n            }\n            int[] hasil = ps.executeBatch();\n            return hasil.length;\n        }\n    }\n\n    static int jumlahProduk(Connection c) throws SQLException {\n        try (Statement st = c.createStatement();\n             ResultSet rs = st.executeQuery(\"SELECT COUNT(*) FROM produk\")) {\n            rs.next();\n            return rs.getInt(1);\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            int id = tambah(c, \"Gunting\", 15000, 25);\n            System.out.println(\"Produk baru bernomor \" + id);\n            int id2 = tambah(c, \"Lem\", 5000, 50);\n            System.out.println(\"Produk baru bernomor \" + id2);\n            int n = tambahBanyak(c, Arrays.asList(\"Map biru\", \"Map merah\", \"Map hijau\"), 4000);\n            System.out.println(n + \" produk ditambahkan sekaligus\");\n            System.out.println(\"Total produk: \" + jumlahProduk(c));\n        }\n    }\n}\n",
+          "keluaran": "Produk baru bernomor 5\nProduk baru bernomor 6\n3 produk ditambahkan sekaligus\nTotal produk: 9",
+          "wajib": [
+            {
+              "pola": "static\\s+int\\s+jumlahProduk\\s*\\(\\s*Connection\\s+c\\s*\\)",
+              "pesan": "buat `static int jumlahProduk(Connection c)`."
+            },
+            {
+              "pola": "SELECT COUNT\\(\\*\\) FROM produk",
+              "pesan": "pakai `SELECT COUNT(*) FROM produk`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "9 produk: 4 awal, 2 satu per satu, 3 lewat batch.",
+          "petunjuk": "Pakai Statement dan ResultSet, panggil `rs.next()` sekali, lalu `return rs.getInt(1);`."
+        }
+      ],
+      "penutup": "Toko kita sekarang bisa mendapat id baru dan mengimpor data dengan cepat. Materi berikutnya: memastikan beberapa perubahan berhasil semua atau batal semua."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa id produk baru sebaiknya diambil dengan getGeneratedKeys, bukan SELECT MAX(id)?",
+          "options": [
+            "Karena MAX(id) tidak didukung MySQL",
+            "Karena MAX(id) bisa salah saat ada INSERT lain yang hampir bersamaan",
+            "Karena getGeneratedKeys juga menghapus data lama",
+            "Karena MAX(id) selalu bernilai 0"
+          ],
+          "answer": 1,
+          "explanation": "id milik INSERT itu sendiri.",
+          "remedial": "Di aplikasi dengan banyak pengguna, INSERT lain bisa terjadi di antara INSERT kita dan SELECT MAX. `getGeneratedKeys` mengembalikan id yang dibuat untuk INSERT kita sendiri."
+        },
+        {
+          "question": "Apa yang dilakukan ps.addBatch()?",
+          "options": [
+            "Langsung menjalankan INSERT",
+            "Menghapus semua parameter",
+            "Menyimpan parameter saat ini ke antrean untuk dikirim bersama nanti",
+            "Membuat tabel baru"
+          ],
+          "answer": 2,
+          "explanation": "Dikirim saat executeBatch.",
+          "remedial": "`addBatch()` menyimpan set parameter yang sedang diisi. Tidak ada yang dikirim ke database sampai `executeBatch()` dipanggil."
+        },
+        {
+          "question": "executeBatch() untuk tiga baris INSERT mengembalikan...",
+          "options": [
+            "Satu angka berisi 3",
+            "ResultSet berisi id baru",
+            "Boolean true",
+            "Array int berisi tiga angka, satu untuk setiap baris"
+          ],
+          "answer": 3,
+          "explanation": "Satu hasil per perintah di batch.",
+          "remedial": "Setiap elemen array adalah jumlah baris yang berubah oleh perintah ke-n di batch. Panjang array sama dengan jumlah `addBatch()`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pilihan URL MySQL Connector/J supaya batch benar-benar dikirim sebagai satu perintah besar adalah...",
+      "options": [
+        "rewriteBatchedStatements=true",
+        "useBatch=true",
+        "autoCommit=false",
+        "batchSize=1000"
+      ],
+      "answer": 0,
+      "explanation": "Ditulis di URL JDBC."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program mengimpor produk dari input dengan format nama;harga;stok per baris ke tabel produk yang sudah berisi 4 produk. Kode awal belum mengimpor apa pun. Masukkan semua baris dengan satu PreparedStatement memakai addBatch dan executeBatch, lalu cetak jumlah produk yang diimpor diikuti kata produk diimpor. Terakhir, cetak \"Total N produk, stok S\" dari hasil SELECT COUNT(*) dan SUM(stok) di tabel produk.",
+      "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            while (in.hasNextLine()) {\n                String[] d = in.nextLine().split(\";\");\n                System.out.println(\"Belum diimpor: \" + d[0]);\n            }\n        }\n    }\n}",
+      "solution": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\")) {\n                while (in.hasNextLine()) {\n                    String[] d = in.nextLine().split(\";\");\n                    ps.setString(1, d[0]);\n                    ps.setInt(2, Integer.parseInt(d[1]));\n                    ps.setInt(3, Integer.parseInt(d[2]));\n                    ps.addBatch();\n                }\n                int[] hasil = ps.executeBatch();\n                System.out.println(hasil.length + \" produk diimpor\");\n            }\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT COUNT(*), SUM(stok) FROM produk\")) {\n                rs.next();\n                System.out.println(\"Total \" + rs.getInt(1) + \" produk, stok \" + rs.getInt(2));\n            }\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "Pena;5000;30\nLem;4000;20\n",
+          "expectedOutput": "2 produk diimpor\nTotal 6 produk, stok 285\n"
+        },
+        {
+          "input": "Kapur;1500;100\n",
+          "expectedOutput": "1 produk diimpor\nTotal 5 produk, stok 335\n"
+        }
+      ],
+      "hints": [
+        "Buat PreparedStatement sekali di luar perulangan, lalu di dalam perulangan isi parameter dan panggil addBatch().",
+        "Setelah perulangan, int[] hasil = ps.executeBatch(); jumlahnya hasil.length."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Statement.RETURN_GENERATED_KEYS + getGeneratedKeys() mengembalikan id buatan database.",
+        "AUTO_INCREMENT tidak memakai ulang nomor yang sudah terhapus.",
+        "addBatch() mengumpulkan parameter; executeBatch() mengirim semuanya sekaligus.",
+        "Batch besar dikirim per kelompok dan dibungkus transaksi."
+      ]
+    }
+  ]
+}

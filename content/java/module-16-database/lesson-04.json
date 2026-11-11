@@ -1,0 +1,219 @@
+{
+  "id": "java-database-04",
+  "moduleId": "database",
+  "order": 4,
+  "title": "JDBC dan Koneksi",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tiga materi sebelumnya kita bicara dengan MySQL lewat terminal `mysql>`. Aplikasi Java tidak mengetik di terminal; ia butuh cara untuk mengirim SQL dan membaca hasilnya dari dalam kode.\n\n**JDBC** (Java Database Connectivity) adalah API standar Java untuk berbicara dengan database relasional. Kode JDBC yang sama bisa dipakai untuk MySQL, PostgreSQL, Oracle, dan lainnya. Yang berbeda hanya **driver**-nya.\n\nIbarat colokan listrik universal: peralatan elektronik (kode Java) punya satu bentuk steker. Adaptor (driver) yang menyesuaikan dengan bentuk stopkontak tiap negara (jenis database)."
+    },
+    {
+      "type": "theory",
+      "content": "Bagian JDBC di package `java.sql`:\n\n| Bagian | Tugasnya |\n|---|---|\n| `DriverManager` | membuka koneksi berdasarkan URL |\n| `Connection` | satu koneksi ke database |\n| `Statement` | mengirim perintah SQL |\n| `ResultSet` | hasil query, dibaca baris demi baris |\n| `SQLException` | error dari database |\n\nKoneksi dibuka dengan **URL JDBC**, nama pengguna, dan sandi:\n\n```java\nConnection c = DriverManager.getConnection(\"jdbc:mysql://localhost:3306/todolist\", \"root\", sandi);\n```\n\nBentuk URL: `jdbc:` + jenis database + alamat. Driver yang cocok dipilih otomatis dari awalan URL itu (`jdbc:mysql:` untuk MySQL Connector/J).\n\n**Di website ini** tidak ada server MySQL, jadi praktik memakai **H2**: database kecil buatan Java yang berjalan di memori, dengan mode yang meniru MySQL. URL-nya `jdbc:h2:mem:toko;MODE=MySQL;...`. Kode JDBC-nya sama persis; di laptop cukup ganti URL ke MySQL (materi terakhir modul ini)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKoneksi, Statement, dan ResultSet memakai sumber daya (soket jaringan, memori di server database). Ketiganya **wajib ditutup**, dan cara paling aman adalah try-with-resources:\n\n```java\ntry (Connection c = DriverManager.getConnection(URL, \"sa\", \"\");\n     Statement st = c.createStatement()) {\n    st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL)\");\n    int n = st.executeUpdate(\"INSERT INTO produk (nama, harga) VALUES ('Pensil', 3000)\");\n    System.out.println(n + \" baris ditambahkan\");\n}\n```\n\n| Method `Statement` | Untuk | Mengembalikan |\n|---|---|---|\n| `execute(sql)` | perintah apa pun, biasanya CREATE | boolean |\n| `executeUpdate(sql)` | INSERT, UPDATE, DELETE | jumlah baris yang berubah |\n| `executeQuery(sql)` | SELECT | `ResultSet` (materi berikutnya) |\n\nSemua method JDBC bisa melempar `SQLException`, yang wajib ditangani atau ditulis di `throws`."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            System.out.println(\"Koneksi terbuka: \" + !c.isClosed());\n            try (Statement st = c.createStatement()) {\n                st.execute(\"CREATE TABLE kategori (id INT PRIMARY KEY, nama VARCHAR(50))\");\n                System.out.println(st.executeUpdate(\"INSERT INTO kategori VALUES (1, 'Alat tulis')\"));\n                st.execute(\"CREATE TABLE kategori (id INT PRIMARY KEY)\");\n            }\n        } catch (SQLException e) {\n            System.out.println(\"Gagal, kode SQLState \" + e.getSQLState());\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: tabel kategori dibuat dua kali. Apa baris terakhir yang tercetak?",
+        "options": [
+          "Gagal, kode SQLState 42S02",
+          "Gagal, kode SQLState 42S01",
+          "Tabel kategori dibuat ulang",
+          "Koneksi terbuka: false"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 8,
+          "note": "Membuka koneksi ke H2 di memori."
+        },
+        {
+          "line": 12,
+          "note": "executeUpdate mengembalikan jumlah baris: 1."
+        },
+        {
+          "line": 13,
+          "note": "Tabel dengan nama itu sudah ada."
+        },
+        {
+          "line": 16,
+          "note": "Kode standar jenis error SQL."
+        }
+      ],
+      "explanation": "Koneksi terbuka, tabel dibuat, satu baris ditambahkan. Saat tabel yang sama dibuat lagi, database menolak dan JDBC melempar SQLException. SQLState 42S01 artinya \"tabel sudah ada\", kode standar yang juga dipakai MySQL.\n\nKarena Connection dan Statement ada di try-with-resources, keduanya tetap ditutup walaupun terjadi exception.",
+      "tryThis": [
+        {
+          "task": "Ganti nama tabel kedua menjadi kategori2. Apa yang tercetak sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Cetak e.getMessage() untuk melihat pesan lengkap dari H2.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `No suitable driver found for jdbc:mysql://...`**\n\nDriver MySQL belum ada di dependency proyek, atau URL salah ketik (misalnya `jdbc:mysq://`). Di Maven, tambahkan `com.mysql:mysql-connector-j`.\n\n**2. Lupa menutup koneksi**\n\nKoneksi yang tidak ditutup menumpuk di server. MySQL punya batas jumlah koneksi (bawaannya 151), dan setelah penuh, aplikasi mendapat error `Too many connections`. Selalu try-with-resources.\n\n**3. Sandi ditulis langsung di kode**\n\n`getConnection(url, \"root\", \"rahasia123\")` yang ikut ter-commit ke GitHub berarti sandi database bocor. Ambil dari environment variable atau file konfigurasi di luar repository.\n\n**4. Memakai `executeQuery` untuk INSERT**\n\n`executeQuery` hanya untuk perintah yang mengembalikan hasil (SELECT). Untuk INSERT, UPDATE, dan DELETE pakai `executeUpdate`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hampir tidak ada aplikasi produksi yang memanggil `DriverManager.getConnection` di setiap permintaan, karena membuka koneksi itu lambat (puluhan milidetik). Yang dipakai adalah **connection pool** seperti HikariCP (materi terakhir modul ini), yang juga menjadi bawaan Spring Boot.\n- Kode JDBC mentah seperti ini jarang ditulis langsung di proyek Spring. Biasanya dipakai lapisan di atasnya: **Spring JdbcTemplate**, **JPA/Hibernate**, atau **jOOQ**. Tetapi semuanya tetap memakai JDBC di dalamnya, dan error yang muncul tetap `SQLException` dengan SQLState yang sama. Memahami JDBC membuat error itu mudah dibaca.\n- H2 sering dipakai tim untuk **test**, karena tidak butuh server. Untuk test yang benar-benar meniru produksi, banyak tim memakai MySQL sungguhan di Docker lewat Testcontainers.\n\n```text\njdbc:mysql://localhost:3306/todolist         MySQL di laptop\njdbc:postgresql://db.kantor:5432/toko        PostgreSQL di server\njdbc:h2:mem:uji;MODE=MySQL                   H2 di memori, untuk test\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Toko Database 4: Koneksi Pertama",
+      "pembuka": "Mulai materi ini kita membangun **Toko Alat Tulis** dengan database. Di website ini databasenya H2 yang meniru MySQL.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Aku buka koneksi lalu tanyakan nama database-nya.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            DatabaseMetaData info = c.getMetaData();\n            System.out.println(\"Terhubung ke \" + info.getDatabaseProductName());\n        }\n    }\n}\n",
+          "keluaran": "Terhubung ke H2",
+          "otomatis": true,
+          "benar": "Koneksi berhasil. Try-with-resources menutupnya lagi di akhir.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Di dalam blok koneksi, buat `Statement` dengan try-with-resources, lalu buat tabel: `CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL)`. Cetak `Tabel produk siap`.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            DatabaseMetaData info = c.getMetaData();\n            System.out.println(\"Terhubung ke \" + info.getDatabaseProductName());\n            try (Statement st = c.createStatement()) {\n                st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL)\");\n                System.out.println(\"Tabel produk siap\");\n            }\n        }\n    }\n}\n",
+          "keluaran": "Terhubung ke H2\nTabel produk siap",
+          "wajib": [
+            {
+              "pola": "try\\s*\\(\\s*Statement\\s+st\\s*=\\s*c\\.createStatement\\(\\)\\s*\\)",
+              "pesan": "buka Statement dengan `try (Statement st = c.createStatement())`."
+            },
+            {
+              "pola": "st\\.execute\\s*\\(\\s*\"CREATE TABLE produk",
+              "pesan": "buat tabel dengan `st.execute(\"CREATE TABLE produk ...\")`."
+            }
+          ],
+          "benar": "Tabel produk dibuat di database.",
+          "petunjuk": "Tulis `try (Statement st = c.createStatement()) { st.execute(\"CREATE TABLE ...\"); ... }`."
+        },
+        {
+          "arahan": "Tambahkan satu produk: `INSERT INTO produk (nama, harga) VALUES ('Pensil', 3000)` dengan `executeUpdate`. Simpan hasilnya di `int n`, lalu cetak `n + \" baris ditambahkan\"`.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            DatabaseMetaData info = c.getMetaData();\n            System.out.println(\"Terhubung ke \" + info.getDatabaseProductName());\n            try (Statement st = c.createStatement()) {\n                st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL)\");\n                System.out.println(\"Tabel produk siap\");\n                int n = st.executeUpdate(\"INSERT INTO produk (nama, harga) VALUES ('Pensil', 3000)\");\n                System.out.println(n + \" baris ditambahkan\");\n            }\n        }\n    }\n}\n",
+          "keluaran": "Terhubung ke H2\nTabel produk siap\n1 baris ditambahkan",
+          "wajib": [
+            {
+              "pola": "int\\s+n\\s*=\\s*st\\.executeUpdate\\s*\\(",
+              "pesan": "simpan hasil `st.executeUpdate(...)` ke `int n`."
+            }
+          ],
+          "benar": "Satu baris ditambahkan.",
+          "petunjuk": "`executeUpdate` mengembalikan jumlah baris yang berubah."
+        },
+        {
+          "arahan": "Tantangan: dengan **satu** perintah INSERT, tambahkan dua produk sekaligus: Buku tulis seharga 8000 dan Spidol seharga 9500. Simpan hasilnya di `int m` dan cetak dengan format yang sama.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            DatabaseMetaData info = c.getMetaData();\n            System.out.println(\"Terhubung ke \" + info.getDatabaseProductName());\n            try (Statement st = c.createStatement()) {\n                st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL)\");\n                System.out.println(\"Tabel produk siap\");\n                int n = st.executeUpdate(\"INSERT INTO produk (nama, harga) VALUES ('Pensil', 3000)\");\n                System.out.println(n + \" baris ditambahkan\");\n                int m = st.executeUpdate(\"INSERT INTO produk (nama, harga) VALUES ('Buku tulis', 8000), ('Spidol', 9500)\");\n                System.out.println(m + \" baris ditambahkan\");\n            }\n        }\n    }\n}\n",
+          "keluaran": "Terhubung ke H2\nTabel produk siap\n1 baris ditambahkan\n2 baris ditambahkan",
+          "wajib": [
+            {
+              "pola": "VALUES\\s*\\('Buku tulis',\\s*8000\\),\\s*\\('Spidol',\\s*9500\\)",
+              "pesan": "tulis `VALUES ('Buku tulis', 8000), ('Spidol', 9500)` dalam satu INSERT."
+            },
+            {
+              "pola": "int\\s+m\\s*=\\s*st\\.executeUpdate",
+              "pesan": "simpan hasilnya di `int m`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "2 baris ditambahkan dengan satu perintah. Toko kita sekarang punya tiga produk.",
+          "petunjuk": "Satu INSERT bisa berisi beberapa kelompok VALUES yang dipisah koma, seperti di materi SQL."
+        }
+      ],
+      "penutup": "Koneksi terbuka, tabel dibuat, data masuk. Berikutnya kita baca datanya kembali dengan SELECT dan ResultSet."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa fungsi driver JDBC?",
+          "options": [
+            "Menyimpan data di memori Java",
+            "Membuat tabel secara otomatis",
+            "Menerjemahkan perintah JDBC ke bahasa database tertentu, misalnya MySQL",
+            "Menggantikan SQL"
+          ],
+          "answer": 2,
+          "explanation": "Adaptor untuk tiap jenis database.",
+          "remedial": "Kode aplikasi hanya memakai API `java.sql`. Driver (misalnya MySQL Connector/J) yang tahu cara berbicara dengan server MySQL. Ganti database cukup ganti driver dan URL."
+        },
+        {
+          "question": "Method Statement yang tepat untuk INSERT dan mengembalikan jumlah baris yang ditambahkan adalah...",
+          "options": [
+            "executeQuery",
+            "execute",
+            "getResultSet",
+            "executeUpdate"
+          ],
+          "answer": 3,
+          "explanation": "Update untuk perintah yang mengubah data.",
+          "remedial": "`executeUpdate` dipakai untuk INSERT, UPDATE, dan DELETE, dan mengembalikan jumlah baris yang berubah. `executeQuery` untuk SELECT."
+        },
+        {
+          "question": "Kenapa Connection dan Statement dibuka dengan try-with-resources?",
+          "options": [
+            "Supaya selalu ditutup walaupun terjadi exception",
+            "Supaya query lebih cepat",
+            "Karena JDBC tidak bisa dipakai tanpa try",
+            "Supaya SQLException tidak pernah terjadi"
+          ],
+          "answer": 0,
+          "explanation": "Sumber daya wajib ditutup.",
+          "remedial": "Koneksi memakai sumber daya di sisi aplikasi dan server database. try-with-resources memanggil `close()` otomatis di akhir blok, termasuk saat exception terjadi."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "URL JDBC untuk database todolist di MySQL lokal adalah...",
+      "options": [
+        "mysql://localhost/todolist",
+        "jdbc:mysql://localhost:3306/todolist",
+        "http://localhost:3306/todolist",
+        "jdbc:todolist:mysql"
+      ],
+      "answer": 1,
+      "explanation": "jdbc: + jenis + alamat."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca perintah SQL dari input, satu per baris, lalu menjalankannya ke database H2. Sekarang semua perintah dijalankan dengan execute dan selalu mencetak OK, dan program langsung berhenti kalau satu perintah gagal. Ubah supaya perintah yang diawali CREATE tetap mencetak OK, perintah lain (INSERT, UPDATE, DELETE) dijalankan dengan executeUpdate dan mencetak jumlah baris diikuti kata baris, dan perintah yang gagal mencetak \"Gagal: \" diikuti SQLState-nya tanpa menghentikan program.",
+      "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\");\n             Statement st = c.createStatement()) {\n            while (in.hasNextLine()) {\n                String sql = in.nextLine().trim();\n                st.execute(sql);\n                System.out.println(\"OK\");\n            }\n        }\n    }\n}",
+      "solution": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\");\n             Statement st = c.createStatement()) {\n            while (in.hasNextLine()) {\n                String sql = in.nextLine().trim();\n                try {\n                    if (sql.toUpperCase().startsWith(\"CREATE\")) {\n                        st.execute(sql);\n                        System.out.println(\"OK\");\n                    } else {\n                        System.out.println(st.executeUpdate(sql) + \" baris\");\n                    }\n                } catch (SQLException e) {\n                    System.out.println(\"Gagal: \" + e.getSQLState());\n                }\n            }\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "CREATE TABLE stok (nama VARCHAR(20), jumlah INT)\nINSERT INTO stok VALUES ('Pensil', 10), ('Buku', 5)\nUPDATE stok SET jumlah = 0 WHERE nama = 'Buku'\n",
+          "expectedOutput": "OK\n2 baris\n1 baris\n"
+        },
+        {
+          "input": "CREATE TABLE stok (nama VARCHAR(20), jumlah INT)\nINSERT INTO stoks VALUES ('Pensil', 10)\nDELETE FROM stok\n",
+          "expectedOutput": "OK\nGagal: 42S02\n0 baris\n"
+        }
+      ],
+      "hints": [
+        "Periksa awal perintah dengan sql.toUpperCase().startsWith(\"CREATE\").",
+        "Bungkus isi perulangan dengan try-catch SQLException, lalu cetak e.getSQLState()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "JDBC adalah API standar Java untuk database; driver menyesuaikan dengan jenis database.",
+        "DriverManager.getConnection(url, user, sandi) membuka Connection.",
+        "execute untuk CREATE, executeUpdate untuk INSERT/UPDATE/DELETE, executeQuery untuk SELECT.",
+        "Selalu tutup Connection dan Statement dengan try-with-resources."
+      ]
+    }
+  ]
+}

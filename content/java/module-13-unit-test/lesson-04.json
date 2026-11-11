@@ -1,0 +1,224 @@
+{
+  "id": "java-unit-test-04",
+  "moduleId": "unit-test",
+  "order": 4,
+  "title": "Siklus Hidup Test",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di materi sebelumnya setiap test menulis ulang baris yang sama: `new TodoService(new TodoRepositoryMemori())`. Kalau constructor `TodoService` berubah, semua test harus diubah satu per satu.\n\nJUnit menyediakan method khusus yang otomatis dijalankan **sebelum** dan **sesudah** test. Persiapan cukup ditulis sekali.\n\nIbarat dapur restoran: sebelum setiap pesanan dimasak, koki memakai talenan yang bersih. Setelah selesai, talenan dicuci. Setiap pesanan dimulai dari keadaan bersih yang sama, tidak tercampur sisa bahan pesanan sebelumnya."
+    },
+    {
+      "type": "theory",
+      "content": "Empat anotasi siklus hidup:\n\n| Anotasi | Kapan dijalankan | Dipakai untuk |\n|---|---|---|\n| `@BeforeEach` | sebelum **setiap** test | membuat object baru yang diuji |\n| `@AfterEach` | setelah **setiap** test | membersihkan (menghapus file sementara, menutup koneksi) |\n| `@BeforeAll` | **sekali** sebelum semua test di class | persiapan mahal, misalnya menyalakan database uji |\n| `@AfterAll` | **sekali** setelah semua test | mematikan yang dinyalakan di `@BeforeAll` |\n\n`@BeforeAll` dan `@AfterAll` harus `static`, karena dijalankan sebelum ada object test.\n\nHal penting: JUnit membuat **object class test yang baru untuk setiap method test**. Field seperti `service` tidak terbawa dari satu test ke test berikutnya. Itulah yang membuat test saling bebas.\n\nSusunan isi test yang dipakai hampir semua tim disebut **Arrange, Act, Assert** (siapkan, jalankan, periksa):\n\n```java\n@Test\nvoid hapusMengosongkanDaftar() {\n    service.tambah(\"Belajar\");              // Arrange\n    service.hapus(1);                       // Act\n    assertTrue(service.semua().isEmpty());  // Assert\n}\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nclass TodoServiceTest {\n    TodoRepositoryMemori repo;\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        repo = new TodoRepositoryMemori();\n        service = new TodoService(repo);\n    }\n\n    @Test\n    void tambahMemberiNomorSatu() {\n        assertEquals(1, service.tambah(\"Belajar\").getId());\n    }\n}\n```\n\nUrutan untuk dua test A dan B:\n\n```text\n@BeforeAll (sekali)\n@BeforeEach → test A → @AfterEach\n@BeforeEach → test B → @AfterEach\n@AfterAll (sekali)\n```\n\nSetiap test mendapat `repo` dan `service` yang baru, jadi todo pertama di test mana pun selalu bernomor 1."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(HitungTest.class);\n    }\n}\n\nclass HitungTest {\n    int hitungan = 0;\n\n    @BeforeEach\n    void sebelum() {\n        System.out.println(\"sebelum test, hitungan = \" + hitungan);\n    }\n\n    @Test\n    void pertama() {\n        hitungan++;\n        assertEquals(1, hitungan);\n    }\n\n    @Test\n    void kedua() {\n        hitungan++;\n        assertEquals(2, hitungan);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: test kedua menaikkan hitungan lalu mengharapkan 2. Baris ringkasan apa yang muncul?",
+        "options": [
+          "Tests run: 2, Failures: 1, Errors: 0, Skipped: 0",
+          "Tests run: 2, Failures: 0, Errors: 0, Skipped: 0",
+          "Tests run: 2, Failures: 2, Errors: 0, Skipped: 0",
+          "Tests run: 1, Failures: 0, Errors: 0, Skipped: 0"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 14,
+          "note": "Field biasa, bukan static."
+        },
+        {
+          "line": 18,
+          "note": "Selalu mencetak 0 karena object test selalu baru."
+        },
+        {
+          "line": 30,
+          "note": "Gagal: hitungan di object baru ini hanya 1."
+        }
+      ],
+      "explanation": "Banyak pemula mengira hitungan terbawa dari test pertama ke test kedua. Kenyataannya JUnit membuat object HitungTest baru untuk setiap test, sehingga hitungan selalu mulai dari 0. Baris sebelum test selalu mencetak 0, dan test kedua gagal dengan expected: <2> but was: <1>.\n\nSifat ini disengaja: test tidak boleh bergantung pada test lain.",
+      "tryThis": [
+        {
+          "task": "Ubah harapan test kedua menjadi 1. Sekarang semua lulus?",
+          "hint": null
+        },
+        {
+          "task": "Coba ubah field menjadi static int hitungan. Kenapa hasilnya bisa berubah, dan kenapa itu berbahaya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `@BeforeAll` tidak `static`**\n\nJUnit menolak menjalankan class test itu dengan pesan `@BeforeAll method ... must be static`. Tambahkan `static`.\n\n**2. Menyimpan object yang diuji di field `static`**\n\n```java\nstatic TodoService service = new TodoService(new TodoRepositoryMemori());\n```\n\nObject yang sama dipakai bersama oleh semua test. Todo dari test A masih ada di test B, dan hasilnya tergantung urutan test. Buat object di `@BeforeEach`.\n\n**3. Persiapan berat di `@BeforeEach`**\n\nMenyalakan database di setiap test membuat ratusan test berjalan sangat lambat. Persiapan yang mahal dan aman dipakai bersama diletakkan di `@BeforeAll`.\n\n**4. Lupa membereskan sumber daya luar**\n\nFile sementara atau koneksi yang dibuka di test tetapi tidak ditutup di `@AfterEach` akan menumpuk dan membuat test berikutnya gagal secara aneh."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- **Satu test, satu keadaan awal yang bersih.** Tim menganggap test yang lulus hanya kalau dijalankan dengan urutan tertentu sebagai bug pada test-nya (\"flaky test\").\n- **`@TempDir`** menyediakan folder sementara yang otomatis dihapus, cocok untuk menguji `TodoRepositoryFile`:\n\n```java\n@TempDir\nPath folder;\n\n@Test\nvoid simpanKeFile() {\n    TodoRepositoryFile repo = new TodoRepositoryFile(folder.resolve(\"todo.txt\").toString());\n    ...\n}\n```\n\n- **Testcontainers** sering dipakai di `@BeforeAll` untuk menyalakan database MySQL sungguhan di Docker khusus untuk test, lalu mematikannya di akhir.\n- Komentar `// Arrange`, `// Act`, `// Assert` atau `// given`, `// when`, `// then` umum dipakai supaya test mudah dibaca."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Uji Todolist 4: Persiapan Bersama",
+      "pembuka": "Kita rapikan `TodoServiceTest` supaya persiapannya cukup ditulis sekali.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Repository dan service dibuat di `@BeforeEach`, jadi test cukup memakai field `service`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    TodoRepositoryMemori repo;\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        repo = new TodoRepositoryMemori();\n        service = new TodoService(repo);\n    }\n\n    @Test\n    void tambahMemberiNomorSatu() {\n        Todo t = service.tambah(\"Belajar\");\n        assertEquals(1, t.getId());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ tambahMemberiNomorSatu()\n\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0",
+          "otomatis": true,
+          "benar": "Test-nya jadi pendek: hanya bagian yang penting.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan test `hapusMengosongkanDaftar`: tambah satu todo, hapus nomor 1, lalu pastikan `service.semua().isEmpty()` bernilai true.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    TodoRepositoryMemori repo;\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        repo = new TodoRepositoryMemori();\n        service = new TodoService(repo);\n    }\n\n    @Test\n    void tambahMemberiNomorSatu() {\n        Todo t = service.tambah(\"Belajar\");\n        assertEquals(1, t.getId());\n    }\n\n    @Test\n    void hapusMengosongkanDaftar() {\n        service.tambah(\"Belajar\");\n        service.hapus(1);\n        assertTrue(service.semua().isEmpty());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ hapusMengosongkanDaftar()\n  ✔ tambahMemberiNomorSatu()\n\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "void\\s+hapusMengosongkanDaftar\\s*\\(\\s*\\)",
+              "pesan": "beri nama method `hapusMengosongkanDaftar`."
+            },
+            {
+              "pola": "service\\.hapus\\s*\\(\\s*1\\s*\\)",
+              "pesan": "hapus dengan `service.hapus(1)`."
+            },
+            {
+              "pola": "assertTrue\\s*\\(\\s*service\\.semua\\(\\)\\.isEmpty\\(\\)\\s*\\)",
+              "pesan": "periksa `assertTrue(service.semua().isEmpty())`."
+            }
+          ],
+          "benar": "Kedua test lulus, dan keduanya mendapat todo bernomor 1 karena service-nya selalu baru.",
+          "petunjuk": "Tidak perlu membuat service lagi, pakai field `service` yang sudah disiapkan."
+        },
+        {
+          "arahan": "Mari lihat kapan `@BeforeEach` berjalan. Tambahkan `System.out.println(\"Menyiapkan service baru\");` di baris pertama method `siapkan`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    TodoRepositoryMemori repo;\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        System.out.println(\"Menyiapkan service baru\");\n        repo = new TodoRepositoryMemori();\n        service = new TodoService(repo);\n    }\n\n    @Test\n    void tambahMemberiNomorSatu() {\n        Todo t = service.tambah(\"Belajar\");\n        assertEquals(1, t.getId());\n    }\n\n    @Test\n    void hapusMengosongkanDaftar() {\n        service.tambah(\"Belajar\");\n        service.hapus(1);\n        assertTrue(service.semua().isEmpty());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\nMenyiapkan service baru\n  ✔ hapusMengosongkanDaftar()\nMenyiapkan service baru\n  ✔ tambahMemberiNomorSatu()\n\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "println\\s*\\(\\s*\"Menyiapkan service baru\"\\s*\\)",
+              "pesan": "cetak `\"Menyiapkan service baru\"` di `siapkan()`."
+            }
+          ],
+          "benar": "Tercetak dua kali, sekali sebelum setiap test.",
+          "petunjuk": "Tulis println di dalam method `siapkan()`, sebelum `repo = ...`."
+        },
+        {
+          "arahan": "Tambahkan method `@AfterEach` bernama `bereskan` yang mencetak `Selesai satu test`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    TodoRepositoryMemori repo;\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        System.out.println(\"Menyiapkan service baru\");\n        repo = new TodoRepositoryMemori();\n        service = new TodoService(repo);\n    }\n\n    @AfterEach\n    void bereskan() {\n        System.out.println(\"Selesai satu test\");\n    }\n\n    @Test\n    void tambahMemberiNomorSatu() {\n        Todo t = service.tambah(\"Belajar\");\n        assertEquals(1, t.getId());\n    }\n\n    @Test\n    void hapusMengosongkanDaftar() {\n        service.tambah(\"Belajar\");\n        service.hapus(1);\n        assertTrue(service.semua().isEmpty());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\nMenyiapkan service baru\nSelesai satu test\n  ✔ hapusMengosongkanDaftar()\nMenyiapkan service baru\nSelesai satu test\n  ✔ tambahMemberiNomorSatu()\n\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "@AfterEach\\s+void\\s+bereskan\\s*\\(\\s*\\)",
+              "pesan": "beri anotasi `@AfterEach` pada method `void bereskan()`."
+            }
+          ],
+          "benar": "Urutannya: siapkan, test, bereskan, untuk setiap test.",
+          "petunjuk": "Bentuknya sama dengan `siapkan`, hanya anotasinya `@AfterEach`."
+        },
+        {
+          "arahan": "Tantangan: tambahkan method `@BeforeAll` bernama `mulai` yang mencetak `Mulai menguji TodoService`. Ingat syarat khusus `@BeforeAll`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    TodoRepositoryMemori repo;\n    TodoService service;\n\n    @BeforeAll\n    static void mulai() {\n        System.out.println(\"Mulai menguji TodoService\");\n    }\n\n    @BeforeEach\n    void siapkan() {\n        System.out.println(\"Menyiapkan service baru\");\n        repo = new TodoRepositoryMemori();\n        service = new TodoService(repo);\n    }\n\n    @AfterEach\n    void bereskan() {\n        System.out.println(\"Selesai satu test\");\n    }\n\n    @Test\n    void tambahMemberiNomorSatu() {\n        Todo t = service.tambah(\"Belajar\");\n        assertEquals(1, t.getId());\n    }\n\n    @Test\n    void hapusMengosongkanDaftar() {\n        service.tambah(\"Belajar\");\n        service.hapus(1);\n        assertTrue(service.semua().isEmpty());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\nMulai menguji TodoService\nMenyiapkan service baru\nSelesai satu test\n  ✔ hapusMengosongkanDaftar()\nMenyiapkan service baru\nSelesai satu test\n  ✔ tambahMemberiNomorSatu()\n\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "@BeforeAll\\s+static\\s+void\\s+mulai\\s*\\(\\s*\\)",
+              "pesan": "tulis `@BeforeAll static void mulai()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Tercetak sekali saja, sebelum test pertama.",
+          "petunjuk": "Method `@BeforeAll` wajib `static`."
+        }
+      ],
+      "penutup": "Sekarang kamu tahu urutan lengkap siklus hidup test. Di proyek sungguhan println seperti ini tidak dipakai, cukup `@BeforeEach` untuk persiapan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kapan method yang diberi @BeforeEach dijalankan?",
+          "options": [
+            "Sekali sebelum semua test",
+            "Sebelum setiap method test",
+            "Setelah setiap method test",
+            "Hanya kalau ada test yang gagal"
+          ],
+          "answer": 1,
+          "explanation": "Each = setiap.",
+          "remedial": "`@BeforeEach` dijalankan ulang sebelum setiap test, sehingga setiap test mendapat object yang baru. Yang dijalankan sekali saja adalah `@BeforeAll`."
+        },
+        {
+          "question": "Kenapa @BeforeAll harus static?",
+          "options": [
+            "Supaya lebih cepat",
+            "Karena hanya boleh dipakai di class static",
+            "Karena dijalankan sebelum object class test dibuat",
+            "Karena JUnit hanya membaca method static"
+          ],
+          "answer": 2,
+          "explanation": "Belum ada object saat @BeforeAll dijalankan.",
+          "remedial": "JUnit membuat object class test baru untuk setiap test. `@BeforeAll` dijalankan sekali sebelum semua itu, saat belum ada object, sehingga hanya method `static` yang bisa dipanggil."
+        },
+        {
+          "question": "Field service dibuat di @BeforeEach. Test A menambah satu todo. Saat test B dimulai, berapa todo di service?",
+          "options": [
+            "1",
+            "2",
+            "Tergantung urutan test",
+            "0"
+          ],
+          "answer": 3,
+          "explanation": "Setiap test mendapat service baru.",
+          "remedial": "`@BeforeEach` membuat `TodoRepositoryMemori` dan `TodoService` baru sebelum test B. Todo dari test A ada di object lama yang sudah tidak dipakai."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Susunan Arrange, Act, Assert dalam sebuah test berarti...",
+      "options": [
+        "Siapkan data, jalankan perilaku yang diuji, lalu periksa hasilnya",
+        "Atur urutan test, jalankan semua test, laporkan hasil",
+        "Tulis assertion dulu, baru kode program",
+        "Siapkan database, hapus database, buat database lagi"
+      ],
+      "answer": 0,
+      "explanation": "Pola isi test yang paling umum."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "GudangTest memakai satu object Gudang static yang dipakai bersama oleh semua test, sehingga barang dari test lain ikut terhitung dan test jumlahJenisBarang gagal. Ubah GudangTest supaya setiap test mendapat Gudang baru: hapus pembuatan object static, tambahkan field biasa, lalu buat object-nya di method @BeforeEach. Class Gudang tidak perlu diubah.",
+      "starterCode": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(GudangTest.class);\n    }\n}\n\nclass GudangTest {\n    static Gudang gudang = new Gudang();\n\n    @Test\n    void barangBaruStokNol() {\n        gudang.daftarkan(\"Pensil\");\n        assertEquals(0, gudang.stok(\"Pensil\"));\n    }\n\n    @Test\n    void masukMenambahStok() {\n        gudang.daftarkan(\"Pensil\");\n        gudang.masuk(\"Pensil\", 10);\n        assertEquals(10, gudang.stok(\"Pensil\"));\n    }\n\n    @Test\n    void jumlahJenisBarang() {\n        gudang.daftarkan(\"Buku\");\n        assertEquals(1, gudang.jumlahJenis());\n    }\n}\n\nclass Gudang {\n    private final Map<String, Integer> stok = new HashMap<>();\n\n    void daftarkan(String nama) {\n        stok.putIfAbsent(nama, 0);\n    }\n\n    void masuk(String nama, int jumlah) {\n        stok.put(nama, stok.get(nama) + jumlah);\n    }\n\n    int stok(String nama) {\n        return stok.get(nama);\n    }\n\n    int jumlahJenis() {\n        return stok.size();\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(GudangTest.class);\n    }\n}\n\nclass GudangTest {\n    Gudang gudang;\n\n    @BeforeEach\n    void siapkan() {\n        gudang = new Gudang();\n    }\n\n    @Test\n    void barangBaruStokNol() {\n        gudang.daftarkan(\"Pensil\");\n        assertEquals(0, gudang.stok(\"Pensil\"));\n    }\n\n    @Test\n    void masukMenambahStok() {\n        gudang.daftarkan(\"Pensil\");\n        gudang.masuk(\"Pensil\", 10);\n        assertEquals(10, gudang.stok(\"Pensil\"));\n    }\n\n    @Test\n    void jumlahJenisBarang() {\n        gudang.daftarkan(\"Buku\");\n        assertEquals(1, gudang.jumlahJenis());\n    }\n}\n\nclass Gudang {\n    private final Map<String, Integer> stok = new HashMap<>();\n\n    void daftarkan(String nama) {\n        stok.putIfAbsent(nama, 0);\n    }\n\n    void masuk(String nama, int jumlah) {\n        stok.put(nama, stok.get(nama) + jumlah);\n    }\n\n    int stok(String nama) {\n        return stok.get(nama);\n    }\n\n    int jumlahJenis() {\n        return stok.size();\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "GudangTest\n  ✔ barangBaruStokNol()\n  ✔ jumlahJenisBarang()\n  ✔ masukMenambahStok()\n\nTests run: 3, Failures: 0, Errors: 0, Skipped: 0\n"
+        }
+      ],
+      "hints": [
+        "Ganti baris static menjadi field biasa: Gudang gudang;",
+        "Tambahkan @BeforeEach void siapkan() { gudang = new Gudang(); }"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@BeforeEach dan @AfterEach berjalan di sekitar setiap test.",
+        "@BeforeAll dan @AfterAll berjalan sekali dan harus static.",
+        "JUnit membuat object class test baru untuk setiap test.",
+        "Isi test disusun Arrange, Act, Assert."
+      ]
+    }
+  ]
+}

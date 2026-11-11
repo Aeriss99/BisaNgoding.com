@@ -1,0 +1,170 @@
+{
+  "id": "java-logging-06",
+  "moduleId": "logging",
+  "order": 6,
+  "title": "Menulis Log ke File",
+  "estimatedMinutes": 15,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Log di layar hilang begitu terminal ditutup. Aplikasi di server berjalan berhari-hari tanpa ada yang menonton layarnya. Log harus disimpan supaya bisa dibaca nanti, misalnya saat pengguna melapor \"kemarin jam 3 sore aplikasinya error\".\n\nLogback menulis ke file lewat **FileAppender** dan **RollingFileAppender**.\n\nIbarat buku harian kasir: setiap transaksi dicatat di buku, bukan hanya diucapkan. Kalau buku penuh, kasir mengganti dengan buku baru dan menyimpan buku lama di lemari, lalu buku yang sudah terlalu tua dibuang."
+    },
+    {
+      "type": "theory",
+      "content": "Satu logger bisa menulis ke beberapa appender sekaligus. Pengaturan di bawah menulis ke layar **dan** ke file `logs/todolist.log`:\n\n```xml\n<appender name=\"FILE\" class=\"ch.qos.logback.core.FileAppender\">\n  <file>logs/todolist.log</file>\n  <encoder>\n    <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>\n  </encoder>\n</appender>\n\n<root level=\"INFO\">\n  <appender-ref ref=\"CONSOLE\"/>\n  <appender-ref ref=\"FILE\"/>\n</root>\n```\n\nSetiap appender boleh punya pola sendiri. Di file, tanggal lengkap ditulis (`yyyy-MM-dd`) karena file dibaca berhari-hari kemudian. FileAppender **menambahkan** ke akhir file yang sudah ada, tidak menimpanya.\n\nFile yang terus ditambah akan membengkak. **RollingFileAppender** memotongnya: membuat file baru setiap hari atau setiap ukuran tertentu, dan menghapus file lama:\n\n```xml\n<appender name=\"FILE\" class=\"ch.qos.logback.core.rolling.RollingFileAppender\">\n  <file>logs/todolist.log</file>\n  <rollingPolicy class=\"ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy\">\n    <fileNamePattern>logs/todolist-%d{yyyy-MM-dd}.%i.log</fileNamePattern>\n    <maxFileSize>10MB</maxFileSize>\n    <maxHistory>30</maxHistory>\n    <totalSizeCap>1GB</totalSizeCap>\n  </rollingPolicy>\n  ...\n</appender>\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDengan pengaturan rolling di atas, isi folder `logs` setelah beberapa hari kira-kira:\n\n```text\ntodolist.log                  file hari ini yang sedang ditulis\ntodolist-2026-11-10.0.log     kemarin\ntodolist-2026-11-09.0.log\ntodolist-2026-11-09.1.log     hari itu lebih dari 10MB, jadi dipotong dua\n```\n\n| Pengaturan | Artinya |\n|---|---|\n| `fileNamePattern` | nama file lama; `%d` tanggal, `%i` nomor potongan |\n| `maxFileSize` | ukuran maksimal satu file sebelum dipotong |\n| `maxHistory` | jumlah hari file lama disimpan |\n| `totalSizeCap` | batas total semua file log |\n\nPerintah terminal yang paling sering dipakai untuk membaca log: `tail -n 20 file` (20 baris terakhir), `tail -f file` (terus mengikuti baris baru), dan `grep ERROR file` (hanya baris berisi ERROR)."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai FileAppender biasa di server**\n\nFile log tumbuh terus sampai disk penuh, dan aplikasi (bahkan server) berhenti bekerja. Di server selalu pakai RollingFileAppender dengan `maxHistory` dan `totalSizeCap`.\n\n**2. Folder log tidak bisa ditulis**\n\nJalur seperti `/var/log/todolist` butuh izin. Logback mencetak error-nya di awal keluaran dan log tidak tersimpan. Periksa izin folder atau pakai jalur di folder aplikasi.\n\n**3. Lupa `appender-ref`**\n\nAppender FILE sudah dibuat tapi tidak dirujuk di `root`, sehingga file tidak pernah dibuat.\n\n**4. Menyimpan log di dalam folder proyek lalu ikut ter-commit**\n\nTambahkan `logs/` ke `.gitignore`. Log berisi data dari laptop developer yang tidak perlu ada di repository."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Aplikasi di **container** (Docker, Kubernetes) biasanya **tidak** menulis log ke file. Log cukup ditulis ke konsol, lalu platform mengumpulkannya dari semua container ke satu tempat. Aturan ini dikenal dari pedoman \"The Twelve-Factor App\".\n- Log dari banyak server dikumpulkan ke satu sistem pencarian seperti **ELK** (Elasticsearch, Logstash, Kibana), **Grafana Loki**, atau layanan seperti Datadog. Developer mencari dengan kata kunci, level, atau id permintaan (materi berikutnya), tidak lagi membuka file satu per satu.\n- Log disimpan dengan batas waktu yang jelas, misalnya 30 hari, sesuai aturan perusahaan dan perlindungan data.\n\n```bash\ngrep \"ERROR\" logs/todolist.log | tail -n 5     # lima error terakhir\n```"
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Log Todolist 6: Log Tersimpan di File",
+      "folder": "~/todolist",
+      "pembuka": "Aku menambahkan appender FILE ke `logback.xml` Todolist. Mari kita lihat log yang tersimpan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Ini pengaturannya sekarang.",
+          "terima": [
+            "cat src/main/resources/logback.xml"
+          ],
+          "keluaran": "<configuration>\n  <appender name=\"CONSOLE\" class=\"ch.qos.logback.core.ConsoleAppender\">\n    <encoder>\n      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>\n    </encoder>\n  </appender>\n\n  <appender name=\"FILE\" class=\"ch.qos.logback.core.FileAppender\">\n    <file>logs/todolist.log</file>\n    <encoder>\n      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>\n    </encoder>\n  </appender>\n\n  <root level=\"INFO\">\n    <appender-ref ref=\"CONSOLE\"/>\n    <appender-ref ref=\"FILE\"/>\n  </root>\n</configuration>",
+          "petunjuk": "",
+          "otomatis": true,
+          "benar": "Dua appender: CONSOLE dengan pola pendek, FILE dengan tanggal dan thread. ROOT menulis ke keduanya.\n\nSekarang giliranmu."
+        },
+        {
+          "arahan": "Jalankan aplikasinya.",
+          "terima": [
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q",
+            "mvn -q compile exec:java -Dexec.mainClass=com.bisangoding.todolist.App"
+          ],
+          "keluaran": "13:08:02.750 INFO  com.bisangoding.todolist.App - Aplikasi Todolist mulai\n13:08:02.753 INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 1. [ ] Belajar logging\n13:08:02.759 INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 2. [ ] Beli kopi\n13:08:02.761 WARN  com.bisangoding.todolist.App - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\n13:08:02.762 INFO  com.bisangoding.todolist.App - Aplikasi selesai",
+          "petunjuk": "Perintahnya `mvn -q compile exec:java`.",
+          "benar": "Di layar tampil pola pendek. Bersamaan dengan itu, Logback menulis ke file."
+        },
+        {
+          "arahan": "Lihat isi folder `logs`.",
+          "terima": [
+            "ls logs",
+            "ls logs/"
+          ],
+          "keluaran": "todolist.log",
+          "petunjuk": "Pakai `ls logs`.",
+          "benar": "File `todolist.log` dibuat otomatis, termasuk folder `logs`-nya."
+        },
+        {
+          "arahan": "Tampilkan isi file log itu.",
+          "terima": [
+            "cat logs/todolist.log"
+          ],
+          "keluaran": "2026-11-11 13:08:02.750 [com.bisangoding.todolist.App.main()] INFO  com.bisangoding.todolist.App - Aplikasi Todolist mulai\n2026-11-11 13:08:02.753 [com.bisangoding.todolist.App.main()] INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 1. [ ] Belajar logging\n2026-11-11 13:08:02.759 [com.bisangoding.todolist.App.main()] INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 2. [ ] Beli kopi\n2026-11-11 13:08:02.761 [com.bisangoding.todolist.App.main()] WARN  com.bisangoding.todolist.App - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\n2026-11-11 13:08:02.762 [com.bisangoding.todolist.App.main()] INFO  com.bisangoding.todolist.App - Aplikasi selesai",
+          "petunjuk": "Pakai `cat` dengan jalur file lengkap.",
+          "benar": "Isinya sama dengan di layar, tapi dengan tanggal lengkap dan nama thread sesuai pola appender FILE."
+        },
+        {
+          "arahan": "Aku menjalankan aplikasinya sekali lagi. Hitung jumlah baris file log dengan `wc -l`.",
+          "terima": [
+            "wc -l logs/todolist.log"
+          ],
+          "keluaran": "10 logs/todolist.log",
+          "petunjuk": "Ketik `wc -l logs/todolist.log`.",
+          "benar": "10 baris: 5 dari jalan pertama dan 5 dari jalan kedua. FileAppender menambahkan ke akhir file, tidak menimpa."
+        },
+        {
+          "arahan": "Tampilkan hanya 3 baris terakhir file log.",
+          "terima": [
+            "tail -n 3 logs/todolist.log",
+            "tail -3 logs/todolist.log"
+          ],
+          "keluaran": "2026-11-11 13:08:05.652 [com.bisangoding.todolist.App.main()] INFO  c.bisangoding.todolist.TodoService - Todo baru disimpan: 2. [ ] Beli kopi\n2026-11-11 13:08:05.654 [com.bisangoding.todolist.App.main()] WARN  com.bisangoding.todolist.App - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\n2026-11-11 13:08:05.655 [com.bisangoding.todolist.App.main()] INFO  com.bisangoding.todolist.App - Aplikasi selesai",
+          "petunjuk": "Perintah untuk melihat bagian akhir file adalah `tail`, dengan pilihan `-n` untuk jumlah baris.",
+          "tantangan": true,
+          "benar": "Waktunya 13:08:05, yaitu jalan kedua. `tail` adalah cara tercepat melihat apa yang baru terjadi."
+        }
+      ],
+      "penutup": "Log Todolist sekarang tersimpan dan bisa dibaca kapan saja. Di server, ganti dengan RollingFileAppender supaya disk tidak penuh."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa server sebaiknya memakai RollingFileAppender, bukan FileAppender biasa?",
+          "options": [
+            "Supaya log lebih cepat ditulis",
+            "Supaya file log dipotong dan yang lama dihapus sebelum disk penuh",
+            "Karena FileAppender tidak bisa menulis tanggal",
+            "Supaya log tampil di layar"
+          ],
+          "answer": 1,
+          "explanation": "File log terus membesar.",
+          "remedial": "FileAppender menambah ke satu file tanpa batas. Di server yang berjalan berbulan-bulan, file itu bisa menghabiskan disk. RollingFileAppender memotong per hari atau ukuran, dan menghapus file yang lebih tua dari `maxHistory`."
+        },
+        {
+          "question": "Aplikasi dijalankan dua kali dengan FileAppender yang sama. Isi file log-nya...",
+          "options": [
+            "Hanya berisi log jalan kedua",
+            "Hanya berisi log jalan pertama",
+            "Berisi log dari kedua jalan, yang kedua ditambahkan di bawah",
+            "Kosong karena file dikunci"
+          ],
+          "answer": 2,
+          "explanation": "FileAppender menambahkan.",
+          "remedial": "Bawaan FileAppender adalah menambahkan (append) ke akhir file. Karena itu jumlah baris bertambah setiap kali aplikasi dijalankan."
+        },
+        {
+          "question": "Perintah untuk melihat 20 baris terakhir file log adalah...",
+          "options": [
+            "head -n 20 logs/todolist.log",
+            "cat -20 logs/todolist.log",
+            "ls -n 20 logs",
+            "tail -n 20 logs/todolist.log"
+          ],
+          "answer": 3,
+          "explanation": "tail = ekor file.",
+          "remedial": "`tail` menampilkan bagian akhir file, tempat catatan terbaru berada. `head` menampilkan bagian awal. `tail -f` terus mengikuti baris baru selama aplikasi berjalan."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Di aplikasi yang berjalan di container Docker, log biasanya...",
+      "options": [
+        "Ditulis ke konsol lalu dikumpulkan oleh platform",
+        "Ditulis ke file di dalam container dan dibiarkan",
+        "Dikirim lewat email ke developer",
+        "Tidak ditulis sama sekali"
+      ],
+      "answer": 0,
+      "explanation": "Pedoman Twelve-Factor App."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi nama class appender yang menulis ke file dan memotongnya per hari.",
+      "code": "<appender name=\"FILE\" class=\"ch.qos.logback.core.rolling.___\">",
+      "answers": [
+        "RollingFileAppender"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "FileAppender menulis log ke file dan menambahkan di akhir file.",
+        "Satu logger bisa menulis ke beberapa appender, masing-masing dengan pola sendiri.",
+        "Server memakai RollingFileAppender dengan maxFileSize, maxHistory, dan totalSizeCap.",
+        "Baca log dengan tail -n, tail -f, dan grep."
+      ]
+    }
+  ],
+  "runnable": false
+}

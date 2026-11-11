@@ -1,0 +1,228 @@
+{
+  "id": "java-unit-test-08",
+  "moduleId": "unit-test",
+  "order": 8,
+  "title": "Verifikasi Interaksi",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ada method yang tidak mengembalikan apa-apa, tetapi tugasnya **menyuruh** object lain: `selesaikan` menyuruh repository menyimpan perubahan, pendaftaran menyuruh layanan email mengirim pesan. Hasilnya tidak bisa diperiksa dengan `assertEquals`. Yang perlu diperiksa adalah: apakah perintahnya benar-benar diberikan, dengan isi yang benar?\n\nMock mencatat setiap panggilan yang diterimanya. `verify` membaca catatan itu.\n\nIbarat buku tamu di pos satpam: satpam tidak tahu apa yang tamu lakukan di dalam gedung, tapi dari buku tamu bisa dipastikan siapa yang datang, jam berapa, dan berapa kali."
+    },
+    {
+      "type": "theory",
+      "content": "| Penulisan | Lulus kalau |\n|---|---|\n| `verify(repo).simpan(\"Belajar\")` | `simpan(\"Belajar\")` dipanggil tepat sekali |\n| `verify(repo, times(2)).simpan(\"Belajar\")` | dipanggil tepat 2 kali |\n| `verify(repo, never()).simpan(anyString())` | `simpan` tidak pernah dipanggil, dengan argumen apa pun |\n| `verify(repo, atLeastOnce()).semua()` | dipanggil minimal sekali |\n| `verifyNoMoreInteractions(repo)` | tidak ada panggilan lain selain yang sudah di-verify |\n\n**Argument matcher** mewakili \"argumen apa pun yang cocok\": `anyString()`, `anyInt()`, `any(Todo.class)`, `eq(\"Belajar\")`. Aturannya: kalau satu argumen memakai matcher, **semua** argumen di panggilan itu harus matcher.\n\n```java\nverify(gudang).kurangi(anyString(), anyInt());   // benar\nverify(gudang).kurangi(\"Kopi\", anyInt());        // error: campur nilai dan matcher\nverify(gudang).kurangi(eq(\"Kopi\"), anyInt());    // benar\n```\n\nMatcher ada di `org.mockito.ArgumentMatchers`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMemeriksa bahwa todo yang diperbarui sudah berstatus selesai, memakai **ArgumentCaptor** untuk menangkap argumen yang dikirim ke mock:\n\n```java\n@Test\nvoid yangDiperbaruiSudahSelesai() {\n    when(repo.cari(1)).thenReturn(new Todo(1, \"Belajar\"));\n    service.selesaikan(1);\n\n    ArgumentCaptor<Todo> tangkap = ArgumentCaptor.forClass(Todo.class);\n    verify(repo).perbarui(tangkap.capture());\n    assertTrue(tangkap.getValue().isSelesai());\n}\n```\n\n`tangkap.capture()` ditulis di tempat argumen saat verify. Setelah itu `tangkap.getValue()` berisi object yang benar-benar dikirim service, dan bisa diperiksa dengan assertion biasa.\n\nPembagian tugasnya: `when` mengatur apa yang **masuk** ke service dari mock, `verify` memeriksa apa yang **keluar** dari service ke mock."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.mockito.ArgumentCaptor;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(NotifikasiTest.class);\n    }\n}\n\nclass NotifikasiTest {\n    Pengirim pengirim;\n    Pendaftaran daftar;\n\n    @BeforeEach\n    void siapkan() {\n        pengirim = mock(Pengirim.class);\n        daftar = new Pendaftaran(pengirim);\n    }\n\n    @Test\n    void kirimSambutan() {\n        daftar.daftar(\"sari@contoh.id\");\n        verify(pengirim).kirim(\"sari@contoh.id\", \"Selamat datang!\");\n    }\n\n    @Test\n    void emailSalahTidakDikirimi() {\n        daftar.daftar(\"bukan-email\");\n        verify(pengirim, never()).kirim(anyString(), anyString());\n    }\n}\n\ninterface Pengirim {\n    void kirim(String email, String pesan);\n}\n\nclass Pendaftaran {\n    private final Pengirim pengirim;\n\n    Pendaftaran(Pengirim pengirim) {\n        this.pengirim = pengirim;\n    }\n\n    void daftar(String email) {\n        pengirim.kirim(email, \"Selamat bergabung!\");\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: kode Pendaftaran mengirim \"Selamat bergabung!\". Baris pertama pesan gagal di bawah kirimSambutan() adalah...",
+        "options": [
+          "Argument(s) are different! Wanted:",
+          "Wanted but not invoked:",
+          "Wanted 1 time:",
+          "expected: <Selamat datang!> but was: <Selamat bergabung!>"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 29,
+          "note": "Test mengharapkan pesan ini."
+        },
+        {
+          "line": 35,
+          "note": "Semua argumen memakai matcher."
+        },
+        {
+          "line": 51,
+          "note": "Pesannya berbeda, dan email tidak diperiksa sama sekali."
+        }
+      ],
+      "explanation": "Test pertama gagal karena kirim memang dipanggil, tapi dengan argumen yang berbeda. Mockito menampilkan panggilan yang diharapkan dan panggilan yang sebenarnya terjadi.\n\nTest kedua juga gagal: Pendaftaran tidak memeriksa alamat email, jadi \"bukan-email\" tetap dikirimi pesan. verify dengan never() menemukan bug yang tidak terlihat dari nilai kembalian.",
+      "tryThis": [
+        {
+          "task": "Ubah pesan di Pendaftaran menjadi \"Selamat datang!\". Test mana yang masih gagal?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan if (!email.contains(\"@\")) return; di awal method daftar.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mencampur nilai biasa dan matcher**\n\n`verify(gudang).kurangi(\"Kopi\", anyInt())` membuat Mockito melempar `InvalidUseOfMatchersException`. Bungkus nilai biasa dengan `eq(\"Kopi\")`.\n\n**2. Verify untuk setiap panggilan**\n\nMemeriksa semua hal, termasuk `cari` yang hanya dipakai untuk mengambil data, membuat test rapuh: sedikit perubahan cara kerja service membuat test gagal walaupun hasilnya benar. Verify yang penting saja, biasanya perintah yang mengubah sesuatu (`simpan`, `hapus`, `kirim`).\n\n**3. Verify sebelum kode dijalankan**\n\n`verify` hanya membaca catatan panggilan yang sudah terjadi. Tulis setelah bagian Act.\n\n**4. Lupa memeriksa skenario \"tidak boleh dipanggil\"**\n\nSaat judul ditolak, pastikan juga data tidak tersimpan: `verify(repo, never()).simpan(anyString())`. Banyak bug lolos karena hanya exception-nya yang diperiksa."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Verify paling sering dipakai untuk efek samping ke luar aplikasi: mengirim email, memotong saldo, mengirim pesan ke antrian (Kafka, RabbitMQ). Contoh nyata: \"pembayaran gagal tidak boleh memanggil `kirimStruk`\".\n- Gaya BDD memakai `then(...).should()`:\n\n```java\nimport static org.mockito.BDDMockito.then;\n\nthen(repo).should().simpan(\"Belajar\");      // sama dengan verify(repo).simpan(\"Belajar\")\nthen(repo).should(never()).hapus(anyInt());\n```\n\n- `InOrder` memeriksa urutan panggilan, misalnya \"saldo dipotong sebelum barang dikirim\":\n\n```java\nInOrder urutan = inOrder(saldo, kurir);\nurutan.verify(saldo).potong(50000);\nurutan.verify(kurir).kirim(pesanan);\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Uji Todolist 8: Apa yang Disuruh Service",
+      "pembuka": "Sekarang kita periksa perintah yang dikirim `TodoService` ke repository.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Service harus menyimpan judul yang sudah dirapikan.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.mockito.ArgumentCaptor;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    TodoRepository repo;\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        repo = mock(TodoRepository.class);\n        service = new TodoService(repo);\n    }\n\n    @Test\n    void tambahMenyimpanJudulRapi() {\n        service.tambah(\"  Belajar  \");\n        verify(repo).simpan(\"Belajar\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ tambahMenyimpanJudulRapi()\n\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0",
+          "otomatis": true,
+          "benar": "`verify` lulus: `simpan` dipanggil sekali dengan `\"Belajar\"`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan test `judulKosongTidakDisimpan`: setelah `assertThrows` untuk `service.tambah(\" \")`, pastikan `simpan` tidak pernah dipanggil dengan argumen apa pun.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.mockito.ArgumentCaptor;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    TodoRepository repo;\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        repo = mock(TodoRepository.class);\n        service = new TodoService(repo);\n    }\n\n    @Test\n    void tambahMenyimpanJudulRapi() {\n        service.tambah(\"  Belajar  \");\n        verify(repo).simpan(\"Belajar\");\n    }\n\n    @Test\n    void judulKosongTidakDisimpan() {\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(\" \"));\n        verify(repo, never()).simpan(anyString());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ judulKosongTidakDisimpan()\n  ✔ tambahMenyimpanJudulRapi()\n\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "verify\\s*\\(\\s*repo\\s*,\\s*never\\(\\)\\s*\\)\\s*\\.simpan\\s*\\(\\s*anyString\\(\\)\\s*\\)",
+              "pesan": "tulis `verify(repo, never()).simpan(anyString())`."
+            }
+          ],
+          "benar": "Judul kosong ditolak dan tidak ada yang tersimpan.",
+          "petunjuk": "Pakai `verify(repo, never()).simpan(anyString());`."
+        },
+        {
+          "arahan": "Tambahkan test `selesaikanMenyimpanPerubahan`: atur `repo.cari(1)` mengembalikan `Todo t`, panggil `service.selesaikan(1)`, lalu verify `repo.perbarui(t)` dipanggil.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.mockito.ArgumentCaptor;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    TodoRepository repo;\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        repo = mock(TodoRepository.class);\n        service = new TodoService(repo);\n    }\n\n    @Test\n    void tambahMenyimpanJudulRapi() {\n        service.tambah(\"  Belajar  \");\n        verify(repo).simpan(\"Belajar\");\n    }\n\n    @Test\n    void judulKosongTidakDisimpan() {\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(\" \"));\n        verify(repo, never()).simpan(anyString());\n    }\n\n    @Test\n    void selesaikanMenyimpanPerubahan() {\n        Todo t = new Todo(1, \"Belajar\");\n        when(repo.cari(1)).thenReturn(t);\n        service.selesaikan(1);\n        verify(repo).perbarui(t);\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ judulKosongTidakDisimpan()\n  ✔ selesaikanMenyimpanPerubahan()\n  ✔ tambahMenyimpanJudulRapi()\n\nTests run: 3, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "verify\\s*\\(\\s*repo\\s*\\)\\s*\\.perbarui\\s*\\(\\s*t\\s*\\)",
+              "pesan": "periksa `verify(repo).perbarui(t)`."
+            }
+          ],
+          "benar": "Kalau suatu saat ada yang lupa memanggil `perbarui`, perubahan tidak tersimpan ke file atau database, dan test ini yang pertama memberi tahu.",
+          "petunjuk": "Bagian Arrange sama dengan materi sebelumnya; bagian Assert-nya `verify(repo).perbarui(t);`."
+        },
+        {
+          "arahan": "Tangkap todo yang dikirim ke `perbarui` dengan `ArgumentCaptor<Todo> tangkap = ArgumentCaptor.forClass(Todo.class);`, lalu pastikan statusnya sudah selesai. Beri nama test `yangDiperbaruiSudahSelesai`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.mockito.ArgumentCaptor;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    TodoRepository repo;\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        repo = mock(TodoRepository.class);\n        service = new TodoService(repo);\n    }\n\n    @Test\n    void tambahMenyimpanJudulRapi() {\n        service.tambah(\"  Belajar  \");\n        verify(repo).simpan(\"Belajar\");\n    }\n\n    @Test\n    void judulKosongTidakDisimpan() {\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(\" \"));\n        verify(repo, never()).simpan(anyString());\n    }\n\n    @Test\n    void selesaikanMenyimpanPerubahan() {\n        Todo t = new Todo(1, \"Belajar\");\n        when(repo.cari(1)).thenReturn(t);\n        service.selesaikan(1);\n        verify(repo).perbarui(t);\n    }\n\n    @Test\n    void yangDiperbaruiSudahSelesai() {\n        when(repo.cari(1)).thenReturn(new Todo(1, \"Belajar\"));\n        service.selesaikan(1);\n        ArgumentCaptor<Todo> tangkap = ArgumentCaptor.forClass(Todo.class);\n        verify(repo).perbarui(tangkap.capture());\n        assertTrue(tangkap.getValue().isSelesai());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ judulKosongTidakDisimpan()\n  ✔ selesaikanMenyimpanPerubahan()\n  ✔ tambahMenyimpanJudulRapi()\n  ✔ yangDiperbaruiSudahSelesai()\n\nTests run: 4, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "ArgumentCaptor\\.forClass\\s*\\(\\s*Todo\\.class\\s*\\)",
+              "pesan": "buat captor dengan `ArgumentCaptor.forClass(Todo.class)`."
+            },
+            {
+              "pola": "tangkap\\.capture\\(\\)",
+              "pesan": "pakai `tangkap.capture()` di dalam verify."
+            },
+            {
+              "pola": "tangkap\\.getValue\\(\\)\\.isSelesai\\(\\)",
+              "pesan": "periksa `tangkap.getValue().isSelesai()`."
+            }
+          ],
+          "benar": "Captor membuktikan service menyimpan todo yang sudah diubah, bukan todo lama.",
+          "petunjuk": "Urutannya: `verify(repo).perbarui(tangkap.capture());` lalu `assertTrue(tangkap.getValue().isSelesai());`."
+        },
+        {
+          "arahan": "Tantangan: buat test `hapusHanyaMemanggilHapus`. Atur `repo.hapus(3)` mengembalikan true, panggil `service.hapus(3)`, verify `hapus(3)` dipanggil tepat sekali, lalu pastikan tidak ada panggilan lain ke repository.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.mockito.ArgumentCaptor;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    TodoRepository repo;\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        repo = mock(TodoRepository.class);\n        service = new TodoService(repo);\n    }\n\n    @Test\n    void tambahMenyimpanJudulRapi() {\n        service.tambah(\"  Belajar  \");\n        verify(repo).simpan(\"Belajar\");\n    }\n\n    @Test\n    void judulKosongTidakDisimpan() {\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(\" \"));\n        verify(repo, never()).simpan(anyString());\n    }\n\n    @Test\n    void selesaikanMenyimpanPerubahan() {\n        Todo t = new Todo(1, \"Belajar\");\n        when(repo.cari(1)).thenReturn(t);\n        service.selesaikan(1);\n        verify(repo).perbarui(t);\n    }\n\n    @Test\n    void yangDiperbaruiSudahSelesai() {\n        when(repo.cari(1)).thenReturn(new Todo(1, \"Belajar\"));\n        service.selesaikan(1);\n        ArgumentCaptor<Todo> tangkap = ArgumentCaptor.forClass(Todo.class);\n        verify(repo).perbarui(tangkap.capture());\n        assertTrue(tangkap.getValue().isSelesai());\n    }\n\n    @Test\n    void hapusHanyaMemanggilHapus() {\n        when(repo.hapus(3)).thenReturn(true);\n        service.hapus(3);\n        verify(repo, times(1)).hapus(3);\n        verifyNoMoreInteractions(repo);\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ hapusHanyaMemanggilHapus()\n  ✔ judulKosongTidakDisimpan()\n  ✔ selesaikanMenyimpanPerubahan()\n  ✔ tambahMenyimpanJudulRapi()\n  ✔ yangDiperbaruiSudahSelesai()\n\nTests run: 5, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "verify\\s*\\(\\s*repo\\s*,\\s*times\\(\\s*1\\s*\\)\\s*\\)\\s*\\.hapus\\s*\\(\\s*3\\s*\\)",
+              "pesan": "tulis `verify(repo, times(1)).hapus(3)`."
+            },
+            {
+              "pola": "verifyNoMoreInteractions\\s*\\(\\s*repo\\s*\\)",
+              "pesan": "tutup dengan `verifyNoMoreInteractions(repo)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Lima test lulus. Service terbukti tidak memanggil `cari` atau `semua` secara diam-diam saat menghapus.",
+          "petunjuk": "Pakai `times(1)` dan method verify yang memeriksa \"tidak ada panggilan lagi\"."
+        }
+      ],
+      "penutup": "`TodoServiceTest` sekarang memeriksa hasil dan perintah service. Di materi berikutnya kita ringkas persiapannya dengan anotasi Mockito."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang diperiksa oleh verify(repo).simpan(\"Belajar\")?",
+          "options": [
+            "Bahwa simpan mengembalikan \"Belajar\"",
+            "Bahwa simpan dipanggil tepat sekali dengan argumen \"Belajar\"",
+            "Bahwa data \"Belajar\" ada di database",
+            "Bahwa simpan tidak pernah dipanggil"
+          ],
+          "answer": 1,
+          "explanation": "verify memeriksa catatan panggilan.",
+          "remedial": "`verify` tidak memeriksa nilai kembalian, melainkan catatan panggilan yang diterima mock. Tanpa `times(...)`, Mockito menganggap harus tepat satu kali."
+        },
+        {
+          "question": "Mana penulisan verify yang benar?",
+          "options": [
+            "verify(gudang).kurangi(\"Kopi\", anyInt())",
+            "verify(gudang.kurangi(\"Kopi\", 3))",
+            "verify(gudang).kurangi(eq(\"Kopi\"), anyInt())",
+            "verify(gudang).kurangi(anyString(), 3)"
+          ],
+          "answer": 2,
+          "explanation": "Semua argumen matcher, atau tidak sama sekali.",
+          "remedial": "Kalau satu argumen memakai matcher seperti `anyInt()`, argumen lain juga harus matcher. Nilai biasa dibungkus `eq(...)`. Penulisan `verify(gudang.kurangi(...))` salah karena method dipanggil di dalam kurung verify."
+        },
+        {
+          "question": "Kapan ArgumentCaptor dibutuhkan?",
+          "options": [
+            "Saat ingin mengatur nilai kembalian mock",
+            "Saat ingin membuat mock baru",
+            "Saat test butuh banyak data",
+            "Saat ingin memeriksa isi object yang dikirim service ke mock"
+          ],
+          "answer": 3,
+          "explanation": "Menangkap argumen untuk diperiksa lebih lanjut.",
+          "remedial": "`ArgumentCaptor` menangkap argumen saat `verify`, lalu `getValue()` mengembalikannya. Berguna kalau object-nya dibuat di dalam service, sehingga test tidak punya referensinya untuk dibandingkan langsung."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Untuk memastikan email tidak dikirim saat stok kurang, verify yang tepat adalah...",
+      "options": [
+        "verify(email, never()).kirim(anyString())",
+        "verify(email).kirim(null)",
+        "verify(email, times(1)).kirim(anyString())",
+        "when(email.kirim(anyString())).thenReturn(false)"
+      ],
+      "answer": 0,
+      "explanation": "never() memastikan tidak ada panggilan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Class Pesanan memakai dua dependency: Gudang dan Email. Aturannya: kalau stok cukup, kurangi stok lalu kirim email \"Pesanan Kopi x3 diterima\" (nama barang dan jumlah mengikuti pesanan). Kalau stok kurang, stok tidak boleh dikurangi dan email yang dikirim adalah \"Maaf, stok Kopi tidak cukup\". Method pesan sekarang mengurangi stok sebelum memeriksa dan tidak mengirim email saat stok kurang. Perbaiki method pesan sampai kedua test lulus.",
+      "starterCode": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.mockito.ArgumentCaptor;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(PesananTest.class);\n    }\n}\n\nclass PesananTest {\n    Gudang gudang;\n    Email email;\n    Pesanan pesanan;\n\n    @BeforeEach\n    void siapkan() {\n        gudang = mock(Gudang.class);\n        email = mock(Email.class);\n        pesanan = new Pesanan(gudang, email);\n    }\n\n    @Test\n    void stokCukup() {\n        when(gudang.stok(\"Kopi\")).thenReturn(10);\n        assertTrue(pesanan.pesan(\"Kopi\", 3));\n        verify(gudang).kurangi(\"Kopi\", 3);\n        verify(email).kirim(\"Pesanan Kopi x3 diterima\");\n    }\n\n    @Test\n    void stokKurang() {\n        when(gudang.stok(\"Kopi\")).thenReturn(2);\n        assertFalse(pesanan.pesan(\"Kopi\", 3));\n        verify(gudang, never()).kurangi(anyString(), anyInt());\n        verify(email).kirim(\"Maaf, stok Kopi tidak cukup\");\n    }\n}\n\ninterface Gudang {\n    int stok(String barang);\n\n    void kurangi(String barang, int jumlah);\n}\n\ninterface Email {\n    void kirim(String pesan);\n}\n\nclass Pesanan {\n    private final Gudang gudang;\n    private final Email email;\n\n    Pesanan(Gudang gudang, Email email) {\n        this.gudang = gudang;\n        this.email = email;\n    }\n\n    boolean pesan(String barang, int jumlah) {\n        gudang.kurangi(barang, jumlah);\n        if (gudang.stok(barang) < jumlah) {\n            return false;\n        }\n        email.kirim(\"Pesanan \" + barang + \" x\" + jumlah + \" diterima\");\n        return true;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.mockito.ArgumentCaptor;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(PesananTest.class);\n    }\n}\n\nclass PesananTest {\n    Gudang gudang;\n    Email email;\n    Pesanan pesanan;\n\n    @BeforeEach\n    void siapkan() {\n        gudang = mock(Gudang.class);\n        email = mock(Email.class);\n        pesanan = new Pesanan(gudang, email);\n    }\n\n    @Test\n    void stokCukup() {\n        when(gudang.stok(\"Kopi\")).thenReturn(10);\n        assertTrue(pesanan.pesan(\"Kopi\", 3));\n        verify(gudang).kurangi(\"Kopi\", 3);\n        verify(email).kirim(\"Pesanan Kopi x3 diterima\");\n    }\n\n    @Test\n    void stokKurang() {\n        when(gudang.stok(\"Kopi\")).thenReturn(2);\n        assertFalse(pesanan.pesan(\"Kopi\", 3));\n        verify(gudang, never()).kurangi(anyString(), anyInt());\n        verify(email).kirim(\"Maaf, stok Kopi tidak cukup\");\n    }\n}\n\ninterface Gudang {\n    int stok(String barang);\n\n    void kurangi(String barang, int jumlah);\n}\n\ninterface Email {\n    void kirim(String pesan);\n}\n\nclass Pesanan {\n    private final Gudang gudang;\n    private final Email email;\n\n    Pesanan(Gudang gudang, Email email) {\n        this.gudang = gudang;\n        this.email = email;\n    }\n\n    boolean pesan(String barang, int jumlah) {\n        if (gudang.stok(barang) < jumlah) {\n            email.kirim(\"Maaf, stok \" + barang + \" tidak cukup\");\n            return false;\n        }\n        gudang.kurangi(barang, jumlah);\n        email.kirim(\"Pesanan \" + barang + \" x\" + jumlah + \" diterima\");\n        return true;\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "PesananTest\n  ✔ stokCukup()\n  ✔ stokKurang()\n\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0\n"
+        }
+      ],
+      "hints": [
+        "Pindahkan pemanggilan gudang.kurangi ke setelah pemeriksaan stok.",
+        "Di dalam if stok kurang, kirim email \"Maaf, stok \" + barang + \" tidak cukup\" sebelum return false."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "verify memeriksa panggilan yang diterima mock: berapa kali dan dengan argumen apa.",
+        "times(n), never(), atLeastOnce(), dan verifyNoMoreInteractions.",
+        "Matcher seperti anyString() dan eq(...) tidak boleh dicampur dengan nilai biasa.",
+        "ArgumentCaptor menangkap argumen untuk diperiksa dengan assertion."
+      ]
+    }
+  ]
+}
