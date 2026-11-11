@@ -1,0 +1,215 @@
+{
+  "id": "java-reflection-03",
+  "moduleId": "reflection",
+  "order": 3,
+  "title": "Memanggil Method dan Constructor",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "JUnit memanggil method test yang namanya tidak pernah ia lihat sebelumnya. Spring memanggil method controller sesuai alamat URL. Jackson membuat object `Todo` baru saat membaca JSON. Semua itu adalah **memanggil method dan constructor lewat reflection**.\n\nIbarat remote control universal: satu remote bisa menyalakan TV merek apa pun, asalkan tahu nama tombolnya."
+    },
+    {
+      "type": "theory",
+      "content": "**Method**\n\n| Method | Hasil |\n|---|---|\n| `getMethod(\"nama\", tipe...)` | method public, termasuk warisan |\n| `getDeclaredMethod(\"nama\", tipe...)` | method yang ditulis di class itu, termasuk private |\n| `getMethods()` / `getDeclaredMethods()` | semua method |\n| `m.invoke(obj, arg...)` | panggil method di object `obj`; method static memakai `null` |\n\nTipe parameter wajib disebut karena Java mengizinkan *overloading*: `getMethod(\"bagi\", int.class, int.class)`. Untuk tipe primitif dipakai `int.class`, bukan `Integer.class`.\n\n**Constructor**\n\n```java\nConstructor<Todo> c = Todo.class.getDeclaredConstructor(int.class, String.class);\nTodo t = c.newInstance(2, \"Baru\");\n```\n\n`Class.newInstance()` yang lama sudah usang (*deprecated*). Pakai `getDeclaredConstructor().newInstance()`.\n\n**Exception dari method yang dipanggil**\n\nKalau method yang dipanggil melempar exception, `invoke` membungkusnya dengan **`InvocationTargetException`**. Exception aslinya ada di `e.getCause()`.\n\nUrutan hasil `getDeclaredMethods()` **tidak dijamin** dan bisa berbeda antar versi JVM. Urutkan dulu kalau urutan penting."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nMethod getJudul = Todo.class.getMethod(\"getJudul\");\nObject hasil = getJudul.invoke(todo);       // \"Belajar reflection\"\n\nMethod rahasia = Todo.class.getDeclaredMethod(\"rahasia\");\nrahasia.setAccessible(true);\nrahasia.invoke(todo);\n```\n\n`invoke` selalu mengembalikan `Object`. Nilai primitif dibungkus (`int` menjadi `Integer`), dan method `void` mengembalikan `null`.\n\nInilah inti cara JUnit menjalankan test:\n\n```java\nObject test = kelasTest.getDeclaredConstructor().newInstance();\nfor (Method m : kelasTest.getDeclaredMethods()) {\n    if (m.isAnnotationPresent(Test.class)) {\n        m.invoke(test);\n    }\n}\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Kalkulator k = new Kalkulator();\n        Method m = Kalkulator.class.getMethod(\"bagi\", int.class, int.class);\n        System.out.println(m.invoke(k, 10, 2));\n        try {\n            m.invoke(k, 10, 0);\n        } catch (InvocationTargetException e) {\n            System.out.println(\"Penyebab: \" + e.getCause().getClass().getSimpleName());\n        }\n    }\n}\n\nclass Kalkulator {\n    public int bagi(int a, int b) {\n        if (b == 0) {\n            throw new IllegalArgumentException(\"pembagi tidak boleh nol\");\n        }\n        return a / b;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: pembagian dengan nol dipanggil lewat invoke. Apa nama class penyebabnya?",
+        "options": [
+          "Penyebab: InvocationTargetException",
+          "Penyebab: IllegalAccessException",
+          "Penyebab: NoSuchMethodException",
+          "Penyebab: IllegalArgumentException"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Cari method dengan nama dan tipe parameter."
+        },
+        {
+          "line": 8,
+          "note": "Hasilnya Integer 5."
+        },
+        {
+          "line": 11,
+          "note": "Pembungkus exception dari method yang dipanggil."
+        }
+      ],
+      "explanation": "Method bagi melempar IllegalArgumentException. Lewat reflection, exception itu tidak keluar langsung; invoke membungkusnya dengan InvocationTargetException. Exception asli ada di getCause().\n\nFramework selalu membuka bungkus ini sebelum melaporkan kesalahan. Itu sebabnya stack trace Spring dan JUnit sering bertuliskan Caused by.",
+      "tryThis": [
+        {
+          "task": "Cetak e.getCause().getMessage().",
+          "hint": null
+        },
+        {
+          "task": "Ganti int.class dengan Integer.class di getMethod. Exception apa yang muncul?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tipe parameter salah**\n\n`getMethod(\"bagi\", Integer.class, Integer.class)` untuk method `bagi(int, int)` gagal dengan `NoSuchMethodException`.\n\n**2. `getMethod` untuk method private**\n\n`getMethod` hanya mencari method public. Pakai `getDeclaredMethod` lalu `setAccessible(true)`.\n\n**3. Menangkap exception yang salah**\n\nException dari dalam method datang sebagai `InvocationTargetException`. Menangkap `IllegalArgumentException` di luar `invoke` tidak akan pernah terjadi.\n\n**4. Bergantung pada urutan `getDeclaredMethods()`**\n\nTest atau laporan yang mengandalkan urutan itu bisa berubah hasilnya di JVM lain. Urutkan dengan nama."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Spring MVC mencari method controller berdasarkan anotasi `@GetMapping`, menyiapkan argumennya dari request, lalu memanggilnya dengan `invoke`.\n- JUnit 5 sengaja tidak menjamin urutan test (`MethodOrderer` dipakai kalau urutan perlu ditentukan), karena urutan `getDeclaredMethods` memang tidak pasti.\n- Untuk pemanggilan berulang yang butuh cepat, library modern memakai `MethodHandle` (`java.lang.invoke`), yang bisa dioptimalkan JVM lebih baik daripada `Method.invoke`.\n- Membaca stack trace: baris `Caused by:` paling bawah biasanya kesalahan sebenarnya, di bawah lapisan reflection framework."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Mini Framework 3: Memanggil Tanpa Nama",
+      "pembuka": "Sekarang method `Todo` kita panggil lewat reflection.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `getJudul` dipanggil dengan `invoke`.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Todo t = new Todo(1, \"Belajar reflection\");\n        Method getJudul = Todo.class.getMethod(\"getJudul\");\n        System.out.println(\"Hasil: \" + getJudul.invoke(t));\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "Hasil: Belajar reflection",
+          "otomatis": true,
+          "benar": "`invoke` mengembalikan `Object`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Panggil method private `rahasia` lewat `getDeclaredMethod` dan `setAccessible(true)`, lalu cetak hasilnya.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Todo t = new Todo(1, \"Belajar reflection\");\n        Method getJudul = Todo.class.getMethod(\"getJudul\");\n        System.out.println(\"Hasil: \" + getJudul.invoke(t));\n\n        Method rahasia = Todo.class.getDeclaredMethod(\"rahasia\");\n        rahasia.setAccessible(true);\n        System.out.println(rahasia.invoke(t));\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "Hasil: Belajar reflection\ncatatan pribadi todo 1",
+          "wajib": [
+            {
+              "pola": "getDeclaredMethod\\s*\\(\\s*\"rahasia\"\\s*\\)",
+              "pesan": "pakai `getDeclaredMethod(\"rahasia\")`."
+            },
+            {
+              "pola": "rahasia\\.invoke\\s*\\(\\s*t\\s*\\)",
+              "pesan": "panggil `rahasia.invoke(t)`."
+            }
+          ],
+          "benar": "Method private pun bisa dipanggil, makanya reflection harus dipakai hati-hati.",
+          "petunjuk": "`Method rahasia = Todo.class.getDeclaredMethod(\"rahasia\");`"
+        },
+        {
+          "arahan": "Buat todo baru nomor 2 berjudul `Dibuat lewat reflection` memakai constructor dari `getDeclaredConstructor(int.class, String.class)`, lalu cetak id dan judulnya.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Todo t = new Todo(1, \"Belajar reflection\");\n        Method getJudul = Todo.class.getMethod(\"getJudul\");\n        System.out.println(\"Hasil: \" + getJudul.invoke(t));\n\n        Method rahasia = Todo.class.getDeclaredMethod(\"rahasia\");\n        rahasia.setAccessible(true);\n        System.out.println(rahasia.invoke(t));\n\n        Constructor<Todo> pembuat = Todo.class.getDeclaredConstructor(int.class, String.class);\n        Todo baru = pembuat.newInstance(2, \"Dibuat lewat reflection\");\n        System.out.println(baru.getId() + \" \" + baru.getJudul());\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "Hasil: Belajar reflection\ncatatan pribadi todo 1\n2 Dibuat lewat reflection",
+          "wajib": [
+            {
+              "pola": "getDeclaredConstructor\\s*\\(\\s*int\\.class\\s*,\\s*String\\.class\\s*\\)",
+              "pesan": "pakai `getDeclaredConstructor(int.class, String.class)`."
+            },
+            {
+              "pola": "\\.newInstance\\s*\\(\\s*2\\s*,",
+              "pesan": "panggil `newInstance(2, ...)`."
+            }
+          ],
+          "benar": "Begitulah Jackson dan Hibernate membuat object.",
+          "petunjuk": "`Constructor<Todo> pembuat = ...; Todo baru = pembuat.newInstance(2, \"...\");`"
+        },
+        {
+          "arahan": "Tantangan: kumpulkan nama semua method yang ditulis di `Todo` ke List, urutkan, lalu cetak.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Todo t = new Todo(1, \"Belajar reflection\");\n        Method getJudul = Todo.class.getMethod(\"getJudul\");\n        System.out.println(\"Hasil: \" + getJudul.invoke(t));\n\n        Method rahasia = Todo.class.getDeclaredMethod(\"rahasia\");\n        rahasia.setAccessible(true);\n        System.out.println(rahasia.invoke(t));\n\n        Constructor<Todo> pembuat = Todo.class.getDeclaredConstructor(int.class, String.class);\n        Todo baru = pembuat.newInstance(2, \"Dibuat lewat reflection\");\n        System.out.println(baru.getId() + \" \" + baru.getJudul());\n\n        List<String> nama = new ArrayList<>();\n        for (Method m : Todo.class.getDeclaredMethods()) {\n            nama.add(m.getName());\n        }\n        Collections.sort(nama);\n        System.out.println(nama);\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "Hasil: Belajar reflection\ncatatan pribadi todo 1\n2 Dibuat lewat reflection\n[compareTo, compareTo, getId, getJudul, isSelesai, rahasia, selesaikan]",
+          "wajib": [
+            {
+              "pola": "getDeclaredMethods\\(\\)",
+              "pesan": "pakai `getDeclaredMethods()`."
+            },
+            {
+              "pola": "Collections\\.sort",
+              "pesan": "urutkan dengan `Collections.sort`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "`compareTo` muncul dua kali: satu untuk `Todo`, satu lagi *bridge method* buatan compiler untuk `Object`.",
+          "petunjuk": "Ulangi `Todo.class.getDeclaredMethods()`, tambahkan `m.getName()`, lalu `Collections.sort`."
+        }
+      ],
+      "penutup": "Method dan constructor bisa dipanggil lewat reflection. Berikutnya: anotasi buatan sendiri."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Method yang dipanggil lewat invoke melempar IllegalStateException. Yang tertangkap di luar invoke adalah...",
+          "options": [
+            "InvocationTargetException dengan penyebab IllegalStateException",
+            "IllegalStateException langsung",
+            "IllegalAccessException",
+            "Tidak ada exception"
+          ],
+          "answer": 0,
+          "explanation": "Exception dibungkus.",
+          "remedial": "`invoke` membungkus semua exception dari method yang dipanggil dengan `InvocationTargetException`. Exception aslinya ada di `getCause()`."
+        },
+        {
+          "question": "Untuk method hitung(int a, int b), cara mengambilnya adalah...",
+          "options": [
+            "getMethod(\"hitung\")",
+            "getMethod(\"hitung\", int.class, int.class)",
+            "getMethod(\"hitung\", Integer.class, Integer.class)",
+            "getMethod(\"hitung(int, int)\")"
+          ],
+          "answer": 1,
+          "explanation": "Tipe primitif.",
+          "remedial": "Nama dan tipe parameter harus cocok persis. Untuk `int` dipakai `int.class`."
+        },
+        {
+          "question": "Kenapa hasil getDeclaredMethods() diurutkan sebelum dicetak?",
+          "options": [
+            "Karena hasilnya selalu terbalik",
+            "Karena method private ada di depan",
+            "Karena urutannya tidak dijamin dan bisa berbeda antar JVM",
+            "Karena Java mewajibkannya"
+          ],
+          "answer": 2,
+          "explanation": "Urutan tidak pasti.",
+          "remedial": "Spesifikasi Java tidak menjamin urutan method dari reflection. Mengurutkan dengan nama membuat hasilnya selalu sama."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Cara modern membuat object lewat reflection adalah...",
+      "options": [
+        "kelas.newInstance()",
+        "new kelas()",
+        "kelas.create()",
+        "kelas.getDeclaredConstructor().newInstance()"
+      ],
+      "answer": 3,
+      "explanation": "Class.newInstance sudah usang."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca perintah dengan format nama a b per baris, misalnya kali 3 4, lalu memanggil method dengan nama itu di class Hitung dan mencetak hasilnya. Kalau method tidak ada, cetak perintah tidak dikenal: nama. Saat ini program memakai if dan hanya mengenal tambah. Ubah supaya semua method di Hitung bisa dipanggil lewat reflection, tanpa if untuk setiap nama.",
+      "starterCode": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Hitung h = new Hitung();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\" \");\n            int a = Integer.parseInt(d[1]);\n            int b = Integer.parseInt(d[2]);\n            if (d[0].equals(\"tambah\")) {\n                System.out.println(h.tambah(a, b));\n            } else {\n                System.out.println(\"perintah tidak dikenal: \" + d[0]);\n            }\n        }\n    }\n}\n\nclass Hitung {\n    public int tambah(int a, int b) {\n        return a + b;\n    }\n\n    public int kurang(int a, int b) {\n        return a - b;\n    }\n\n    public int kali(int a, int b) {\n        return a * b;\n    }\n}",
+      "solution": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Hitung h = new Hitung();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\" \");\n            int a = Integer.parseInt(d[1]);\n            int b = Integer.parseInt(d[2]);\n            try {\n                Method m = Hitung.class.getMethod(d[0], int.class, int.class);\n                System.out.println(m.invoke(h, a, b));\n            } catch (NoSuchMethodException e) {\n                System.out.println(\"perintah tidak dikenal: \" + d[0]);\n            }\n        }\n    }\n}\n\nclass Hitung {\n    public int tambah(int a, int b) {\n        return a + b;\n    }\n\n    public int kurang(int a, int b) {\n        return a - b;\n    }\n\n    public int kali(int a, int b) {\n        return a * b;\n    }\n}",
+      "tests": [
+        {
+          "input": "tambah 3 4\nkali 3 4\nkurang 10 7\nbagi 8 2\n",
+          "expectedOutput": "7\n12\n3\nperintah tidak dikenal: bagi\n"
+        }
+      ],
+      "hints": [
+        "Hitung.class.getMethod(d[0], int.class, int.class) mencari method berdasarkan nama.",
+        "Tangkap NoSuchMethodException untuk nama yang tidak ada, lalu cetak hasil m.invoke(h, a, b)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "getMethod (public, termasuk warisan) dan getDeclaredMethod (termasuk private) butuh nama dan tipe parameter.",
+        "m.invoke(obj, arg...) memanggil method; static memakai null.",
+        "Exception dari method dibungkus InvocationTargetException; aslinya di getCause().",
+        "getDeclaredConstructor(...).newInstance(...) membuat object; urutan getDeclaredMethods tidak dijamin."
+      ]
+    }
+  ]
+}

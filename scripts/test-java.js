@@ -70,6 +70,9 @@ function runJava(code, stdin, javaVersion, java8 = false) {
   try {
     out = spawnSync(javaCmd, ['-Dstdout.encoding=UTF-8', '-Duser.language=en', '-Duser.country=US', '-cp', cp ? runDir + path.delimiter + cp : runDir, className], {
       input: stdin,
+      // Folder kerja = folder kelas (seperti /files/ di browser), supaya file yang ditulis program (misalnya
+      // .properties untuk ResourceBundle) ada di classpath dan tidak mengotori folder repo.
+      cwd: runDir,
       timeout: cp ? 60000 : 15000,
       encoding: 'utf-8',
     });
@@ -123,7 +126,7 @@ function processLesson(lessonFile) {
     if (c.type === 'praktik_java') {
       const rapikan = (t) => t.replace(/\r\n?/g, '\n').split('\n').map((b) => b.replace(/\s+$/, '')).join('\n').replace(/\n+$/, '');
       c.langkah.forEach((l, li) => {
-        const res = runJava(l.jawaban, l.input || '', v, true);
+        const res = runJava(l.jawaban, l.input || '', v, v !== 21);
         if (!res.success) {
           errors++;
           report += `| ${data.id} | ${index} (praktik langkah ${li + 1}) | Jawaban gagal: ${res.error.replace(/\n/g, '<br>')} |\n`;

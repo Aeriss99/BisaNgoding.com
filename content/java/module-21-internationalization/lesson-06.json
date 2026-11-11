@@ -1,0 +1,208 @@
+{
+  "id": "java-internationalization-06",
+  "moduleId": "internationalization",
+  "order": 6,
+  "title": "Mengurutkan dan Membandingkan Teks",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Daftar nama pelanggan yang diurutkan dengan `Collections.sort` menempatkan `Zahra` sebelum `andi`, dan `Éka` di paling akhir. Bagi pengguna, itu terlihat seperti bug. Pencarian `kopi` juga tidak menemukan `Kopi` atau `KOPI`.\n\nMasalahnya, `String.compareTo` membandingkan **kode Unicode**, bukan aturan abjad manusia. Huruf besar (A-Z) punya kode lebih kecil dari huruf kecil, dan huruf beraksen ada jauh di belakang.\n\nIbarat menyusun buku di perpustakaan: pustakawan mengurutkan berdasarkan abjad yang dikenal pembaca, bukan berdasarkan nomor pabrik huruf di mesin cetak."
+    },
+    {
+      "type": "theory",
+      "content": "**`Collator`** membandingkan teks menurut aturan bahasa:\n\n```java\nCollator collator = Collator.getInstance(Locale.forLanguageTag(\"id-ID\"));\ndaftar.sort(collator);\n```\n\n`setStrength` menentukan seberapa teliti perbandingannya:\n\n| Strength | `\"Eka\"` vs `\"éka\"` | Kegunaan |\n|---|---|---|\n| `PRIMARY` | sama | pencarian yang longgar |\n| `SECONDARY` | beda (aksen) | |\n| `TERTIARY` (bawaan) | beda (aksen dan huruf besar) | pengurutan |\n\n**Huruf besar dan kecil bergantung bahasa.** Di bahasa Turki, huruf kecil `i` menjadi `İ` (dengan titik) saat dibesarkan. Untuk teks teknis seperti kode, nama enum, dan kunci, pakai **`Locale.ROOT`**:\n\n```java\nkode.toUpperCase(Locale.ROOT);           // selalu TITLE, di negara mana pun\n```\n\n**Normalisasi Unicode:** huruf `é` bisa disimpan sebagai satu karakter, atau sebagai `e` diikuti tanda aksen. Tampilannya sama, tetapi `equals` menganggapnya berbeda. `Normalizer.normalize(teks, Normalizer.Form.NFC)` menyeragamkannya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nList<String> pembeli = new ArrayList<>(List.of(\"budi\", \"Ani\", \"Éka\", \"andi\", \"Zahra\"));\nCollections.sort(pembeli);        // [Ani, Zahra, andi, budi, Éka]\npembeli.sort(Collator.getInstance(Locale.forLanguageTag(\"id-ID\")));\n                                  // [andi, Ani, budi, Éka, Zahra]\n```\n\nPencarian yang tidak peduli huruf besar dan aksen:\n\n```java\nCollator c = Collator.getInstance(id);\nc.setStrength(Collator.PRIMARY);\nc.compare(\"Eka\", \"éka\") == 0;     // true\n```\n\n`String.equalsIgnoreCase` mengabaikan huruf besar, tetapi tidak mengabaikan aksen."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        String a = \"Caf\\u00e9\";\n        String b = \"Cafe\\u0301\";\n        System.out.println(a + \" dan \" + b);\n        System.out.println(\"Sama? \" + a.equals(b));\n        System.out.println(\"Panjang: \" + a.length() + \" dan \" + b.length());\n        System.out.println(\"Setelah NFC: \" + Normalizer.normalize(b, Normalizer.Form.NFC).equals(a));\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: kedua kata tampak sama. Apa hasil equals?",
+        "options": [
+          "Sama? true",
+          "Sama? null",
+          "Sama? false",
+          "Sama? Café"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "é sebagai satu karakter."
+        },
+        {
+          "line": 7,
+          "note": "e diikuti tanda aksen."
+        },
+        {
+          "line": 11,
+          "note": "Setelah diseragamkan."
+        }
+      ],
+      "explanation": "a menyimpan é sebagai satu karakter, sedangkan b menyimpan e lalu tanda aksen terpisah, sehingga panjangnya 4 dan 5. Di layar keduanya terlihat Café, tetapi equals bernilai false. Teks dari macOS, papan ketik HP, atau salinan dari PDF sering memakai bentuk kedua. Normalisasi NFC sebelum menyimpan atau membandingkan membuat keduanya sama.",
+      "tryThis": [
+        {
+          "task": "Cetak juga Normalizer.normalize(a, Normalizer.Form.NFD).length().",
+          "hint": null
+        },
+        {
+          "task": "Bandingkan a dan b dengan Collator berlocale id-ID.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `Collections.sort` untuk teks yang dilihat pengguna**\n\nUrutan Unicode tidak sesuai abjad. Pakai `Collator`.\n\n**2. `toUpperCase()` tanpa locale untuk teks teknis**\n\nDi server berlocale Turki, `\"title\".toUpperCase()` menjadi `TİTLE`, dan perbandingan dengan `\"TITLE\"` gagal. Bug terkenal ini pernah merusak banyak aplikasi. Pakai `Locale.ROOT`.\n\n**3. Membandingkan input pengguna tanpa normalisasi**\n\nNama pengguna `José` bisa terdaftar dua kali dengan bentuk Unicode berbeda.\n\n**4. Menghitung panjang dengan `length()`**\n\nEmoji dan beberapa aksara memakai dua `char` atau lebih. Untuk batas karakter yang dilihat pengguna, pakai `codePointCount` atau `BreakIterator`.\n\n**5. Collator di perulangan besar**\n\nUntuk mengurutkan data sangat banyak, `CollationKey` lebih cepat. Untuk data di database, pengurutan sebaiknya dilakukan database dengan *collation* yang tepat."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Database punya *collation* sendiri: MySQL `utf8mb4_0900_ai_ci` artinya tidak peduli aksen (*accent insensitive*) dan huruf besar (*case insensitive*). Pilihan collation menentukan hasil `ORDER BY` dan `WHERE nama = ...`.\n- Mesin pencari seperti Elasticsearch dan OpenSearch memakai *analyzer* bahasa yang menormalisasi huruf besar, aksen, dan imbuhan (misalnya analyzer bahasa Indonesia).\n- Library **ICU4J** menyediakan `Collator`, normalisasi, dan pemecahan kata yang lebih lengkap dari bawaan Java, dipakai di aplikasi dengan banyak bahasa Asia.\n- Alat analisis statis (Error Prone, SonarQube) memberi peringatan untuk `toUpperCase()` dan `toLowerCase()` tanpa locale."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Toko Global 6: Daftar Pelanggan",
+      "pembuka": "Toko Global mengurutkan dan mencari nama pelanggan dengan benar.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Nama pelanggan diurutkan dengan `Collections.sort`.",
+          "jawaban": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<String> pembeli = new ArrayList<>(List.of(\"budi\", \"Ani\", \"Éka\", \"andi\", \"Zahra\", \"dewi\"));\n        Collections.sort(pembeli);\n        System.out.println(\"sort biasa: \" + pembeli);\n    }\n}\n",
+          "keluaran": "sort biasa: [Ani, Zahra, andi, budi, dewi, Éka]",
+          "otomatis": true,
+          "benar": "Huruf besar di depan, dan `Éka` di paling akhir.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Urutkan ulang dengan `Collator` berlocale `id-ID` dan cetak dengan awalan `Collator:   `.",
+          "jawaban": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<String> pembeli = new ArrayList<>(List.of(\"budi\", \"Ani\", \"Éka\", \"andi\", \"Zahra\", \"dewi\"));\n        Collections.sort(pembeli);\n        System.out.println(\"sort biasa: \" + pembeli);\n        Collator collator = Collator.getInstance(Locale.forLanguageTag(\"id-ID\"));\n        pembeli.sort(collator);\n        System.out.println(\"Collator:   \" + pembeli);\n    }\n}\n",
+          "keluaran": "sort biasa: [Ani, Zahra, andi, budi, dewi, Éka]\nCollator:   [andi, Ani, budi, dewi, Éka, Zahra]",
+          "wajib": [
+            {
+              "pola": "Collator\\.getInstance\\s*\\(\\s*Locale\\.forLanguageTag\\s*\\(\\s*\"id-ID\"\\s*\\)\\s*\\)",
+              "pesan": "buat `Collator.getInstance(Locale.forLanguageTag(\"id-ID\"))`."
+            }
+          ],
+          "benar": "Urutan sesuai abjad yang dikenal pengguna.",
+          "petunjuk": "`pembeli.sort(collator);`"
+        },
+        {
+          "arahan": "Atur strength menjadi `PRIMARY`, lalu periksa apakah `Eka` sama dengan `éka`.",
+          "jawaban": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<String> pembeli = new ArrayList<>(List.of(\"budi\", \"Ani\", \"Éka\", \"andi\", \"Zahra\", \"dewi\"));\n        Collections.sort(pembeli);\n        System.out.println(\"sort biasa: \" + pembeli);\n        Collator collator = Collator.getInstance(Locale.forLanguageTag(\"id-ID\"));\n        pembeli.sort(collator);\n        System.out.println(\"Collator:   \" + pembeli);\n        collator.setStrength(Collator.PRIMARY);\n        System.out.println(\"Eka sama dengan éka: \" + (collator.compare(\"Eka\", \"éka\") == 0));\n    }\n}\n",
+          "keluaran": "sort biasa: [Ani, Zahra, andi, budi, dewi, Éka]\nCollator:   [andi, Ani, budi, dewi, Éka, Zahra]\nEka sama dengan éka: true",
+          "wajib": [
+            {
+              "pola": "setStrength\\s*\\(\\s*Collator\\.PRIMARY\\s*\\)",
+              "pesan": "atur `Collator.PRIMARY`."
+            }
+          ],
+          "benar": "Pencarian nama tidak lagi gagal karena aksen.",
+          "petunjuk": "`collator.setStrength(Collator.PRIMARY);` lalu `collator.compare(...) == 0`."
+        },
+        {
+          "arahan": "Tantangan: ubah kode promo `promo-title` menjadi huruf besar dengan locale Turki (`tr-TR`) dan dengan `Locale.ROOT`.",
+          "jawaban": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<String> pembeli = new ArrayList<>(List.of(\"budi\", \"Ani\", \"Éka\", \"andi\", \"Zahra\", \"dewi\"));\n        Collections.sort(pembeli);\n        System.out.println(\"sort biasa: \" + pembeli);\n        Collator collator = Collator.getInstance(Locale.forLanguageTag(\"id-ID\"));\n        pembeli.sort(collator);\n        System.out.println(\"Collator:   \" + pembeli);\n        collator.setStrength(Collator.PRIMARY);\n        System.out.println(\"Eka sama dengan éka: \" + (collator.compare(\"Eka\", \"éka\") == 0));\n        String kode = \"promo-title\";\n        System.out.println(\"Kode (Turki): \" + kode.toUpperCase(Locale.forLanguageTag(\"tr-TR\")));\n        System.out.println(\"Kode (ROOT):  \" + kode.toUpperCase(Locale.ROOT));\n    }\n}\n",
+          "keluaran": "sort biasa: [Ani, Zahra, andi, budi, dewi, Éka]\nCollator:   [andi, Ani, budi, dewi, Éka, Zahra]\nEka sama dengan éka: true\nKode (Turki): PROMO-TİTLE\nKode (ROOT):  PROMO-TITLE",
+          "wajib": [
+            {
+              "pola": "toUpperCase\\s*\\(\\s*Locale\\.ROOT\\s*\\)",
+              "pesan": "pakai `toUpperCase(Locale.ROOT)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Huruf i bertitik di versi Turki: kode promo tidak akan cocok kalau server berlocale Turki.",
+          "petunjuk": "`kode.toUpperCase(Locale.ROOT)`."
+        }
+      ],
+      "penutup": "Teks sudah aman untuk semua bahasa. Materi terakhir: menyatukan semuanya di Toko Global."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa Collections.sort menempatkan \"Zahra\" sebelum \"andi\"?",
+          "options": [
+            "Karena Z lebih penting",
+            "Karena sort mengurutkan dari belakang",
+            "Karena bug di Java",
+            "Karena membandingkan kode Unicode, dan huruf besar punya kode lebih kecil"
+          ],
+          "answer": 3,
+          "explanation": "Urutan kode.",
+          "remedial": "`String.compareTo` membandingkan nilai karakter. Semua huruf besar A-Z ada sebelum huruf kecil a-z di Unicode."
+        },
+        {
+          "question": "Untuk mengubah kode teknis menjadi huruf besar di server mana pun, pakai...",
+          "options": [
+            "toUpperCase(Locale.ROOT)",
+            "toUpperCase()",
+            "toUpperCase(Locale.getDefault())",
+            "toUpperCase(Locale.forLanguageTag(\"tr\"))"
+          ],
+          "answer": 0,
+          "explanation": "Locale netral.",
+          "remedial": "`Locale.ROOT` tidak terikat bahasa mana pun, sehingga hasilnya selalu sama. Tanpa locale, hasilnya bergantung pada locale bawaan server."
+        },
+        {
+          "question": "Collator dengan strength PRIMARY menganggap \"Kopi\" dan \"kopí\"...",
+          "options": [
+            "Berbeda karena huruf besar",
+            "Sama",
+            "Berbeda karena aksen",
+            "Tidak bisa dibandingkan"
+          ],
+          "answer": 1,
+          "explanation": "Hanya huruf dasar.",
+          "remedial": "`PRIMARY` hanya membandingkan huruf dasarnya, mengabaikan huruf besar dan aksen."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Class untuk menyeragamkan bentuk Unicode seperti é adalah...",
+      "options": [
+        "Collator",
+        "Formatter",
+        "Normalizer",
+        "Locale"
+      ],
+      "answer": 2,
+      "explanation": "Bentuk NFC."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca kata kunci pencarian di baris pertama, lalu nama-nama produk di baris berikutnya, dan mencetak produk yang cocok. Saat ini pencarian memakai equals, sehingga kopi tidak menemukan Kopi atau KOPÍ. Ubah supaya kecocokan diperiksa dengan Collator berlocale id-ID dan strength PRIMARY.",
+      "starterCode": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        String kata = in.nextLine().trim();\n        List<String> produk = new ArrayList<>();\n        while (in.hasNextLine()) {\n            produk.add(in.nextLine().trim());\n        }\n        for (String p : produk) {\n            if (p.equals(kata)) {\n                System.out.println(\"Cocok: \" + p);\n            }\n        }\n    }\n}",
+      "solution": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        String kata = in.nextLine().trim();\n        List<String> produk = new ArrayList<>();\n        while (in.hasNextLine()) {\n            produk.add(in.nextLine().trim());\n        }\n        Collator collator = Collator.getInstance(Locale.forLanguageTag(\"id-ID\"));\n        collator.setStrength(Collator.PRIMARY);\n        for (String p : produk) {\n            if (collator.compare(p, kata) == 0) {\n                System.out.println(\"Cocok: \" + p);\n            }\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "kopi\nKopi\nTeh\nKOPÍ\nkopi susu\n",
+          "expectedOutput": "Cocok: Kopi\nCocok: KOPÍ\n"
+        },
+        {
+          "input": "teh\nTEH\nteh manis\n",
+          "expectedOutput": "Cocok: TEH\n"
+        }
+      ],
+      "hints": [
+        "Collator collator = Collator.getInstance(Locale.forLanguageTag(\"id-ID\"));",
+        "collator.setStrength(Collator.PRIMARY), lalu cocok kalau collator.compare(p, kata) == 0."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "String.compareTo mengikuti kode Unicode; Collator mengikuti aturan abjad bahasa.",
+        "Strength PRIMARY mengabaikan huruf besar dan aksen; cocok untuk pencarian.",
+        "Teks teknis diubah dengan Locale.ROOT; teks pengguna dengan locale pengguna.",
+        "Normalizer NFC menyeragamkan bentuk Unicode sebelum disimpan atau dibandingkan."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

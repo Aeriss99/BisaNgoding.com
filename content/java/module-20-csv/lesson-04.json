@@ -1,0 +1,199 @@
+{
+  "id": "java-csv-04",
+  "moduleId": "csv",
+  "order": 4,
+  "title": "Membaca dan Menulis File CSV",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di dunia nyata CSV hampir selalu berupa **file**: diunggah pengguna, diterima dari sistem lain lewat folder bersama, atau dibuat aplikasi untuk diunduh. Membaca dan menulis file CSV sama dengan membaca String, hanya sumbernya `Reader` dan tujuannya `Writer`.\n\nYang perlu diperhatikan saat bekerja dengan file: **encoding** (UTF-8 supaya huruf seperti é dan simbol Rp aman), **menutup file**, dan **ukuran file**.\n\nIbarat membaca buku tebal di perpustakaan: bukunya dibaca halaman demi halaman, bukan difotokopi seluruhnya ke meja sebelum mulai membaca."
+    },
+    {
+      "type": "theory",
+      "content": "**Menulis** ke file:\n\n```java\ntry (Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8);\n     CSVPrinter printer = new CSVPrinter(w, format)) {\n    printer.printRecord(1, \"Belajar CSV\", false);\n}\n```\n\n**Membaca** dari file, baris demi baris:\n\n```java\ntry (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8);\n     CSVParser parser = new CSVParser(r, formatBaca)) {\n    for (CSVRecord rec : parser) {\n        ...\n    }\n}\n```\n\nDua cara mengambil data:\n\n| Cara | Memori | Cocok untuk |\n|---|---|---|\n| for-each pada parser | satu baris sekali waktu | file besar, ribuan sampai jutaan baris |\n| `parser.getRecords()` | semua baris sekaligus | file kecil |\n\nSelalu sebutkan `StandardCharsets.UTF_8`. Tanpa itu, Java 8 memakai encoding bawaan komputer, yang di Windows sering bukan UTF-8.\n\n**BOM** (*Byte Order Mark*) adalah karakter tak terlihat `\\uFEFF` di awal file. Excel di Windows menulisnya di CSV UTF-8, dan membutuhkannya untuk menampilkan huruf non-ASCII dengan benar. Commons CSV tidak membuangnya otomatis."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nPath file = Paths.get(\"todo.csv\");\ntry (Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8);\n     CSVPrinter printer = new CSVPrinter(w, format)) {\n    printer.printRecord(1, \"Belajar CSV\", false);\n}\nSystem.out.println(Files.size(file) + \" byte\");\n```\n\nUntuk ekspor yang akan dibuka di Excel, tulis BOM lebih dulu:\n\n```java\nw.write('\\uFEFF');\n```\n\nUntuk membaca file yang mungkin ber-BOM, `BOMInputStream` dari library Apache Commons IO membuang BOM sebelum dibaca parser.\n\nDi contoh, `Files.deleteIfExists` di awal membuat setiap percobaan mulai dari file kosong. File di editor website ini disimpan di browser dan tetap ada antar percobaan."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path file = Paths.get(\"excel.csv\");\n        Files.deleteIfExists(file);\n        try (Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {\n            w.write(\"\\uFEFF\");\n            w.write(\"id,judul\\r\\n1,Belajar\\r\\n\");\n        }\n        CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();\n        try (CSVParser p = new CSVParser(Files.newBufferedReader(file, StandardCharsets.UTF_8), format)) {\n            System.out.println(\"Kolom: \" + p.getHeaderNames());\n            System.out.println(\"Ada id? \" + p.getHeaderNames().contains(\"id\"));\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: file diawali BOM. Apakah header dikenali sebagai kolom bernama id?",
+        "options": [
+          "Ada id? false",
+          "Ada id? true",
+          "Kolom: [judul]",
+          "Kolom: []"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 13,
+          "note": "BOM, karakter tak terlihat di awal file."
+        },
+        {
+          "line": 19,
+          "note": "Nama kolom pertama bukan \"id\" lagi."
+        }
+      ],
+      "explanation": "BOM menempel ke nama kolom pertama, sehingga namanya menjadi BOM diikuti id. Di layar keduanya terlihat sama, tetapi untuk Java berbeda, dan get(\"id\") akan gagal.\n\nFile dari Excel sering seperti ini. Buang BOM sebelum dibaca, misalnya dengan BOMInputStream.",
+      "tryThis": [
+        {
+          "task": "Hapus baris w.write(\"\\uFEFF\") lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Cetak panjang nama kolom pertama dengan p.getHeaderNames().get(0).length().",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tidak menyebut encoding**\n\nFile dengan huruf `é` atau simbol khusus terbaca rusak (`Ã©`) di komputer dengan encoding bawaan berbeda. Selalu `StandardCharsets.UTF_8`.\n\n**2. `getRecords()` untuk file besar**\n\nFile 2 juta baris dimuat sekaligus, lalu `OutOfMemoryError`. Proses baris demi baris.\n\n**3. Membuka file tanpa menutupnya**\n\nDi Windows, file yang masih terbuka tidak bisa dihapus atau ditimpa. Pakai try-with-resources untuk reader, writer, parser, dan printer.\n\n**4. Menimpa file asli saat menulis**\n\nKalau aplikasi mati di tengah penulisan, file lama rusak. Tulis ke file sementara lalu ganti nama, seperti di materi Todolist JSON."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Fitur unggah CSV di web menerima file lewat form (`multipart/form-data`), membatasi ukurannya (misalnya maksimal 10 MB), lalu memprosesnya baris demi baris.\n- Impor yang besar biasanya dijalankan di belakang (*background job*), dan pengguna menerima laporan hasilnya setelah selesai.\n- Pertukaran file antar perusahaan sering lewat **SFTP**: sistem A meletakkan file CSV di folder, sistem B mengambilnya setiap malam. Nama file biasanya berisi tanggal, misalnya `transaksi-2026-11-11.csv`.\n- Library pendamping yang sering dipakai: **Apache Commons IO** (`BOMInputStream`, `FileUtils`)."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Impor Ekspor Todo 4: File todo.csv",
+      "pembuka": "Todo sekarang disimpan ke file `todo.csv`.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Dua todo ditulis ke file, lalu ukuran filenya dicetak.",
+          "jawaban": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path file = Paths.get(\"todo.csv\");\n        Files.deleteIfExists(file);   // contoh selalu mulai dari file kosong\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader(\"id\", \"judul\", \"selesai\")\n                .build();\n        try (Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8);\n             CSVPrinter printer = new CSVPrinter(w, format)) {\n            printer.printRecord(1, \"Belajar CSV\", false);\n            printer.printRecord(2, \"Rapat tim\", true);\n        }\n        System.out.println(\"Ukuran file: \" + Files.size(file) + \" byte\");\n    }\n}\n",
+          "keluaran": "Ukuran file: 57 byte",
+          "otomatis": true,
+          "benar": "Setiap baris diakhiri CRLF, jadi ukurannya termasuk dua karakter akhir baris.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Baca kembali `todo.csv` dengan format yang membaca header, lalu cetak `id. judul` untuk setiap baris.",
+          "jawaban": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path file = Paths.get(\"todo.csv\");\n        Files.deleteIfExists(file);   // contoh selalu mulai dari file kosong\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader(\"id\", \"judul\", \"selesai\")\n                .build();\n        try (Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8);\n             CSVPrinter printer = new CSVPrinter(w, format)) {\n            printer.printRecord(1, \"Belajar CSV\", false);\n            printer.printRecord(2, \"Rapat tim\", true);\n        }\n        System.out.println(\"Ukuran file: \" + Files.size(file) + \" byte\");\n\n        CSVFormat formatBaca = CSVFormat.DEFAULT.builder()\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8);\n             CSVParser parser = new CSVParser(r, formatBaca)) {\n            for (CSVRecord rec : parser) {\n                System.out.println(rec.get(\"id\") + \". \" + rec.get(\"judul\"));\n            }\n        }\n    }\n}\n",
+          "keluaran": "Ukuran file: 57 byte\n1. Belajar CSV\n2. Rapat tim",
+          "wajib": [
+            {
+              "pola": "Files\\.newBufferedReader\\s*\\(\\s*file\\s*,\\s*StandardCharsets\\.UTF_8\\s*\\)",
+              "pesan": "buka dengan `Files.newBufferedReader(file, StandardCharsets.UTF_8)`."
+            }
+          ],
+          "benar": "Data bertahan di file.",
+          "petunjuk": "Format baru `formatBaca` dengan `setHeader()` dan `setSkipHeaderRecord(true)`, lalu `new CSVParser(r, formatBaca)`."
+        },
+        {
+          "arahan": "Hitung todo yang sudah selesai dari file, lalu cetak `Selesai: 1`.",
+          "jawaban": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path file = Paths.get(\"todo.csv\");\n        Files.deleteIfExists(file);   // contoh selalu mulai dari file kosong\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader(\"id\", \"judul\", \"selesai\")\n                .build();\n        try (Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8);\n             CSVPrinter printer = new CSVPrinter(w, format)) {\n            printer.printRecord(1, \"Belajar CSV\", false);\n            printer.printRecord(2, \"Rapat tim\", true);\n        }\n        System.out.println(\"Ukuran file: \" + Files.size(file) + \" byte\");\n\n        CSVFormat formatBaca = CSVFormat.DEFAULT.builder()\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8);\n             CSVParser parser = new CSVParser(r, formatBaca)) {\n            for (CSVRecord rec : parser) {\n                System.out.println(rec.get(\"id\") + \". \" + rec.get(\"judul\"));\n            }\n        }\n\n        int selesai = 0;\n        try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8);\n             CSVParser parser = new CSVParser(r, formatBaca)) {\n            for (CSVRecord rec : parser) {\n                if (Boolean.parseBoolean(rec.get(\"selesai\"))) {\n                    selesai++;\n                }\n            }\n        }\n        System.out.println(\"Selesai: \" + selesai);\n    }\n}\n",
+          "keluaran": "Ukuran file: 57 byte\n1. Belajar CSV\n2. Rapat tim\nSelesai: 1",
+          "wajib": [
+            {
+              "pola": "Boolean\\.parseBoolean\\s*\\(\\s*rec\\.get\\s*\\(\\s*\"selesai\"\\s*\\)\\s*\\)",
+              "pesan": "pakai `Boolean.parseBoolean(rec.get(\"selesai\"))`."
+            }
+          ],
+          "benar": "Setiap parser membaca file dari awal.",
+          "petunjuk": "Buka parser lagi, lalu `Boolean.parseBoolean(rec.get(\"selesai\"))`."
+        },
+        {
+          "arahan": "Tantangan: cetak isi mentah file baris demi baris dengan awalan `> `.",
+          "jawaban": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path file = Paths.get(\"todo.csv\");\n        Files.deleteIfExists(file);   // contoh selalu mulai dari file kosong\n        CSVFormat format = CSVFormat.DEFAULT.builder()\n                .setHeader(\"id\", \"judul\", \"selesai\")\n                .build();\n        try (Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8);\n             CSVPrinter printer = new CSVPrinter(w, format)) {\n            printer.printRecord(1, \"Belajar CSV\", false);\n            printer.printRecord(2, \"Rapat tim\", true);\n        }\n        System.out.println(\"Ukuran file: \" + Files.size(file) + \" byte\");\n\n        CSVFormat formatBaca = CSVFormat.DEFAULT.builder()\n                .setHeader()\n                .setSkipHeaderRecord(true)\n                .build();\n        try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8);\n             CSVParser parser = new CSVParser(r, formatBaca)) {\n            for (CSVRecord rec : parser) {\n                System.out.println(rec.get(\"id\") + \". \" + rec.get(\"judul\"));\n            }\n        }\n\n        int selesai = 0;\n        try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8);\n             CSVParser parser = new CSVParser(r, formatBaca)) {\n            for (CSVRecord rec : parser) {\n                if (Boolean.parseBoolean(rec.get(\"selesai\"))) {\n                    selesai++;\n                }\n            }\n        }\n        System.out.println(\"Selesai: \" + selesai);\n\n        for (String baris : Files.readAllLines(file, StandardCharsets.UTF_8)) {\n            System.out.println(\"> \" + baris);\n        }\n    }\n}\n",
+          "keluaran": "Ukuran file: 57 byte\n1. Belajar CSV\n2. Rapat tim\nSelesai: 1\n> id,judul,selesai\n> 1,Belajar CSV,false\n> 2,Rapat tim,true",
+          "wajib": [
+            {
+              "pola": "Files\\.readAllLines\\s*\\(\\s*file",
+              "pesan": "pakai `Files.readAllLines(file, ...)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Inilah isi file yang akan dibuka Excel.",
+          "petunjuk": "Pakai `Files.readAllLines(file, StandardCharsets.UTF_8)`."
+        }
+      ],
+      "penutup": "File CSV bisa ditulis dan dibaca. Berikutnya: impor yang tahan terhadap data salah."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa file CSV besar dibaca dengan for-each pada parser, bukan getRecords()?",
+          "options": [
+            "Karena getRecords() membaca terbalik",
+            "Supaya hanya satu baris yang ada di memori pada satu waktu",
+            "Karena for-each lebih mudah ditulis",
+            "Karena getRecords() tidak membaca header"
+          ],
+          "answer": 1,
+          "explanation": "Memori terbatas.",
+          "remedial": "`getRecords()` memuat semua baris ke sebuah List. Untuk file jutaan baris, memori bisa habis. for-each membaca satu baris, memprosesnya, lalu lanjut."
+        },
+        {
+          "question": "Kenapa StandardCharsets.UTF_8 selalu disebut saat membuka file?",
+          "options": [
+            "Supaya file lebih kecil",
+            "Supaya file bisa ditutup",
+            "Supaya huruf non-ASCII terbaca sama di semua komputer",
+            "Karena CSV wajib ASCII"
+          ],
+          "answer": 2,
+          "explanation": "Encoding bawaan berbeda-beda.",
+          "remedial": "Tanpa menyebut encoding, Java 8 memakai encoding bawaan sistem, yang berbeda antara Windows, Linux, dan Mac. UTF-8 membuat hasilnya sama di mana pun."
+        },
+        {
+          "question": "Header terlihat id,judul tetapi get(\"id\") gagal. Penyebab yang paling mungkin adalah...",
+          "options": [
+            "File terlalu besar",
+            "Pemisahnya titik koma",
+            "Kolom id berisi angka",
+            "File diawali BOM dari Excel"
+          ],
+          "answer": 3,
+          "explanation": "Karakter tak terlihat.",
+          "remedial": "BOM menempel di nama kolom pertama. Namanya terlihat `id`, tetapi sebenarnya `\\uFEFFid`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Cara membuka file untuk ditulis dengan UTF-8 adalah...",
+      "options": [
+        "Files.newBufferedWriter(file, StandardCharsets.UTF_8)",
+        "new FileWriter(file, true)",
+        "Files.readAllLines(file)",
+        "new CSVPrinter(file)"
+      ],
+      "answer": 0,
+      "explanation": "Writer dari class Files."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca data stok dari input (CSV dengan header nama,stok,harga), menulis file laporan-stok.csv berisi kolom nama dan stok, lalu mencetak isi file itu. Laporan seharusnya hanya berisi barang dengan stok kurang dari 5, tetapi program menulis semua barang. Perbaiki program.",
+      "starterCode": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path file = Paths.get(\"laporan-stok.csv\");\n        Files.deleteIfExists(file);\n        CSVFormat masuk = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();\n        CSVFormat keluar = CSVFormat.DEFAULT.builder().setHeader(\"nama\", \"stok\").build();\n        try (CSVParser parser = masuk.parse(new InputStreamReader(System.in));\n             Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8);\n             CSVPrinter printer = new CSVPrinter(w, keluar)) {\n            for (CSVRecord r : parser) {\n                printer.printRecord(r.get(\"nama\"), r.get(\"stok\"));\n            }\n        }\n        for (String baris : Files.readAllLines(file, StandardCharsets.UTF_8)) {\n            System.out.println(baris);\n        }\n    }\n}",
+      "solution": "import java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path file = Paths.get(\"laporan-stok.csv\");\n        Files.deleteIfExists(file);\n        CSVFormat masuk = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();\n        CSVFormat keluar = CSVFormat.DEFAULT.builder().setHeader(\"nama\", \"stok\").build();\n        try (CSVParser parser = masuk.parse(new InputStreamReader(System.in));\n             Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8);\n             CSVPrinter printer = new CSVPrinter(w, keluar)) {\n            for (CSVRecord r : parser) {\n                if (Integer.parseInt(r.get(\"stok\")) < 5) {\n                    printer.printRecord(r.get(\"nama\"), r.get(\"stok\"));\n                }\n            }\n        }\n        for (String baris : Files.readAllLines(file, StandardCharsets.UTF_8)) {\n            System.out.println(baris);\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "nama,stok,harga\nKopi,3,18000\nTeh,10,8000\n\"Gula, pasir\",0,15000\n",
+          "expectedOutput": "nama,stok\nKopi,3\n\"Gula, pasir\",0\n"
+        }
+      ],
+      "hints": [
+        "Periksa stok dengan Integer.parseInt(r.get(\"stok\")) sebelum menulis.",
+        "Tulis hanya kalau stoknya kurang dari 5."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "File CSV dibaca dengan Files.newBufferedReader dan ditulis dengan Files.newBufferedWriter, selalu UTF-8.",
+        "File besar diproses baris demi baris; getRecords() hanya untuk file kecil.",
+        "Semua reader, writer, parser, dan printer ditutup dengan try-with-resources.",
+        "BOM dari Excel menempel di nama kolom pertama."
+      ]
+    }
+  ]
+}

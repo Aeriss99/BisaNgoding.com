@@ -1,0 +1,212 @@
+{
+  "id": "java-internationalization-05",
+  "moduleId": "internationalization",
+  "order": 5,
+  "title": "Tanggal, Waktu, dan Zona Waktu",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Tanggal adalah sumber kesalahan i18n yang paling sering. `03/04/2026` adalah 3 April bagi orang Indonesia, tetapi 4 Maret bagi orang Amerika. Nama hari dan bulan harus diterjemahkan. Dan pukul 14.00 di Jakarta adalah pukul 16.00 di Jayapura.\n\nModul Date & Time sudah membahas `LocalDate`, `ZonedDateTime`, dan `DateTimeFormatter`. Di materi ini kita fokus pada dua hal: **format sesuai locale** dan **zona waktu pengguna**.\n\nIbarat jadwal siaran langsung pertandingan bola: satu waktu kick-off yang sama, tetapi setiap negara menuliskannya dengan jam lokal dan bahasanya sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "**Format bawaan locale** (disarankan, tidak perlu menghafal pola tiap negara):\n\n```java\nDateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(id)\n```\n\n| `FormatStyle` | `id-ID` | `en-US` |\n|---|---|---|\n| `FULL` | Selasa, 17 November 2026 | Tuesday, November 17, 2026 |\n| `LONG` | 17 November 2026 | November 17, 2026 |\n| `MEDIUM` | 17 Nov 2026 | Nov 17, 2026 |\n| `SHORT` | 17/11/26 | 11/17/26 |\n\n**Pola sendiri** tetap butuh locale untuk nama hari dan bulan:\n\n```java\nDateTimeFormatter.ofPattern(\"EEEE, d MMMM yyyy\", id)    // Selasa, 17 November 2026\n```\n\nNama hari dan bulan juga bisa diambil langsung: `DayOfWeek.FRIDAY.getDisplayName(TextStyle.FULL, id)` menghasilkan `Jumat`.\n\n**Zona waktu:**\n\n| Zona | ID | Singkatan |\n|---|---|---|\n| Waktu Indonesia Barat | `Asia/Jakarta` | WIB (UTC+7) |\n| Waktu Indonesia Tengah | `Asia/Makassar` | WITA (UTC+8) |\n| Waktu Indonesia Timur | `Asia/Jayapura` | WIT (UTC+9) |\n\nAturan emas: **simpan waktu dalam UTC** (`Instant`), dan ubah ke zona pengguna hanya saat ditampilkan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nZonedDateTime dibuat = ZonedDateTime.of(2026, 11, 17, 14, 5, 0, 0, ZoneId.of(\"Asia/Jakarta\"));\nInstant disimpan = dibuat.toInstant();                          // 2026-11-17T07:05:00Z\n\nDateTimeFormatter f = DateTimeFormatter.ofPattern(\"d MMM yyyy HH:mm zzz\", id);\ndisimpan.atZone(ZoneId.of(\"Asia/Jayapura\")).format(f);          // 17 Nov 2026 16:05 WIT\n```\n\n`withZoneSameInstant` mengubah zona tanpa mengubah saatnya: 14.05 WIB sama dengan 16.05 WIT.\n\nPola `zzz` menampilkan singkatan zona sesuai locale. Di locale Indonesia, `Asia/Jakarta` ditulis `WIB`."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        LocalDate d = LocalDate.of(2026, 11, 17);\n        System.out.println(d.format(DateTimeFormatter.ofPattern(\"EEEE, d MMMM yyyy\")));\n        System.out.println(d.format(DateTimeFormatter.ofPattern(\"EEEE, d MMMM yyyy\", Locale.forLanguageTag(\"id-ID\"))));\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa baris pertama yang tercetak?",
+        "options": [
+          "Selasa, November 17, 2026",
+          "Tuesday, 17 November 2026",
+          "Tuesday, November 17, 2026",
+          "17/11/2026"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 8,
+          "note": "Tanpa locale: memakai locale bawaan."
+        },
+        {
+          "line": 9,
+          "note": "Dengan locale Indonesia."
+        }
+      ],
+      "explanation": "ofPattern tanpa locale memakai locale bawaan JVM, di sini en-US, sehingga nama hari dan bulan berbahasa Inggris walau polanya gaya Indonesia. Di laptop developer berlocale Indonesia hasilnya Selasa, lalu berubah menjadi Tuesday setelah di-deploy ke server. Selalu sebut locale.",
+      "tryThis": [
+        {
+          "task": "Ganti pola menjadi \"EEE, d MMM yy\".",
+          "hint": null
+        },
+        {
+          "task": "Pakai DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(Locale.forLanguageTag(\"ms-MY\")).",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Pola tanpa locale**\n\n`ofPattern(\"EEEE\")` berbahasa Inggris di server cloud. Sebut locale, atau pakai `ofLocalizedDate`.\n\n**2. Menyimpan `LocalDateTime` di database**\n\nTanpa zona, tidak jelas 14.05 itu WIB atau WIT. Simpan `Instant` atau kolom `TIMESTAMP WITH TIME ZONE`.\n\n**3. Memakai singkatan zona untuk menghitung**\n\n`ZoneId.of(\"WIB\")` tidak valid, dan singkatan seperti `CST` berarti beberapa zona berbeda. Pakai ID wilayah seperti `Asia/Jakarta`.\n\n**4. Pola tahun `YYYY`**\n\n`YYYY` adalah tahun berdasarkan minggu (*week-based year*). Untuk tanggal 29 Desember, hasilnya bisa tahun berikutnya. Yang benar `yyyy` atau `uuuu`.\n\n**5. Zona pengguna diambil dari server**\n\n`ZoneId.systemDefault()` adalah zona server. Zona pengguna diambil dari profil atau dikirim oleh aplikasi frontend."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Server produksi biasanya diatur ke **UTC**, dan database menyimpan waktu dalam UTC. Konversi ke zona pengguna terjadi di lapisan tampilan.\n- API mengirim waktu dalam format **ISO 8601** dengan zona, misalnya `2026-11-17T07:05:00Z`. Frontend (browser) yang mengubahnya ke zona dan bahasa pengguna dengan `Intl.DateTimeFormat`.\n- Email dan notifikasi yang dikirim server harus memakai zona dan locale penerima, yang disimpan di profil pengguna.\n- Data zona waktu (aturan musim panas dan perubahan zona) diperbarui berkala lewat pembaruan JDK. Itu salah satu alasan JDK di produksi harus rutin diperbarui."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Toko Global 5: Waktu Pesanan",
+      "pembuka": "Toko Global menampilkan waktu pesanan sesuai bahasa dan zona pembeli.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Waktu pesanan ditampilkan dengan format lengkap bahasa Indonesia.",
+          "jawaban": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        ZonedDateTime dibuat = ZonedDateTime.of(2026, 11, 17, 14, 5, 0, 0, ZoneId.of(\"Asia/Jakarta\"));\n        Locale id = Locale.forLanguageTag(\"id-ID\");\n        DateTimeFormatter panjang = DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(id);\n        System.out.println(\"Dipesan: \" + dibuat.format(panjang));\n    }\n}\n",
+          "keluaran": "Dipesan: Selasa, 17 November 2026",
+          "otomatis": true,
+          "benar": "`FormatStyle.FULL` menyertakan nama hari.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Cetak juga tanggalnya dengan `FormatStyle.LONG` untuk `en-US`, `ms-MY`, dan `ja-JP`.",
+          "jawaban": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        ZonedDateTime dibuat = ZonedDateTime.of(2026, 11, 17, 14, 5, 0, 0, ZoneId.of(\"Asia/Jakarta\"));\n        Locale id = Locale.forLanguageTag(\"id-ID\");\n        DateTimeFormatter panjang = DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(id);\n        System.out.println(\"Dipesan: \" + dibuat.format(panjang));\n        for (String tag : List.of(\"en-US\", \"ms-MY\", \"ja-JP\")) {\n            Locale l = Locale.forLanguageTag(tag);\n            System.out.println(tag + \": \" + dibuat.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(l)));\n        }\n    }\n}\n",
+          "keluaran": "Dipesan: Selasa, 17 November 2026\nen-US: November 17, 2026\nms-MY: 17 November 2026\nja-JP: 2026年11月17日",
+          "wajib": [
+            {
+              "pola": "FormatStyle\\.LONG",
+              "pesan": "pakai `FormatStyle.LONG`."
+            }
+          ],
+          "benar": "Urutan bagian tanggal pun berbeda di setiap bahasa.",
+          "petunjuk": "`DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(l)`."
+        },
+        {
+          "arahan": "Tampilkan waktu pesanan di tiga zona Indonesia dengan pola `d MMM yyyy HH:mm zzz` berlocale Indonesia.",
+          "jawaban": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        ZonedDateTime dibuat = ZonedDateTime.of(2026, 11, 17, 14, 5, 0, 0, ZoneId.of(\"Asia/Jakarta\"));\n        Locale id = Locale.forLanguageTag(\"id-ID\");\n        DateTimeFormatter panjang = DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(id);\n        System.out.println(\"Dipesan: \" + dibuat.format(panjang));\n        for (String tag : List.of(\"en-US\", \"ms-MY\", \"ja-JP\")) {\n            Locale l = Locale.forLanguageTag(tag);\n            System.out.println(tag + \": \" + dibuat.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(l)));\n        }\n        DateTimeFormatter jam = DateTimeFormatter.ofPattern(\"d MMM yyyy HH:mm zzz\", id);\n        for (String zona : List.of(\"Asia/Jakarta\", \"Asia/Makassar\", \"Asia/Jayapura\")) {\n            System.out.println(dibuat.withZoneSameInstant(ZoneId.of(zona)).format(jam));\n        }\n    }\n}\n",
+          "keluaran": "Dipesan: Selasa, 17 November 2026\nen-US: November 17, 2026\nms-MY: 17 November 2026\nja-JP: 2026年11月17日\n17 Nov 2026 14:05 WIB\n17 Nov 2026 15:05 WITA\n17 Nov 2026 16:05 WIT",
+          "wajib": [
+            {
+              "pola": "withZoneSameInstant",
+              "pesan": "pakai `withZoneSameInstant`."
+            },
+            {
+              "pola": "\"Asia/Jayapura\"",
+              "pesan": "sertakan `Asia/Jayapura`."
+            }
+          ],
+          "benar": "Satu saat yang sama: 14.05 WIB, 15.05 WITA, 16.05 WIT.",
+          "petunjuk": "`dibuat.withZoneSameInstant(ZoneId.of(zona))`."
+        },
+        {
+          "arahan": "Tantangan: ubah waktu pesanan menjadi `Instant` (`Disimpan (UTC): `), lalu tampilkan untuk pembeli di Tokyo dengan `ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)` berlocale `ja-JP`.",
+          "jawaban": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        ZonedDateTime dibuat = ZonedDateTime.of(2026, 11, 17, 14, 5, 0, 0, ZoneId.of(\"Asia/Jakarta\"));\n        Locale id = Locale.forLanguageTag(\"id-ID\");\n        DateTimeFormatter panjang = DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(id);\n        System.out.println(\"Dipesan: \" + dibuat.format(panjang));\n        for (String tag : List.of(\"en-US\", \"ms-MY\", \"ja-JP\")) {\n            Locale l = Locale.forLanguageTag(tag);\n            System.out.println(tag + \": \" + dibuat.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(l)));\n        }\n        DateTimeFormatter jam = DateTimeFormatter.ofPattern(\"d MMM yyyy HH:mm zzz\", id);\n        for (String zona : List.of(\"Asia/Jakarta\", \"Asia/Makassar\", \"Asia/Jayapura\")) {\n            System.out.println(dibuat.withZoneSameInstant(ZoneId.of(zona)).format(jam));\n        }\n        Instant disimpan = dibuat.toInstant();\n        System.out.println(\"Disimpan (UTC): \" + disimpan);\n        DateTimeFormatter jepang = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(Locale.forLanguageTag(\"ja-JP\"));\n        System.out.println(\"Pembeli Tokyo: \" + disimpan.atZone(ZoneId.of(\"Asia/Tokyo\")).format(jepang));\n    }\n}\n",
+          "keluaran": "Dipesan: Selasa, 17 November 2026\nen-US: November 17, 2026\nms-MY: 17 November 2026\nja-JP: 2026年11月17日\n17 Nov 2026 14:05 WIB\n17 Nov 2026 15:05 WITA\n17 Nov 2026 16:05 WIT\nDisimpan (UTC): 2026-11-17T07:05:00Z\nPembeli Tokyo: 2026/11/17 16:05",
+          "wajib": [
+            {
+              "pola": "toInstant\\(\\)",
+              "pesan": "ubah dengan `toInstant()`."
+            },
+            {
+              "pola": "\"Asia/Tokyo\"",
+              "pesan": "pakai zona `Asia/Tokyo`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Pola penyimpanan di aplikasi sungguhan: Instant di database, zona saat tampil.",
+          "petunjuk": "`dibuat.toInstant()`, lalu `disimpan.atZone(ZoneId.of(\"Asia/Tokyo\"))`."
+        }
+      ],
+      "penutup": "Waktu sudah tepat untuk semua pembeli. Berikutnya: mengurutkan dan membandingkan teks."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Cara menampilkan tanggal sesuai kebiasaan locale tanpa menulis pola sendiri adalah...",
+          "options": [
+            "DateTimeFormatter.ofPattern(\"dd/MM/yyyy\")",
+            "tanggal.toString()",
+            "DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(l)",
+            "String.valueOf(tanggal)"
+          ],
+          "answer": 2,
+          "explanation": "Format bawaan locale.",
+          "remedial": "`ofLocalizedDate` memakai format yang sudah ditentukan data locale, sehingga urutan hari, bulan, dan tahun benar untuk setiap negara."
+        },
+        {
+          "question": "Pukul 14.05 WIB sama dengan pukul berapa WIT?",
+          "options": [
+            "12.05",
+            "14.05",
+            "15.05",
+            "16.05"
+          ],
+          "answer": 3,
+          "explanation": "Selisih dua jam.",
+          "remedial": "WIB adalah UTC+7 dan WIT adalah UTC+9. Saat yang sama terlihat dua jam lebih lambat di jam WIB."
+        },
+        {
+          "question": "Waktu transaksi sebaiknya disimpan di database dalam bentuk...",
+          "options": [
+            "Instant atau timestamp UTC",
+            "LocalDateTime tanpa zona",
+            "Teks yang sudah diformat bahasa Indonesia",
+            "Jam server tanpa keterangan"
+          ],
+          "answer": 0,
+          "explanation": "Satu titik waktu.",
+          "remedial": "`Instant` menunjuk satu titik waktu yang sama di seluruh dunia. Zona dan bahasa ditambahkan saat ditampilkan."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "ID zona waktu yang benar untuk WITA adalah...",
+      "options": [
+        "WITA",
+        "Asia/Makassar",
+        "Asia/Bali",
+        "UTC+8 Indonesia"
+      ],
+      "answer": 1,
+      "explanation": "Nama wilayah."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca waktu mulai flash sale dalam format ISO UTC di baris pertama, lalu baris-baris berisi tag bahasa dan ID zona waktu pembeli. Saat ini waktu dicetak mentah dalam UTC. Ubah supaya setiap baris mencetak tag bahasa, spasi, lalu waktu mulai di zona pembeli dengan pola EEEE, d MMMM yyyy HH:mm zzz dan locale pembeli.",
+      "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Instant mulai = Instant.parse(in.nextLine().trim());\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            Locale locale = Locale.forLanguageTag(d[0]);\n            ZoneId zona = ZoneId.of(d[1]);\n            System.out.println(d[0] + \" \" + mulai);\n        }\n    }\n}",
+      "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Instant mulai = Instant.parse(in.nextLine().trim());\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            Locale locale = Locale.forLanguageTag(d[0]);\n            ZoneId zona = ZoneId.of(d[1]);\n            DateTimeFormatter f = DateTimeFormatter.ofPattern(\"EEEE, d MMMM yyyy HH:mm zzz\", locale);\n            System.out.println(d[0] + \" \" + mulai.atZone(zona).format(f));\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "2026-12-12T05:00:00Z\nid-ID Asia/Jakarta\nid-ID Asia/Jayapura\nen-GB Europe/London\n",
+          "expectedOutput": "id-ID Sabtu, 12 Desember 2026 12:00 WIB\nid-ID Sabtu, 12 Desember 2026 14:00 WIT\nen-GB Saturday, 12 December 2026 05:00 GMT\n"
+        },
+        {
+          "input": "2026-12-12T05:00:00Z\nja-JP Asia/Tokyo\n",
+          "expectedOutput": "ja-JP 土曜日, 12 12月 2026 14:00 JST\n"
+        }
+      ],
+      "hints": [
+        "mulai.atZone(zona) mengubah Instant menjadi ZonedDateTime di zona pembeli.",
+        "DateTimeFormatter.ofPattern(\"EEEE, d MMMM yyyy HH:mm zzz\", locale)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "ofLocalizedDate dan ofLocalizedDateTime memakai format bawaan locale.",
+        "ofPattern selalu disertai locale supaya nama hari dan bulan benar.",
+        "Simpan dalam UTC (Instant); ubah ke zona pengguna saat ditampilkan.",
+        "Pakai ID zona seperti Asia/Jakarta, bukan singkatan; yyyy, bukan YYYY."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

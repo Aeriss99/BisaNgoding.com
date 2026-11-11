@@ -1,0 +1,215 @@
+{
+  "id": "java-web-servlet-06",
+  "moduleId": "web-servlet",
+  "order": 6,
+  "title": "REST API JSON dengan Servlet",
+  "estimatedMinutes": 19,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi HP, frontend React, dan layanan lain tidak membutuhkan halaman HTML, tetapi **data**. Bentuk yang paling umum adalah **REST API** yang bertukar **JSON**.\n\nSemua bahan sudah kita punya: servlet untuk HTTP, status code yang tepat, dan Jackson dari modul JSON untuk mengubah object menjadi JSON dan sebaliknya.\n\nIbarat dapur restoran yang juga melayani ojek online: menu yang sama, tetapi pesanan datang dalam format standar aplikasi, dan dikemas untuk dibawa, bukan disajikan di piring."
+    },
+    {
+      "type": "theory",
+      "content": "Prinsip REST yang dipakai di materi ini:\n\n| Request | Arti | Status sukses |\n|---|---|---|\n| `GET /api/todo` | daftar semua todo | 200 |\n| `GET /api/todo/7` | satu todo | 200, atau 404 |\n| `POST /api/todo` + JSON | buat todo baru | **201** + header `Location: /api/todo/7` |\n| `PUT /api/todo/7` + JSON | ubah todo | 200, atau 404 |\n| `DELETE /api/todo/7` | hapus todo | **204** tanpa isi, atau 404 |\n\nMembaca JSON dari isi request dan menulis JSON ke response dengan Jackson:\n\n```java\nTodo masuk = json.readValue(req.getReader(), Todo.class);\n\nres.setStatus(201);\nres.setContentType(\"application/json;charset=UTF-8\");\njson.writeValue(res.getWriter(), todo);\n```\n\nError juga dikirim sebagai JSON dengan status yang sesuai, supaya aplikasi klien bisa membacanya:\n\n```json\n{\"pesan\":\"todo tidak ditemukan\"}\n```\n\nSatu servlet dengan pola `/api/todo/*` menangani semua alamat: `getPathInfo()` bernilai `null` untuk `/api/todo`, dan `/7` untuk `/api/todo/7`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@Override\nprotected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n    Todo masuk = json.readValue(req.getReader(), Todo.class);\n    if (masuk.judul == null || masuk.judul.trim().isEmpty()) {\n        kirim(res, 400, Collections.singletonMap(\"pesan\", \"judul wajib diisi\"));\n        return;\n    }\n    Todo t = new Todo(idBerikut++, masuk.judul.trim());\n    data.put(t.id, t);\n    res.setHeader(\"Location\", \"/api/todo/\" + t.id);\n    kirim(res, 201, t);\n}\n```\n\nMethod bantu `kirim(res, status, isi)` mengatur status, content type, dan menulis JSON di satu tempat, supaya semua jawaban konsisten.\n\nDi editor, JSON dikirim dengan `server.cetakJson(\"POST\", \"/api/todo\", \"{...}\")`. Di laptop, perintah yang sama dengan `curl`:\n\n```bash\ncurl -i -X POST http://localhost:8080/api/todo \\\n     -H \"Content-Type: application/json\" -d '{\"judul\":\"Belajar REST\"}'\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new TodoApiServlet());\n        Respons r = server.kirimJson(\"POST\", \"/api/todo\", \"{\\\"judul\\\":\\\"Rapat tim\\\"}\");\n        System.out.println(r.status() + \" \" + r.header(\"Location\"));\n        System.out.println(r.isi());\n    }\n}\n\nclass Todo {\n    public int id;\n    public String judul;\n    public boolean selesai;\n\n    public Todo() {\n    }\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n}\n\n@WebServlet(\"/api/todo/*\")\nclass TodoApiServlet extends HttpServlet {\n    private final ObjectMapper json = new ObjectMapper();\n    private final Map<Integer, Todo> data = new TreeMap<>();\n    private int idBerikut = 1;\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        if (req.getPathInfo() == null) {\n            kirim(res, 200, data.values());\n            return;\n        }\n        Todo t = data.get(nomor(req));\n        if (t == null) {\n            kirim(res, 404, Collections.singletonMap(\"pesan\", \"todo tidak ditemukan\"));\n            return;\n        }\n        kirim(res, 200, t);\n    }\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Todo masuk = json.readValue(req.getReader(), Todo.class);\n        if (masuk.judul == null || masuk.judul.trim().isEmpty()) {\n            kirim(res, 400, Collections.singletonMap(\"pesan\", \"judul wajib diisi\"));\n            return;\n        }\n        Todo t = new Todo(idBerikut++, masuk.judul.trim());\n        data.put(t.id, t);\n        res.setHeader(\"Location\", \"/api/todo/\" + t.id);\n        kirim(res, 201, t);\n    }\n\n    private int nomor(HttpServletRequest req) {\n        return Integer.parseInt(req.getPathInfo().substring(1));\n    }\n\n    private void kirim(HttpServletResponse res, int status, Object isi) throws IOException {\n        res.setStatus(status);\n        res.setContentType(\"application/json;charset=UTF-8\");\n        json.writeValue(res.getWriter(), isi);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak di baris pertama?",
+        "options": [
+          "200 /api/todo/1",
+          "201 null",
+          "201 /api/todo/1",
+          "200 null"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 14,
+          "note": "Mengirim JSON."
+        },
+        {
+          "line": 63,
+          "note": "Alamat data baru."
+        },
+        {
+          "line": 64,
+          "note": "Status Created dan isi JSON."
+        }
+      ],
+      "explanation": "Data baru dijawab 201 Created, dan header Location memberi tahu klien alamat data itu. Isi response adalah todo yang baru dibuat dalam bentuk JSON, lengkap dengan id yang diberikan server.",
+      "tryThis": [
+        {
+          "task": "Cetak juga r.header(\"Content-Type\").",
+          "hint": null
+        },
+        {
+          "task": "Kirim JSON dengan judul kosong dan cetak status serta isinya.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Semua jawaban berstatus 200**\n\nError dengan status 200 membuat aplikasi klien mengira berhasil. Pakai 400, 404, 409, dan seterusnya.\n\n**2. Content type bukan `application/json`**\n\nKlien dan browser tidak tahu isinya JSON. Sertakan juga `charset=UTF-8`.\n\n**3. JSON rusak menghasilkan 500**\n\n`readValue` melempar exception untuk JSON yang salah format. Tangkap dan jawab 400 dengan pesan yang jelas.\n\n**4. Mengirim stack trace ke klien**\n\nPesan error untuk klien singkat dan aman. Detail teknis hanya di log server.\n\n**5. Data di field servlet tanpa memikirkan thread**\n\n`TreeMap` dan `idBerikut++` di servlet tidak aman kalau banyak request bersamaan (materi Thread). Di aplikasi sungguhan data ada di database; untuk memori, pakai `ConcurrentHashMap` dan `AtomicInteger`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di Spring Boot, seluruh servlet ini menjadi controller ringkas:\n\n```java\n@RestController\n@RequestMapping(\"/api/todo\")\nclass TodoController {\n    @PostMapping\n    ResponseEntity<Todo> tambah(@Valid @RequestBody TodoBaru baru) { ... }\n\n    @GetMapping(\"/{id}\")\n    Todo cari(@PathVariable int id) { ... }\n}\n```\n\nJackson, status, dan JSON error diurus Spring, dan validasi memakai Bean Validation dari modul Validation.\n- Format error yang distandarkan: **Problem Details** (RFC 9457), `{\"type\": ..., \"title\": ..., \"status\": 404, \"detail\": ...}`, didukung Spring Boot 3.\n- API didokumentasikan dengan **OpenAPI** (Swagger), dan dicoba dengan Postman, Insomnia, atau `curl`.\n- Versi API biasanya di alamat (`/api/v1/todo`) supaya perubahan besar tidak merusak aplikasi lama."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Web 6: API Todo",
+      "pembuka": "Todolist Web sekarang punya REST API JSON.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. POST membuat todo (201), POST tanpa judul ditolak (400), GET daftar, dan GET nomor yang tidak ada (404).",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new TodoApiServlet());\n        server.cetakJson(\"POST\", \"/api/todo\", \"{\\\"judul\\\":\\\"Belajar REST\\\"}\");\n        server.cetakJson(\"POST\", \"/api/todo\", \"{\\\"judul\\\":\\\"\\\"}\");\n        server.cetak(\"GET\", \"/api/todo\");\n        server.cetak(\"GET\", \"/api/todo/9\");\n    }\n}\n\nclass Todo {\n    public int id;\n    public String judul;\n    public boolean selesai;\n\n    public Todo() {\n    }\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n}\n\n@WebServlet(\"/api/todo/*\")\nclass TodoApiServlet extends HttpServlet {\n    private final ObjectMapper json = new ObjectMapper();\n    private final Map<Integer, Todo> data = new TreeMap<>();\n    private int idBerikut = 1;\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        if (req.getPathInfo() == null) {\n            kirim(res, 200, data.values());\n            return;\n        }\n        Todo t = data.get(nomor(req));\n        if (t == null) {\n            kirim(res, 404, Collections.singletonMap(\"pesan\", \"todo tidak ditemukan\"));\n            return;\n        }\n        kirim(res, 200, t);\n    }\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Todo masuk = json.readValue(req.getReader(), Todo.class);\n        if (masuk.judul == null || masuk.judul.trim().isEmpty()) {\n            kirim(res, 400, Collections.singletonMap(\"pesan\", \"judul wajib diisi\"));\n            return;\n        }\n        Todo t = new Todo(idBerikut++, masuk.judul.trim());\n        data.put(t.id, t);\n        res.setHeader(\"Location\", \"/api/todo/\" + t.id);\n        kirim(res, 201, t);\n    }\n\n    private int nomor(HttpServletRequest req) {\n        return Integer.parseInt(req.getPathInfo().substring(1));\n    }\n\n    private void kirim(HttpServletResponse res, int status, Object isi) throws IOException {\n        res.setStatus(status);\n        res.setContentType(\"application/json;charset=UTF-8\");\n        json.writeValue(res.getWriter(), isi);\n    }\n}\n",
+          "keluaran": "POST /api/todo  {\"judul\":\"Belajar REST\"}\nHTTP 201 Created\nContent-Type: application/json;charset=UTF-8\nLocation: /api/todo/1\n\n{\"id\":1,\"judul\":\"Belajar REST\",\"selesai\":false}\nPOST /api/todo  {\"judul\":\"\"}\nHTTP 400 Bad Request\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"judul wajib diisi\"}\nGET /api/todo\nHTTP 200 OK\nContent-Type: application/json;charset=UTF-8\n\n[{\"id\":1,\"judul\":\"Belajar REST\",\"selesai\":false}]\nGET /api/todo/9\nHTTP 404 Not Found\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"todo tidak ditemukan\"}",
+          "otomatis": true,
+          "benar": "Semua jawaban berbentuk JSON.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan `doDelete`: hapus todo berdasarkan nomor dan jawab 204, atau 404 berisi JSON pesan kalau tidak ada. Kirim DELETE ke `/api/todo/1` dua kali.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new TodoApiServlet());\n        server.cetakJson(\"POST\", \"/api/todo\", \"{\\\"judul\\\":\\\"Belajar REST\\\"}\");\n        server.cetakJson(\"POST\", \"/api/todo\", \"{\\\"judul\\\":\\\"\\\"}\");\n        server.cetak(\"GET\", \"/api/todo\");\n        server.cetak(\"GET\", \"/api/todo/9\");\n        server.cetak(\"DELETE\", \"/api/todo/1\");\n        server.cetak(\"DELETE\", \"/api/todo/1\");\n    }\n}\n\nclass Todo {\n    public int id;\n    public String judul;\n    public boolean selesai;\n\n    public Todo() {\n    }\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n}\n\n@WebServlet(\"/api/todo/*\")\nclass TodoApiServlet extends HttpServlet {\n    private final ObjectMapper json = new ObjectMapper();\n    private final Map<Integer, Todo> data = new TreeMap<>();\n    private int idBerikut = 1;\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        if (req.getPathInfo() == null) {\n            kirim(res, 200, data.values());\n            return;\n        }\n        Todo t = data.get(nomor(req));\n        if (t == null) {\n            kirim(res, 404, Collections.singletonMap(\"pesan\", \"todo tidak ditemukan\"));\n            return;\n        }\n        kirim(res, 200, t);\n    }\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Todo masuk = json.readValue(req.getReader(), Todo.class);\n        if (masuk.judul == null || masuk.judul.trim().isEmpty()) {\n            kirim(res, 400, Collections.singletonMap(\"pesan\", \"judul wajib diisi\"));\n            return;\n        }\n        Todo t = new Todo(idBerikut++, masuk.judul.trim());\n        data.put(t.id, t);\n        res.setHeader(\"Location\", \"/api/todo/\" + t.id);\n        kirim(res, 201, t);\n    }\n\n    @Override\n    protected void doDelete(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        if (data.remove(nomor(req)) == null) {\n            kirim(res, 404, Collections.singletonMap(\"pesan\", \"todo tidak ditemukan\"));\n            return;\n        }\n        res.setStatus(204);\n    }\n\n    private int nomor(HttpServletRequest req) {\n        return Integer.parseInt(req.getPathInfo().substring(1));\n    }\n\n    private void kirim(HttpServletResponse res, int status, Object isi) throws IOException {\n        res.setStatus(status);\n        res.setContentType(\"application/json;charset=UTF-8\");\n        json.writeValue(res.getWriter(), isi);\n    }\n}\n",
+          "keluaran": "POST /api/todo  {\"judul\":\"Belajar REST\"}\nHTTP 201 Created\nContent-Type: application/json;charset=UTF-8\nLocation: /api/todo/1\n\n{\"id\":1,\"judul\":\"Belajar REST\",\"selesai\":false}\nPOST /api/todo  {\"judul\":\"\"}\nHTTP 400 Bad Request\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"judul wajib diisi\"}\nGET /api/todo\nHTTP 200 OK\nContent-Type: application/json;charset=UTF-8\n\n[{\"id\":1,\"judul\":\"Belajar REST\",\"selesai\":false}]\nGET /api/todo/9\nHTTP 404 Not Found\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"todo tidak ditemukan\"}\nDELETE /api/todo/1\nHTTP 204 No Content\nDELETE /api/todo/1\nHTTP 404 Not Found\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"todo tidak ditemukan\"}",
+          "wajib": [
+            {
+              "pola": "protected\\s+void\\s+doDelete",
+              "pesan": "timpa `doDelete`."
+            },
+            {
+              "pola": "setStatus\\s*\\(\\s*204\\s*\\)",
+              "pesan": "jawab 204."
+            }
+          ],
+          "benar": "DELETE kedua dijawab 404 karena todo sudah tidak ada.",
+          "petunjuk": "`data.remove(nomor(req))` mengembalikan `null` kalau nomor itu tidak ada."
+        },
+        {
+          "arahan": "Tambahkan `doPut` yang membaca JSON `{\"selesai\":true}` dan mengubah status todo, lalu jawab todo itu dengan 200 (atau 404). Kirim PUT ke `/api/todo/1` sebelum menghapusnya.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new TodoApiServlet());\n        server.cetakJson(\"POST\", \"/api/todo\", \"{\\\"judul\\\":\\\"Belajar REST\\\"}\");\n        server.cetakJson(\"POST\", \"/api/todo\", \"{\\\"judul\\\":\\\"\\\"}\");\n        server.cetak(\"GET\", \"/api/todo\");\n        server.cetak(\"GET\", \"/api/todo/9\");\n        server.cetakJson(\"PUT\", \"/api/todo/1\", \"{\\\"selesai\\\":true}\");\n        server.cetak(\"DELETE\", \"/api/todo/1\");\n        server.cetak(\"DELETE\", \"/api/todo/1\");\n    }\n}\n\nclass Todo {\n    public int id;\n    public String judul;\n    public boolean selesai;\n\n    public Todo() {\n    }\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n}\n\n@WebServlet(\"/api/todo/*\")\nclass TodoApiServlet extends HttpServlet {\n    private final ObjectMapper json = new ObjectMapper();\n    private final Map<Integer, Todo> data = new TreeMap<>();\n    private int idBerikut = 1;\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        if (req.getPathInfo() == null) {\n            kirim(res, 200, data.values());\n            return;\n        }\n        Todo t = data.get(nomor(req));\n        if (t == null) {\n            kirim(res, 404, Collections.singletonMap(\"pesan\", \"todo tidak ditemukan\"));\n            return;\n        }\n        kirim(res, 200, t);\n    }\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Todo masuk = json.readValue(req.getReader(), Todo.class);\n        if (masuk.judul == null || masuk.judul.trim().isEmpty()) {\n            kirim(res, 400, Collections.singletonMap(\"pesan\", \"judul wajib diisi\"));\n            return;\n        }\n        Todo t = new Todo(idBerikut++, masuk.judul.trim());\n        data.put(t.id, t);\n        res.setHeader(\"Location\", \"/api/todo/\" + t.id);\n        kirim(res, 201, t);\n    }\n\n    @Override\n    protected void doPut(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Todo t = data.get(nomor(req));\n        if (t == null) {\n            kirim(res, 404, Collections.singletonMap(\"pesan\", \"todo tidak ditemukan\"));\n            return;\n        }\n        Todo masuk = json.readValue(req.getReader(), Todo.class);\n        t.selesai = masuk.selesai;\n        kirim(res, 200, t);\n    }\n\n    @Override\n    protected void doDelete(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        if (data.remove(nomor(req)) == null) {\n            kirim(res, 404, Collections.singletonMap(\"pesan\", \"todo tidak ditemukan\"));\n            return;\n        }\n        res.setStatus(204);\n    }\n\n    private int nomor(HttpServletRequest req) {\n        return Integer.parseInt(req.getPathInfo().substring(1));\n    }\n\n    private void kirim(HttpServletResponse res, int status, Object isi) throws IOException {\n        res.setStatus(status);\n        res.setContentType(\"application/json;charset=UTF-8\");\n        json.writeValue(res.getWriter(), isi);\n    }\n}\n",
+          "keluaran": "POST /api/todo  {\"judul\":\"Belajar REST\"}\nHTTP 201 Created\nContent-Type: application/json;charset=UTF-8\nLocation: /api/todo/1\n\n{\"id\":1,\"judul\":\"Belajar REST\",\"selesai\":false}\nPOST /api/todo  {\"judul\":\"\"}\nHTTP 400 Bad Request\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"judul wajib diisi\"}\nGET /api/todo\nHTTP 200 OK\nContent-Type: application/json;charset=UTF-8\n\n[{\"id\":1,\"judul\":\"Belajar REST\",\"selesai\":false}]\nGET /api/todo/9\nHTTP 404 Not Found\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"todo tidak ditemukan\"}\nPUT /api/todo/1  {\"selesai\":true}\nHTTP 200 OK\nContent-Type: application/json;charset=UTF-8\n\n{\"id\":1,\"judul\":\"Belajar REST\",\"selesai\":true}\nDELETE /api/todo/1\nHTTP 204 No Content\nDELETE /api/todo/1\nHTTP 404 Not Found\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"todo tidak ditemukan\"}",
+          "wajib": [
+            {
+              "pola": "protected\\s+void\\s+doPut",
+              "pesan": "timpa `doPut`."
+            },
+            {
+              "pola": "cetakJson\\s*\\(\\s*\"PUT\"",
+              "pesan": "kirim PUT dengan `cetakJson`."
+            }
+          ],
+          "benar": "API lengkap: membuat, membaca, mengubah, dan menghapus.",
+          "petunjuk": "Baca dengan `json.readValue(req.getReader(), Todo.class)` lalu salin `selesai`."
+        },
+        {
+          "arahan": "Tantangan: `GET /api/todo/abc` saat ini gagal dengan 500 karena `abc` bukan angka. Ubah method `nomor` supaya mengembalikan -1 untuk nomor yang tidak valid, sehingga dijawab 404. Kirim GET ke `/api/todo/abc`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new TodoApiServlet());\n        server.cetakJson(\"POST\", \"/api/todo\", \"{\\\"judul\\\":\\\"Belajar REST\\\"}\");\n        server.cetakJson(\"POST\", \"/api/todo\", \"{\\\"judul\\\":\\\"\\\"}\");\n        server.cetak(\"GET\", \"/api/todo\");\n        server.cetak(\"GET\", \"/api/todo/9\");\n        server.cetak(\"GET\", \"/api/todo/abc\");\n        server.cetakJson(\"PUT\", \"/api/todo/1\", \"{\\\"selesai\\\":true}\");\n        server.cetak(\"DELETE\", \"/api/todo/1\");\n        server.cetak(\"DELETE\", \"/api/todo/1\");\n    }\n}\n\nclass Todo {\n    public int id;\n    public String judul;\n    public boolean selesai;\n\n    public Todo() {\n    }\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n}\n\n@WebServlet(\"/api/todo/*\")\nclass TodoApiServlet extends HttpServlet {\n    private final ObjectMapper json = new ObjectMapper();\n    private final Map<Integer, Todo> data = new TreeMap<>();\n    private int idBerikut = 1;\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        if (req.getPathInfo() == null) {\n            kirim(res, 200, data.values());\n            return;\n        }\n        Todo t = data.get(nomor(req));\n        if (t == null) {\n            kirim(res, 404, Collections.singletonMap(\"pesan\", \"todo tidak ditemukan\"));\n            return;\n        }\n        kirim(res, 200, t);\n    }\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Todo masuk = json.readValue(req.getReader(), Todo.class);\n        if (masuk.judul == null || masuk.judul.trim().isEmpty()) {\n            kirim(res, 400, Collections.singletonMap(\"pesan\", \"judul wajib diisi\"));\n            return;\n        }\n        Todo t = new Todo(idBerikut++, masuk.judul.trim());\n        data.put(t.id, t);\n        res.setHeader(\"Location\", \"/api/todo/\" + t.id);\n        kirim(res, 201, t);\n    }\n\n    @Override\n    protected void doPut(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Todo t = data.get(nomor(req));\n        if (t == null) {\n            kirim(res, 404, Collections.singletonMap(\"pesan\", \"todo tidak ditemukan\"));\n            return;\n        }\n        Todo masuk = json.readValue(req.getReader(), Todo.class);\n        t.selesai = masuk.selesai;\n        kirim(res, 200, t);\n    }\n\n    @Override\n    protected void doDelete(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        if (data.remove(nomor(req)) == null) {\n            kirim(res, 404, Collections.singletonMap(\"pesan\", \"todo tidak ditemukan\"));\n            return;\n        }\n        res.setStatus(204);\n    }\n\n    private int nomor(HttpServletRequest req) {\n        try {\n            return Integer.parseInt(req.getPathInfo().substring(1));\n        } catch (NumberFormatException e) {\n            return -1;\n        }\n    }\n\n    private void kirim(HttpServletResponse res, int status, Object isi) throws IOException {\n        res.setStatus(status);\n        res.setContentType(\"application/json;charset=UTF-8\");\n        json.writeValue(res.getWriter(), isi);\n    }\n}\n",
+          "keluaran": "POST /api/todo  {\"judul\":\"Belajar REST\"}\nHTTP 201 Created\nContent-Type: application/json;charset=UTF-8\nLocation: /api/todo/1\n\n{\"id\":1,\"judul\":\"Belajar REST\",\"selesai\":false}\nPOST /api/todo  {\"judul\":\"\"}\nHTTP 400 Bad Request\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"judul wajib diisi\"}\nGET /api/todo\nHTTP 200 OK\nContent-Type: application/json;charset=UTF-8\n\n[{\"id\":1,\"judul\":\"Belajar REST\",\"selesai\":false}]\nGET /api/todo/9\nHTTP 404 Not Found\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"todo tidak ditemukan\"}\nGET /api/todo/abc\nHTTP 404 Not Found\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"todo tidak ditemukan\"}\nPUT /api/todo/1  {\"selesai\":true}\nHTTP 200 OK\nContent-Type: application/json;charset=UTF-8\n\n{\"id\":1,\"judul\":\"Belajar REST\",\"selesai\":true}\nDELETE /api/todo/1\nHTTP 204 No Content\nDELETE /api/todo/1\nHTTP 404 Not Found\nContent-Type: application/json;charset=UTF-8\n\n{\"pesan\":\"todo tidak ditemukan\"}",
+          "wajib": [
+            {
+              "pola": "catch\\s*\\(\\s*NumberFormatException\\s+e\\s*\\)",
+              "pesan": "tangkap `NumberFormatException`."
+            },
+            {
+              "pola": "\"/api/todo/abc\"",
+              "pesan": "kirim GET ke `/api/todo/abc`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Input yang salah tidak lagi menjadi error server.",
+          "petunjuk": "Bungkus `Integer.parseInt` dengan try-catch `NumberFormatException`."
+        }
+      ],
+      "penutup": "REST API sudah jadi. Materi terakhir: menyatukan semuanya dengan TodoService."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Status yang tepat untuk DELETE yang berhasil tanpa isi response adalah...",
+          "options": [
+            "200 OK dengan isi kosong",
+            "201 Created",
+            "202 Accepted",
+            "204 No Content"
+          ],
+          "answer": 3,
+          "explanation": "Berhasil, tanpa isi.",
+          "remedial": "204 berarti berhasil dan memang tidak ada isi. Klien tidak perlu membaca apa pun."
+        },
+        {
+          "question": "Header yang menyertai 201 Created untuk memberi tahu alamat data baru adalah...",
+          "options": [
+            "Location",
+            "Content-Type",
+            "Host",
+            "Set-Cookie"
+          ],
+          "answer": 0,
+          "explanation": "Di mana data itu.",
+          "remedial": "`Location: /api/todo/7` memberi tahu klien alamat untuk membaca data yang baru dibuat."
+        },
+        {
+          "question": "JSON dari isi request dibaca dengan Jackson lewat...",
+          "options": [
+            "req.getParameter(\"json\")",
+            "json.readValue(req.getReader(), Todo.class)",
+            "req.getHeader(\"Body\")",
+            "req.getPathInfo()"
+          ],
+          "answer": 1,
+          "explanation": "Isi request.",
+          "remedial": "JSON dikirim di isi request, bukan sebagai parameter. `getReader()` memberi akses ke isinya, dan Jackson mengubahnya menjadi object."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Content type yang tepat untuk response JSON adalah...",
+      "options": [
+        "text/plain",
+        "text/html",
+        "application/json;charset=UTF-8",
+        "application/x-www-form-urlencoded"
+      ],
+      "answer": 2,
+      "explanation": "Jenis isi JSON."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program mengirim request dengan method dari input ke /api/produk dan mencetak hasilnya. ProdukApiServlet seharusnya menjawab daftar produk dalam bentuk JSON seperti {\"kopi\":18000,\"teh\":8000} dengan content type application/json;charset=UTF-8, tetapi saat ini menjawab teks biasa dari toString Map. Perbaiki doGet dengan Jackson.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new ProdukApiServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            server.cetak(in.nextLine(), \"/api/produk\");\n        }\n    }\n}\n\n@WebServlet(\"/api/produk\")\nclass ProdukApiServlet extends HttpServlet {\n    private final ObjectMapper json = new ObjectMapper();\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Map<String, Integer> produk = new TreeMap<>();\n        produk.put(\"kopi\", 18000);\n        produk.put(\"teh\", 8000);\n        res.setContentType(\"text/plain\");\n        res.getWriter().print(produk.toString());\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new ProdukApiServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            server.cetak(in.nextLine(), \"/api/produk\");\n        }\n    }\n}\n\n@WebServlet(\"/api/produk\")\nclass ProdukApiServlet extends HttpServlet {\n    private final ObjectMapper json = new ObjectMapper();\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Map<String, Integer> produk = new TreeMap<>();\n        produk.put(\"kopi\", 18000);\n        produk.put(\"teh\", 8000);\n        res.setContentType(\"application/json;charset=UTF-8\");\n        json.writeValue(res.getWriter(), produk);\n    }\n}",
+      "tests": [
+        {
+          "input": "GET\nPOST\n",
+          "expectedOutput": "GET /api/produk\nHTTP 200 OK\nContent-Type: application/json;charset=UTF-8\n\n{\"kopi\":18000,\"teh\":8000}\nPOST /api/produk\nHTTP 405 Method Not Allowed\nContent-Type: text/plain;charset=UTF-8\n\nHTTP method POST is not supported by this URL\n"
+        }
+      ],
+      "hints": [
+        "res.setContentType(\"application/json;charset=UTF-8\");",
+        "json.writeValue(res.getWriter(), produk);"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "REST API memakai method HTTP dan status code yang tepat: 200, 201 + Location, 204, 400, 404.",
+        "Jackson membaca JSON dari req.getReader() dan menulis ke res.getWriter().",
+        "Error juga dikirim sebagai JSON dengan status yang sesuai.",
+        "Spring @RestController mengotomatiskan pola yang sama."
+      ]
+    }
+  ]
+}

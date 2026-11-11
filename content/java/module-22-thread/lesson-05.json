@@ -1,0 +1,212 @@
+{
+  "id": "java-thread-05",
+  "moduleId": "thread",
+  "order": 5,
+  "title": "Koordinasi: Latch, Queue, dan Lock",
+  "estimatedMinutes": 19,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Thread sering harus bekerja sama, bukan hanya berjalan sendiri-sendiri: satu thread menunggu beberapa thread lain siap, satu thread menghasilkan pekerjaan dan thread lain mengerjakannya, atau beberapa thread berbagi data dengan aturan kunci yang lebih fleksibel dari `synchronized`.\n\n`java.util.concurrent` menyediakan alat koordinasi siap pakai, sehingga kita tidak perlu menulis `wait()` dan `notify()` sendiri, yang mudah salah.\n\nIbarat dapur restoran: pelayan menempel pesanan di papan (antrean), koki mengambilnya satu per satu, dan restoran baru tutup setelah semua koki melapor selesai (hitungan mundur)."
+    },
+    {
+      "type": "theory",
+      "content": "**`CountDownLatch`**: menunggu sejumlah kejadian.\n\n```java\nCountDownLatch selesai = new CountDownLatch(3);\n// di setiap pekerja:\nselesai.countDown();\n// di thread yang menunggu:\nselesai.await();                          // atau await(5, TimeUnit.SECONDS)\n```\n\n**`BlockingQueue`**: antrean aman untuk pola **producer-consumer**.\n\n| Method | Saat antrean penuh atau kosong |\n|---|---|\n| `put(x)` | menunggu sampai ada tempat |\n| `take()` | menunggu sampai ada isi |\n| `offer(x)` / `poll()` | langsung kembali (`false` / `null`) |\n| `offer(x, 1, SECONDS)` / `poll(1, SECONDS)` | menunggu paling lama sekian |\n\nAntrean **berbatas** (`new LinkedBlockingQueue<>(100)`, `ArrayBlockingQueue`) membuat producer melambat kalau consumer kewalahan (*backpressure*), bukan menghabiskan memori.\n\nUntuk memberi tahu consumer bahwa pekerjaan habis, biasanya dikirim penanda khusus (*poison pill*), satu untuk setiap consumer.\n\n**`ReentrantLock`**: kunci seperti `synchronized`, dengan kemampuan tambahan.\n\n```java\nprivate final Lock kunci = new ReentrantLock();\n\nkunci.lock();\ntry {\n    // bagian kritis\n} finally {\n    kunci.unlock();                       // wajib di finally\n}\n```\n\nKelebihannya: `tryLock(1, TimeUnit.SECONDS)` (menyerah kalau terlalu lama), `Condition` untuk menunggu syarat tertentu, dan `ReentrantReadWriteLock` untuk banyak pembaca sekaligus."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nProducer-consumer dengan thread pool:\n\n```java\nBlockingQueue<String> antrean = new ArrayBlockingQueue<>(2);\n\npool.submit(() -> {                       // producer\n    for (int i = 1; i <= 5; i++) {\n        antrean.put(\"PSN-\" + i);          // menunggu kalau antrean penuh\n    }\n    antrean.put(SELESAI);                 // poison pill\n    return null;\n});\n\npool.submit(() -> {                       // consumer\n    String p;\n    while (!(p = antrean.take()).equals(SELESAI)) {\n        kemas(p);\n    }\n    return null;\n});\n```\n\nLambda yang berakhir `return null;` adalah `Callable`, sehingga boleh memanggil `put` dan `take` yang melempar `InterruptedException`.\n\nPola ini dipakai di mana-mana: antrean email yang akan dikirim, log yang ditulis ke file oleh satu thread khusus, dan sistem pesan seperti Kafka atau RabbitMQ dalam skala besar.\n\n**Catatan tentang editor ini:** Java di website ini berjalan di dalam browser. Thread tetap bergantian sungguhan, tetapi tidak berjalan di beberapa inti CPU sekaligus. Karena itu contoh di modul ini memakai `Thread.sleep` untuk membuat urutan kejadian jelas dan hasilnya selalu sama. Di laptop atau server, masalah yang sama muncul lebih acak, dan justru itu yang membuatnya berbahaya."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        CountDownLatch siap = new CountDownLatch(3);\n        AtomicInteger hadir = new AtomicInteger();\n        for (int i = 1; i <= 3; i++) {\n            long jeda = i * 100L;\n            new Thread(() -> {\n                Jeda.ms(jeda);\n                hadir.incrementAndGet();\n                siap.countDown();\n            }).start();\n        }\n        siap.await();\n        System.out.println(\"Hadir: \" + hadir.get() + \", sisa hitungan: \" + siap.getCount());\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak setelah await?",
+        "options": [
+          "Hadir: 0, sisa hitungan: 3",
+          "Hadir: 3, sisa hitungan: 0",
+          "Hadir: 1, sisa hitungan: 2",
+          "Hadir: 3, sisa hitungan: 3"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Mulai dari 3."
+        },
+        {
+          "line": 14,
+          "note": "Setiap thread mengurangi 1."
+        },
+        {
+          "line": 17,
+          "note": "main menunggu sampai 0."
+        }
+      ],
+      "explanation": "main berhenti di await sampai ketiga thread memanggil countDown. Thread terakhir selesai setelah sekitar 300 ms, dan saat itu hitungan menjadi 0 sehingga main lanjut. Latch tidak bisa diulang dari awal; untuk kebutuhan berulang ada CyclicBarrier dan Phaser.",
+      "tryThis": [
+        {
+          "task": "Ubah CountDownLatch(3) menjadi CountDownLatch(2). Berapa yang hadir saat dicetak?",
+          "hint": null
+        },
+        {
+          "task": "Ganti siap.await() dengan siap.await(150, TimeUnit.MILLISECONDS).",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `unlock()` tidak di `finally`**\n\nKalau terjadi exception, kunci tidak pernah dilepas dan semua thread lain menunggu selamanya.\n\n**2. Poison pill kurang**\n\nDua consumer butuh dua penanda selesai. Kalau hanya satu, consumer kedua menunggu `take()` selamanya dan pool tidak pernah selesai.\n\n**3. `countDown()` terlewat karena exception**\n\nPekerja yang gagal sebelum `countDown` membuat `await` menunggu selamanya. Panggil `countDown` di `finally`, atau pakai `await` dengan batas waktu.\n\n**4. Antrean tanpa batas**\n\nProducer yang lebih cepat dari consumer mengisi memori sampai habis. Beri batas.\n\n**5. Menulis `wait()` dan `notify()` sendiri**\n\nMudah salah (lupa perulangan `while`, `notify` yang terlewat). Hampir selalu ada alat di `java.util.concurrent` yang lebih tepat."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- `CountDownLatch` sering dipakai di **test** untuk menunggu pekerjaan asinkron selesai, misalnya menunggu pesan Kafka diterima sebelum memeriksa hasil.\n- Producer-consumer di dalam satu aplikasi memakai `BlockingQueue`; di antara aplikasi memakai *message broker* seperti Kafka, RabbitMQ, atau Amazon SQS dengan konsep yang sama.\n- Untuk membatasi berapa pekerjaan berjalan bersamaan (misalnya paling banyak 10 panggilan ke layanan pembayaran), dipakai `Semaphore`, atau *bulkhead* dari Resilience4j (modul Resilience4j).\n- `ReentrantLock` dipilih ketika butuh `tryLock` dengan batas waktu supaya aplikasi tidak macet. Di Java 21, `ReentrantLock` juga lebih ramah virtual thread dibanding `synchronized` (modul Java 21)."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Pemroses Pesanan 5: Papan Pesanan",
+      "pembuka": "Pemroses Pesanan memisahkan penerima pesanan dan pengemas lewat antrean.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Satu producer memasukkan 5 pesanan ke antrean berkapasitas 2, satu consumer mengemasnya.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final String SELESAI = \"SELESAI\";\n\n    public static void main(String[] args) throws Exception {\n        BlockingQueue<String> antrean = new ArrayBlockingQueue<>(2);\n        List<String> dikemas = new ArrayList<>();\n        ExecutorService pool = Executors.newFixedThreadPool(2);\n        pool.submit(() -> {\n            for (int i = 1; i <= 5; i++) {\n                antrean.put(\"PSN-\" + i);\n            }\n            antrean.put(SELESAI);\n            return null;\n        });\n        pool.submit(() -> {\n            String p;\n            while (!(p = antrean.take()).equals(SELESAI)) {\n                Jeda.ms(50);\n                dikemas.add(p);\n            }\n            return null;\n        });\n        pool.shutdown();\n        System.out.println(\"Selesai: \" + pool.awaitTermination(5, TimeUnit.SECONDS));\n        System.out.println(\"Dikemas: \" + dikemas.size());\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "Selesai: true\nDikemas: 5",
+          "otomatis": true,
+          "benar": "Producer menunggu setiap kali antrean penuh, dan berhenti setelah mengirim penanda `SELESAI`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Cetak urutan pesanan yang dikemas dengan awalan `Urutan: `.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final String SELESAI = \"SELESAI\";\n\n    public static void main(String[] args) throws Exception {\n        BlockingQueue<String> antrean = new ArrayBlockingQueue<>(2);\n        List<String> dikemas = new ArrayList<>();\n        ExecutorService pool = Executors.newFixedThreadPool(2);\n        pool.submit(() -> {\n            for (int i = 1; i <= 5; i++) {\n                antrean.put(\"PSN-\" + i);\n            }\n            antrean.put(SELESAI);\n            return null;\n        });\n        pool.submit(() -> {\n            String p;\n            while (!(p = antrean.take()).equals(SELESAI)) {\n                Jeda.ms(50);\n                dikemas.add(p);\n            }\n            return null;\n        });\n        pool.shutdown();\n        System.out.println(\"Selesai: \" + pool.awaitTermination(5, TimeUnit.SECONDS));\n        System.out.println(\"Urutan: \" + dikemas);\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "Selesai: true\nUrutan: [PSN-1, PSN-2, PSN-3, PSN-4, PSN-5]",
+          "wajib": [
+            {
+              "pola": "\"Urutan: \"",
+              "pesan": "cetak dengan awalan `Urutan: `."
+            }
+          ],
+          "benar": "Antrean menjaga urutan: yang masuk lebih dulu dikemas lebih dulu (FIFO). List biasa aman di sini karena hanya satu thread yang menulis, dan main baru membacanya setelah pool selesai.",
+          "petunjuk": "Cetak list `dikemas` setelah pool selesai."
+        },
+        {
+          "arahan": "Tambahkan `CountDownLatch pengemasSelesai` bernilai 1. Pengemas memanggil `countDown()` setelah berhenti. `main` menunggu dengan `await()` lalu mencetak `Pengemas melapor selesai`.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final String SELESAI = \"SELESAI\";\n\n    public static void main(String[] args) throws Exception {\n        BlockingQueue<String> antrean = new ArrayBlockingQueue<>(2);\n        List<String> dikemas = new ArrayList<>();\n        CountDownLatch pengemasSelesai = new CountDownLatch(1);\n        ExecutorService pool = Executors.newFixedThreadPool(2);\n        pool.submit(() -> {\n            for (int i = 1; i <= 5; i++) {\n                antrean.put(\"PSN-\" + i);\n            }\n            antrean.put(SELESAI);\n            return null;\n        });\n        pool.submit(() -> {\n            String p;\n            while (!(p = antrean.take()).equals(SELESAI)) {\n                Jeda.ms(50);\n                dikemas.add(p);\n            }\n            pengemasSelesai.countDown();\n            return null;\n        });\n        pengemasSelesai.await();\n        System.out.println(\"Pengemas melapor selesai\");\n        pool.shutdown();\n        System.out.println(\"Selesai: \" + pool.awaitTermination(5, TimeUnit.SECONDS));\n        System.out.println(\"Urutan: \" + dikemas);\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "Pengemas melapor selesai\nSelesai: true\nUrutan: [PSN-1, PSN-2, PSN-3, PSN-4, PSN-5]",
+          "wajib": [
+            {
+              "pola": "new\\s+CountDownLatch\\s*\\(\\s*1\\s*\\)",
+              "pesan": "buat `new CountDownLatch(1)`."
+            },
+            {
+              "pola": "pengemasSelesai\\.countDown\\(\\)",
+              "pesan": "panggil `countDown()`."
+            }
+          ],
+          "benar": "`main` tahu kapan pengemas selesai, tanpa harus mematikan pool lebih dulu.",
+          "petunjuk": "Panggil `countDown()` setelah perulangan `while`."
+        },
+        {
+          "arahan": "Tantangan: ganti `await()` dengan versi berbatas waktu 5 detik dan cetak hasilnya sebagai `Tepat waktu: `.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final String SELESAI = \"SELESAI\";\n\n    public static void main(String[] args) throws Exception {\n        BlockingQueue<String> antrean = new ArrayBlockingQueue<>(2);\n        List<String> dikemas = new ArrayList<>();\n        CountDownLatch pengemasSelesai = new CountDownLatch(1);\n        ExecutorService pool = Executors.newFixedThreadPool(2);\n        pool.submit(() -> {\n            for (int i = 1; i <= 5; i++) {\n                antrean.put(\"PSN-\" + i);\n            }\n            antrean.put(SELESAI);\n            return null;\n        });\n        pool.submit(() -> {\n            String p;\n            while (!(p = antrean.take()).equals(SELESAI)) {\n                Jeda.ms(50);\n                dikemas.add(p);\n            }\n            pengemasSelesai.countDown();\n            return null;\n        });\n        System.out.println(\"Tepat waktu: \" + pengemasSelesai.await(5, TimeUnit.SECONDS));\n        System.out.println(\"Pengemas melapor selesai\");\n        pool.shutdown();\n        System.out.println(\"Selesai: \" + pool.awaitTermination(5, TimeUnit.SECONDS));\n        System.out.println(\"Urutan: \" + dikemas);\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "Tepat waktu: true\nPengemas melapor selesai\nSelesai: true\nUrutan: [PSN-1, PSN-2, PSN-3, PSN-4, PSN-5]",
+          "wajib": [
+            {
+              "pola": "pengemasSelesai\\.await\\s*\\(\\s*5\\s*,\\s*TimeUnit\\.SECONDS\\s*\\)",
+              "pesan": "pakai `await(5, TimeUnit.SECONDS)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Batas waktu membuat program tidak macet selamanya kalau pengemas gagal.",
+          "petunjuk": "`await(5, TimeUnit.SECONDS)` mengembalikan `true` kalau hitungan mencapai nol sebelum batas waktu."
+        }
+      ],
+      "penutup": "Thread sudah bisa bekerja sama. Berikutnya: merangkai pekerjaan asinkron dengan CompletableFuture."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Method BlockingQueue yang menunggu sampai ada isi adalah...",
+          "options": [
+            "poll()",
+            "peek()",
+            "take()",
+            "remove()"
+          ],
+          "answer": 2,
+          "explanation": "Ambil dan tunggu.",
+          "remedial": "`take()` menunggu sampai ada elemen. `poll()` langsung mengembalikan `null` kalau kosong."
+        },
+        {
+          "question": "Kenapa unlock() harus ditulis di finally?",
+          "options": [
+            "Supaya lebih cepat",
+            "Karena unlock melempar checked exception",
+            "Karena lock() hanya boleh di try",
+            "Supaya kunci tetap dilepas walau terjadi exception"
+          ],
+          "answer": 3,
+          "explanation": "Selalu dilepas.",
+          "remedial": "Tanpa `finally`, exception di bagian kritis membuat kunci tertahan selamanya dan thread lain macet."
+        },
+        {
+          "question": "Dua consumer membaca dari satu antrean. Berapa poison pill yang perlu dikirim producer?",
+          "options": [
+            "Dua, satu untuk setiap consumer",
+            "Satu saja",
+            "Tidak perlu",
+            "Sebanyak jumlah pesanan"
+          ],
+          "answer": 0,
+          "explanation": "Setiap consumer berhenti sendiri.",
+          "remedial": "Setiap consumer berhenti setelah mengambil satu penanda. Penanda yang diambil consumer pertama tidak terlihat oleh consumer kedua."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Alat untuk menunggu sampai sejumlah thread selesai lalu tidak dipakai ulang adalah...",
+      "options": [
+        "ReentrantLock",
+        "CountDownLatch",
+        "ThreadLocal",
+        "AtomicBoolean"
+      ],
+      "answer": 1,
+      "explanation": "Hitung mundur."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca jumlah porsi yang dimasak di baris pertama, lalu setiap baris berikutnya adalah pesanan sejumlah porsi yang disajikan pelayan di thread sendiri. Saat ini porsi bisa disajikan melebihi yang dimasak. Lindungi semua method class Dapur dengan ReentrantLock yang sudah disediakan, memakai pola lock, try, dan unlock di finally.",
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\nimport java.util.concurrent.locks.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Dapur dapur = new Dapur();\n        Scanner in = new Scanner(System.in);\n        dapur.masak(Integer.parseInt(in.nextLine().trim()));\n        List<Integer> pesanan = new ArrayList<>();\n        while (in.hasNextLine()) {\n            pesanan.add(Integer.parseInt(in.nextLine().trim()));\n        }\n        boolean[] hasil = new boolean[pesanan.size()];\n        List<Thread> pelayan = new ArrayList<>();\n        for (int i = 0; i < pesanan.size(); i++) {\n            int ke = i;\n            pelayan.add(new Thread(() -> hasil[ke] = dapur.sajikan(pesanan.get(ke))));\n        }\n        for (Thread t : pelayan) {\n            t.start();\n        }\n        for (Thread t : pelayan) {\n            t.join();\n        }\n        int berhasil = 0;\n        for (boolean h : hasil) {\n            if (h) {\n                berhasil++;\n            }\n        }\n        System.out.println(\"Tersaji: \" + berhasil + \" dari \" + pesanan.size() + \" pesanan\");\n        System.out.println(\"Sisa porsi: \" + dapur.porsi());\n    }\n}\n\nclass Dapur {\n    private final Lock kunci = new ReentrantLock();\n    private int porsi;\n\n    void masak(int n) {\n        porsi += n;\n    }\n\n    boolean sajikan(int n) {\n        if (porsi >= n) {\n            Jeda.ms(50);\n            porsi -= n;\n            return true;\n        }\n        return false;\n    }\n\n    int porsi() {\n        return porsi;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "solution": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\nimport java.util.concurrent.locks.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Dapur dapur = new Dapur();\n        Scanner in = new Scanner(System.in);\n        dapur.masak(Integer.parseInt(in.nextLine().trim()));\n        List<Integer> pesanan = new ArrayList<>();\n        while (in.hasNextLine()) {\n            pesanan.add(Integer.parseInt(in.nextLine().trim()));\n        }\n        boolean[] hasil = new boolean[pesanan.size()];\n        List<Thread> pelayan = new ArrayList<>();\n        for (int i = 0; i < pesanan.size(); i++) {\n            int ke = i;\n            pelayan.add(new Thread(() -> hasil[ke] = dapur.sajikan(pesanan.get(ke))));\n        }\n        for (Thread t : pelayan) {\n            t.start();\n        }\n        for (Thread t : pelayan) {\n            t.join();\n        }\n        int berhasil = 0;\n        for (boolean h : hasil) {\n            if (h) {\n                berhasil++;\n            }\n        }\n        System.out.println(\"Tersaji: \" + berhasil + \" dari \" + pesanan.size() + \" pesanan\");\n        System.out.println(\"Sisa porsi: \" + dapur.porsi());\n    }\n}\n\nclass Dapur {\n    private final Lock kunci = new ReentrantLock();\n    private int porsi;\n\n    void masak(int n) {\n        kunci.lock();\n        try {\n            porsi += n;\n        } finally {\n            kunci.unlock();\n        }\n    }\n\n    boolean sajikan(int n) {\n        kunci.lock();\n        try {\n            if (porsi >= n) {\n                Jeda.ms(50);\n                porsi -= n;\n                return true;\n            }\n            return false;\n        } finally {\n            kunci.unlock();\n        }\n    }\n\n    int porsi() {\n        kunci.lock();\n        try {\n            return porsi;\n        } finally {\n            kunci.unlock();\n        }\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "5\n3\n3\n",
+          "expectedOutput": "Tersaji: 1 dari 2 pesanan\nSisa porsi: 2\n"
+        },
+        {
+          "input": "10\n6\n6\n",
+          "expectedOutput": "Tersaji: 1 dari 2 pesanan\nSisa porsi: 4\n"
+        }
+      ],
+      "hints": [
+        "Di awal setiap method: kunci.lock(); lalu isi method di dalam try.",
+        "kunci.unlock() di blok finally."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "CountDownLatch: tunggu sejumlah kejadian; countDown di finally, await sebaiknya dengan batas waktu.",
+        "BlockingQueue: producer-consumer dengan put dan take; beri batas dan kirim poison pill per consumer.",
+        "ReentrantLock: lock, try, unlock di finally; ada tryLock dan Condition.",
+        "Pakai alat java.util.concurrent, bukan wait dan notify buatan sendiri."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

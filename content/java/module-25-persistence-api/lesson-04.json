@@ -1,0 +1,211 @@
+{
+  "id": "java-persistence-api-04",
+  "moduleId": "persistence-api",
+  "order": 4,
+  "title": "JPQL: Query dengan Object",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`find` hanya mencari berdasarkan id. Untuk \"semua minuman urut dari yang termahal\" atau \"berapa produk di bawah Rp16.000\", JPA menyediakan **JPQL** (*Jakarta Persistence Query Language*).\n\nJPQL mirip SQL, tetapi yang ditulis adalah **nama entity dan field Java**, bukan nama tabel dan kolom. Hibernate menerjemahkannya ke SQL sesuai database yang dipakai.\n\nIbarat memesan di restoran dengan nama menu, bukan dengan resep: dapur yang menerjemahkan \"nasi goreng spesial\" menjadi langkah memasak."
+    },
+    {
+      "type": "theory",
+      "content": "```java\nList<Produk> hasil = em.createQuery(\n        \"select p from Produk p where p.kategori = :kategori order by p.harga desc\", Produk.class)\n        .setParameter(\"kategori\", \"minuman\")\n        .getResultList();\n```\n\n| Bagian | Keterangan |\n|---|---|\n| `Produk p` | nama **entity** dan alias, bukan nama tabel |\n| `p.kategori`, `p.harga` | nama **field** Java |\n| `:kategori` | parameter bernama, diisi dengan `setParameter` |\n| `Produk.class` | tipe hasil, sehingga hasilnya `TypedQuery<Produk>` |\n\nMethod untuk mengambil hasil:\n\n| Method | Hasil |\n|---|---|\n| `getResultList()` | `List`, kosong kalau tidak ada |\n| `getSingleResult()` | tepat satu; `NoResultException` kalau kosong, `NonUniqueResultException` kalau lebih dari satu |\n| `executeUpdate()` | untuk `update` dan `delete`, mengembalikan jumlah baris |\n\nAgregat: `count(p)` (hasil `Long`), `avg(p.harga)` (`Double`), `sum`, `min`, `max`. Ada juga `group by`, `having`, `like`, `in`, `between`, dan `is null`.\n\nPaging: `setFirstResult(lewati)` dan `setMaxResults(jumlah)`, diterjemahkan menjadi `LIMIT` dan `OFFSET`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nLong jumlah = em.createQuery(\"select count(p) from Produk p where p.harga < :batas\", Long.class)\n        .setParameter(\"batas\", 16000)\n        .getSingleResult();\n\nint diubah = em.createQuery(\"update Produk p set p.harga = p.harga + 1000 where p.kategori = 'roti'\")\n        .executeUpdate();\n```\n\n`update` dan `delete` JPQL langsung dijalankan di database dan **melewati persistence context**: entity yang sudah dimuat di memori tidak ikut berubah. Setelah bulk update, panggil `em.clear()` sebelum membaca entity lagi.\n\n**Selalu pakai parameter.** Menyambung input pengguna ke dalam JPQL membuka celah injeksi, sama seperti SQL injection di JDBC."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Produk.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        em.persist(new Produk(\"Kopi Susu\", \"minuman\", 18000));\n        em.persist(new Produk(\"Teh Manis\", \"minuman\", 8000));\n        em.persist(new Produk(\"Croissant\", \"roti\", 25000));\n        em.persist(new Produk(\"Roti Bakar\", \"roti\", 15000));\n        em.persist(new Produk(\"Air Mineral\", \"minuman\", 5000));\n        em.getTransaction().commit();\n        String kata = \"' or '1'='1\";\n        List<Produk> aman = em.createQuery(\"select p from Produk p where p.nama = :nama\", Produk.class)\n                .setParameter(\"nama\", kata)\n                .getResultList();\n        System.out.println(\"Dengan parameter: \" + aman.size());\n        List<Produk> bahaya = em.createQuery(\"select p from Produk p where p.nama = '\" + kata + \"'\", Produk.class).getResultList();\n        System.out.println(\"Disambung: \" + bahaya.size());\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Produk {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    private String kategori;\n\n    private int harga;\n\n    protected Produk() {\n    }\n\n    Produk(String nama, String kategori, int harga) {\n        this.nama = nama;\n        this.kategori = kategori;\n        this.harga = harga;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    int getHarga() {\n        return harga;\n    }\n\n    void naikkan(int persen) {\n        harga += harga * persen / 100;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: input berisi tanda kutip berbahaya. Berapa hasil query yang disambung?",
+        "options": [
+          "Disambung: 5",
+          "Disambung: 0",
+          "Disambung: 1",
+          "Dengan parameter: 5"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 19,
+          "note": "Input diperlakukan sebagai nilai."
+        },
+        {
+          "line": 22,
+          "note": "Input menjadi bagian query."
+        }
+      ],
+      "explanation": "Dengan parameter, isi kata dicari sebagai nama produk apa adanya dan tidak ada yang cocok. Saat disambung, potongan or 1 sama dengan 1 menjadi bagian kondisi, sehingga semua produk terbaca. Inilah JPQL injection.",
+      "tryThis": [
+        {
+          "task": "Ganti kata menjadi \"Teh Manis\" lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan or yang lain, misalnya kata = \"x' or p.harga > '0\".",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai nama tabel atau kolom di JPQL**\n\n`select * from produk` bukan JPQL. Tulis nama entity dan field: `select p from Produk p`.\n\n**2. `getSingleResult()` tanpa memastikan hasilnya ada**\n\nHasil kosong melempar `NoResultException`. Untuk pencarian yang mungkin kosong, pakai `getResultList()` lalu periksa isinya, atau tangkap exception-nya.\n\n**3. Menyambung input ke query**\n\nCelah injeksi. Pakai `setParameter`.\n\n**4. Membaca semua lalu memfilter di Java**\n\n`getResultList()` untuk seluruh tabel lalu `if` di Java memindahkan jutaan baris lewat jaringan. Filter, urutkan, dan batasi di query."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di Spring Data JPA, query sering ditulis lewat nama method: `findByKategoriOrderByHargaDesc(String kategori)` diterjemahkan otomatis menjadi JPQL. Query yang lebih rumit ditulis dengan `@Query(\"select p from Produk p where ...\")`.\n- Paging di REST API memakai `Pageable` Spring Data, yang di belakangnya juga `setFirstResult` dan `setMaxResults`.\n- Untuk query dinamis (filter yang bisa ada atau tidak), dipakai **Criteria API** JPA atau library **QueryDSL**, supaya tidak menyusun string JPQL secara manual.\n- Query yang terlalu rumit untuk JPQL ditulis sebagai SQL biasa dengan `createNativeQuery`, dengan konsekuensi terikat ke satu jenis database."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JPA 4: Menu Kafe",
+      "pembuka": "Lima produk kafe kita cari dengan JPQL.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Minuman diurutkan dari yang termahal.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Produk.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        em.persist(new Produk(\"Kopi Susu\", \"minuman\", 18000));\n        em.persist(new Produk(\"Teh Manis\", \"minuman\", 8000));\n        em.persist(new Produk(\"Croissant\", \"roti\", 25000));\n        em.persist(new Produk(\"Roti Bakar\", \"roti\", 15000));\n        em.persist(new Produk(\"Air Mineral\", \"minuman\", 5000));\n        em.getTransaction().commit();\n        List<Produk> minuman = em.createQuery(\n                \"select p from Produk p where p.kategori = :kategori order by p.harga desc\", Produk.class)\n                .setParameter(\"kategori\", \"minuman\")\n                .getResultList();\n        for (Produk p : minuman) {\n            System.out.println(p.getNama() + \" \" + p.getHarga());\n        }\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Produk {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    private String kategori;\n\n    private int harga;\n\n    protected Produk() {\n    }\n\n    Produk(String nama, String kategori, int harga) {\n        this.nama = nama;\n        this.kategori = kategori;\n        this.harga = harga;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    int getHarga() {\n        return harga;\n    }\n\n    void naikkan(int persen) {\n        harga += harga * persen / 100;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Kopi Susu 18000\nTeh Manis 8000\nAir Mineral 5000",
+          "otomatis": true,
+          "benar": "Parameter `:kategori` diisi dengan `setParameter`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Hitung produk dengan harga di bawah 16000 (`count`, hasil `Long`), lalu rata-rata harga semua produk (`avg`, hasil `Double`).",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Produk.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        em.persist(new Produk(\"Kopi Susu\", \"minuman\", 18000));\n        em.persist(new Produk(\"Teh Manis\", \"minuman\", 8000));\n        em.persist(new Produk(\"Croissant\", \"roti\", 25000));\n        em.persist(new Produk(\"Roti Bakar\", \"roti\", 15000));\n        em.persist(new Produk(\"Air Mineral\", \"minuman\", 5000));\n        em.getTransaction().commit();\n        List<Produk> minuman = em.createQuery(\n                \"select p from Produk p where p.kategori = :kategori order by p.harga desc\", Produk.class)\n                .setParameter(\"kategori\", \"minuman\")\n                .getResultList();\n        for (Produk p : minuman) {\n            System.out.println(p.getNama() + \" \" + p.getHarga());\n        }\n        Long jumlah = em.createQuery(\"select count(p) from Produk p where p.harga < :batas\", Long.class)\n                .setParameter(\"batas\", 16000)\n                .getSingleResult();\n        System.out.println(\"Di bawah 16000: \" + jumlah);\n        Double rata = em.createQuery(\"select avg(p.harga) from Produk p\", Double.class).getSingleResult();\n        System.out.println(\"Rata-rata: \" + rata);\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Produk {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    private String kategori;\n\n    private int harga;\n\n    protected Produk() {\n    }\n\n    Produk(String nama, String kategori, int harga) {\n        this.nama = nama;\n        this.kategori = kategori;\n        this.harga = harga;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    int getHarga() {\n        return harga;\n    }\n\n    void naikkan(int persen) {\n        harga += harga * persen / 100;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Kopi Susu 18000\nTeh Manis 8000\nAir Mineral 5000\nDi bawah 16000: 3\nRata-rata: 14200.0",
+          "wajib": [
+            {
+              "pola": "select\\s+count\\s*\\(\\s*p\\s*\\)",
+              "pesan": "pakai `count(p)`."
+            },
+            {
+              "pola": "select\\s+avg\\s*\\(\\s*p\\.harga\\s*\\)",
+              "pesan": "pakai `avg(p.harga)`."
+            }
+          ],
+          "benar": "Agregat dihitung database, bukan di Java.",
+          "petunjuk": "`em.createQuery(\"select count(p) from Produk p where p.harga < :batas\", Long.class)` lalu `getSingleResult()`."
+        },
+        {
+          "arahan": "Ambil halaman kedua daftar produk urut nama, dua produk per halaman, dan cetak `Halaman 2: ` diikuti nama.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Produk.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        em.persist(new Produk(\"Kopi Susu\", \"minuman\", 18000));\n        em.persist(new Produk(\"Teh Manis\", \"minuman\", 8000));\n        em.persist(new Produk(\"Croissant\", \"roti\", 25000));\n        em.persist(new Produk(\"Roti Bakar\", \"roti\", 15000));\n        em.persist(new Produk(\"Air Mineral\", \"minuman\", 5000));\n        em.getTransaction().commit();\n        List<Produk> minuman = em.createQuery(\n                \"select p from Produk p where p.kategori = :kategori order by p.harga desc\", Produk.class)\n                .setParameter(\"kategori\", \"minuman\")\n                .getResultList();\n        for (Produk p : minuman) {\n            System.out.println(p.getNama() + \" \" + p.getHarga());\n        }\n        Long jumlah = em.createQuery(\"select count(p) from Produk p where p.harga < :batas\", Long.class)\n                .setParameter(\"batas\", 16000)\n                .getSingleResult();\n        System.out.println(\"Di bawah 16000: \" + jumlah);\n        Double rata = em.createQuery(\"select avg(p.harga) from Produk p\", Double.class).getSingleResult();\n        System.out.println(\"Rata-rata: \" + rata);\n        List<Produk> halaman = em.createQuery(\"select p from Produk p order by p.nama\", Produk.class)\n                .setFirstResult(2)\n                .setMaxResults(2)\n                .getResultList();\n        for (Produk p : halaman) {\n            System.out.println(\"Halaman 2: \" + p.getNama());\n        }\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Produk {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    private String kategori;\n\n    private int harga;\n\n    protected Produk() {\n    }\n\n    Produk(String nama, String kategori, int harga) {\n        this.nama = nama;\n        this.kategori = kategori;\n        this.harga = harga;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    int getHarga() {\n        return harga;\n    }\n\n    void naikkan(int persen) {\n        harga += harga * persen / 100;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Kopi Susu 18000\nTeh Manis 8000\nAir Mineral 5000\nDi bawah 16000: 3\nRata-rata: 14200.0\nHalaman 2: Kopi Susu\nHalaman 2: Roti Bakar",
+          "wajib": [
+            {
+              "pola": "setFirstResult\\s*\\(\\s*2\\s*\\)",
+              "pesan": "pakai `setFirstResult(2)`."
+            },
+            {
+              "pola": "setMaxResults\\s*\\(\\s*2\\s*\\)",
+              "pesan": "pakai `setMaxResults(2)`."
+            }
+          ],
+          "benar": "Paging seperti ini dipakai di setiap daftar panjang di aplikasi.",
+          "petunjuk": "Lewati 2 dengan `setFirstResult(2)`, ambil 2 dengan `setMaxResults(2)`."
+        },
+        {
+          "arahan": "Tantangan: naikkan harga semua roti 1000 dengan satu `update` JPQL dan cetak jumlah produk yang berubah. Lalu cari produk bernama `Donat` dengan `getSingleResult()`, tangkap `NoResultException`, dan cetak `Donat tidak ada`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Produk.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        em.persist(new Produk(\"Kopi Susu\", \"minuman\", 18000));\n        em.persist(new Produk(\"Teh Manis\", \"minuman\", 8000));\n        em.persist(new Produk(\"Croissant\", \"roti\", 25000));\n        em.persist(new Produk(\"Roti Bakar\", \"roti\", 15000));\n        em.persist(new Produk(\"Air Mineral\", \"minuman\", 5000));\n        em.getTransaction().commit();\n        List<Produk> minuman = em.createQuery(\n                \"select p from Produk p where p.kategori = :kategori order by p.harga desc\", Produk.class)\n                .setParameter(\"kategori\", \"minuman\")\n                .getResultList();\n        for (Produk p : minuman) {\n            System.out.println(p.getNama() + \" \" + p.getHarga());\n        }\n        Long jumlah = em.createQuery(\"select count(p) from Produk p where p.harga < :batas\", Long.class)\n                .setParameter(\"batas\", 16000)\n                .getSingleResult();\n        System.out.println(\"Di bawah 16000: \" + jumlah);\n        Double rata = em.createQuery(\"select avg(p.harga) from Produk p\", Double.class).getSingleResult();\n        System.out.println(\"Rata-rata: \" + rata);\n        List<Produk> halaman = em.createQuery(\"select p from Produk p order by p.nama\", Produk.class)\n                .setFirstResult(2)\n                .setMaxResults(2)\n                .getResultList();\n        for (Produk p : halaman) {\n            System.out.println(\"Halaman 2: \" + p.getNama());\n        }\n        em.getTransaction().begin();\n        int diubah = em.createQuery(\"update Produk p set p.harga = p.harga + 1000 where p.kategori = 'roti'\").executeUpdate();\n        em.getTransaction().commit();\n        System.out.println(\"Harga roti naik: \" + diubah + \" produk\");\n        try {\n            em.createQuery(\"select p from Produk p where p.nama = 'Donat'\", Produk.class).getSingleResult();\n        } catch (NoResultException e) {\n            System.out.println(\"Donat tidak ada\");\n        }\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Produk {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    private String kategori;\n\n    private int harga;\n\n    protected Produk() {\n    }\n\n    Produk(String nama, String kategori, int harga) {\n        this.nama = nama;\n        this.kategori = kategori;\n        this.harga = harga;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    int getHarga() {\n        return harga;\n    }\n\n    void naikkan(int persen) {\n        harga += harga * persen / 100;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Kopi Susu 18000\nTeh Manis 8000\nAir Mineral 5000\nDi bawah 16000: 3\nRata-rata: 14200.0\nHalaman 2: Kopi Susu\nHalaman 2: Roti Bakar\nHarga roti naik: 2 produk\nDonat tidak ada",
+          "wajib": [
+            {
+              "pola": "executeUpdate\\(\\)",
+              "pesan": "pakai `executeUpdate()`."
+            },
+            {
+              "pola": "catch\\s*\\(\\s*NoResultException\\s+e\\s*\\)",
+              "pesan": "tangkap `NoResultException`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Bulk update cepat, tetapi melewati persistence context.",
+          "petunjuk": "`executeUpdate()` di dalam transaksi."
+        }
+      ],
+      "penutup": "JPQL sudah dikuasai. Berikutnya: relasi antar entity."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di JPQL, bagian from ditulis dengan...",
+          "options": [
+            "Nama tabel database",
+            "Nama entity Java dan alias, misalnya Produk p",
+            "Nama file Java",
+            "Nama kolom"
+          ],
+          "answer": 1,
+          "explanation": "Dunia object.",
+          "remedial": "JPQL bekerja dengan entity dan field. Hibernate menerjemahkan `Produk` ke nama tabelnya dan field ke kolomnya."
+        },
+        {
+          "question": "getSingleResult() pada query tanpa hasil melempar...",
+          "options": [
+            "null",
+            "IndexOutOfBoundsException",
+            "NoResultException",
+            "Daftar kosong"
+          ],
+          "answer": 2,
+          "explanation": "Harus tepat satu.",
+          "remedial": "`getSingleResult` mengharapkan tepat satu hasil. Kosong melempar `NoResultException`, lebih dari satu melempar `NonUniqueResultException`."
+        },
+        {
+          "question": "Setelah update JPQL dengan executeUpdate, entity yang sudah dimuat di memori...",
+          "options": [
+            "Ikut berubah otomatis",
+            "Dihapus",
+            "Menjadi removed",
+            "Tidak ikut berubah, jadi perlu em.clear()"
+          ],
+          "answer": 3,
+          "explanation": "Melewati persistence context.",
+          "remedial": "Bulk update langsung ke database. Entity di persistence context masih menyimpan nilai lama sampai dibaca ulang."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method untuk membatasi jumlah hasil query (paging) adalah...",
+      "options": [
+        "setMaxResults",
+        "setLimit",
+        "getFirst",
+        "setParameter"
+      ],
+      "answer": 0,
+      "explanation": "Maksimal hasil."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program menyimpan empat produk, lalu membaca batas harga per baris dari input dan mencetak produk yang harganya paling sedikit batas itu, diurutkan dari yang termurah, dengan bentuk - nama harga. Saat ini semua produk dicetak tanpa urutan. Ubah query JPQL-nya, dengan parameter untuk batas.",
+      "starterCode": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Produk.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        em.persist(new Produk(\"Kopi Susu\", \"minuman\", 18000));\n        em.persist(new Produk(\"Teh Manis\", \"minuman\", 8000));\n        em.persist(new Produk(\"Croissant\", \"roti\", 25000));\n        em.persist(new Produk(\"Roti Bakar\", \"roti\", 15000));\n        em.getTransaction().commit();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            int batas = Integer.parseInt(in.nextLine());\n            System.out.println(\"Harga paling sedikit \" + batas + \":\");\n            for (Produk p : em.createQuery(\"select p from Produk p\", Produk.class).getResultList()) {\n                System.out.println(\"- \" + p.getNama() + \" \" + p.getHarga());\n            }\n        }\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Produk {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    private String kategori;\n\n    private int harga;\n\n    protected Produk() {\n    }\n\n    Produk(String nama, String kategori, int harga) {\n        this.nama = nama;\n        this.kategori = kategori;\n        this.harga = harga;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    int getHarga() {\n        return harga;\n    }\n\n    void naikkan(int persen) {\n        harga += harga * persen / 100;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "solution": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Produk.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        em.persist(new Produk(\"Kopi Susu\", \"minuman\", 18000));\n        em.persist(new Produk(\"Teh Manis\", \"minuman\", 8000));\n        em.persist(new Produk(\"Croissant\", \"roti\", 25000));\n        em.persist(new Produk(\"Roti Bakar\", \"roti\", 15000));\n        em.getTransaction().commit();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            int batas = Integer.parseInt(in.nextLine());\n            System.out.println(\"Harga paling sedikit \" + batas + \":\");\n            List<Produk> hasil = em.createQuery(\"select p from Produk p where p.harga >= :batas order by p.harga\", Produk.class)\n                    .setParameter(\"batas\", batas)\n                    .getResultList();\n            for (Produk p : hasil) {\n                System.out.println(\"- \" + p.getNama() + \" \" + p.getHarga());\n            }\n        }\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Produk {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    private String kategori;\n\n    private int harga;\n\n    protected Produk() {\n    }\n\n    Produk(String nama, String kategori, int harga) {\n        this.nama = nama;\n        this.kategori = kategori;\n        this.harga = harga;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    int getHarga() {\n        return harga;\n    }\n\n    void naikkan(int persen) {\n        harga += harga * persen / 100;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "tests": [
+        {
+          "input": "15000\n20000\n",
+          "expectedOutput": "Harga paling sedikit 15000:\n- Roti Bakar 15000\n- Kopi Susu 18000\n- Croissant 25000\nHarga paling sedikit 20000:\n- Croissant 25000\n"
+        }
+      ],
+      "hints": [
+        "select p from Produk p where p.harga >= :batas order by p.harga",
+        "Isi parameter dengan .setParameter(\"batas\", batas)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "JPQL memakai nama entity dan field, diterjemahkan Hibernate ke SQL.",
+        "Parameter bernama :nama diisi setParameter; jangan menyambung input.",
+        "getResultList, getSingleResult (NoResultException), executeUpdate untuk update dan delete.",
+        "setFirstResult dan setMaxResults untuk paging."
+      ]
+    }
+  ]
+}

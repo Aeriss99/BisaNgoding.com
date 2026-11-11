@@ -1,0 +1,219 @@
+{
+  "id": "java-web-servlet-04",
+  "moduleId": "web-servlet",
+  "order": 4,
+  "title": "Session dan Cookie",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "HTTP **tidak punya ingatan** (*stateless*): setiap request berdiri sendiri, dan server tidak tahu bahwa request kedua datang dari orang yang sama dengan request pertama. Padahal aplikasi perlu mengingat siapa yang sudah login dan apa isi keranjang belanjanya.\n\nSolusinya: **cookie**, potongan kecil data yang disimpan browser dan dikirim kembali di setiap request ke server yang sama, dan **session**, tempat penyimpanan di server yang dikenali lewat satu cookie berisi id.\n\nIbarat tiket penitipan barang: petugas menyimpan tas di rak (session di server) dan memberi nomor tiket (cookie). Setiap kali datang, cukup tunjukkan tiket, dan petugas tahu tas yang mana."
+    },
+    {
+      "type": "theory",
+      "content": "**Session**\n\n```java\nHttpSession sesi = req.getSession();          // ambil, atau buat kalau belum ada\nHttpSession ada = req.getSession(false);      // ambil, atau null kalau belum ada\nsesi.setAttribute(\"pengguna\", \"Sari\");\nString nama = (String) sesi.getAttribute(\"pengguna\");\nsesi.invalidate();                            // hapus session (logout)\n```\n\nSaat session baru dibuat, container mengirim cookie `JSESSIONID` berisi id-nya. Browser mengirim cookie itu di request berikutnya, dan container mencarikan session yang sama.\n\n**Cookie sendiri**, untuk data kecil yang tidak rahasia, misalnya pilihan tema:\n\n```java\nCookie c = new Cookie(\"tema\", \"gelap\");\nc.setMaxAge(60 * 60 * 24 * 365);   // detik; -1 = hilang saat browser ditutup, 0 = hapus\nc.setPath(\"/\");\nc.setHttpOnly(true);               // tidak bisa dibaca JavaScript\nres.addCookie(c);\n```\n\n`req.getCookies()` mengembalikan array, atau **`null`** kalau tidak ada cookie sama sekali.\n\n| | Session | Cookie |\n|---|---|---|\n| disimpan di | server (memori) | browser pengguna |\n| aman untuk data rahasia | ya, pengguna hanya memegang id | tidak, bisa dilihat dan diubah pengguna |\n| ukuran | besar | kecil (sekitar 4 KB per cookie) |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n// login\nHttpSession sesi = req.getSession();\nsesi.setAttribute(\"pengguna\", nama);\nres.sendRedirect(\"/profil\");\n\n// halaman yang butuh login\nHttpSession sesi = req.getSession(false);\nif (sesi == null || sesi.getAttribute(\"pengguna\") == null) {\n    res.sendError(401, \"silakan masuk dulu\");\n    return;\n}\n```\n\n`ServerUji` berperan juga sebagai browser: ia menyimpan cookie dari response dan mengirimkannya lagi. `server.lupakanCookie()` meniru membuka browser lain (atau mode penyamaran), sehingga dianggap pengguna baru.\n\nDi editor, id session dibuat berurutan (`SESI1`, `SESI2`) supaya hasil latihan selalu sama. Di Tomcat sungguhan id-nya panjang dan acak, misalnya `8C9F4E2B...`, supaya tidak bisa ditebak."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new HitungServlet());\n        server.cetak(\"GET\", \"/hitung\");\n        server.cetak(\"GET\", \"/hitung\");\n        server.lupakanCookie();\n        server.cetak(\"GET\", \"/hitung\");\n    }\n}\n\n@WebServlet(\"/hitung\")\nclass HitungServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        HttpSession sesi = req.getSession();\n        Integer n = (Integer) sesi.getAttribute(\"kunjungan\");\n        n = n == null ? 1 : n + 1;\n        sesi.setAttribute(\"kunjungan\", n);\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Kunjungan ke-\" + n);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: setelah cookie dilupakan, kunjungan ke berapa yang tercetak?",
+        "options": [
+          "Kunjungan ke-1",
+          "Kunjungan ke-3",
+          "Kunjungan ke-0",
+          "Kunjungan ke-4"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 25,
+          "note": "null untuk session baru."
+        },
+        {
+          "line": 27,
+          "note": "Disimpan di session milik pengunjung ini."
+        },
+        {
+          "line": 15,
+          "note": "Seperti membuka browser lain."
+        }
+      ],
+      "explanation": "Dua request pertama membawa cookie JSESSIONID yang sama, jadi berbagi session dan hitungannya naik menjadi 2. Setelah cookie dilupakan, request ketiga tidak membawa id, sehingga container membuat session baru dengan hitungan mulai dari 1. Session lama masih ada di server, tetapi tidak ada yang memegang tiketnya.",
+      "tryThis": [
+        {
+          "task": "Tambahkan satu request lagi setelah yang ketiga.",
+          "hint": null
+        },
+        {
+          "task": "Cetak juga req.getSession().getId() di isi response.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Data per pengguna di field servlet**\n\nKeranjang di field servlet dipakai bersama oleh semua pengguna. Simpan di session.\n\n**2. Data rahasia di cookie biasa**\n\nCookie bisa dilihat dan diubah pengguna. Menyimpan `peran=admin` di cookie berarti siapa pun bisa menjadi admin.\n\n**3. Cookie tanpa `HttpOnly` dan `Secure`**\n\nTanpa `HttpOnly`, skrip jahat (XSS) bisa mencuri cookie session. Tanpa `Secure`, cookie terkirim lewat HTTP biasa yang bisa disadap.\n\n**4. Tidak membuat session baru setelah login**\n\nId session yang sama sebelum dan sesudah login membuka celah *session fixation*. Panggil `req.changeSessionId()` setelah login berhasil.\n\n**5. Menyimpan object besar di session**\n\nRibuan pengguna dikali data besar menghabiskan memori server."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Aplikasi yang berjalan di beberapa server memakai **session bersama** (Spring Session dengan Redis), atau memilih tidak memakai session sama sekali.\n- REST API untuk aplikasi HP dan SPA umumnya **stateless**: setiap request membawa token (misalnya JWT di header `Authorization: Bearer ...`), tanpa session di server.\n- Spring Security mengurus login, session fixation, dan cookie session yang aman secara bawaan.\n- Atribut cookie `SameSite=Lax` atau `Strict` membantu mencegah CSRF. Peraturan privasi seperti UU PDP di Indonesia dan GDPR di Eropa mengatur cookie pelacak, sehingga banyak situs menampilkan pemberitahuan cookie."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Web 4: Masuk dan Keluar",
+      "pembuka": "Todolist Web sekarang mengenali pengguna yang sudah masuk.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Profil ditolak sebelum masuk, lalu dikenali setelah masuk.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new MasukServlet());\n        server.tambah(new ProfilServlet());\n        server.cetak(\"GET\", \"/profil\");\n        server.cetak(\"POST\", \"/masuk\", \"nama=Sari\");\n        server.cetak(\"GET\", \"/profil\");\n    }\n}\n\n@WebServlet(\"/masuk\")\nclass MasukServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String nama = req.getParameter(\"nama\");\n        HttpSession sesi = req.getSession();\n        sesi.setAttribute(\"pengguna\", nama);\n        res.sendRedirect(\"/profil\");\n    }\n}\n\n@WebServlet(\"/profil\")\nclass ProfilServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        HttpSession sesi = req.getSession(false);\n        String pengguna = sesi == null ? null : (String) sesi.getAttribute(\"pengguna\");\n        if (pengguna == null) {\n            res.sendError(401, \"silakan masuk dulu\");\n            return;\n        }\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Halo \" + pengguna + \" (session \" + sesi.getId() + \")\");\n    }\n}\n",
+          "keluaran": "GET /profil\nHTTP 401 Unauthorized\nContent-Type: text/plain;charset=UTF-8\n\nsilakan masuk dulu\nPOST /masuk  [nama=Sari]\nHTTP 302 Found\nLocation: /profil\nSet-Cookie: JSESSIONID=SESI1; Path=/; HttpOnly\nGET /profil\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo Sari (session SESI1)",
+          "otomatis": true,
+          "benar": "Cookie `JSESSIONID` dikirim saat session dibuat, dan dibawa lagi di request berikutnya.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Buat `KeluarServlet` di `/keluar` yang meng-`invalidate` session lalu redirect ke `/masuk`. Kirim POST ke `/keluar`, lalu buka `/profil` lagi.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new MasukServlet());\n        server.tambah(new ProfilServlet());\n        server.tambah(new KeluarServlet());\n        server.cetak(\"GET\", \"/profil\");\n        server.cetak(\"POST\", \"/masuk\", \"nama=Sari\");\n        server.cetak(\"GET\", \"/profil\");\n        server.cetak(\"POST\", \"/keluar\");\n        server.cetak(\"GET\", \"/profil\");\n    }\n}\n\n@WebServlet(\"/masuk\")\nclass MasukServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String nama = req.getParameter(\"nama\");\n        HttpSession sesi = req.getSession();\n        sesi.setAttribute(\"pengguna\", nama);\n        res.sendRedirect(\"/profil\");\n    }\n}\n\n@WebServlet(\"/profil\")\nclass ProfilServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        HttpSession sesi = req.getSession(false);\n        String pengguna = sesi == null ? null : (String) sesi.getAttribute(\"pengguna\");\n        if (pengguna == null) {\n            res.sendError(401, \"silakan masuk dulu\");\n            return;\n        }\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Halo \" + pengguna + \" (session \" + sesi.getId() + \")\");\n    }\n}\n\n@WebServlet(\"/keluar\")\nclass KeluarServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        HttpSession sesi = req.getSession(false);\n        if (sesi != null) {\n            sesi.invalidate();\n        }\n        res.sendRedirect(\"/masuk\");\n    }\n}\n",
+          "keluaran": "GET /profil\nHTTP 401 Unauthorized\nContent-Type: text/plain;charset=UTF-8\n\nsilakan masuk dulu\nPOST /masuk  [nama=Sari]\nHTTP 302 Found\nLocation: /profil\nSet-Cookie: JSESSIONID=SESI1; Path=/; HttpOnly\nGET /profil\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo Sari (session SESI1)\nPOST /keluar\nHTTP 302 Found\nLocation: /masuk\nGET /profil\nHTTP 401 Unauthorized\nContent-Type: text/plain;charset=UTF-8\n\nsilakan masuk dulu",
+          "wajib": [
+            {
+              "pola": "\\.invalidate\\(\\)",
+              "pesan": "panggil `invalidate()`."
+            },
+            {
+              "pola": "@WebServlet\\s*\\(\\s*\"/keluar\"\\s*\\)",
+              "pesan": "buat servlet di `/keluar`."
+            }
+          ],
+          "benar": "Setelah keluar, profil kembali ditolak.",
+          "petunjuk": "`HttpSession sesi = req.getSession(false); if (sesi != null) { sesi.invalidate(); }`"
+        },
+        {
+          "arahan": "Tiru pengguna lain: `server.lupakanCookie()`, masuk sebagai `Budi`, lalu buka profil.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new MasukServlet());\n        server.tambah(new ProfilServlet());\n        server.tambah(new KeluarServlet());\n        server.cetak(\"GET\", \"/profil\");\n        server.cetak(\"POST\", \"/masuk\", \"nama=Sari\");\n        server.cetak(\"GET\", \"/profil\");\n        server.cetak(\"POST\", \"/keluar\");\n        server.cetak(\"GET\", \"/profil\");\n        server.lupakanCookie();\n        server.cetak(\"POST\", \"/masuk\", \"nama=Budi\");\n        server.cetak(\"GET\", \"/profil\");\n    }\n}\n\n@WebServlet(\"/masuk\")\nclass MasukServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String nama = req.getParameter(\"nama\");\n        HttpSession sesi = req.getSession();\n        sesi.setAttribute(\"pengguna\", nama);\n        res.sendRedirect(\"/profil\");\n    }\n}\n\n@WebServlet(\"/profil\")\nclass ProfilServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        HttpSession sesi = req.getSession(false);\n        String pengguna = sesi == null ? null : (String) sesi.getAttribute(\"pengguna\");\n        if (pengguna == null) {\n            res.sendError(401, \"silakan masuk dulu\");\n            return;\n        }\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Halo \" + pengguna + \" (session \" + sesi.getId() + \")\");\n    }\n}\n\n@WebServlet(\"/keluar\")\nclass KeluarServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        HttpSession sesi = req.getSession(false);\n        if (sesi != null) {\n            sesi.invalidate();\n        }\n        res.sendRedirect(\"/masuk\");\n    }\n}\n",
+          "keluaran": "GET /profil\nHTTP 401 Unauthorized\nContent-Type: text/plain;charset=UTF-8\n\nsilakan masuk dulu\nPOST /masuk  [nama=Sari]\nHTTP 302 Found\nLocation: /profil\nSet-Cookie: JSESSIONID=SESI1; Path=/; HttpOnly\nGET /profil\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo Sari (session SESI1)\nPOST /keluar\nHTTP 302 Found\nLocation: /masuk\nGET /profil\nHTTP 401 Unauthorized\nContent-Type: text/plain;charset=UTF-8\n\nsilakan masuk dulu\nPOST /masuk  [nama=Budi]\nHTTP 302 Found\nLocation: /profil\nSet-Cookie: JSESSIONID=SESI2; Path=/; HttpOnly\nGET /profil\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo Budi (session SESI2)",
+          "wajib": [
+            {
+              "pola": "server\\.lupakanCookie\\(\\)",
+              "pesan": "panggil `server.lupakanCookie()`."
+            },
+            {
+              "pola": "nama=Budi",
+              "pesan": "masuk sebagai Budi."
+            }
+          ],
+          "benar": "Budi mendapat session baru dengan id lain.",
+          "petunjuk": "Tiga baris di akhir main."
+        },
+        {
+          "arahan": "Tantangan: buat `TemaServlet` di `/tema`: POST menyimpan cookie `tema` (berlaku setahun, path `/`, HttpOnly) lalu redirect ke `/tema`; GET membaca cookie itu dan mencetak `Tema: ` diikuti nilainya (bawaan `terang`). Kirim POST `tema=gelap` lalu GET.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new MasukServlet());\n        server.tambah(new ProfilServlet());\n        server.tambah(new KeluarServlet());\n        server.tambah(new TemaServlet());\n        server.cetak(\"GET\", \"/profil\");\n        server.cetak(\"POST\", \"/masuk\", \"nama=Sari\");\n        server.cetak(\"GET\", \"/profil\");\n        server.cetak(\"POST\", \"/keluar\");\n        server.cetak(\"GET\", \"/profil\");\n        server.lupakanCookie();\n        server.cetak(\"POST\", \"/masuk\", \"nama=Budi\");\n        server.cetak(\"GET\", \"/profil\");\n        server.cetak(\"POST\", \"/tema\", \"tema=gelap\");\n        server.cetak(\"GET\", \"/tema\");\n    }\n}\n\n@WebServlet(\"/masuk\")\nclass MasukServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String nama = req.getParameter(\"nama\");\n        HttpSession sesi = req.getSession();\n        sesi.setAttribute(\"pengguna\", nama);\n        res.sendRedirect(\"/profil\");\n    }\n}\n\n@WebServlet(\"/profil\")\nclass ProfilServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        HttpSession sesi = req.getSession(false);\n        String pengguna = sesi == null ? null : (String) sesi.getAttribute(\"pengguna\");\n        if (pengguna == null) {\n            res.sendError(401, \"silakan masuk dulu\");\n            return;\n        }\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Halo \" + pengguna + \" (session \" + sesi.getId() + \")\");\n    }\n}\n\n@WebServlet(\"/keluar\")\nclass KeluarServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        HttpSession sesi = req.getSession(false);\n        if (sesi != null) {\n            sesi.invalidate();\n        }\n        res.sendRedirect(\"/masuk\");\n    }\n}\n\n@WebServlet(\"/tema\")\nclass TemaServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String tema = \"terang\";\n        if (req.getCookies() != null) {\n            for (Cookie c : req.getCookies()) {\n                if (c.getName().equals(\"tema\")) {\n                    tema = c.getValue();\n                }\n            }\n        }\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Tema: \" + tema);\n    }\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Cookie c = new Cookie(\"tema\", req.getParameter(\"tema\"));\n        c.setMaxAge(60 * 60 * 24 * 365);\n        c.setPath(\"/\");\n        c.setHttpOnly(true);\n        res.addCookie(c);\n        res.sendRedirect(\"/tema\");\n    }\n}\n",
+          "keluaran": "GET /profil\nHTTP 401 Unauthorized\nContent-Type: text/plain;charset=UTF-8\n\nsilakan masuk dulu\nPOST /masuk  [nama=Sari]\nHTTP 302 Found\nLocation: /profil\nSet-Cookie: JSESSIONID=SESI1; Path=/; HttpOnly\nGET /profil\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo Sari (session SESI1)\nPOST /keluar\nHTTP 302 Found\nLocation: /masuk\nGET /profil\nHTTP 401 Unauthorized\nContent-Type: text/plain;charset=UTF-8\n\nsilakan masuk dulu\nPOST /masuk  [nama=Budi]\nHTTP 302 Found\nLocation: /profil\nSet-Cookie: JSESSIONID=SESI2; Path=/; HttpOnly\nGET /profil\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo Budi (session SESI2)\nPOST /tema  [tema=gelap]\nHTTP 302 Found\nLocation: /tema\nSet-Cookie: tema=gelap; Max-Age=31536000; Path=/; HttpOnly\nGET /tema\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nTema: gelap",
+          "wajib": [
+            {
+              "pola": "new\\s+Cookie\\s*\\(\\s*\"tema\"",
+              "pesan": "buat `new Cookie(\"tema\", ...)`."
+            },
+            {
+              "pola": "setHttpOnly\\s*\\(\\s*true\\s*\\)",
+              "pesan": "pasang `setHttpOnly(true)`."
+            },
+            {
+              "pola": "req\\.getCookies\\(\\)",
+              "pesan": "baca `req.getCookies()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Pilihan tema diingat browser, tanpa session.",
+          "petunjuk": "Ingat, `req.getCookies()` bisa `null`."
+        }
+      ],
+      "penutup": "Pengguna dikenali. Berikutnya: filter yang bekerja di depan semua servlet."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa aplikasi web butuh session atau cookie?",
+          "options": [
+            "Supaya request lebih cepat",
+            "Karena HTTP stateless: server tidak mengingat request sebelumnya",
+            "Karena servlet tidak bisa membaca parameter",
+            "Supaya status code bisa 200"
+          ],
+          "answer": 1,
+          "explanation": "Tanpa ingatan.",
+          "remedial": "Setiap request HTTP berdiri sendiri. Cookie berisi id session menghubungkan request-request dari pengguna yang sama."
+        },
+        {
+          "question": "req.getSession(false) untuk pengguna yang belum punya session mengembalikan...",
+          "options": [
+            "Session baru",
+            "Exception",
+            "null",
+            "Session pengguna lain"
+          ],
+          "answer": 2,
+          "explanation": "false berarti jangan buat.",
+          "remedial": "`getSession(false)` hanya mengambil session yang sudah ada. Berguna untuk memeriksa login tanpa membuat session baru yang tidak perlu."
+        },
+        {
+          "question": "Data mana yang aman disimpan di cookie biasa?",
+          "options": [
+            "Peran pengguna, misalnya admin",
+            "Saldo rekening",
+            "Sandi",
+            "Pilihan tema tampilan"
+          ],
+          "answer": 3,
+          "explanation": "Bisa dilihat dan diubah.",
+          "remedial": "Cookie ada di tangan pengguna. Simpan hanya data yang tidak masalah kalau dilihat atau diubah. Data penting disimpan di server."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method untuk menghapus session saat logout adalah...",
+      "options": [
+        "session.invalidate()",
+        "session.clear()",
+        "req.removeSession()",
+        "res.deleteCookie()"
+      ],
+      "answer": 0,
+      "explanation": "Batalkan session."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program menjalankan perintah dari input: beli barang menambah barang ke keranjang, lihat mencetak isi keranjang, dan ganti-pengguna meniru pengguna lain di browser lain. Saat ini keranjang disimpan di field servlet, sehingga semua pengguna berbagi keranjang yang sama. Ubah KeranjangServlet supaya setiap pengguna punya keranjang sendiri di session.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new KeranjangServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\" \");\n            if (d[0].equals(\"ganti-pengguna\")) {\n                server.lupakanCookie();\n            } else if (d[0].equals(\"beli\")) {\n                server.kirim(\"POST\", \"/keranjang\", \"barang=\" + d[1]);\n            } else {\n                System.out.println(server.kirim(\"GET\", \"/keranjang\").isi());\n            }\n        }\n    }\n}\n\n@WebServlet(\"/keranjang\")\nclass KeranjangServlet extends HttpServlet {\n    private final List<String> isi = new ArrayList<>();\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        isi.add(req.getParameter(\"barang\"));\n        res.sendRedirect(\"/keranjang\");\n    }\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Keranjang: \" + isi);\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new KeranjangServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\" \");\n            if (d[0].equals(\"ganti-pengguna\")) {\n                server.lupakanCookie();\n            } else if (d[0].equals(\"beli\")) {\n                server.kirim(\"POST\", \"/keranjang\", \"barang=\" + d[1]);\n            } else {\n                System.out.println(server.kirim(\"GET\", \"/keranjang\").isi());\n            }\n        }\n    }\n}\n\n@WebServlet(\"/keranjang\")\nclass KeranjangServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        isiKeranjang(req).add(req.getParameter(\"barang\"));\n        res.sendRedirect(\"/keranjang\");\n    }\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Keranjang: \" + isiKeranjang(req));\n    }\n\n    @SuppressWarnings(\"unchecked\")\n    private List<String> isiKeranjang(HttpServletRequest req) {\n        HttpSession sesi = req.getSession();\n        List<String> isi = (List<String>) sesi.getAttribute(\"isi\");\n        if (isi == null) {\n            isi = new ArrayList<>();\n            sesi.setAttribute(\"isi\", isi);\n        }\n        return isi;\n    }\n}",
+      "tests": [
+        {
+          "input": "beli kopi\nbeli teh\nlihat\nganti-pengguna\nbeli roti\nlihat\n",
+          "expectedOutput": "Keranjang: [kopi, teh]\nKeranjang: [roti]\n"
+        }
+      ],
+      "hints": [
+        "Simpan List di atribut session, misalnya \"isi\". Buat List baru kalau atributnya masih null.",
+        "Ambil keranjang dengan req.getSession().getAttribute(\"isi\") di doGet dan doPost."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "HTTP stateless; session di server dikenali lewat cookie JSESSIONID.",
+        "getSession() membuat kalau perlu; getSession(false) bisa null; invalidate untuk logout.",
+        "Cookie untuk data kecil yang tidak rahasia; pakai HttpOnly, Secure, dan SameSite.",
+        "Data per pengguna di session, bukan di field servlet."
+      ]
+    }
+  ]
+}

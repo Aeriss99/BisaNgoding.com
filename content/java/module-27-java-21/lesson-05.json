@@ -1,0 +1,212 @@
+{
+  "id": "java-java-21-05",
+  "moduleId": "java-21",
+  "order": 5,
+  "title": "Sequenced Collection",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sebelum Java 21, mengambil elemen terakhir dari collection yang berurutan punya cara berbeda-beda: `list.get(list.size() - 1)`, `deque.getLast()`, `sortedSet.last()`, dan untuk `LinkedHashSet` atau `LinkedHashMap` bahkan tidak ada cara langsung.\n\nJava 21 menambahkan tiga interface **Sequenced** yang menyeragamkannya: `SequencedCollection`, `SequencedSet`, dan `SequencedMap`. Semua collection yang punya urutan pertama dan terakhir kini punya method yang sama.\n\nIbarat antrean di loket: siapa pun petugasnya, pertanyaannya selalu sama, \"siapa paling depan, siapa paling belakang\", dan jawabannya tidak perlu dihitung dari nomor antrean."
+    },
+    {
+      "type": "theory",
+      "content": "**`SequencedCollection`** (dipakai `List`, `Deque`, `LinkedHashSet`, `TreeSet`):\n\n| Method | Arti |\n|---|---|\n| `getFirst()` / `getLast()` | elemen pertama / terakhir |\n| `addFirst(x)` / `addLast(x)` | tambah di depan / belakang |\n| `removeFirst()` / `removeLast()` | ambil dan hapus pertama / terakhir |\n| `reversed()` | **tampilan** dengan urutan terbalik |\n\n**`SequencedMap`** (dipakai `LinkedHashMap`, `TreeMap`):\n\n| Method | Arti |\n|---|---|\n| `firstEntry()` / `lastEntry()` | entri pertama / terakhir |\n| `pollFirstEntry()` / `pollLastEntry()` | ambil dan hapus |\n| `putFirst(k, v)` / `putLast(k, v)` | taruh di depan / belakang (`LinkedHashMap`) |\n| `reversed()` | tampilan terbalik |\n\n`getFirst()` dan `getLast()` pada collection kosong melempar `NoSuchElementException`.\n\n`reversed()` bukan salinan: ia adalah **tampilan** (*view*) dari collection yang sama, sehingga perubahan pada aslinya ikut terlihat.\n\n`List.of(...)` juga sequenced, tetapi immutable: `addFirst` melempar `UnsupportedOperationException`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nList<String> antrean = new ArrayList<>(List.of(\"Ani\", \"Budi\", \"Citra\"));\nantrean.getLast();                   // Citra, bukan antrean.get(antrean.size() - 1)\nantrean.addFirst(\"Prioritas\");\nantrean.reversed();                  // [Citra, Budi, Ani, Prioritas]\n\nSequencedMap<String, Integer> riwayat = new LinkedHashMap<>();\nriwayat.lastEntry();                 // entri yang terakhir dimasukkan\n```\n\n`LinkedHashSet` kini bisa dipakai sebagai daftar unik yang berurutan dengan akses dua ujung, misalnya riwayat produk yang terakhir dilihat."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<Integer> angka = new ArrayList<>(List.of(1, 2, 3));\n        List<Integer> balik = angka.reversed();\n        angka.add(4);\n        System.out.println(balik);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: angka ditambah 4 setelah reversed dipanggil. Apa yang tercetak?",
+        "options": [
+          "[3, 2, 1]",
+          "[4, 3, 2, 1]",
+          "[1, 2, 3, 4]",
+          "[4, 1, 2, 3]"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Tampilan, bukan salinan."
+        },
+        {
+          "line": 7,
+          "note": "Mengubah list asli."
+        }
+      ],
+      "explanation": "reversed mengembalikan tampilan terbalik dari list yang sama, bukan salinan. Ketika 4 ditambahkan ke angka, tampilan balik ikut melihatnya di depan. Kalau perlu salinan yang terpisah, bungkus dengan new ArrayList<>(angka.reversed()).",
+      "tryThis": [
+        {
+          "task": "Tambahkan balik.addFirst(0) lalu cetak angka.",
+          "hint": null
+        },
+        {
+          "task": "Cetak angka.reversed().getFirst().",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira `reversed()` menyalin**\n\nIa adalah tampilan. Mengubahnya juga mengubah collection asli.\n\n**2. `getFirst()` pada collection kosong**\n\nMelempar `NoSuchElementException`. Periksa `isEmpty()` dulu.\n\n**3. `addFirst` pada `TreeSet`**\n\n`TreeSet` urutannya ditentukan pembanding, jadi `addFirst` dan `addLast` melempar `UnsupportedOperationException`.\n\n**4. `HashSet` dan `HashMap` bukan sequenced**\n\nKeduanya tidak punya urutan pasti, sehingga tidak punya `getFirst`. Pakai `LinkedHashSet` atau `LinkedHashMap`.\n\n**5. Bentrok dengan method buatan sendiri**\n\nClass turunan `List` buatan sendiri yang sudah punya `getFirst()` dengan tipe kembalian berbeda bisa gagal di-compile setelah upgrade ke Java 21."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Kode lama `list.get(list.size() - 1)` dan `list.get(0)` adalah kandidat umum perubahan saat migrasi ke Java 21. OpenRewrite dan IntelliJ menyarankannya otomatis.\n- `LinkedHashMap` dengan `pollFirstEntry` dipakai untuk cache sederhana yang membuang data terlama.\n- Kotlin sudah lama punya `first()` dan `last()` di semua list. Java 21 menyusul dengan nama yang mirip, sehingga kode lintas bahasa lebih konsisten."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Kasir Modern 5: Antrean Kasir",
+      "pembuka": "Kasir Modern mengelola antrean dan riwayat pesanan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Pelanggan pertama dan terakhir diambil dengan `getFirst` dan `getLast`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<String> antrean = new ArrayList<>(List.of(\"Ani\", \"Budi\", \"Citra\"));\n        System.out.println(\"Pertama: \" + antrean.getFirst());\n        System.out.println(\"Terakhir: \" + antrean.getLast());\n    }\n}\n",
+          "keluaran": "Pertama: Ani\nTerakhir: Citra",
+          "otomatis": true,
+          "benar": "Tidak perlu lagi `get(size() - 1)`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan `Prioritas` di depan dan `Dewi` di belakang, cetak antrean, lalu layani yang paling depan dengan `removeFirst`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<String> antrean = new ArrayList<>(List.of(\"Ani\", \"Budi\", \"Citra\"));\n        System.out.println(\"Pertama: \" + antrean.getFirst());\n        System.out.println(\"Terakhir: \" + antrean.getLast());\n        antrean.addFirst(\"Prioritas\");\n        antrean.addLast(\"Dewi\");\n        System.out.println(antrean);\n        System.out.println(\"Dilayani: \" + antrean.removeFirst());\n    }\n}\n",
+          "keluaran": "Pertama: Ani\nTerakhir: Citra\n[Prioritas, Ani, Budi, Citra, Dewi]\nDilayani: Prioritas",
+          "wajib": [
+            {
+              "pola": "addFirst\\s*\\(\\s*\"Prioritas\"\\s*\\)",
+              "pesan": "pakai `addFirst(\"Prioritas\")`."
+            },
+            {
+              "pola": "removeFirst\\(\\)",
+              "pesan": "pakai `removeFirst()`."
+            }
+          ],
+          "benar": "Antrean bekerja dari kedua ujung.",
+          "petunjuk": "`antrean.addFirst(\"Prioritas\");` dan `antrean.addLast(\"Dewi\");`."
+        },
+        {
+          "arahan": "Cetak antrean dalam urutan terbalik dengan `reversed()`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<String> antrean = new ArrayList<>(List.of(\"Ani\", \"Budi\", \"Citra\"));\n        System.out.println(\"Pertama: \" + antrean.getFirst());\n        System.out.println(\"Terakhir: \" + antrean.getLast());\n        antrean.addFirst(\"Prioritas\");\n        antrean.addLast(\"Dewi\");\n        System.out.println(antrean);\n        System.out.println(\"Dilayani: \" + antrean.removeFirst());\n        System.out.println(\"Dibalik: \" + antrean.reversed());\n    }\n}\n",
+          "keluaran": "Pertama: Ani\nTerakhir: Citra\n[Prioritas, Ani, Budi, Citra, Dewi]\nDilayani: Prioritas\nDibalik: [Dewi, Citra, Budi, Ani]",
+          "wajib": [
+            {
+              "pola": "antrean\\.reversed\\(\\)",
+              "pesan": "pakai `antrean.reversed()`."
+            }
+          ],
+          "benar": "Tanpa menyalin dan tanpa `Collections.reverse`.",
+          "petunjuk": "`antrean.reversed()`."
+        },
+        {
+          "arahan": "Tantangan: buat `SequencedMap<String, Integer> riwayat` (LinkedHashMap) berisi tiga pesanan. Cetak pesanan terbaru dengan `lastEntry`, hapus yang terlama dengan `pollFirstEntry`, lalu cetak isinya.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<String> antrean = new ArrayList<>(List.of(\"Ani\", \"Budi\", \"Citra\"));\n        System.out.println(\"Pertama: \" + antrean.getFirst());\n        System.out.println(\"Terakhir: \" + antrean.getLast());\n        antrean.addFirst(\"Prioritas\");\n        antrean.addLast(\"Dewi\");\n        System.out.println(antrean);\n        System.out.println(\"Dilayani: \" + antrean.removeFirst());\n        System.out.println(\"Dibalik: \" + antrean.reversed());\n        SequencedMap<String, Integer> riwayat = new LinkedHashMap<>();\n        riwayat.put(\"PSN-1\", 36000);\n        riwayat.put(\"PSN-2\", 18000);\n        riwayat.put(\"PSN-3\", 54000);\n        System.out.println(\"Pesanan terbaru: \" + riwayat.lastEntry());\n        System.out.println(\"Pesanan terlama dihapus: \" + riwayat.pollFirstEntry());\n        System.out.println(riwayat);\n    }\n}\n",
+          "keluaran": "Pertama: Ani\nTerakhir: Citra\n[Prioritas, Ani, Budi, Citra, Dewi]\nDilayani: Prioritas\nDibalik: [Dewi, Citra, Budi, Ani]\nPesanan terbaru: PSN-3=54000\nPesanan terlama dihapus: PSN-1=36000\n{PSN-2=18000, PSN-3=54000}",
+          "wajib": [
+            {
+              "pola": "SequencedMap<String,\\s*Integer>",
+              "pesan": "pakai tipe `SequencedMap<String, Integer>`."
+            },
+            {
+              "pola": "pollFirstEntry\\(\\)",
+              "pesan": "pakai `pollFirstEntry()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Map berurutan kini punya akses dua ujung yang sama seperti list.",
+          "petunjuk": "Isi dengan `put`, lalu `riwayat.lastEntry()` dan `riwayat.pollFirstEntry()`."
+        }
+      ],
+      "penutup": "Collection berurutan sudah seragam. Berikutnya: fitur terbesar Java 21, virtual thread."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Cara Java 21 mengambil elemen terakhir sebuah List adalah...",
+          "options": [
+            "list.get(list.size())",
+            "list.last()",
+            "list.getLast()",
+            "list.end()"
+          ],
+          "answer": 2,
+          "explanation": "Method baru.",
+          "remedial": "`getLast()` berasal dari `SequencedCollection`. `list.get(list.size())` justru melempar exception karena indeks dimulai dari 0."
+        },
+        {
+          "question": "Hasil reversed() adalah...",
+          "options": [
+            "Salinan baru yang terpisah",
+            "Collection yang dikosongkan",
+            "Array",
+            "Tampilan terbalik dari collection yang sama"
+          ],
+          "answer": 3,
+          "explanation": "View.",
+          "remedial": "Perubahan pada collection asli terlihat di tampilan terbalik, dan sebaliknya."
+        },
+        {
+          "question": "Collection mana yang tidak sequenced?",
+          "options": [
+            "HashSet",
+            "ArrayList",
+            "LinkedHashSet",
+            "ArrayDeque"
+          ],
+          "answer": 0,
+          "explanation": "Tanpa urutan.",
+          "remedial": "`HashSet` tidak menjamin urutan, sehingga tidak punya elemen pertama dan terakhir."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method SequencedMap untuk mengambil dan menghapus entri pertama adalah...",
+      "options": [
+        "removeFirst()",
+        "pollFirstEntry()",
+        "getFirst()",
+        "firstKey()"
+      ],
+      "answer": 1,
+      "explanation": "Poll."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca angka n di baris pertama, lalu nama produk yang dilihat pembeli per baris (bisa berulang). Program harus mencetak n produk terakhir yang dilihat, yang terbaru di depan, tanpa duplikat. Ada bug: produk yang dilihat ulang tidak pindah ke posisi terbaru, karena add pada LinkedHashSet tidak mengubah posisi elemen yang sudah ada. Perbaiki memakai addLast (Java 21 memindahkan elemen yang sudah ada ke belakang) dan reversed, lalu ambil n pertama dengan stream, limit, dan toList.",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        int n = Integer.parseInt(in.nextLine().trim());\n        LinkedHashSet<String> dilihat = new LinkedHashSet<>();\n        while (in.hasNextLine()) {\n            dilihat.add(in.nextLine().trim());\n        }\n        List<String> semua = new ArrayList<>(dilihat);\n        Collections.reverse(semua);\n        System.out.println(semua.subList(0, Math.min(n, semua.size())));\n    }\n}",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        int n = Integer.parseInt(in.nextLine().trim());\n        LinkedHashSet<String> dilihat = new LinkedHashSet<>();\n        while (in.hasNextLine()) {\n            dilihat.addLast(in.nextLine().trim());\n        }\n        List<String> hasil = dilihat.reversed().stream().limit(n).toList();\n        System.out.println(hasil);\n    }\n}",
+      "tests": [
+        {
+          "input": "3\nkopi\nteh\nroti\nkopi\nsusu\n",
+          "expectedOutput": "[susu, kopi, roti]\n"
+        },
+        {
+          "input": "2\nteh\n",
+          "expectedOutput": "[teh]\n"
+        }
+      ],
+      "hints": [
+        "dilihat.addLast(produk) memindahkan produk yang sudah ada ke paling belakang.",
+        "dilihat.reversed().stream().limit(n).toList()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "SequencedCollection: getFirst, getLast, addFirst, addLast, removeFirst, removeLast, reversed.",
+        "SequencedMap: firstEntry, lastEntry, pollFirstEntry, putFirst, reversed.",
+        "reversed() adalah tampilan, bukan salinan.",
+        "List, Deque, LinkedHashSet, TreeSet, LinkedHashMap, TreeMap sequenced; HashSet dan HashMap tidak."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

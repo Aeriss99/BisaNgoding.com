@@ -1,0 +1,199 @@
+{
+  "id": "java-resilience4j-04",
+  "moduleId": "resilience4j",
+  "order": 4,
+  "title": "Fallback dan Menggabungkan Pola",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Retry dan Circuit Breaker mengurangi kegagalan, tetapi tidak menghilangkannya. Saat semua usaha gagal, apa yang ditunjukkan ke pengguna? Error 500 adalah jawaban terburuk.\n\n**Fallback** adalah jawaban cadangan yang masih berguna: stok terakhir yang diketahui, ongkir tarif standar, rekomendasi produk terpopuler, atau pesan yang jelas \"fitur ini sedang tidak tersedia\".\n\nIbarat restoran yang kehabisan bahan untuk menu spesial: pelayan tidak menutup restoran, tetapi menawarkan menu lain yang masih ada."
+    },
+    {
+      "type": "theory",
+      "content": "**Urutan pembungkus penting.** Pola dibungkus dari dalam ke luar:\n\n```java\nSupplier<Integer> dasar   = () -> gudang.cekStok(barang);\nSupplier<Integer> dgCb    = CircuitBreaker.decorateSupplier(cb, dasar);\nSupplier<Integer> tangguh = Retry.decorateSupplier(retry, dgCb);\n// fallback: try-catch di luar semuanya\n```\n\nUrutan yang dianjurkan Resilience4j (dari luar ke dalam):\n\n```text\nFallback ( Retry ( CircuitBreaker ( RateLimiter ( TimeLimiter ( Bulkhead ( panggilan ) ) ) ) ) )\n```\n\n| Bagian | Alasan posisinya |\n|---|---|\n| Fallback paling luar | menangkap semua kegagalan, termasuk penolakan sirkuit |\n| Retry di luar CircuitBreaker | setiap percobaan dicatat circuit breaker; kalau sirkuit terbuka, retry berhenti cepat |\n| CircuitBreaker di dalam | menilai kesehatan berdasarkan setiap panggilan sebenarnya |\n\nFallback sebaiknya **berbeda menurut penyebab**: sirkuit terbuka (`CallNotPermittedException`) berarti layanan sedang bermasalah; kesalahan data berarti permintaannya yang salah, dan tidak perlu cadangan.\n\nFallback yang baik **tidak memanggil layanan lain yang sama rapuhnya**. Data cadangan biasanya dari memori (*cache*), nilai bawaan, atau pesan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nString stok(String barang) {\n    try {\n        int n = tangguh.get();\n        terakhir.put(barang, n);          // simpan untuk cadangan\n        return barang + \": \" + n;\n    } catch (CallNotPermittedException e) {\n        return cadangan(barang, \"gudang sedang tidak tersedia\");\n    } catch (RuntimeException e) {\n        return cadangan(barang, e.getMessage());\n    }\n}\n```\n\nUntuk barang yang pernah dicek, pengguna melihat stok terakhir dengan keterangan \"(data terakhir)\". Untuk barang yang belum pernah dicek, pengguna mendapat pesan jelas, bukan error.\n\nTanda keterangan itu penting: data cadangan bisa sudah tidak tepat, dan pengguna berhak tahu."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        GudangPalsu gudang = new GudangPalsu(\"timeout\", \"timeout\", \"timeout\", \"timeout\");\n        CircuitBreaker cb = CircuitBreaker.of(\"gudang\", CircuitBreakerConfig.custom()\n                .slidingWindowSize(2).minimumNumberOfCalls(2).failureRateThreshold(50).build());\n        Retry retry = Retry.of(\"gudang\", RetryConfig.custom().maxAttempts(3).waitDuration(Duration.ofMillis(10)).build());\n        Supplier<Integer> retryLuar = Retry.decorateSupplier(retry, CircuitBreaker.decorateSupplier(cb, () -> gudang.cekStok(\"kopi\")));\n        try {\n            retryLuar.get();\n        } catch (RuntimeException e) {\n            System.out.println(\"Akhirnya: \" + e.getClass().getSimpleName());\n        }\n        System.out.println(\"Panggilan ke gudang: \" + gudang.panggilan);\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: retry 3 percobaan membungkus circuit breaker yang terbuka setelah 2 kegagalan. Berapa kali gudang dipanggil?",
+        "options": [
+          "Panggilan ke gudang: 2",
+          "Panggilan ke gudang: 3",
+          "Panggilan ke gudang: 4",
+          "Panggilan ke gudang: 1"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 14,
+          "note": "Retry di luar, circuit breaker di dalam."
+        },
+        {
+          "line": 18,
+          "note": "Exception yang sampai ke pemanggil."
+        }
+      ],
+      "explanation": "Dua percobaan pertama sampai ke gudang dan gagal. Setelah itu sirkuit terbuka, sehingga percobaan ketiga ditolak circuit breaker tanpa memanggil gudang. Exception terakhir adalah CallNotPermittedException. Retry tidak membuang waktu memanggil layanan yang sudah diketahui mati.",
+      "tryThis": [
+        {
+          "task": "Tukar urutannya: CircuitBreaker di luar Retry. Berapa panggilannya sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Naikkan maxAttempts menjadi 5.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Fallback yang menyembunyikan masalah**\n\nMengembalikan stok 0 tanpa keterangan membuat pengguna mengira barang habis. Tandai data cadangan, dan catat ke log.\n\n**2. Fallback memanggil layanan rapuh lain**\n\nKalau cadangannya juga mati, fallback ikut gagal. Cadangan sebaiknya lokal: memori, cache, atau nilai bawaan.\n\n**3. Urutan pembungkus terbalik**\n\nCircuit breaker di luar retry hanya melihat satu hasil per pemanggilan, sehingga terlambat menyadari layanan mati.\n\n**4. Fallback untuk kesalahan pengguna**\n\nData yang salah sebaiknya ditolak dengan pesan, bukan diberi cadangan seolah-olah berhasil."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di Spring Boot, fallback ditulis sebagai method dengan parameter yang sama ditambah exception:\n\n```java\n@Retry(name = \"gudang\")\n@CircuitBreaker(name = \"gudang\", fallbackMethod = \"stokCadangan\")\npublic int cekStok(String barang) { ... }\n\nprivate int stokCadangan(String barang, CallNotPermittedException e) { ... }\nprivate int stokCadangan(String barang, Exception e) { ... }\n```\n\nUrutan anotasi diatur Spring sesuai urutan yang dianjurkan, dan bisa diubah lewat konfigurasi `*-aspect-order`.\n- Modul `resilience4j-all` menyediakan `Decorators.ofSupplier(...).withRetry(...).withCircuitBreaker(...).withFallback(...)` untuk menyusun pembungkus tanpa menulis bersarang.\n- Netflix terkenal dengan fallback seperti menampilkan daftar film populer saat layanan rekomendasi pribadi gagal. Pengguna hampir tidak menyadari ada gangguan."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Klien Gudang Tangguh 4: Stok Cadangan",
+      "pembuka": "`KlienGudang` menggabungkan retry, circuit breaker, dan fallback.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Cek pertama berhasil dan disimpan; cek kedua gagal dua kali, jadi stok terakhir yang dipakai.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        KlienGudang klien = new KlienGudang(new GudangPalsu(\"ok\", \"timeout\", \"timeout\"));\n        System.out.println(klien.stok(\"kopi\"));\n        System.out.println(klien.stok(\"kopi\"));\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n\nclass KlienGudang {\n    private final GudangPalsu gudang;\n    private final Map<String, Integer> terakhir = new HashMap<>();\n    final Retry retry = Retry.of(\"gudang\", RetryConfig.custom()\n            .maxAttempts(2)\n            .waitDuration(Duration.ofMillis(10))\n            .build());\n    final CircuitBreaker cb = CircuitBreaker.of(\"gudang\", CircuitBreakerConfig.custom()\n            .slidingWindowSize(4)\n            .minimumNumberOfCalls(4)\n            .failureRateThreshold(50)\n            .build());\n\n    KlienGudang(GudangPalsu gudang) {\n        this.gudang = gudang;\n    }\n\n    String stok(String barang) {\n        Supplier<Integer> dasar = () -> gudang.cekStok(barang);\n        Supplier<Integer> tangguh = Retry.decorateSupplier(retry, CircuitBreaker.decorateSupplier(cb, dasar));\n        try {\n            int n = tangguh.get();\n            terakhir.put(barang, n);\n            return barang + \": \" + n;\n        } catch (CallNotPermittedException e) {\n            return cadangan(barang, \"gudang sedang tidak tersedia\");\n        } catch (RuntimeException e) {\n            return cadangan(barang, e.getMessage());\n        }\n    }\n\n    private String cadangan(String barang, String alasan) {\n        Integer n = terakhir.get(barang);\n        return n == null ? barang + \": tidak diketahui (\" + alasan + \")\" : barang + \": \" + n + \" (data terakhir)\";\n    }\n}\n",
+          "keluaran": "kopi: 7\nkopi: 7 (data terakhir)",
+          "otomatis": true,
+          "benar": "Pengguna tetap mendapat jawaban, dengan keterangan.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Gudang sekarang gagal terus. Cek stok `teh` yang belum pernah dicek, lalu lihat jawaban cadangannya.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        KlienGudang klien = new KlienGudang(new GudangPalsu(\"ok\", \"timeout\", \"timeout\", \"timeout\", \"timeout\", \"timeout\"));\n        System.out.println(klien.stok(\"kopi\"));\n        System.out.println(klien.stok(\"kopi\"));\n        System.out.println(klien.stok(\"teh\"));\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n\nclass KlienGudang {\n    private final GudangPalsu gudang;\n    private final Map<String, Integer> terakhir = new HashMap<>();\n    final Retry retry = Retry.of(\"gudang\", RetryConfig.custom()\n            .maxAttempts(2)\n            .waitDuration(Duration.ofMillis(10))\n            .build());\n    final CircuitBreaker cb = CircuitBreaker.of(\"gudang\", CircuitBreakerConfig.custom()\n            .slidingWindowSize(4)\n            .minimumNumberOfCalls(4)\n            .failureRateThreshold(50)\n            .build());\n\n    KlienGudang(GudangPalsu gudang) {\n        this.gudang = gudang;\n    }\n\n    String stok(String barang) {\n        Supplier<Integer> dasar = () -> gudang.cekStok(barang);\n        Supplier<Integer> tangguh = Retry.decorateSupplier(retry, CircuitBreaker.decorateSupplier(cb, dasar));\n        try {\n            int n = tangguh.get();\n            terakhir.put(barang, n);\n            return barang + \": \" + n;\n        } catch (CallNotPermittedException e) {\n            return cadangan(barang, \"gudang sedang tidak tersedia\");\n        } catch (RuntimeException e) {\n            return cadangan(barang, e.getMessage());\n        }\n    }\n\n    private String cadangan(String barang, String alasan) {\n        Integer n = terakhir.get(barang);\n        return n == null ? barang + \": tidak diketahui (\" + alasan + \")\" : barang + \": \" + n + \" (data terakhir)\";\n    }\n}\n",
+          "keluaran": "kopi: 7\nkopi: 7 (data terakhir)\nteh: tidak diketahui (gudang sedang tidak tersedia)",
+          "wajib": [
+            {
+              "pola": "klien\\.stok\\s*\\(\\s*\"teh\"\\s*\\)",
+              "pesan": "cek stok `teh`."
+            }
+          ],
+          "benar": "Tanpa data terakhir, pengguna mendapat pesan yang jelas.",
+          "petunjuk": "`System.out.println(klien.stok(\"teh\"));`"
+        },
+        {
+          "arahan": "Cek `kopi` sekali lagi, lalu cetak keadaan sirkuit dengan bentuk `Sirkuit: OPEN`.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        KlienGudang klien = new KlienGudang(new GudangPalsu(\"ok\", \"timeout\", \"timeout\", \"timeout\", \"timeout\", \"timeout\"));\n        System.out.println(klien.stok(\"kopi\"));\n        System.out.println(klien.stok(\"kopi\"));\n        System.out.println(klien.stok(\"teh\"));\n        System.out.println(klien.stok(\"kopi\"));\n        System.out.println(\"Sirkuit: \" + klien.cb.getState());\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n\nclass KlienGudang {\n    private final GudangPalsu gudang;\n    private final Map<String, Integer> terakhir = new HashMap<>();\n    final Retry retry = Retry.of(\"gudang\", RetryConfig.custom()\n            .maxAttempts(2)\n            .waitDuration(Duration.ofMillis(10))\n            .build());\n    final CircuitBreaker cb = CircuitBreaker.of(\"gudang\", CircuitBreakerConfig.custom()\n            .slidingWindowSize(4)\n            .minimumNumberOfCalls(4)\n            .failureRateThreshold(50)\n            .build());\n\n    KlienGudang(GudangPalsu gudang) {\n        this.gudang = gudang;\n    }\n\n    String stok(String barang) {\n        Supplier<Integer> dasar = () -> gudang.cekStok(barang);\n        Supplier<Integer> tangguh = Retry.decorateSupplier(retry, CircuitBreaker.decorateSupplier(cb, dasar));\n        try {\n            int n = tangguh.get();\n            terakhir.put(barang, n);\n            return barang + \": \" + n;\n        } catch (CallNotPermittedException e) {\n            return cadangan(barang, \"gudang sedang tidak tersedia\");\n        } catch (RuntimeException e) {\n            return cadangan(barang, e.getMessage());\n        }\n    }\n\n    private String cadangan(String barang, String alasan) {\n        Integer n = terakhir.get(barang);\n        return n == null ? barang + \": tidak diketahui (\" + alasan + \")\" : barang + \": \" + n + \" (data terakhir)\";\n    }\n}\n",
+          "keluaran": "kopi: 7\nkopi: 7 (data terakhir)\nteh: tidak diketahui (gudang sedang tidak tersedia)\nkopi: 7 (data terakhir)\nSirkuit: OPEN",
+          "wajib": [
+            {
+              "pola": "klien\\.cb\\.getState\\(\\)",
+              "pesan": "cetak `klien.cb.getState()`."
+            }
+          ],
+          "benar": "Setelah cukup banyak kegagalan, sirkuit terbuka.",
+          "petunjuk": "`klien.cb.getState()`."
+        },
+        {
+          "arahan": "Tantangan: cetak berapa panggilan yang ditolak sirkuit tanpa sampai ke gudang, dengan bentuk `Ditolak sirkuit: 3`.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        KlienGudang klien = new KlienGudang(new GudangPalsu(\"ok\", \"timeout\", \"timeout\", \"timeout\", \"timeout\", \"timeout\"));\n        System.out.println(klien.stok(\"kopi\"));\n        System.out.println(klien.stok(\"kopi\"));\n        System.out.println(klien.stok(\"teh\"));\n        System.out.println(klien.stok(\"kopi\"));\n        System.out.println(\"Sirkuit: \" + klien.cb.getState());\n        System.out.println(\"Ditolak sirkuit: \" + klien.cb.getMetrics().getNumberOfNotPermittedCalls());\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n\nclass KlienGudang {\n    private final GudangPalsu gudang;\n    private final Map<String, Integer> terakhir = new HashMap<>();\n    final Retry retry = Retry.of(\"gudang\", RetryConfig.custom()\n            .maxAttempts(2)\n            .waitDuration(Duration.ofMillis(10))\n            .build());\n    final CircuitBreaker cb = CircuitBreaker.of(\"gudang\", CircuitBreakerConfig.custom()\n            .slidingWindowSize(4)\n            .minimumNumberOfCalls(4)\n            .failureRateThreshold(50)\n            .build());\n\n    KlienGudang(GudangPalsu gudang) {\n        this.gudang = gudang;\n    }\n\n    String stok(String barang) {\n        Supplier<Integer> dasar = () -> gudang.cekStok(barang);\n        Supplier<Integer> tangguh = Retry.decorateSupplier(retry, CircuitBreaker.decorateSupplier(cb, dasar));\n        try {\n            int n = tangguh.get();\n            terakhir.put(barang, n);\n            return barang + \": \" + n;\n        } catch (CallNotPermittedException e) {\n            return cadangan(barang, \"gudang sedang tidak tersedia\");\n        } catch (RuntimeException e) {\n            return cadangan(barang, e.getMessage());\n        }\n    }\n\n    private String cadangan(String barang, String alasan) {\n        Integer n = terakhir.get(barang);\n        return n == null ? barang + \": tidak diketahui (\" + alasan + \")\" : barang + \": \" + n + \" (data terakhir)\";\n    }\n}\n",
+          "keluaran": "kopi: 7\nkopi: 7 (data terakhir)\nteh: tidak diketahui (gudang sedang tidak tersedia)\nkopi: 7 (data terakhir)\nSirkuit: OPEN\nDitolak sirkuit: 3",
+          "wajib": [
+            {
+              "pola": "getNumberOfNotPermittedCalls\\(\\)",
+              "pesan": "pakai `getNumberOfNotPermittedCalls()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Setiap penolakan berarti satu panggilan yang tidak membebani gudang yang sedang bermasalah.",
+          "petunjuk": "`klien.cb.getMetrics().getNumberOfNotPermittedCalls()`."
+        }
+      ],
+      "penutup": "Toko tetap melayani walau gudang bermasalah. Berikutnya: membatasi panggilan dengan Rate Limiter dan Bulkhead."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Urutan pembungkus yang dianjurkan dari luar ke dalam adalah...",
+          "options": [
+            "CircuitBreaker, Retry, lalu Fallback",
+            "Fallback, Retry, lalu CircuitBreaker",
+            "Retry, Fallback, lalu CircuitBreaker",
+            "Urutannya tidak berpengaruh"
+          ],
+          "answer": 1,
+          "explanation": "Fallback menangkap semuanya.",
+          "remedial": "Fallback paling luar menangkap semua kegagalan. Retry di luar circuit breaker membuat setiap percobaan tercatat dan berhenti cepat saat sirkuit terbuka."
+        },
+        {
+          "question": "Sumber data fallback yang paling aman adalah...",
+          "options": [
+            "Layanan lain yang juga lewat jaringan",
+            "Database pihak ketiga",
+            "Data lokal seperti cache di memori atau nilai bawaan",
+            "Memanggil layanan yang sama sekali lagi"
+          ],
+          "answer": 2,
+          "explanation": "Jangan bergantung pada yang rapuh.",
+          "remedial": "Fallback harus bisa berhasil saat layanan tujuan bermasalah. Data lokal tidak terpengaruh gangguan jaringan."
+        },
+        {
+          "question": "Kenapa data cadangan sebaiknya diberi keterangan seperti (data terakhir)?",
+          "options": [
+            "Supaya tampilan lebih panjang",
+            "Karena Resilience4j mewajibkannya",
+            "Supaya cache terhapus",
+            "Supaya pengguna tahu data itu mungkin sudah tidak tepat"
+          ],
+          "answer": 3,
+          "explanation": "Jujur kepada pengguna.",
+          "remedial": "Stok terakhir yang diketahui bisa sudah berubah. Keterangan membantu pengguna menilai dan mencegah keputusan yang salah."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Fallback adalah...",
+      "options": [
+        "Jawaban cadangan yang tetap berguna saat panggilan gagal",
+        "Mengulang panggilan yang gagal",
+        "Menolak panggilan saat layanan mati",
+        "Membatasi jumlah panggilan per detik"
+      ],
+      "answer": 0,
+      "explanation": "Rencana cadangan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca jadwal layanan ongkir di baris pertama (dipisah koma, gagal atau ok), lalu nama kota per baris, dan mencetak kota: Rp ongkir. Ongkir dihitung lewat layanan dengan retry 2 percobaan. Saat retry habis, program berhenti dengan exception. Tambahkan fallback: kalau tetap gagal, pakai tarif standar Rp20000.",
+      "starterCode": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        LayananOngkir layanan = new LayananOngkir(in.nextLine().split(\",\"));\n        Retry retry = Retry.of(\"ongkir\", RetryConfig.custom().maxAttempts(2).waitDuration(Duration.ofMillis(10)).build());\n        while (in.hasNextLine()) {\n            String kota = in.nextLine();\n            int ongkir = Retry.decorateSupplier(retry, () -> layanan.hitung(kota)).get();\n            System.out.println(kota + \": Rp\" + ongkir);\n        }\n    }\n}\n\nclass LayananOngkir {\n    private final Deque<String> jadwal;\n\n    LayananOngkir(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int hitung(String kota) {\n        if (!jadwal.isEmpty() && jadwal.poll().equals(\"gagal\")) {\n            throw new IllegalStateException(\"layanan ongkir timeout\");\n        }\n        return kota.length() * 1000;\n    }\n}",
+      "solution": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        LayananOngkir layanan = new LayananOngkir(in.nextLine().split(\",\"));\n        Retry retry = Retry.of(\"ongkir\", RetryConfig.custom().maxAttempts(2).waitDuration(Duration.ofMillis(10)).build());\n        while (in.hasNextLine()) {\n            String kota = in.nextLine();\n            int ongkir;\n            try {\n                ongkir = Retry.decorateSupplier(retry, () -> layanan.hitung(kota)).get();\n            } catch (IllegalStateException e) {\n                ongkir = 20000;\n            }\n            System.out.println(kota + \": Rp\" + ongkir);\n        }\n    }\n}\n\nclass LayananOngkir {\n    private final Deque<String> jadwal;\n\n    LayananOngkir(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int hitung(String kota) {\n        if (!jadwal.isEmpty() && jadwal.poll().equals(\"gagal\")) {\n            throw new IllegalStateException(\"layanan ongkir timeout\");\n        }\n        return kota.length() * 1000;\n    }\n}",
+      "tests": [
+        {
+          "input": "gagal,ok,gagal,gagal\nBandung\nSurabaya\nMedan\n",
+          "expectedOutput": "Bandung: Rp7000\nSurabaya: Rp20000\nMedan: Rp5000\n"
+        }
+      ],
+      "hints": [
+        "Bungkus pemanggilan .get() dengan try-catch IllegalStateException.",
+        "Di catch, isi ongkir = 20000."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Fallback memberi jawaban cadangan yang berguna saat semua usaha gagal.",
+        "Urutan dari luar: Fallback, Retry, CircuitBreaker, lalu panggilan.",
+        "Cadangan sebaiknya lokal dan ditandai sebagai cadangan.",
+        "Bedakan penanganan sirkuit terbuka dan kesalahan data."
+      ]
+    }
+  ]
+}

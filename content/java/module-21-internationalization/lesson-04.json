@@ -1,0 +1,208 @@
+{
+  "id": "java-internationalization-04",
+  "moduleId": "internationalization",
+  "order": 4,
+  "title": "Format Angka, Persen, dan Uang",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Salah format angka bukan sekadar tidak rapi. Harga `Rp1.250` bisa dibaca seribu dua ratus lima puluh oleh orang Indonesia, tetapi satu koma dua lima oleh orang Amerika. Di aplikasi pembayaran, salah baca seperti ini berarti salah transfer.\n\n**`NumberFormat`** memformat dan membaca angka sesuai locale: pemisah ribuan, pemisah desimal, simbol mata uang, dan letaknya.\n\nIbarat timbangan di pasar internasional: angka di layar sama, tetapi satuan dan cara membacanya mengikuti negara pembeli."
+    },
+    {
+      "type": "theory",
+      "content": "| Factory | `id-ID` | `en-US` |\n|---|---|---|\n| `getInstance(l)` | `1.234.567,5` | `1,234,567.5` |\n| `getIntegerInstance(l)` | `1.234.568` | `1,234,568` |\n| `getPercentInstance(l)` | `15%` | `15%` |\n| `getCurrencyInstance(l)` | `Rp125.000,00` | `$125,000.00` |\n| `getCompactNumberInstance(l, SHORT)` (Java 12+) | `2 jt` | `2M` |\n\nPengaturan yang sering dipakai:\n\n```java\nNumberFormat rupiah = NumberFormat.getCurrencyInstance(id);\nrupiah.setMaximumFractionDigits(0);                  // Rp125.000\nrupiah.setCurrency(Currency.getInstance(\"USD\"));     // mata uang lain, format tetap Indonesia\n```\n\n**Locale dan mata uang adalah dua hal berbeda.** Locale menentukan cara menulis (titik atau koma), mata uang menentukan simbol (`Rp`, `US$`). Pembeli Indonesia yang melihat harga dolar mendapat `US$8,49`.\n\n**Membaca angka** dari input pengguna: `NumberFormat.getInstance(id).parse(\"1.234,5\")` menghasilkan `1234.5`.\n\n**Uang selalu memakai `BigDecimal`**, bukan `double`, karena `0.1 + 0.2` dengan `double` tidak tepat sama dengan `0.3`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nLocale id = Locale.forLanguageTag(\"id-ID\");\nNumberFormat rupiah = NumberFormat.getCurrencyInstance(id);\nrupiah.setMaximumFractionDigits(0);\nrupiah.format(new BigDecimal(\"125000\"));          // Rp125.000\n```\n\nPembulatan `NumberFormat` memakai **HALF_EVEN** (pembulatan bankir): `0.125` sebagai persen bulat menjadi `12%`, bukan `13%`. Untuk perhitungan uang, bulatkan dulu `BigDecimal` dengan `setScale(0, RoundingMode.HALF_UP)` sesuai aturan bisnis, lalu baru format.\n\n`NumberFormat` **tidak thread-safe**: jangan simpan satu object di field `static` yang dipakai banyak thread. Buat per pemakaian, atau simpan per thread."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Number a = NumberFormat.getInstance(Locale.US).parse(\"1.234,5\");\n        Number b = NumberFormat.getInstance(Locale.forLanguageTag(\"id-ID\")).parse(\"1.234,5\");\n        System.out.println(a + \" \" + b);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: teks 1.234,5 dibaca dengan dua locale. Apa yang tercetak?",
+        "options": [
+          "1.234 1234.5",
+          "1234.5 1234.5",
+          "1.2345 1234.5",
+          "1234.5 1.234"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Format Amerika: titik adalah desimal."
+        },
+        {
+          "line": 7,
+          "note": "Format Indonesia."
+        }
+      ],
+      "explanation": "Dengan locale Amerika, titik dibaca sebagai desimal, dan parse berhenti di koma tanpa error. Hasilnya 1,234, seribu kali lebih kecil. Dengan locale Indonesia hasilnya benar 1234,5. Kesalahan diam-diam seperti ini yang membuat locale wajib disebut saat membaca angka dari pengguna.",
+      "tryThis": [
+        {
+          "task": "Coba parse \"Rp12.500\" dengan NumberFormat.getCurrencyInstance(Locale.forLanguageTag(\"id-ID\")).",
+          "hint": null
+        },
+        {
+          "task": "Coba parse \"abc\". Exception apa yang muncul?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `double` untuk uang**\n\nPembulatan biner membuat selisih kecil yang menumpuk. Pakai `BigDecimal` (atau simpan dalam satuan terkecil, misalnya sen, sebagai `long`).\n\n**2. Format manual**\n\n`\"Rp\" + harga` atau `String.format(\"%,d\", n)` tanpa locale memberi `Rp125,000` di server berlocale Amerika.\n\n**3. Menganggap mata uang mengikuti locale**\n\nToko Indonesia yang menjual ke Malaysia tetap menagih Rupiah. Mata uang adalah data transaksi, bukan pilihan bahasa.\n\n**4. `parse` tanpa memeriksa sisa teks**\n\n`parse(\"12abc\")` menghasilkan 12 tanpa error. Untuk validasi ketat, pakai `parse(teks, ParsePosition)` dan pastikan seluruh teks terbaca.\n\n**5. Berbagi object `NumberFormat` antar thread**\n\nHasilnya bisa kacau. `NumberFormat` dan `DecimalFormat` tidak thread-safe."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- API (JSON) **tidak pernah** mengirim angka yang sudah diformat. Kirim `125000` atau `\"125000.00\"` dan kode mata uang `\"IDR\"`; format dilakukan di sisi yang menampilkan (frontend atau template email).\n- Rupiah secara ISO 4217 punya 2 angka desimal, tetapi dalam praktik ditampilkan tanpa desimal. Aturan seperti ini biasanya ditaruh di satu class format bersama.\n- Library **JavaMoney** (JSR 354, `org.javamoney:moneta`) menyediakan tipe `Money` yang membawa angka dan mata uang sekaligus, dipakai di sistem keuangan.\n- Untuk laporan dan Excel, angka dikirim mentah dan formatnya diatur di sel, supaya tetap bisa dijumlahkan."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Toko Global 4: Label Harga",
+      "pembuka": "Toko Global menampilkan harga dan diskon sesuai negara pembeli.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Harga diformat sebagai Rupiah, diskon sebagai persen.",
+          "jawaban": "import java.math.BigDecimal;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Locale id = Locale.forLanguageTag(\"id-ID\");\n        BigDecimal harga = new BigDecimal(\"125000\");\n        NumberFormat rupiah = NumberFormat.getCurrencyInstance(id);\n        System.out.println(\"Harga: \" + rupiah.format(harga));\n        System.out.println(\"Diskon: \" + NumberFormat.getPercentInstance(id).format(0.15));\n    }\n}\n",
+          "keluaran": "Harga: Rp125.000,00\nDiskon: 15%",
+          "otomatis": true,
+          "benar": "Format mata uang Indonesia bawaan memakai dua angka desimal.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Hilangkan desimal Rupiah dengan `setMaximumFractionDigits(0)`.",
+          "jawaban": "import java.math.BigDecimal;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Locale id = Locale.forLanguageTag(\"id-ID\");\n        BigDecimal harga = new BigDecimal(\"125000\");\n        NumberFormat rupiah = NumberFormat.getCurrencyInstance(id);\n        rupiah.setMaximumFractionDigits(0);\n        System.out.println(\"Harga: \" + rupiah.format(harga));\n        System.out.println(\"Diskon: \" + NumberFormat.getPercentInstance(id).format(0.15));\n    }\n}\n",
+          "keluaran": "Harga: Rp125.000\nDiskon: 15%",
+          "wajib": [
+            {
+              "pola": "rupiah\\.setMaximumFractionDigits\\s*\\(\\s*0\\s*\\)",
+              "pesan": "panggil `rupiah.setMaximumFractionDigits(0)`."
+            }
+          ],
+          "benar": "Rp125.000, sesuai kebiasaan di Indonesia.",
+          "petunjuk": "Panggil pada object `rupiah` sebelum `format`."
+        },
+        {
+          "arahan": "Cetak harga ekspor `8.49` dolar dua kali: dengan format Amerika, dan dengan format Indonesia yang mata uangnya diganti `USD`.",
+          "jawaban": "import java.math.BigDecimal;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Locale id = Locale.forLanguageTag(\"id-ID\");\n        BigDecimal harga = new BigDecimal(\"125000\");\n        NumberFormat rupiah = NumberFormat.getCurrencyInstance(id);\n        rupiah.setMaximumFractionDigits(0);\n        System.out.println(\"Harga: \" + rupiah.format(harga));\n        System.out.println(\"Diskon: \" + NumberFormat.getPercentInstance(id).format(0.15));\n        NumberFormat dolar = NumberFormat.getCurrencyInstance(Locale.US);\n        System.out.println(\"Harga ekspor: \" + dolar.format(new BigDecimal(\"8.49\")));\n        NumberFormat dolarUntukId = NumberFormat.getCurrencyInstance(id);\n        dolarUntukId.setCurrency(Currency.getInstance(\"USD\"));\n        System.out.println(\"Harga ekspor (pembeli Indonesia): \" + dolarUntukId.format(new BigDecimal(\"8.49\")));\n    }\n}\n",
+          "keluaran": "Harga: Rp125.000\nDiskon: 15%\nHarga ekspor: $8.49\nHarga ekspor (pembeli Indonesia): US$8,49",
+          "wajib": [
+            {
+              "pola": "Currency\\.getInstance\\s*\\(\\s*\"USD\"\\s*\\)",
+              "pesan": "pakai `Currency.getInstance(\"USD\")`."
+            }
+          ],
+          "benar": "Mata uangnya sama, cara menulisnya mengikuti pembeli.",
+          "petunjuk": "`dolarUntukId.setCurrency(Currency.getInstance(\"USD\"));`"
+        },
+        {
+          "arahan": "Tantangan: cetak jumlah terjual dalam format ringkas Indonesia dengan satu angka desimal: `2500000` dan `1250`.",
+          "jawaban": "import java.math.BigDecimal;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Locale id = Locale.forLanguageTag(\"id-ID\");\n        BigDecimal harga = new BigDecimal(\"125000\");\n        NumberFormat rupiah = NumberFormat.getCurrencyInstance(id);\n        rupiah.setMaximumFractionDigits(0);\n        System.out.println(\"Harga: \" + rupiah.format(harga));\n        System.out.println(\"Diskon: \" + NumberFormat.getPercentInstance(id).format(0.15));\n        NumberFormat dolar = NumberFormat.getCurrencyInstance(Locale.US);\n        System.out.println(\"Harga ekspor: \" + dolar.format(new BigDecimal(\"8.49\")));\n        NumberFormat dolarUntukId = NumberFormat.getCurrencyInstance(id);\n        dolarUntukId.setCurrency(Currency.getInstance(\"USD\"));\n        System.out.println(\"Harga ekspor (pembeli Indonesia): \" + dolarUntukId.format(new BigDecimal(\"8.49\")));\n        NumberFormat ringkas = NumberFormat.getCompactNumberInstance(id, NumberFormat.Style.SHORT);\n        ringkas.setMaximumFractionDigits(1);\n        System.out.println(\"Terjual: \" + ringkas.format(2_500_000) + \" | \" + ringkas.format(1_250));\n    }\n}\n",
+          "keluaran": "Harga: Rp125.000\nDiskon: 15%\nHarga ekspor: $8.49\nHarga ekspor (pembeli Indonesia): US$8,49\nTerjual: 2,5 jt | 1,2 rb",
+          "wajib": [
+            {
+              "pola": "getCompactNumberInstance",
+              "pesan": "pakai `getCompactNumberInstance`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Format ringkas cocok untuk jumlah terjual dan pengikut, bukan untuk harga.",
+          "petunjuk": "`NumberFormat.getCompactNumberInstance(id, NumberFormat.Style.SHORT)` lalu `setMaximumFractionDigits(1)`."
+        }
+      ],
+      "penutup": "Angka dan uang sudah rapi. Berikutnya: tanggal, waktu, dan zona waktu."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Tipe yang tepat untuk menyimpan harga adalah...",
+          "options": [
+            "double",
+            "BigDecimal",
+            "float",
+            "String yang sudah diformat"
+          ],
+          "answer": 1,
+          "explanation": "Tepat sampai sen.",
+          "remedial": "`BigDecimal` menyimpan angka desimal dengan tepat. `double` tidak bisa menyimpan 0,1 dengan tepat."
+        },
+        {
+          "question": "Pembeli Indonesia melihat harga dalam dolar. Yang diatur adalah...",
+          "options": [
+            "Locale en-US saja",
+            "Locale id-ID saja",
+            "Locale id-ID dengan setCurrency(USD)",
+            "String \"US$\" ditambahkan manual"
+          ],
+          "answer": 2,
+          "explanation": "Cara tulis dan mata uang.",
+          "remedial": "Locale menentukan cara menulis angka (koma desimal), dan `setCurrency` menentukan simbol mata uang. Hasilnya `US$8,49`."
+        },
+        {
+          "question": "NumberFormat.getInstance(Locale.US).parse(\"1.234,5\") menghasilkan...",
+          "options": [
+            "1234.5",
+            "ParseException",
+            "12345",
+            "1.234 (titik dibaca sebagai desimal)"
+          ],
+          "answer": 3,
+          "explanation": "Berhenti di koma.",
+          "remedial": "Locale Amerika memakai titik sebagai desimal. `parse` berhenti di karakter yang tidak dikenali tanpa melempar error."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Format ringkas seperti 2 jt atau 2M dibuat dengan...",
+      "options": [
+        "NumberFormat.getCompactNumberInstance",
+        "NumberFormat.getShortInstance",
+        "String.format(\"%s\")",
+        "Math.round"
+      ],
+      "answer": 0,
+      "explanation": "Java 12+."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca tag bahasa di baris pertama, lalu harga-harga barang (angka biasa dengan titik desimal) di baris berikutnya, dan mencetak totalnya. Saat ini total dicetak mentah. Format total sebagai uang dengan NumberFormat.getCurrencyInstance sesuai locale dari input.",
+      "starterCode": "import java.math.BigDecimal;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Locale locale = Locale.forLanguageTag(in.nextLine().trim());\n        BigDecimal total = BigDecimal.ZERO;\n        while (in.hasNextLine()) {\n            total = total.add(new BigDecimal(in.nextLine().trim()));\n        }\n        System.out.println(\"Total: \" + total);\n    }\n}",
+      "solution": "import java.math.BigDecimal;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Locale locale = Locale.forLanguageTag(in.nextLine().trim());\n        BigDecimal total = BigDecimal.ZERO;\n        while (in.hasNextLine()) {\n            total = total.add(new BigDecimal(in.nextLine().trim()));\n        }\n        NumberFormat uang = NumberFormat.getCurrencyInstance(locale);\n        System.out.println(\"Total: \" + uang.format(total));\n    }\n}",
+      "tests": [
+        {
+          "input": "id-ID\n125000\n7500.50\n",
+          "expectedOutput": "Total: Rp132.500,50\n"
+        },
+        {
+          "input": "en-US\n19.99\n5\n",
+          "expectedOutput": "Total: $24.99\n"
+        },
+        {
+          "input": "ja-JP\n1500\n",
+          "expectedOutput": "Total: ￥1,500\n"
+        }
+      ],
+      "hints": [
+        "NumberFormat uang = NumberFormat.getCurrencyInstance(locale);",
+        "NumberFormat bisa langsung memformat BigDecimal: uang.format(total)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "NumberFormat memformat dan membaca angka sesuai locale.",
+        "getCurrencyInstance untuk uang; setCurrency mengganti mata uang tanpa mengubah cara tulis.",
+        "Uang memakai BigDecimal; API mengirim angka mentah dan kode mata uang.",
+        "NumberFormat tidak thread-safe dan membulatkan dengan HALF_EVEN."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

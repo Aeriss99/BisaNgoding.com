@@ -1,0 +1,212 @@
+{
+  "id": "java-java-21-04",
+  "moduleId": "java-21",
+  "order": 4,
+  "title": "Record Pattern: Membongkar Data",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setelah tipe cocok, kita hampir selalu langsung mengambil isinya: `t.dibayar()`, `g.awal().x()`. Untuk data bersarang, getter berantai seperti itu cepat menjadi panjang.\n\n**Record pattern** (Java 21) membongkar record langsung di dalam pola: tipe dicocokkan, dan komponennya langsung masuk ke variabel. Pola bisa bersarang untuk record di dalam record.\n\nIbarat membuka kotak hampers: begitu kotaknya dikenali sebagai hampers lebaran, isinya langsung dikeluarkan dan ditata, tanpa membuka satu per satu bungkusnya dengan tangan."
+    },
+    {
+      "type": "theory",
+      "content": "```java\nrecord Titik(int x, int y) {}\nrecord Garis(Titik awal, Titik akhir) {}\n\nif (o instanceof Garis(Titik(var x1, var y1), Titik(var x2, var y2))) {\n    int dx = x2 - x1;                         // komponen langsung tersedia\n}\n```\n\n| Bentuk | Arti |\n|---|---|\n| `case Barang(String nama, int harga, int jumlah)` | tipe komponen ditulis lengkap |\n| `case Barang(var nama, var harga, var jumlah)` | tipe ditebak compiler |\n| `case Garis(Titik(var x1, var y1), Titik a)` | pola bersarang, campur dengan pola tipe |\n| `case Barang(var n, var h, var j) when j > 1` | ditambah guard |\n\nUrutan komponen dalam pola mengikuti urutan di deklarasi record. Nama variabelnya bebas, tidak harus sama dengan nama komponen.\n\nRecord pattern bisa dipakai di `switch` dan di `instanceof`. Pada sealed interface, switch dengan record pattern juga diperiksa kelengkapannya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMenghitung subtotal item yang bisa berupa barang atau paket berisi item lain:\n\n```java\nstatic int subtotal(Item item) {\n    return switch (item) {\n        case Barang(var nama, var harga, var jumlah) -> harga * jumlah;\n        case Paket(var nama, var isi, var potongan) -> {\n            int t = 0;\n            for (Item i : isi) {\n                t += subtotal(i);               // rekursif untuk isi paket\n            }\n            yield t - potongan;\n        }\n    };\n}\n```\n\nKomponen yang tidak dipakai tetap harus disebut di Java 21. Sejak Java 22, bisa ditulis `_` (*unnamed pattern*): `case Barang(_, var harga, var jumlah)`."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Object o = new Garis(new Titik(1, 2), new Titik(4, 6));\n        if (o instanceof Garis(Titik(var x1, var y1), Titik(var x2, var y2))) {\n            System.out.println(\"dx=\" + (x2 - x1) + \" dy=\" + (y2 - y1));\n        }\n    }\n}\n\nrecord Titik(int x, int y) {}\n\nrecord Garis(Titik awal, Titik akhir) {}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak?",
+        "options": [
+          "dx=3 dy=4",
+          "dx=1 dy=2",
+          "dx=4 dy=6",
+          "dx=-3 dy=-4"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Pola bersarang: Garis berisi dua Titik."
+        },
+        {
+          "line": 7,
+          "note": "Komponen langsung dipakai."
+        }
+      ],
+      "explanation": "Pola mencocokkan Garis, lalu membongkar kedua Titik di dalamnya. x1 dan y1 berasal dari titik awal (1, 2), x2 dan y2 dari titik akhir (4, 6). Tanpa record pattern, kode yang sama butuh cast dan empat getter berantai seperti g.akhir().x().",
+      "tryThis": [
+        {
+          "task": "Ganti o menjadi new Titik(1, 2). Apa yang tercetak?",
+          "hint": null
+        },
+        {
+          "task": "Hitung juga panjang garis dengan Math.hypot(x2 - x1, y2 - y1).",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Urutan komponen salah**\n\n`case Barang(var harga, var nama, var jumlah)` tetap di-compile kalau tipenya cocok dengan `var`, tetapi `harga` berisi nama. Ikuti urutan deklarasi record.\n\n**2. Pola terlalu dalam**\n\nTiga atau empat tingkat pola bersarang sulit dibaca. Pecah dengan method bantu.\n\n**3. Record pattern untuk class biasa**\n\nHanya record yang bisa dibongkar dengan pola ini. Class biasa memakai pola tipe (`case Pelanggan p`).\n\n**4. Mengira `null` di komponen akan cocok**\n\nPola bersarang `Garis(Titik(var x, var y), ...)` tidak cocok kalau `awal` bernilai `null`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Record pattern sering dipakai saat mengolah event atau pesan: `case PesananDibayar(var id, var jumlah, var waktu) -> ...`.\n- Parser dan interpreter (misalnya mengevaluasi rumus atau aturan diskon yang disusun sebagai pohon record) adalah contoh klasik yang menjadi jauh lebih ringkas.\n- Java 22 menambah `_` untuk komponen yang tidak dipakai, dan versi-versi berikutnya terus menambah pola baru (misalnya pola untuk tipe primitif). Fitur ini adalah arah perkembangan Java modern."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Kasir Modern 4: Paket Hemat",
+      "pembuka": "Kasir Modern menjual barang satuan dan paket berisi beberapa barang.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Subtotal barang dihitung dengan record pattern.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static int subtotal(Item item) {\n        return switch (item) {\n            case Barang(String nama, int harga, int jumlah) -> harga * jumlah;\n            case Paket p -> 0;\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<Item> keranjang = List.of(new Barang(\"Kopi\", 18000, 2), new Barang(\"Roti\", 12000, 1));\n        int total = 0;\n        for (Item i : keranjang) {\n            total += subtotal(i);\n        }\n        System.out.println(\"Total: \" + total);\n    }\n}\n\nsealed interface Item permits Barang, Paket {}\n\nrecord Barang(String nama, int harga, int jumlah) implements Item {}\n\nrecord Paket(String nama, List<Item> isi, int potongan) implements Item {}\n",
+          "keluaran": "Total: 48000",
+          "otomatis": true,
+          "benar": "Komponen `harga` dan `jumlah` langsung tersedia; paket belum dihitung.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Hitung subtotal paket: jumlah subtotal setiap item di dalamnya dikurangi potongan. Keranjang berisi 2 kopi dan satu Paket Sarapan.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static int subtotal(Item item) {\n        return switch (item) {\n            case Barang(String nama, int harga, int jumlah) -> harga * jumlah;\n            case Paket(String nama, List<Item> isi, int potongan) -> {\n                int t = 0;\n                for (Item i : isi) {\n                    t += subtotal(i);\n                }\n                yield t - potongan;\n            }\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Paket sarapan = new Paket(\"Paket Sarapan\", List.of(new Barang(\"Kopi\", 18000, 1), new Barang(\"Roti\", 12000, 1)), 5000);\n        List<Item> keranjang = List.of(new Barang(\"Kopi\", 18000, 2), sarapan);\n        int total = 0;\n        for (Item i : keranjang) {\n            System.out.println(i.getClass().getSimpleName() + \": \" + subtotal(i));\n            total += subtotal(i);\n        }\n        System.out.println(\"Total: \" + total);\n    }\n}\n\nsealed interface Item permits Barang, Paket {}\n\nrecord Barang(String nama, int harga, int jumlah) implements Item {}\n\nrecord Paket(String nama, List<Item> isi, int potongan) implements Item {}\n",
+          "keluaran": "Barang: 36000\nPaket: 25000\nTotal: 61000",
+          "wajib": [
+            {
+              "pola": "case\\s+Paket\\s*\\(",
+              "pesan": "bongkar `Paket` dengan record pattern."
+            },
+            {
+              "pola": "yield",
+              "pesan": "kembalikan nilai dengan `yield`."
+            }
+          ],
+          "benar": "Paket bisa berisi barang atau paket lain, dan rekursi menangani semuanya.",
+          "petunjuk": "Cabang paket berupa blok dengan `yield`, dan memanggil `subtotal` secara rekursif."
+        },
+        {
+          "arahan": "Ringkas pola dengan `var` untuk semua komponen, lalu cetak juga `Jenis item: ` diikuti ukuran keranjang.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static int subtotal(Item item) {\n        return switch (item) {\n            case Barang(var nama, var harga, var jumlah) -> harga * jumlah;\n            case Paket(var nama, var isi, var potongan) -> {\n                int t = 0;\n                for (Item i : isi) {\n                    t += subtotal(i);\n                }\n                yield t - potongan;\n            }\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Paket sarapan = new Paket(\"Paket Sarapan\", List.of(new Barang(\"Kopi\", 18000, 1), new Barang(\"Roti\", 12000, 1)), 5000);\n        List<Item> keranjang = List.of(new Barang(\"Kopi\", 18000, 2), sarapan);\n        int total = 0;\n        for (Item i : keranjang) {\n            System.out.println(i.getClass().getSimpleName() + \": \" + subtotal(i));\n            total += subtotal(i);\n        }\n        System.out.println(\"Total: \" + total);\n        System.out.println(\"Jenis item: \" + keranjang.size());\n    }\n}\n\nsealed interface Item permits Barang, Paket {}\n\nrecord Barang(String nama, int harga, int jumlah) implements Item {}\n\nrecord Paket(String nama, List<Item> isi, int potongan) implements Item {}\n",
+          "keluaran": "Barang: 36000\nPaket: 25000\nTotal: 61000\nJenis item: 2",
+          "wajib": [
+            {
+              "pola": "case\\s+Barang\\s*\\(\\s*var\\s+nama",
+              "pesan": "pakai `var` di pola `Barang`."
+            },
+            {
+              "pola": "case\\s+Paket\\s*\\(\\s*var\\s+nama",
+              "pesan": "pakai `var` di pola `Paket`."
+            }
+          ],
+          "benar": "Subtotal tetap sama, kodenya lebih ringkas.",
+          "petunjuk": "`case Barang(var nama, var harga, var jumlah)`."
+        },
+        {
+          "arahan": "Tantangan: buat method `label(Item)` dengan record pattern: barang dengan jumlah lebih dari 1 ditulis `nama xjumlah`, barang satuan cukup namanya, paket ditulis `nama (n item)`. Pakai untuk mencetak keranjang.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static int subtotal(Item item) {\n        return switch (item) {\n            case Barang(var nama, var harga, var jumlah) -> harga * jumlah;\n            case Paket(var nama, var isi, var potongan) -> {\n                int t = 0;\n                for (Item i : isi) {\n                    t += subtotal(i);\n                }\n                yield t - potongan;\n            }\n        };\n    }\n\n    static String label(Item item) {\n        return switch (item) {\n            case Barang(var nama, var harga, var jumlah) when jumlah > 1 -> nama + \" x\" + jumlah;\n            case Barang(var nama, var harga, var jumlah) -> nama;\n            case Paket(var nama, var isi, var potongan) -> nama + \" (\" + isi.size() + \" item)\";\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Paket sarapan = new Paket(\"Paket Sarapan\", List.of(new Barang(\"Kopi\", 18000, 1), new Barang(\"Roti\", 12000, 1)), 5000);\n        List<Item> keranjang = List.of(new Barang(\"Kopi\", 18000, 2), sarapan);\n        int total = 0;\n        for (Item i : keranjang) {\n            System.out.println(label(i) + \": \" + subtotal(i));\n            total += subtotal(i);\n        }\n        System.out.println(\"Total: \" + total);\n        System.out.println(\"Jenis item: \" + keranjang.size());\n    }\n}\n\nsealed interface Item permits Barang, Paket {}\n\nrecord Barang(String nama, int harga, int jumlah) implements Item {}\n\nrecord Paket(String nama, List<Item> isi, int potongan) implements Item {}\n",
+          "keluaran": "Kopi x2: 36000\nPaket Sarapan (2 item): 25000\nTotal: 61000\nJenis item: 2",
+          "wajib": [
+            {
+              "pola": "static\\s+String\\s+label\\s*\\(\\s*Item\\s+item\\s*\\)",
+              "pesan": "buat method `label(Item item)`."
+            },
+            {
+              "pola": "when\\s+jumlah\\s*>\\s*1",
+              "pesan": "pakai `when jumlah > 1`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Satu model data, beberapa switch untuk keperluan berbeda.",
+          "petunjuk": "Pakai `when jumlah > 1` di cabang barang pertama."
+        }
+      ],
+      "penutup": "Data bisa dibongkar dengan rapi. Berikutnya: collection yang tahu urutan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "case Barang(var nama, var harga, var jumlah) melakukan...",
+          "options": [
+            "Membuat Barang baru",
+            "Mencocokkan tipe Barang dan langsung mengisi variabel dari komponennya",
+            "Mengubah isi Barang",
+            "Memanggil constructor Barang"
+          ],
+          "answer": 1,
+          "explanation": "Membongkar.",
+          "remedial": "Record pattern memeriksa tipe lalu memanggil accessor komponen secara otomatis, sehingga `nama`, `harga`, dan `jumlah` siap dipakai."
+        },
+        {
+          "question": "Urutan variabel dalam record pattern mengikuti...",
+          "options": [
+            "Urutan abjad nama variabel",
+            "Urutan bebas",
+            "Urutan komponen di deklarasi record",
+            "Urutan getter yang dipanggil"
+          ],
+          "answer": 2,
+          "explanation": "Posisi.",
+          "remedial": "Pola mencocokkan berdasarkan posisi. Nama variabel bebas, tetapi posisinya harus sesuai."
+        },
+        {
+          "question": "Record pattern bisa dipakai di...",
+          "options": [
+            "Hanya di switch",
+            "Hanya di for",
+            "Hanya di constructor",
+            "switch dan instanceof"
+          ],
+          "answer": 3,
+          "explanation": "Dua tempat.",
+          "remedial": "Keduanya mendukung record pattern sejak Java 21."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Sejak Java 22, komponen pola yang tidak dipakai bisa ditulis dengan...",
+      "options": [
+        "_ (garis bawah)",
+        "?",
+        "*",
+        "null"
+      ],
+      "answer": 0,
+      "explanation": "Unnamed pattern."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca cara pengiriman per baris: kurir jarak, kurir jarak ekspres, atau ambil cabang, lalu mencetak ongkirnya. Method ongkir ditulis dengan instanceof dan cast, dan belum menangani ekspres. Tulis ulang dengan switch dan record pattern: kurir biasa 2000 per km, kurir ekspres 2000 per km ditambah 10000, ambil di cabang gratis.",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static int ongkir(Kirim k) {\n        if (k instanceof Kurir) {\n            Kurir c = (Kurir) k;\n            return c.jarakKm() * 2000;\n        }\n        if (k instanceof Ambil) {\n            return 0;\n        }\n        return -1;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            Kirim k = d[0].equals(\"ambil\") ? new Ambil(d[1]) : new Kurir(Integer.parseInt(d[1]), d.length > 2 && d[2].equals(\"ekspres\"));\n            System.out.println(String.join(\" \", d) + \" -> \" + ongkir(k));\n        }\n    }\n}\n\nsealed interface Kirim permits Kurir, Ambil {}\n\nrecord Kurir(int jarakKm, boolean ekspres) implements Kirim {}\n\nrecord Ambil(String cabang) implements Kirim {}",
+      "solution": "import java.util.*;\n\npublic class Main {\n    static int ongkir(Kirim k) {\n        return switch (k) {\n            case Kurir(var jarakKm, var ekspres) when ekspres -> jarakKm * 2000 + 10000;\n            case Kurir(var jarakKm, var ekspres) -> jarakKm * 2000;\n            case Ambil(var cabang) -> 0;\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            Kirim k = d[0].equals(\"ambil\") ? new Ambil(d[1]) : new Kurir(Integer.parseInt(d[1]), d.length > 2 && d[2].equals(\"ekspres\"));\n            System.out.println(String.join(\" \", d) + \" -> \" + ongkir(k));\n        }\n    }\n}\n\nsealed interface Kirim permits Kurir, Ambil {}\n\nrecord Kurir(int jarakKm, boolean ekspres) implements Kirim {}\n\nrecord Ambil(String cabang) implements Kirim {}",
+      "tests": [
+        {
+          "input": "kurir 5\nkurir 3 ekspres\nambil Kemang\n",
+          "expectedOutput": "kurir 5 -> 10000\nkurir 3 ekspres -> 16000\nambil Kemang -> 0\n"
+        }
+      ],
+      "hints": [
+        "case Kurir(var jarakKm, var ekspres) when ekspres -> ...",
+        "Tulis cabang ekspres sebelum cabang kurir biasa, lalu case Ambil(var cabang) -> 0."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Record pattern membongkar komponen record langsung di switch dan instanceof.",
+        "Pola bisa bersarang dan memakai var; urutan mengikuti deklarasi record.",
+        "Digabung dengan when dan sealed interface, switch tetap diperiksa kelengkapannya.",
+        "Java 22 menambah _ untuk komponen yang tidak dipakai."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

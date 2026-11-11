@@ -1,0 +1,215 @@
+{
+  "id": "java-reflection-01",
+  "moduleId": "reflection",
+  "order": 1,
+  "title": "Mengenal Reflection dan Class",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Bagaimana Jackson tahu `Todo` punya getter `getJudul`? Bagaimana JUnit menemukan semua method bertanda `@Test`? Bagaimana Hibernate tahu field mana yang menjadi kolom tabel? Semua library itu ditulis jauh sebelum class `Todo` kita ada.\n\nJawabannya **reflection**: kemampuan program Java melihat dan memakai struktur class (field, method, constructor, anotasi) **saat program berjalan**, tanpa tahu class itu saat kode library ditulis.\n\nIbarat cermin: biasanya kita memakai tangan tanpa memikirkannya. Dengan cermin, kita bisa melihat diri sendiri dan memeriksa bagian yang tidak terlihat langsung."
+    },
+    {
+      "type": "theory",
+      "content": "Pintu masuk reflection adalah object **`Class`**. Setiap class yang dimuat JVM punya tepat satu object `Class`. Ada tiga cara mendapatkannya:\n\n```java\nClass<?> a = Todo.class;                 // dari nama class saat menulis kode\nClass<?> b = todo.getClass();            // dari object yang sudah ada\nClass<?> c = Class.forName(\"Todo\");      // dari teks, saat program berjalan\n```\n\nKetiganya menghasilkan object yang **sama**, sehingga bisa dibandingkan dengan `==`.\n\n`Class<?>` berarti \"class apa saja\". Tanda tanya dipakai karena tipenya baru diketahui saat program berjalan.\n\n| Method | Hasil |\n|---|---|\n| `getName()` | nama lengkap dengan paket, misalnya `java.util.ArrayList` |\n| `getSimpleName()` | nama pendek, misalnya `ArrayList` |\n| `getSuperclass()` | class induk |\n| `getInterfaces()` | array interface yang diimplementasikan langsung |\n| `isInterface()`, `isEnum()`, `isArray()` | jenis class |\n\n`Class.forName` butuh **nama lengkap** dengan paket (`\"java.util.ArrayList\"`), dan melempar `ClassNotFoundException` (checked) kalau tidak ditemukan. Class yang ditulis tanpa paket, seperti di editor ini, cukup dengan namanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nClass<?> kelas = Class.forName(\"java.util.ArrayList\");\nSystem.out.println(kelas.getSimpleName());                   // ArrayList\nSystem.out.println(kelas.getSuperclass().getSimpleName());   // AbstractList\n```\n\nRantai induk selalu berakhir di `Object`, yang induknya `null`.\n\nKenapa ini berguna: `Class.forName` menerima teks, jadi class yang dipakai bisa ditentukan dari file konfigurasi tanpa mengubah kode. Itulah cara aplikasi lama memuat driver database:\n\n```java\nClass.forName(\"com.mysql.cj.jdbc.Driver\");\n```\n\nSejak JDBC 4, driver dimuat otomatis, tetapi baris ini masih sering ditemui di kode lama."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Hewan h = new Kucing();\n        Class<?> k = h.getClass();\n        System.out.println(\"Kelas: \" + k.getSimpleName());\n        System.out.println(\"Induk: \" + k.getSuperclass().getSimpleName());\n        System.out.println(\"Induk dari induk: \" + k.getSuperclass().getSuperclass().getSimpleName());\n        System.out.println(\"Interface: \" + k.getInterfaces().length);\n    }\n}\n\nclass Hewan {\n}\n\nclass Kucing extends Hewan implements Comparable<Kucing>, Runnable {\n    public int compareTo(Kucing lain) {\n        return 0;\n    }\n\n    public void run() {\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak di baris kedua?",
+        "options": [
+          "Induk: Object",
+          "Induk: Hewan",
+          "Induk: Kucing",
+          "Induk: Comparable"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Class sebenarnya dari object, bukan tipe variabelnya."
+        },
+        {
+          "line": 10,
+          "note": "Naik dua tingkat."
+        },
+        {
+          "line": 11,
+          "note": "Comparable dan Runnable."
+        }
+      ],
+      "explanation": "Variabel h bertipe Hewan, tetapi getClass mengembalikan class object yang sebenarnya, yaitu Kucing. Induk Kucing adalah Hewan, dan induk Hewan adalah Object. Interface tidak dihitung sebagai induk; ada dua interface di getInterfaces.",
+      "tryThis": [
+        {
+          "task": "Cetak k.getName() dan bandingkan dengan getSimpleName().",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan class Anggora extends Kucing lalu buat h = new Anggora().",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `Class.forName` dengan nama pendek**\n\n`Class.forName(\"ArrayList\")` gagal. Pakai nama lengkap `\"java.util.ArrayList\"`.\n\n**2. Mengira `getClass()` mengikuti tipe variabel**\n\n`Hewan h = new Kucing(); h.getClass()` menghasilkan `Kucing`, bukan `Hewan`.\n\n**3. Memakai reflection untuk hal yang bisa ditulis biasa**\n\nReflection lebih lambat, tidak diperiksa compiler (salah ketik nama baru ketahuan saat berjalan), dan sulit dibaca. Pakai hanya kalau class-nya memang belum diketahui saat menulis kode, misalnya di library dan framework.\n\n**4. Menelan `ClassNotFoundException`**\n\nClass yang tidak ditemukan biasanya berarti dependency kurang di `pom.xml`. Laporkan dengan jelas, jangan diabaikan."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hampir semua framework Java berdiri di atas reflection: Spring membuat object dan menyuntikkan dependency, Jackson membaca getter, Hibernate memetakan field ke kolom, JUnit menemukan method test, Mockito membuat object tiruan.\n- Sejak Java 9 (module system), reflection ke bagian dalam JDK dibatasi. Error `InaccessibleObjectException` biasanya diatasi dengan opsi JVM `--add-opens`, dan sering muncul saat memakai library lama di Java baru.\n- Aplikasi yang dikompilasi menjadi *native image* dengan GraalVM (misalnya Spring Boot Native, Quarkus) harus mendaftarkan class yang dipakai lewat reflection, karena tidak bisa ditemukan otomatis.\n- Programmer aplikasi jarang menulis reflection sendiri, tetapi memahaminya membuat pesan error framework jauh lebih mudah dibaca."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Mini Framework 1: Cermin untuk Todo",
+      "pembuka": "Mulai materi ini kita bangun **Mini Framework**: alat kecil yang bekerja seperti JUnit, Bean Validation, dan Spring, memakai reflection.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Object `Class` untuk `Todo` menjelaskan nama dan induknya.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Class<?> kelas = Todo.class;\n        System.out.println(\"Nama: \" + kelas.getName());\n        System.out.println(\"Induk: \" + kelas.getSuperclass().getSimpleName());\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "Nama: Todo\nInduk: Object",
+          "otomatis": true,
+          "benar": "Class tanpa `extends` tetap punya induk: `Object`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Dapatkan object `Class` dengan dua cara lain: `Class.forName(\"Todo\")` dan `getClass()` dari object `new Todo(1, \"Belajar\")`. Cetak apakah masing-masing sama (`==`) dengan `kelas`.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Class<?> kelas = Todo.class;\n        System.out.println(\"Nama: \" + kelas.getName());\n        System.out.println(\"Induk: \" + kelas.getSuperclass().getSimpleName());\n\n        Class<?> dariNama = Class.forName(\"Todo\");\n        Class<?> dariObject = new Todo(1, \"Belajar\").getClass();\n        System.out.println(dariNama == kelas);\n        System.out.println(dariObject == kelas);\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "Nama: Todo\nInduk: Object\ntrue\ntrue",
+          "wajib": [
+            {
+              "pola": "Class\\.forName\\s*\\(\\s*\"Todo\"\\s*\\)",
+              "pesan": "pakai `Class.forName(\"Todo\")`."
+            },
+            {
+              "pola": "\\.getClass\\(\\)",
+              "pesan": "pakai `getClass()`."
+            }
+          ],
+          "benar": "Satu class, satu object `Class`.",
+          "petunjuk": "`Class<?> dariNama = Class.forName(\"Todo\");` lalu `System.out.println(dariNama == kelas);`."
+        },
+        {
+          "arahan": "Cetak semua interface yang diimplementasikan `Todo` dengan bentuk `Interface: Comparable`.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Class<?> kelas = Todo.class;\n        System.out.println(\"Nama: \" + kelas.getName());\n        System.out.println(\"Induk: \" + kelas.getSuperclass().getSimpleName());\n\n        Class<?> dariNama = Class.forName(\"Todo\");\n        Class<?> dariObject = new Todo(1, \"Belajar\").getClass();\n        System.out.println(dariNama == kelas);\n        System.out.println(dariObject == kelas);\n\n        for (Class<?> i : kelas.getInterfaces()) {\n            System.out.println(\"Interface: \" + i.getSimpleName());\n        }\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "Nama: Todo\nInduk: Object\ntrue\ntrue\nInterface: Comparable",
+          "wajib": [
+            {
+              "pola": "getInterfaces\\(\\)",
+              "pesan": "pakai `getInterfaces()`."
+            }
+          ],
+          "benar": "`Todo implements Comparable<Todo>` terlihat lewat reflection.",
+          "petunjuk": "Ulangi `kelas.getInterfaces()`."
+        },
+        {
+          "arahan": "Tantangan: buat method `static void jelaskan(Object o)` yang mencetak nama pendek class `o` dan apakah ia array, lalu panggil untuk `\"teks\"`, `42`, dan `new int[3]`.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    static void jelaskan(Object o) {\n        Class<?> k = o.getClass();\n        System.out.println(k.getSimpleName() + \", array? \" + k.isArray());\n    }\n\n    public static void main(String[] args) throws Exception {\n        Class<?> kelas = Todo.class;\n        System.out.println(\"Nama: \" + kelas.getName());\n        System.out.println(\"Induk: \" + kelas.getSuperclass().getSimpleName());\n\n        Class<?> dariNama = Class.forName(\"Todo\");\n        Class<?> dariObject = new Todo(1, \"Belajar\").getClass();\n        System.out.println(dariNama == kelas);\n        System.out.println(dariObject == kelas);\n\n        for (Class<?> i : kelas.getInterfaces()) {\n            System.out.println(\"Interface: \" + i.getSimpleName());\n        }\n\n        jelaskan(\"teks\");\n        jelaskan(42);\n        jelaskan(new int[3]);\n    }\n}\n\nclass Todo implements Comparable<Todo> {\n    private final int id;\n    private String judul;\n    private boolean selesai;\n    static int jumlahDibuat;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n        jumlahDibuat++;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void selesaikan() {\n        selesai = true;\n    }\n\n    private String rahasia() {\n        return \"catatan pribadi todo \" + id;\n    }\n\n    @Override\n    public int compareTo(Todo lain) {\n        return Integer.compare(id, lain.id);\n    }\n}\n",
+          "keluaran": "Nama: Todo\nInduk: Object\ntrue\ntrue\nInterface: Comparable\nString, array? false\nInteger, array? false\nint[], array? true",
+          "wajib": [
+            {
+              "pola": "static\\s+void\\s+jelaskan\\s*\\(\\s*Object\\s+\\w+\\s*\\)",
+              "pesan": "buat method `static void jelaskan(Object o)`."
+            },
+            {
+              "pola": "isArray\\(\\)",
+              "pesan": "pakai `isArray()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Angka 42 menjadi `Integer` karena autoboxing, dan array `int` bernama `int[]`.",
+          "petunjuk": "Di method: `Class<?> k = o.getClass();` lalu cetak `k.getSimpleName()` dan `k.isArray()`."
+        }
+      ],
+      "penutup": "Kita bisa mengenali class saat program berjalan. Berikutnya: membaca dan mengubah field."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Tiga cara mendapatkan object Class untuk Todo menghasilkan...",
+          "options": [
+            "Tiga object Class berbeda",
+            "Satu Class dan dua String",
+            "Object Class yang sama, bisa dibandingkan dengan ==",
+            "Error karena Class tidak bisa dibandingkan"
+          ],
+          "answer": 2,
+          "explanation": "Satu class, satu object Class.",
+          "remedial": "JVM menyimpan tepat satu object `Class` untuk setiap class yang dimuat. `Todo.class`, `todo.getClass()`, dan `Class.forName(\"Todo\")` menunjuk object yang sama."
+        },
+        {
+          "question": "Hewan h = new Kucing(); h.getClass().getSimpleName() menghasilkan...",
+          "options": [
+            "Hewan",
+            "Object",
+            "Class",
+            "Kucing"
+          ],
+          "answer": 3,
+          "explanation": "Class sebenarnya.",
+          "remedial": "`getClass` melihat object yang ada di memori, bukan tipe variabelnya. Object itu dibuat dari `Kucing`."
+        },
+        {
+          "question": "Kenapa reflection tidak dipakai untuk kode aplikasi sehari-hari?",
+          "options": [
+            "Lebih lambat dan kesalahan nama baru ketahuan saat program berjalan",
+            "Karena reflection hanya ada di Java 21",
+            "Karena reflection tidak bisa membaca method",
+            "Karena reflection mengubah file .class"
+          ],
+          "answer": 0,
+          "explanation": "Compiler tidak bisa membantu.",
+          "remedial": "Dengan reflection, nama method dan field ditulis sebagai teks. Salah ketik tidak tertangkap compiler, dan pemanggilannya lebih lambat dari pemanggilan biasa."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Class.forName membutuhkan nama class...",
+      "options": [
+        "Pendek, misalnya ArrayList",
+        "Lengkap dengan paket, misalnya java.util.ArrayList",
+        "Dengan akhiran .class",
+        "Dengan akhiran .java"
+      ],
+      "answer": 1,
+      "explanation": "Nama lengkap."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca nama lengkap class per baris, lalu untuk setiap nama mencetak nama: NamaPendek turunan NamaPendekInduk, atau nama: tidak ditemukan kalau class itu tidak ada. Contoh: java.util.ArrayList: ArrayList turunan AbstractList. Saat ini program hanya mencetak tanda tanya. Lengkapi dengan Class.forName.",
+      "starterCode": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String nama = in.nextLine();\n            System.out.println(nama + \": ?\");\n        }\n    }\n}",
+      "solution": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String nama = in.nextLine();\n            try {\n                Class<?> k = Class.forName(nama);\n                System.out.println(nama + \": \" + k.getSimpleName() + \" turunan \" + k.getSuperclass().getSimpleName());\n            } catch (ClassNotFoundException e) {\n                System.out.println(nama + \": tidak ditemukan\");\n            }\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "java.util.ArrayList\njava.lang.Integer\ncom.contoh.TidakAda\n",
+          "expectedOutput": "java.util.ArrayList: ArrayList turunan AbstractList\njava.lang.Integer: Integer turunan Number\ncom.contoh.TidakAda: tidak ditemukan\n"
+        },
+        {
+          "input": "java.util.HashMap\n",
+          "expectedOutput": "java.util.HashMap: HashMap turunan AbstractMap\n"
+        }
+      ],
+      "hints": [
+        "Panggil Class.forName(nama) di dalam try, tangkap ClassNotFoundException.",
+        "Pakai k.getSimpleName() dan k.getSuperclass().getSimpleName()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Reflection: melihat dan memakai struktur class saat program berjalan.",
+        "Object Class didapat dari Todo.class, obj.getClass(), atau Class.forName(\"nama.lengkap\").",
+        "getName, getSimpleName, getSuperclass, getInterfaces menjelaskan class.",
+        "Framework memakai reflection; kode aplikasi sebaiknya tidak, kecuali benar-benar perlu."
+      ]
+    }
+  ]
+}
