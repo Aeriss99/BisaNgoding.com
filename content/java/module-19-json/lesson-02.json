@@ -1,0 +1,211 @@
+{
+  "id": "java-json-02",
+  "moduleId": "json",
+  "order": 2,
+  "title": "Membaca JSON menjadi Object",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Mengubah object menjadi JSON baru separuh cerita. Data yang datang dari server, dari aplikasi lain, atau dari file juga berbentuk JSON, dan kita perlu mengubahnya kembali menjadi object Java supaya bisa dipakai.\n\nProses object menjadi JSON disebut **serialisasi**, dan JSON menjadi object disebut **deserialisasi**.\n\nIbarat membongkar paket kiriman: barang dikeluarkan dari kardus dan diletakkan di rak masing-masing. Kalau ada barang yang tidak punya rak, petugas harus memutuskan: menolak paket atau menyisihkan barang itu."
+    },
+    {
+      "type": "theory",
+      "content": "```java\nTodo t = mapper.readValue(json, Todo.class);\n```\n\nSecara bawaan, Jackson membutuhkan:\n\n1. **Constructor tanpa parameter**, untuk membuat object kosong.\n2. **Setter** (`setJudul`, `setSelesai`), untuk mengisi setiap properti.\n\nYang terjadi pada properti:\n\n| Keadaan | Hasil |\n|---|---|\n| properti ada di JSON dan di class | diisi lewat setter |\n| properti tidak ada di JSON | field tetap bernilai bawaan (`0`, `false`, `null`) |\n| properti ada di JSON tetapi tidak ada di class | `UnrecognizedPropertyException` |\n| tipenya salah, misalnya `\"id\":\"abc\"` | `InvalidFormatException` |\n\nProperti asing bisa diabaikan untuk satu class:\n\n```java\n@JsonIgnoreProperties(ignoreUnknown = true)\nclass Todo { ... }\n```\n\natau untuk semua class sekaligus:\n\n```java\nmapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);\n```\n\nDi kode Java 8, kutip dua di dalam String ditulis `\\\"`, jadi JSON di dalam kode terlihat seperti `\"{\\\"id\\\":1}\"`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nString json = \"{\\\"id\\\":1,\\\"judul\\\":\\\"Belajar JSON\\\",\\\"selesai\\\":true}\";\nTodo t = mapper.readValue(json, Todo.class);\nSystem.out.println(t.getJudul());   // Belajar JSON\n```\n\nTanpa constructor kosong, Jackson gagal dengan pesan:\n\n```text\nCannot construct instance of `Todo` (no Creators, like default constructor, exist)\n```\n\nClass yang tidak boleh punya setter (immutable) tetap bisa dibaca dengan `@JsonCreator`, yang dibahas di materi Anotasi Jackson.\n\nException dari Jackson punya method `getOriginalMessage()` yang berisi inti pesannya tanpa informasi lokasi yang panjang."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        String json = \"{\\\"id\\\":7,\\\"judul\\\":\\\"Beli kopi\\\"}\";\n        Todo t = mapper.readValue(json, Todo.class);\n        System.out.println(t.getId() + \" \" + t.getJudul());\n        System.out.println(t.isSelesai());\n    }\n}\n\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n\n    public Todo() {\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public void setId(int id) {\n        this.id = id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void setSelesai(boolean selesai) {\n        this.selesai = selesai;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: JSON tidak punya properti selesai. Apa yang tercetak di baris kedua?",
+        "options": [
+          "null",
+          "true",
+          "false",
+          "Error: selesai tidak ditemukan"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 10,
+          "note": "JSON menjadi object Todo."
+        },
+        {
+          "line": 21,
+          "note": "Jackson membuat object kosong dulu."
+        },
+        {
+          "line": 36,
+          "note": "Lalu mengisi lewat setter."
+        }
+      ],
+      "explanation": "Jackson membuat Todo kosong, lalu memanggil setId dan setJudul. Karena JSON tidak punya selesai, setSelesai tidak dipanggil dan field tetap bernilai bawaan boolean, yaitu false.",
+      "tryThis": [
+        {
+          "task": "Tambahkan \"selesai\":true ke JSON (jangan lupa tanda koma dan kutip yang di-escape).",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan properti asing \"warna\":\"merah\". Exception apa yang muncul?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa constructor tanpa parameter**\n\nClass yang hanya punya constructor berparameter tidak bisa dibuat oleh Jackson. Tambahkan constructor kosong, atau pakai `@JsonCreator`.\n\n**2. Menganggap properti yang hilang akan error**\n\nProperti yang tidak ada di JSON tidak memicu error. Kalau field itu wajib, periksa dengan Bean Validation setelah membaca.\n\n**3. Gagal karena server menambah properti baru**\n\nServer menambah satu properti, dan aplikasi yang membacanya langsung rusak karena `UnrecognizedPropertyException`. Untuk data dari luar, abaikan properti asing.\n\n**4. Lupa escape kutip dua di String Java**\n\n`\"{\"id\":1}\"` tidak bisa di-compile. Di dalam String, tulis `\\\"`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Spring Boot mengatur `FAIL_ON_UNKNOWN_PROPERTIES` menjadi `false` secara bawaan, supaya API tetap jalan saat klien mengirim properti tambahan.\n- Pola umum di REST API: JSON request dibaca menjadi DTO, lalu DTO divalidasi dengan Bean Validation (`@Valid`), baru diproses service.\n- Saat membaca data dari layanan lain, buat class yang hanya berisi properti yang dibutuhkan dan abaikan sisanya. Class jadi kecil dan tidak ikut rusak saat layanan itu berubah.\n- Kesalahan format JSON dari klien biasanya dibalas **400 Bad Request** dengan pesan singkat, bukan stack trace."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JSON 2: JSON Menjadi Todo",
+      "pembuka": "`Todo` sekarang punya constructor kosong dan setter supaya bisa dibaca dari JSON.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. JSON dibaca menjadi object `Todo`.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        String json = \"{\\\"id\\\":1,\\\"judul\\\":\\\"Belajar JSON\\\",\\\"selesai\\\":true}\";\n        Todo t = mapper.readValue(json, Todo.class);\n        System.out.println(t.getId() + \" \" + t.getJudul() + \" \" + t.isSelesai());\n    }\n}\n\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n\n    public Todo() {\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public void setId(int id) {\n        this.id = id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void setSelesai(boolean selesai) {\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "1 Belajar JSON true",
+          "otomatis": true,
+          "benar": "Ketiga properti terisi lewat setter.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Server mengirim JSON dengan properti tambahan `\"warna\"`. Baca `dariServer` di dalam try-catch: cetak `\"Terbaca: \" + judul` kalau berhasil, atau `\"Gagal: \" + e.getOriginalMessage()` kalau `UnrecognizedPropertyException`.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        String json = \"{\\\"id\\\":1,\\\"judul\\\":\\\"Belajar JSON\\\",\\\"selesai\\\":true}\";\n        Todo t = mapper.readValue(json, Todo.class);\n        System.out.println(t.getId() + \" \" + t.getJudul() + \" \" + t.isSelesai());\n\n        String dariServer = \"{\\\"id\\\":2,\\\"judul\\\":\\\"Beli kopi\\\",\\\"warna\\\":\\\"merah\\\"}\";\n        try {\n            Todo w = mapper.readValue(dariServer, Todo.class);\n            System.out.println(\"Terbaca: \" + w.getJudul());\n        } catch (UnrecognizedPropertyException e) {\n            System.out.println(\"Gagal: \" + e.getOriginalMessage());\n        }\n    }\n}\n\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n\n    public Todo() {\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public void setId(int id) {\n        this.id = id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void setSelesai(boolean selesai) {\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "1 Belajar JSON true\nGagal: Unrecognized field \"warna\" (class Todo), not marked as ignorable",
+          "wajib": [
+            {
+              "pola": "catch\\s*\\(\\s*UnrecognizedPropertyException\\s+e\\s*\\)",
+              "pesan": "tangkap `UnrecognizedPropertyException`."
+            },
+            {
+              "pola": "e\\.getOriginalMessage\\(\\)",
+              "pesan": "cetak `e.getOriginalMessage()`."
+            }
+          ],
+          "benar": "Jackson menolak properti yang tidak dikenal.",
+          "petunjuk": "JSON-nya: `\"{\\\"id\\\":2,\\\"judul\\\":\\\"Beli kopi\\\",\\\"warna\\\":\\\"merah\\\"}\"`."
+        },
+        {
+          "arahan": "Pasang `@JsonIgnoreProperties(ignoreUnknown = true)` di atas class `Todo`, lalu jalankan lagi tanpa mengubah main.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        String json = \"{\\\"id\\\":1,\\\"judul\\\":\\\"Belajar JSON\\\",\\\"selesai\\\":true}\";\n        Todo t = mapper.readValue(json, Todo.class);\n        System.out.println(t.getId() + \" \" + t.getJudul() + \" \" + t.isSelesai());\n\n        String dariServer = \"{\\\"id\\\":2,\\\"judul\\\":\\\"Beli kopi\\\",\\\"warna\\\":\\\"merah\\\"}\";\n        try {\n            Todo w = mapper.readValue(dariServer, Todo.class);\n            System.out.println(\"Terbaca: \" + w.getJudul());\n        } catch (UnrecognizedPropertyException e) {\n            System.out.println(\"Gagal: \" + e.getOriginalMessage());\n        }\n    }\n}\n\n@JsonIgnoreProperties(ignoreUnknown = true)\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n\n    public Todo() {\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public void setId(int id) {\n        this.id = id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void setSelesai(boolean selesai) {\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "1 Belajar JSON true\nTerbaca: Beli kopi",
+          "wajib": [
+            {
+              "pola": "@JsonIgnoreProperties\\s*\\(\\s*ignoreUnknown\\s*=\\s*true\\s*\\)\\s*class\\s+Todo",
+              "pesan": "pasang anotasi di atas `class Todo`."
+            }
+          ],
+          "benar": "Sekarang `warna` diabaikan dan todo terbaca.",
+          "petunjuk": "Tulis anotasinya tepat di atas `class Todo {`."
+        },
+        {
+          "arahan": "Tantangan: ubah `t` menjadi JSON, baca lagi menjadi object `salinan`, lalu cetak apakah judul keduanya sama (`equals`) dan apakah keduanya object yang sama (`==`).",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        String json = \"{\\\"id\\\":1,\\\"judul\\\":\\\"Belajar JSON\\\",\\\"selesai\\\":true}\";\n        Todo t = mapper.readValue(json, Todo.class);\n        System.out.println(t.getId() + \" \" + t.getJudul() + \" \" + t.isSelesai());\n\n        String dariServer = \"{\\\"id\\\":2,\\\"judul\\\":\\\"Beli kopi\\\",\\\"warna\\\":\\\"merah\\\"}\";\n        try {\n            Todo w = mapper.readValue(dariServer, Todo.class);\n            System.out.println(\"Terbaca: \" + w.getJudul());\n        } catch (UnrecognizedPropertyException e) {\n            System.out.println(\"Gagal: \" + e.getOriginalMessage());\n        }\n\n        String teks = mapper.writeValueAsString(t);\n        Todo salinan = mapper.readValue(teks, Todo.class);\n        System.out.println(salinan.getJudul().equals(t.getJudul()));\n        System.out.println(salinan == t);\n    }\n}\n\n@JsonIgnoreProperties(ignoreUnknown = true)\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n\n    public Todo() {\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public void setId(int id) {\n        this.id = id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void setSelesai(boolean selesai) {\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "1 Belajar JSON true\nTerbaca: Beli kopi\ntrue\nfalse",
+          "wajib": [
+            {
+              "pola": "Todo\\s+salinan\\s*=\\s*mapper\\.readValue\\s*\\(",
+              "pesan": "baca menjadi `Todo salinan`."
+            },
+            {
+              "pola": "salinan\\s*==\\s*t",
+              "pesan": "bandingkan `salinan == t`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Isinya sama, tetapi object-nya baru. JSON hanya membawa data, bukan object aslinya.",
+          "petunjuk": "`String teks = mapper.writeValueAsString(t);` lalu `Todo salinan = mapper.readValue(teks, Todo.class);`."
+        }
+      ],
+      "penutup": "JSON bolak-balik dengan object. Berikutnya: daftar todo dan Map."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Secara bawaan, Jackson membaca JSON ke object dengan cara...",
+          "options": [
+            "Memanggil toString",
+            "Memanggil constructor dengan semua parameter",
+            "Mengisi field final langsung",
+            "Membuat object lewat constructor kosong lalu memanggil setter"
+          ],
+          "answer": 3,
+          "explanation": "Dua langkah.",
+          "remedial": "Jackson memanggil constructor tanpa parameter untuk membuat object kosong, lalu setter untuk setiap properti yang ada di JSON."
+        },
+        {
+          "question": "JSON berisi properti warna yang tidak ada di class Todo. Secara bawaan hasilnya...",
+          "options": [
+            "UnrecognizedPropertyException",
+            "Properti warna diabaikan",
+            "Field warna dibuat otomatis",
+            "Todo berisi null semua"
+          ],
+          "answer": 0,
+          "explanation": "Bawaan Jackson ketat.",
+          "remedial": "Secara bawaan Jackson menolak properti yang tidak dikenal. `@JsonIgnoreProperties(ignoreUnknown = true)` atau `FAIL_ON_UNKNOWN_PROPERTIES` mengubahnya."
+        },
+        {
+          "question": "Field int jumlah tidak ada di JSON. Nilainya setelah dibaca adalah...",
+          "options": [
+            "null",
+            "0",
+            "1",
+            "Error"
+          ],
+          "answer": 1,
+          "explanation": "Nilai bawaan int.",
+          "remedial": "Setter tidak dipanggil, jadi field tetap bernilai bawaan tipe `int`, yaitu 0."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Anotasi untuk mengabaikan properti JSON yang tidak dikenal pada satu class adalah...",
+      "options": [
+        "@JsonIgnore",
+        "@JsonProperty",
+        "@JsonIgnoreProperties(ignoreUnknown = true)",
+        "@JsonInclude"
+      ],
+      "answer": 2,
+      "explanation": "Di atas class."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca pesanan dalam bentuk JSON, satu per baris, lalu mencetak nama x jumlah = total harga. Class Pesanan hanya punya constructor berparameter, sehingga Jackson gagal membuatnya. Beberapa baris juga punya properti catatan yang tidak dipakai. Perbaiki class Pesanan supaya semua baris terbaca: tambahkan constructor tanpa parameter, setter, dan abaikan properti yang tidak dikenal.",
+      "starterCode": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            Pesanan p = mapper.readValue(in.nextLine(), Pesanan.class);\n            System.out.println(p.getNama() + \" x\" + p.getJumlah() + \" = \" + p.getHarga() * p.getJumlah());\n        }\n    }\n}\n\nclass Pesanan {\n    private String nama;\n    private int harga;\n    private int jumlah;\n\n    public Pesanan(String nama, int harga, int jumlah) {\n        this.nama = nama;\n        this.harga = harga;\n        this.jumlah = jumlah;\n    }\n\n    public String getNama() {\n        return nama;\n    }\n\n    public int getHarga() {\n        return harga;\n    }\n\n    public int getJumlah() {\n        return jumlah;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            Pesanan p = mapper.readValue(in.nextLine(), Pesanan.class);\n            System.out.println(p.getNama() + \" x\" + p.getJumlah() + \" = \" + p.getHarga() * p.getJumlah());\n        }\n    }\n}\n\n@JsonIgnoreProperties(ignoreUnknown = true)\nclass Pesanan {\n    private String nama;\n    private int harga;\n    private int jumlah;\n\n    public Pesanan() {\n    }\n\n    public String getNama() {\n        return nama;\n    }\n\n    public void setNama(String nama) {\n        this.nama = nama;\n    }\n\n    public int getHarga() {\n        return harga;\n    }\n\n    public void setHarga(int harga) {\n        this.harga = harga;\n    }\n\n    public int getJumlah() {\n        return jumlah;\n    }\n\n    public void setJumlah(int jumlah) {\n        this.jumlah = jumlah;\n    }\n}",
+      "tests": [
+        {
+          "input": "{\"nama\":\"Kopi\",\"harga\":18000,\"jumlah\":2}\n{\"nama\":\"Roti\",\"harga\":12000,\"jumlah\":1,\"catatan\":\"hangat\"}\n",
+          "expectedOutput": "Kopi x2 = 36000\nRoti x1 = 12000\n"
+        }
+      ],
+      "hints": [
+        "Tambahkan public Pesanan() {} dan setter untuk nama, harga, jumlah.",
+        "Pasang @JsonIgnoreProperties(ignoreUnknown = true) di atas class."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "mapper.readValue(json, Kelas.class) mengubah JSON menjadi object.",
+        "Secara bawaan butuh constructor kosong dan setter.",
+        "Properti yang hilang bernilai bawaan; properti asing memicu UnrecognizedPropertyException.",
+        "@JsonIgnoreProperties(ignoreUnknown = true) mengabaikan properti asing."
+      ]
+    }
+  ]
+}

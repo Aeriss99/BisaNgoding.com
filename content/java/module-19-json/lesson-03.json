@@ -1,0 +1,207 @@
+{
+  "id": "java-json-03",
+  "moduleId": "json",
+  "order": 3,
+  "title": "List dan Map",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Data jarang datang satu per satu. Daftar todo, daftar produk, daftar transaksi: JSON-nya berbentuk array. Ada juga data yang bentuknya tidak tetap, seperti pengaturan aplikasi, yang lebih cocok dibaca sebagai `Map`.\n\nMenulis List menjadi JSON semudah menulis satu object. Membacanya kembali butuh satu trik kecil bernama **TypeReference**.\n\nIbarat label di kardus pindahan: kardus bertuliskan \"isi\" saja membuat penerima bingung isinya apa. Kardus bertuliskan \"isi: buku\" langsung bisa disusun ke rak buku."
+    },
+    {
+      "type": "theory",
+      "content": "**Menulis**: List menjadi array JSON.\n\n```java\nString json = mapper.writeValueAsString(daftar);\n// [{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false},{\"id\":2,...}]\n```\n\n**Membaca**: masalahnya ada di generics. Java menghapus informasi `<Todo>` saat compile (*type erasure*), sehingga `List.class` tidak memberi tahu Jackson isi List-nya. Jackson lalu mengisi List dengan `LinkedHashMap`.\n\nSolusinya, beri tahu tipe lengkapnya dengan `TypeReference`:\n\n```java\nList<Todo> daftar = mapper.readValue(json, new TypeReference<List<Todo>>() {});\n```\n\nTanda `{}` di akhir membuat *anonymous class* yang menyimpan `List<Todo>`, sehingga Jackson bisa membacanya.\n\nCara lain yang lebih sederhana untuk array: `Todo[] arr = mapper.readValue(json, Todo[].class);`\n\n**Map** cocok untuk JSON yang bentuknya tidak tetap:\n\n```java\nMap<String, Object> atur = mapper.readValue(json, new TypeReference<Map<String, Object>>() {});\n```\n\n| Di JSON | Menjadi di Map |\n|---|---|\n| `\"gelap\"` | `String` |\n| `14` | `Integer` |\n| `[...]` | `ArrayList` |\n| `{...}` | `LinkedHashMap` |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nString json = \"[{\\\"id\\\":1,\\\"judul\\\":\\\"A\\\"},{\\\"id\\\":2,\\\"judul\\\":\\\"B\\\"}]\";\n\nList<Todo> todos = mapper.readValue(json, new TypeReference<List<Todo>>() {});\nSystem.out.println(todos.get(1).getJudul());   // B\n\nTodo[] arr = mapper.readValue(json, Todo[].class);\nSystem.out.println(arr.length);                // 2\n```\n\n`TypeReference` diimpor dari `com.fasterxml.jackson.core.type.TypeReference`.\n\nSaat menulis `Map`, urutan properti JSON mengikuti urutan Map. `HashMap` urutannya tidak tetap, jadi pakai `LinkedHashMap` (urut sesuai dimasukkan) atau `TreeMap` (urut abjad) kalau urutan penting."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        String json = \"[{\\\"id\\\":1,\\\"judul\\\":\\\"Belajar\\\"},{\\\"id\\\":2,\\\"judul\\\":\\\"Beli kopi\\\"}]\";\n        List<?> polos = mapper.readValue(json, List.class);\n        System.out.println(polos.get(0).getClass().getSimpleName());\n        List<Todo> todos = mapper.readValue(json, new TypeReference<List<Todo>>() {});\n        System.out.println(todos.get(1).getJudul());\n    }\n}\n\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n\n    public Todo() {\n    }\n\n    public Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public void setId(int id) {\n        this.id = id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void setSelesai(boolean selesai) {\n        this.selesai = selesai;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak di baris pertama?",
+        "options": [
+          "Todo",
+          "ArrayList",
+          "String",
+          "LinkedHashMap"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 11,
+          "note": "Tanpa info isi List."
+        },
+        {
+          "line": 13,
+          "note": "Dengan info lengkap."
+        }
+      ],
+      "explanation": "Dengan List.class saja, Jackson tidak tahu isinya Todo, jadi setiap object JSON dibaca menjadi LinkedHashMap. Kalau elemennya dipakai sebagai Todo, program berhenti dengan ClassCastException.\n\nTypeReference membawa tipe lengkap List of Todo, sehingga setiap elemen benar-benar menjadi Todo.",
+      "tryThis": [
+        {
+          "task": "Cetak polos.get(0). Seperti apa bentuknya?",
+          "hint": null
+        },
+        {
+          "task": "Ganti TypeReference dengan Todo[].class dan simpan ke Todo[] arr.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `readValue(json, List.class)` lalu dipakai sebagai `List<Todo>`**\n\nCompile hanya memberi peringatan, tetapi saat berjalan muncul `ClassCastException: LinkedHashMap cannot be cast to Todo`. Pakai `TypeReference`.\n\n**2. Lupa `{}` di TypeReference**\n\n`new TypeReference<List<Todo>>()` tanpa `{}` tidak bisa di-compile, karena TypeReference adalah abstract class.\n\n**3. Menganggap angka di Map selalu Integer**\n\nAngka besar menjadi `Long`, dan angka desimal menjadi `Double`. Periksa dengan `instanceof` atau pakai `((Number) nilai).intValue()`.\n\n**4. Membaca semua data sebagai Map**\n\nMap praktis untuk sementara, tetapi kode penuh `get(\"...\")` dan cast mudah salah ketik. Untuk data yang bentuknya tetap, buat class."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- API yang mengembalikan daftar biasanya membungkusnya dengan informasi halaman:\n\n```json\n{ \"data\": [ ... ], \"halaman\": 1, \"totalData\": 120 }\n```\n\nClass pembungkusnya generik, misalnya `Halaman<T>`, dan dibaca dengan `new TypeReference<Halaman<Todo>>() {}`.\n- Di Spring, `RestClient` dan `RestTemplate` memakai `ParameterizedTypeReference`, yang idenya sama dengan `TypeReference`.\n- `Map<String, Object>` sering dipakai untuk metadata bebas atau log terstruktur, sementara data utama tetap memakai class."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JSON 3: Daftar Todo",
+      "pembuka": "Sekarang seluruh daftar todo kita ubah menjadi JSON dan kembali.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Dua todo dalam List menjadi array JSON.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        List<Todo> daftar = new ArrayList<>();\n        daftar.add(new Todo(1, \"Belajar JSON\"));\n        daftar.add(new Todo(2, \"Beli kopi\"));\n        String json = mapper.writeValueAsString(daftar);\n        System.out.println(json);\n    }\n}\n\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n\n    public Todo() {\n    }\n\n    public Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public void setId(int id) {\n        this.id = id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void setSelesai(boolean selesai) {\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "[{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false},{\"id\":2,\"judul\":\"Beli kopi\",\"selesai\":false}]",
+          "otomatis": true,
+          "benar": "Kurung siku di luar menandai array.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Baca kembali `json` menjadi `List<Todo>` dengan `TypeReference`, lalu cetak `id. judul` untuk setiap todo.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        List<Todo> daftar = new ArrayList<>();\n        daftar.add(new Todo(1, \"Belajar JSON\"));\n        daftar.add(new Todo(2, \"Beli kopi\"));\n        String json = mapper.writeValueAsString(daftar);\n        System.out.println(json);\n\n        List<Todo> dibaca = mapper.readValue(json, new TypeReference<List<Todo>>() {});\n        for (Todo t : dibaca) {\n            System.out.println(t.getId() + \". \" + t.getJudul());\n        }\n    }\n}\n\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n\n    public Todo() {\n    }\n\n    public Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public void setId(int id) {\n        this.id = id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void setSelesai(boolean selesai) {\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "[{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false},{\"id\":2,\"judul\":\"Beli kopi\",\"selesai\":false}]\n1. Belajar JSON\n2. Beli kopi",
+          "wajib": [
+            {
+              "pola": "new\\s+TypeReference\\s*<\\s*List\\s*<\\s*Todo\\s*>\\s*>\\s*\\(\\s*\\)\\s*\\{\\s*\\}",
+              "pesan": "pakai `new TypeReference<List<Todo>>() {}`."
+            }
+          ],
+          "benar": "Setiap elemen benar-benar menjadi `Todo`.",
+          "petunjuk": "`mapper.readValue(json, new TypeReference<List<Todo>>() {})`."
+        },
+        {
+          "arahan": "Baca pengaturan `{\"tema\":\"gelap\",\"ukuranHuruf\":14,\"bahasa\":[\"id\",\"en\"]}` menjadi `Map<String, Object>`, lalu cetak nilai `tema`, `ukuranHuruf`, dan `bahasa` dipisah spasi.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        List<Todo> daftar = new ArrayList<>();\n        daftar.add(new Todo(1, \"Belajar JSON\"));\n        daftar.add(new Todo(2, \"Beli kopi\"));\n        String json = mapper.writeValueAsString(daftar);\n        System.out.println(json);\n\n        List<Todo> dibaca = mapper.readValue(json, new TypeReference<List<Todo>>() {});\n        for (Todo t : dibaca) {\n            System.out.println(t.getId() + \". \" + t.getJudul());\n        }\n\n        String pengaturan = \"{\\\"tema\\\":\\\"gelap\\\",\\\"ukuranHuruf\\\":14,\\\"bahasa\\\":[\\\"id\\\",\\\"en\\\"]}\";\n        Map<String, Object> atur = mapper.readValue(pengaturan, new TypeReference<Map<String, Object>>() {});\n        System.out.println(atur.get(\"tema\") + \" \" + atur.get(\"ukuranHuruf\") + \" \" + atur.get(\"bahasa\"));\n    }\n}\n\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n\n    public Todo() {\n    }\n\n    public Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public void setId(int id) {\n        this.id = id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void setSelesai(boolean selesai) {\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "[{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false},{\"id\":2,\"judul\":\"Beli kopi\",\"selesai\":false}]\n1. Belajar JSON\n2. Beli kopi\ngelap 14 [id, en]",
+          "wajib": [
+            {
+              "pola": "new\\s+TypeReference\\s*<\\s*Map\\s*<\\s*String\\s*,\\s*Object\\s*>\\s*>",
+              "pesan": "pakai `TypeReference<Map<String, Object>>`."
+            }
+          ],
+          "benar": "Array JSON menjadi `ArrayList`, tercetak `[id, en]`.",
+          "petunjuk": "Di String Java: `\"{\\\"tema\\\":\\\"gelap\\\",\\\"ukuranHuruf\\\":14,\\\"bahasa\\\":[\\\"id\\\",\\\"en\\\"]}\"`."
+        },
+        {
+          "arahan": "Tantangan: dari JSON `[{\"id\":1,\"judul\":\"A\",\"selesai\":true},{\"id\":2,\"judul\":\"B\"},{\"id\":3,\"judul\":\"C\",\"selesai\":true}]`, hitung dan cetak `Selesai: 2`.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        List<Todo> daftar = new ArrayList<>();\n        daftar.add(new Todo(1, \"Belajar JSON\"));\n        daftar.add(new Todo(2, \"Beli kopi\"));\n        String json = mapper.writeValueAsString(daftar);\n        System.out.println(json);\n\n        List<Todo> dibaca = mapper.readValue(json, new TypeReference<List<Todo>>() {});\n        for (Todo t : dibaca) {\n            System.out.println(t.getId() + \". \" + t.getJudul());\n        }\n\n        String pengaturan = \"{\\\"tema\\\":\\\"gelap\\\",\\\"ukuranHuruf\\\":14,\\\"bahasa\\\":[\\\"id\\\",\\\"en\\\"]}\";\n        Map<String, Object> atur = mapper.readValue(pengaturan, new TypeReference<Map<String, Object>>() {});\n        System.out.println(atur.get(\"tema\") + \" \" + atur.get(\"ukuranHuruf\") + \" \" + atur.get(\"bahasa\"));\n\n        String hariIni = \"[{\\\"id\\\":1,\\\"judul\\\":\\\"A\\\",\\\"selesai\\\":true},{\\\"id\\\":2,\\\"judul\\\":\\\"B\\\"},{\\\"id\\\":3,\\\"judul\\\":\\\"C\\\",\\\"selesai\\\":true}]\";\n        int jumlahSelesai = 0;\n        for (Todo t : mapper.readValue(hariIni, new TypeReference<List<Todo>>() {})) {\n            if (t.isSelesai()) {\n                jumlahSelesai++;\n            }\n        }\n        System.out.println(\"Selesai: \" + jumlahSelesai);\n    }\n}\n\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n\n    public Todo() {\n    }\n\n    public Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public void setId(int id) {\n        this.id = id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public void setSelesai(boolean selesai) {\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "[{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false},{\"id\":2,\"judul\":\"Beli kopi\",\"selesai\":false}]\n1. Belajar JSON\n2. Beli kopi\ngelap 14 [id, en]\nSelesai: 2",
+          "wajib": [
+            {
+              "pola": "isSelesai\\(\\)",
+              "pesan": "periksa `isSelesai()`."
+            },
+            {
+              "pola": "\"Selesai: \"",
+              "pesan": "cetak `\"Selesai: \" + jumlah`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Todo 2 tidak punya `selesai` di JSON, jadi bernilai false.",
+          "petunjuk": "Baca menjadi List dengan TypeReference, lalu hitung `isSelesai()` yang true."
+        }
+      ],
+      "penutup": "Daftar todo bolak-balik dengan JSON. Berikutnya: membaca JSON tanpa membuat class."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa readValue(json, List.class) menghasilkan List berisi LinkedHashMap?",
+          "options": [
+            "Karena informasi isi List hilang saat compile (type erasure)",
+            "Karena JSON array selalu menjadi Map",
+            "Karena Todo tidak punya getter",
+            "Karena List tidak bisa berisi object"
+          ],
+          "answer": 0,
+          "explanation": "Generics dihapus saat compile.",
+          "remedial": "`List.class` tidak membawa `<Todo>`. Tanpa info itu, Jackson memakai bentuk paling umum untuk object JSON, yaitu `LinkedHashMap`."
+        },
+        {
+          "question": "Cara benar membaca array JSON menjadi List<Todo> adalah...",
+          "options": [
+            "mapper.readValue(json, List<Todo>.class)",
+            "mapper.readValue(json, new TypeReference<List<Todo>>() {})",
+            "mapper.readValue(json, Todo.class)",
+            "mapper.readTree(json, List.class)"
+          ],
+          "answer": 1,
+          "explanation": "Pakai TypeReference.",
+          "remedial": "`List<Todo>.class` bukan kode Java yang sah. `TypeReference` dengan `{}` menyimpan tipe lengkap untuk Jackson."
+        },
+        {
+          "question": "JSON {\"ukuran\":14} dibaca menjadi Map<String, Object>. Tipe nilai ukuran adalah...",
+          "options": [
+            "String",
+            "Double",
+            "Integer",
+            "LinkedHashMap"
+          ],
+          "answer": 2,
+          "explanation": "Angka bulat kecil.",
+          "remedial": "Angka bulat yang muat di int dibaca menjadi `Integer`. Angka yang lebih besar menjadi `Long`, dan angka desimal menjadi `Double`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Supaya urutan properti JSON dari Map sama dengan urutan saat dimasukkan, pakai...",
+      "options": [
+        "HashMap",
+        "HashSet",
+        "ArrayList",
+        "LinkedHashMap"
+      ],
+      "answer": 3,
+      "explanation": "Map yang menjaga urutan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca satu baris JSON berisi array siswa, misalnya [{\"nama\":\"Sari\",\"nilai\":90}], lalu mencetak nama: nilai untuk setiap siswa dan Rata-rata: (bilangan bulat). Program berhenti dengan ClassCastException. Perbaiki cara membaca JSON-nya.",
+      "starterCode": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        String json = new Scanner(System.in).nextLine();\n        List<Siswa> semua = mapper.readValue(json, List.class);\n        int total = 0;\n        for (Siswa s : semua) {\n            System.out.println(s.getNama() + \": \" + s.getNilai());\n            total += s.getNilai();\n        }\n        System.out.println(\"Rata-rata: \" + total / semua.size());\n    }\n}\n\nclass Siswa {\n    private String nama;\n    private int nilai;\n\n    public Siswa() {\n    }\n\n    public String getNama() {\n        return nama;\n    }\n\n    public void setNama(String nama) {\n        this.nama = nama;\n    }\n\n    public int getNilai() {\n        return nilai;\n    }\n\n    public void setNilai(int nilai) {\n        this.nilai = nilai;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.core.type.TypeReference;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        String json = new Scanner(System.in).nextLine();\n        List<Siswa> semua = mapper.readValue(json, new TypeReference<List<Siswa>>() {});\n        int total = 0;\n        for (Siswa s : semua) {\n            System.out.println(s.getNama() + \": \" + s.getNilai());\n            total += s.getNilai();\n        }\n        System.out.println(\"Rata-rata: \" + total / semua.size());\n    }\n}\n\nclass Siswa {\n    private String nama;\n    private int nilai;\n\n    public Siswa() {\n    }\n\n    public String getNama() {\n        return nama;\n    }\n\n    public void setNama(String nama) {\n        this.nama = nama;\n    }\n\n    public int getNilai() {\n        return nilai;\n    }\n\n    public void setNilai(int nilai) {\n        this.nilai = nilai;\n    }\n}",
+      "tests": [
+        {
+          "input": "[{\"nama\":\"Sari\",\"nilai\":90},{\"nama\":\"Budi\",\"nilai\":75},{\"nama\":\"Dewi\",\"nilai\":86}]\n",
+          "expectedOutput": "Sari: 90\nBudi: 75\nDewi: 86\nRata-rata: 83\n"
+        },
+        {
+          "input": "[{\"nama\":\"Andi\",\"nilai\":60}]\n",
+          "expectedOutput": "Andi: 60\nRata-rata: 60\n"
+        }
+      ],
+      "hints": [
+        "List.class tidak membawa info isi List.",
+        "Pakai new TypeReference<List<Siswa>>() {}."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "List menjadi array JSON dengan writeValueAsString.",
+        "Membaca List butuh new TypeReference<List<Todo>>() {} atau Todo[].class.",
+        "Map<String, Object> untuk JSON yang bentuknya tidak tetap.",
+        "Pakai LinkedHashMap kalau urutan properti penting."
+      ]
+    }
+  ]
+}
