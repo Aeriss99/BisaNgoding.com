@@ -23,7 +23,7 @@ public class Main {
     LauncherFactory.create().execute(LauncherDiscoveryRequestBuilder.request().selectors(selectClass(PTest.class)).build(), new TestExecutionListener() {
       public void executionFinished(TestIdentifier id, TestExecutionResult r) {
         System.out.println(id.getDisplayName() + " " + r.getStatus());
-        r.getThrowable().ifPresent(t -> { t.printStackTrace(System.out); });
+        r.getThrowable().ifPresent(t -> { System.out.println(t + " frames=" + t.getStackTrace().length); for (StackTraceElement e : t.getStackTrace()) System.out.println("  at " + e); if (t.getCause() != null) System.out.println("cause " + t.getCause()); });
       }
     });
   }
