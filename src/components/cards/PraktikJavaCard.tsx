@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import type { PraktikJavaCard } from '../../types/schema';
 import { runJavaCode } from '../../lib/javaRunner';
+import { VersiJavaMateri } from '../../lib/versiJavaMateri';
 import { runTsCode } from '../../lib/tsRunner';
 import { runNodeCode, gabungKeluaranNode } from '../../lib/nodeRunner';
 import { artiGalatTs } from '../../lib/tsPeriksa';
@@ -113,6 +114,7 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
   const ts = card.bahasa === 'typescript';
   const nd = card.bahasa === 'nodejs';
   const namaFile = ts ? 'main.ts' : nd ? 'main.js' : 'Main.java';
+  const versiJava = useContext(VersiJavaMateri);
   const [langkahKe, setLangkahKe] = useState(0);
   const [entri, setEntri] = useState<Entri[]>(() => {
     const awal: Entri[] = [{ jenis: 'lingga', teks: card.pembuka }];
@@ -226,7 +228,7 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
         ? await runTsCode(kode, (s) => setStatusJalan(s))
         : nd
         ? await runNodeCode(kode, (s) => setStatusJalan(s))
-        : await runJavaCode(kode, langkah.input ?? '', (s) => setStatusJalan(s));
+        : await runJavaCode(kode, langkah.input ?? '', (s) => setStatusJalan(s), versiJava);
       if (res.timedOut) {
         salah(
           [{ jenis: 'hasil', teks: 'Program terlalu lama berjalan.', status: 'error', judul: 'Hasil kodemu' }],
