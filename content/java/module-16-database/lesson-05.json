@@ -1,0 +1,215 @@
+{
+  "id": "java-database-05",
+  "moduleId": "database",
+  "order": 5,
+  "title": "Statement dan ResultSet",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Mengirim INSERT sudah bisa. Sekarang bagian yang paling sering dilakukan aplikasi: **membaca** data dengan SELECT dan mengubahnya menjadi sesuatu yang bisa dipakai Java.\n\nHasil SELECT dikembalikan sebagai **ResultSet**: tabel hasil yang dibaca satu baris demi satu baris.\n\nIbarat membaca daftar antrean di loket: petugas memanggil satu nomor, melayaninya, lalu memanggil nomor berikutnya, sampai antrean habis. `rs.next()` adalah panggilan \"nomor berikutnya\"."
+    },
+    {
+      "type": "theory",
+      "content": "Pola membaca ResultSet:\n\n```java\ntry (Statement st = c.createStatement();\n     ResultSet rs = st.executeQuery(\"SELECT id, nama, harga FROM produk\")) {\n    while (rs.next()) {\n        int id = rs.getInt(\"id\");\n        String nama = rs.getString(\"nama\");\n        int harga = rs.getInt(\"harga\");\n    }\n}\n```\n\n| Method | Fungsinya |\n|---|---|\n| `rs.next()` | maju ke baris berikutnya; `false` kalau sudah habis |\n| `rs.getInt(\"kolom\")`, `getString`, `getBoolean`, `getLong`, `getDouble` | membaca kolom di baris saat ini |\n| `rs.getInt(1)` | membaca kolom berdasarkan nomor urut (mulai 1, bukan 0) |\n\nKursor ResultSet awalnya berada **sebelum** baris pertama. Karena itu `rs.next()` harus dipanggil dulu sebelum membaca, termasuk saat hasilnya hanya satu baris (misalnya `COUNT(*)`)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMenghitung dan menjumlahkan langsung di database:\n\n```java\ntry (Statement st = c.createStatement();\n     ResultSet rs = st.executeQuery(\"SELECT COUNT(*), SUM(harga * stok) FROM produk\")) {\n    rs.next();                                   // satu baris hasil\n    System.out.println(rs.getInt(1) + \" produk, nilai persediaan \" + rs.getLong(2));\n}\n```\n\nKolom hasil fungsi seperti `COUNT(*)` tidak punya nama yang enak, jadi dibaca dengan nomor (`1`, `2`) atau diberi nama dengan `AS jumlah`.\n\nMembiarkan database menghitung (COUNT, SUM, WHERE, ORDER BY) jauh lebih cepat daripada mengambil semua baris lalu menghitung di Java, karena data yang dikirim lewat jaringan jauh lebih sedikit."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT nama, harga FROM produk WHERE harga > 5000\")) {\n                System.out.println(\"sebelum next\");\n                while (rs.next()) {\n                    System.out.println(rs.getString(\"nama\") + \" \" + rs.getInt(\"harga\"));\n                }\n                System.out.println(\"selesai\");\n            }\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: hanya produk berharga di atas 5000 yang diambil. Apa baris setelah \"sebelum next\"?",
+        "options": [
+          "Pensil 3000",
+          "Spidol 9500 Buku tulis 8000",
+          "Buku tulis 8000",
+          "nama harga"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 19,
+          "note": "SELECT memakai executeQuery."
+        },
+        {
+          "line": 21,
+          "note": "Maju satu baris; berhenti saat habis."
+        },
+        {
+          "line": 22,
+          "note": "Membaca kolom nama di baris saat ini."
+        }
+      ],
+      "explanation": "Query hanya mengembalikan Buku tulis (8000) dan Spidol (9500). Sebelum perulangan, kursor belum menunjuk baris mana pun. Setiap rs.next() memindahkan kursor ke baris berikutnya dan mengembalikan true, sampai baris habis dan mengembalikan false.",
+      "tryThis": [
+        {
+          "task": "Ubah syaratnya menjadi harga > 9000. Berapa baris yang tercetak?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan ORDER BY harga DESC di akhir query.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Membaca kolom sebelum `rs.next()`**\n\nKursor masih di depan baris pertama. JDBC melempar `SQLException` (di H2: \"No data is available\"). Panggil `rs.next()` dulu.\n\n**2. Nomor kolom mulai dari 0**\n\n`rs.getInt(0)` salah. Kolom JDBC dihitung mulai **1**.\n\n**3. Salah nama kolom**\n\n`rs.getString(\"judul\")` untuk tabel yang kolomnya `nama` melempar `SQLException`: kolom tidak ditemukan. Nama di `getXxx` harus sama dengan nama kolom di SELECT (atau alias `AS`-nya).\n\n**4. Mengambil semua lalu menyaring di Java**\n\n`SELECT * FROM produk` lalu `if (stok < 50)` di Java memindahkan seluruh tabel lewat jaringan. Tulis syaratnya di WHERE."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\nKode membaca ResultSet biasanya dipindahkan ke satu method yang mengubah baris menjadi object, disebut **row mapper**:\n\n```java\nprivate Produk baca(ResultSet rs) throws SQLException {\n    return new Produk(rs.getInt(\"id\"), rs.getString(\"nama\"), rs.getInt(\"harga\"), rs.getInt(\"stok\"));\n}\n```\n\nDi Spring, `JdbcTemplate` memakai pola yang sama dan mengurus pembukaan dan penutupan koneksi:\n\n```java\nList<Produk> semua = jdbcTemplate.query(\"SELECT id, nama, harga, stok FROM produk\",\n        (rs, nomorBaris) -> new Produk(rs.getInt(\"id\"), rs.getString(\"nama\"), rs.getInt(\"harga\"), rs.getInt(\"stok\")));\n```\n\nAplikasi dengan tabel besar selalu membatasi hasil (`LIMIT`, atau halaman demi halaman) supaya satu permintaan tidak memuat jutaan baris ke memori."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Toko Database 2: Membaca Daftar Produk",
+      "pembuka": "Tabel produk sudah diisi empat produk oleh method `siapkan`. Kita baca isinya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. SELECT, lalu baca baris demi baris dengan `rs.next()`.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT id, nama, harga, stok FROM produk\")) {\n                while (rs.next()) {\n                    System.out.println(rs.getInt(\"id\") + \". \" + rs.getString(\"nama\") + \" - \" + rs.getInt(\"harga\") + \" (stok \" + rs.getInt(\"stok\") + \")\");\n                }\n            }\n        }\n    }\n}\n",
+          "keluaran": "1. Pensil - 3000 (stok 120)\n2. Buku tulis - 8000 (stok 40)\n3. Penghapus - 2000 (stok 15)\n4. Spidol - 9500 (stok 60)",
+          "otomatis": true,
+          "benar": "Empat produk, satu baris per produk.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Di bawahnya, cetak `Stok menipis:` lalu tampilkan nama dan stok produk yang stoknya di bawah 50, diurutkan dari stok terkecil, dengan format `- Nama stok`.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT id, nama, harga, stok FROM produk\")) {\n                while (rs.next()) {\n                    System.out.println(rs.getInt(\"id\") + \". \" + rs.getString(\"nama\") + \" - \" + rs.getInt(\"harga\") + \" (stok \" + rs.getInt(\"stok\") + \")\");\n                }\n            }\n            System.out.println(\"Stok menipis:\");\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT nama, stok FROM produk WHERE stok < 50 ORDER BY stok\")) {\n                while (rs.next()) {\n                    System.out.println(\"- \" + rs.getString(\"nama\") + \" \" + rs.getInt(\"stok\"));\n                }\n            }\n        }\n    }\n}\n",
+          "keluaran": "1. Pensil - 3000 (stok 120)\n2. Buku tulis - 8000 (stok 40)\n3. Penghapus - 2000 (stok 15)\n4. Spidol - 9500 (stok 60)\nStok menipis:\n- Penghapus 15\n- Buku tulis 40",
+          "wajib": [
+            {
+              "pola": "WHERE\\s+stok\\s*<\\s*50\\s+ORDER\\s+BY\\s+stok",
+              "pesan": "tulis `WHERE stok < 50 ORDER BY stok` di query."
+            }
+          ],
+          "benar": "Penghapus (15) lalu Buku tulis (40). Database yang menyaring dan mengurutkan.",
+          "petunjuk": "Query-nya `SELECT nama, stok FROM produk WHERE stok < 50 ORDER BY stok`. Buka Statement dan ResultSet baru dengan try-with-resources."
+        },
+        {
+          "arahan": "Hitung jumlah produk dan nilai persediaan (harga dikali stok) dengan `SELECT COUNT(*), SUM(harga * stok) FROM produk`. Cetak `4 produk, nilai persediaan ...` dengan `getInt(1)` dan `getLong(2)`.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT id, nama, harga, stok FROM produk\")) {\n                while (rs.next()) {\n                    System.out.println(rs.getInt(\"id\") + \". \" + rs.getString(\"nama\") + \" - \" + rs.getInt(\"harga\") + \" (stok \" + rs.getInt(\"stok\") + \")\");\n                }\n            }\n            System.out.println(\"Stok menipis:\");\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT nama, stok FROM produk WHERE stok < 50 ORDER BY stok\")) {\n                while (rs.next()) {\n                    System.out.println(\"- \" + rs.getString(\"nama\") + \" \" + rs.getInt(\"stok\"));\n                }\n            }\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT COUNT(*), SUM(harga * stok) FROM produk\")) {\n                rs.next();\n                System.out.println(rs.getInt(1) + \" produk, nilai persediaan \" + rs.getLong(2));\n            }\n        }\n    }\n}\n",
+          "keluaran": "1. Pensil - 3000 (stok 120)\n2. Buku tulis - 8000 (stok 40)\n3. Penghapus - 2000 (stok 15)\n4. Spidol - 9500 (stok 60)\nStok menipis:\n- Penghapus 15\n- Buku tulis 40\n4 produk, nilai persediaan 1280000",
+          "wajib": [
+            {
+              "pola": "SUM\\s*\\(\\s*harga\\s*\\*\\s*stok\\s*\\)",
+              "pesan": "pakai `SUM(harga * stok)`."
+            },
+            {
+              "pola": "rs\\.getLong\\s*\\(\\s*2\\s*\\)",
+              "pesan": "baca nilai persediaan dengan `rs.getLong(2)`."
+            }
+          ],
+          "benar": "Nilai persediaan dihitung di database, bukan dengan perulangan Java.",
+          "petunjuk": "Hasilnya satu baris, jadi panggil `rs.next();` sekali lalu baca dengan nomor kolom."
+        },
+        {
+          "arahan": "Tantangan: isi ulang stok yang menipis. Tambahkan 100 ke stok semua produk yang stoknya di bawah 50 dengan satu perintah UPDATE, lalu cetak jumlah produk yang berubah diikuti `produk diisi ulang`.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT id, nama, harga, stok FROM produk\")) {\n                while (rs.next()) {\n                    System.out.println(rs.getInt(\"id\") + \". \" + rs.getString(\"nama\") + \" - \" + rs.getInt(\"harga\") + \" (stok \" + rs.getInt(\"stok\") + \")\");\n                }\n            }\n            System.out.println(\"Stok menipis:\");\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT nama, stok FROM produk WHERE stok < 50 ORDER BY stok\")) {\n                while (rs.next()) {\n                    System.out.println(\"- \" + rs.getString(\"nama\") + \" \" + rs.getInt(\"stok\"));\n                }\n            }\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT COUNT(*), SUM(harga * stok) FROM produk\")) {\n                rs.next();\n                System.out.println(rs.getInt(1) + \" produk, nilai persediaan \" + rs.getLong(2));\n            }\n            try (Statement st = c.createStatement()) {\n                int n = st.executeUpdate(\"UPDATE produk SET stok = stok + 100 WHERE stok < 50\");\n                System.out.println(n + \" produk diisi ulang\");\n            }\n        }\n    }\n}\n",
+          "keluaran": "1. Pensil - 3000 (stok 120)\n2. Buku tulis - 8000 (stok 40)\n3. Penghapus - 2000 (stok 15)\n4. Spidol - 9500 (stok 60)\nStok menipis:\n- Penghapus 15\n- Buku tulis 40\n4 produk, nilai persediaan 1280000\n2 produk diisi ulang",
+          "wajib": [
+            {
+              "pola": "executeUpdate\\s*\\(\\s*\"UPDATE produk SET stok = stok \\+ 100 WHERE stok < 50\"\\s*\\)",
+              "pesan": "tulis `executeUpdate(\"UPDATE produk SET stok = stok + 100 WHERE stok < 50\")`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "2 produk diisi ulang dengan satu perintah.",
+          "petunjuk": "Perintah yang mengubah data memakai `executeUpdate`, dan SQL bisa menulis `stok = stok + 100`."
+        }
+      ],
+      "penutup": "Membaca, menghitung, dan mengubah data sudah bisa dilakukan dari Java. Tapi ada bahaya besar saat SQL disusun dari masukan pengguna. Itu materi berikutnya."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa rs.next() harus dipanggil sebelum membaca hasil COUNT(*) yang hanya satu baris?",
+          "options": [
+            "Karena COUNT selalu mengembalikan dua baris",
+            "Supaya ResultSet ditutup",
+            "Karena getInt hanya bisa dipakai di perulangan",
+            "Karena kursor ResultSet awalnya berada sebelum baris pertama"
+          ],
+          "answer": 3,
+          "explanation": "Kursor mulai di depan.",
+          "remedial": "ResultSet baru belum menunjuk baris apa pun. `rs.next()` memindahkan kursor ke baris pertama. Tanpanya, membaca kolom melempar SQLException."
+        },
+        {
+          "question": "rs.getInt(1) membaca...",
+          "options": [
+            "Kolom pertama di baris saat ini",
+            "Baris pertama dari hasil",
+            "Kolom kedua, karena nomor mulai dari 0",
+            "Jumlah baris"
+          ],
+          "answer": 0,
+          "explanation": "Nomor kolom JDBC mulai dari 1.",
+          "remedial": "Angka di `getInt` adalah nomor kolom sesuai urutan di SELECT, dimulai dari 1. Baris ditentukan oleh posisi kursor dari `rs.next()`."
+        },
+        {
+          "question": "Untuk menampilkan produk dengan stok di bawah 50, cara yang lebih baik adalah...",
+          "options": [
+            "Mengambil semua produk lalu menyaring dengan if di Java",
+            "Menulis WHERE stok < 50 di SQL",
+            "Memakai getInt(50)",
+            "Membuat tabel baru berisi produk stok rendah"
+          ],
+          "answer": 1,
+          "explanation": "Saring di database.",
+          "remedial": "Database bisa memakai index dan hanya mengirim baris yang cocok. Menyaring di Java berarti seluruh tabel dikirim lewat jaringan dulu."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method Statement yang dipakai untuk SELECT adalah...",
+      "options": [
+        "executeUpdate",
+        "executeSelect",
+        "executeQuery",
+        "query"
+      ],
+      "answer": 2,
+      "explanation": "Mengembalikan ResultSet."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca batas harga dari input, lalu menampilkan produk yang harganya paling banyak sebesar batas itu, diurutkan dari yang termurah, dengan format nama: harga per baris. Di akhir cetak jumlah produk yang ditemukan diikuti kata produk, atau \"Tidak ada produk\" kalau tidak ada yang cocok. Tabel produk sudah disiapkan oleh method siapkan. Kode awal hanya membaca satu baris pertama dan belum menyaring apa pun. Saring dan urutkan di SQL, bukan di Java.",
+      "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        int batas = Integer.parseInt(in.nextLine().trim());\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT nama, harga FROM produk\")) {\n                rs.next();\n                System.out.println(rs.getString(\"nama\") + \": \" + rs.getInt(\"harga\"));\n            }\n        }\n    }\n}",
+      "solution": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        int batas = Integer.parseInt(in.nextLine().trim());\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT nama, harga FROM produk WHERE harga <= \" + batas + \" ORDER BY harga\")) {\n                int jumlah = 0;\n                while (rs.next()) {\n                    System.out.println(rs.getString(\"nama\") + \": \" + rs.getInt(\"harga\"));\n                    jumlah++;\n                }\n                System.out.println(jumlah == 0 ? \"Tidak ada produk\" : jumlah + \" produk\");\n            }\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "5000\n",
+          "expectedOutput": "Penghapus: 2000\nPensil: 3000\n2 produk\n"
+        },
+        {
+          "input": "9500\n",
+          "expectedOutput": "Penghapus: 2000\nPensil: 3000\nBuku tulis: 8000\nSpidol: 9500\n4 produk\n"
+        },
+        {
+          "input": "1000\n",
+          "expectedOutput": "Tidak ada produk\n"
+        }
+      ],
+      "hints": [
+        "Tambahkan WHERE harga <= dan ORDER BY harga di query, dengan batas disambung ke teks SQL.",
+        "Pakai while (rs.next()) dan hitung jumlah baris dengan variabel."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "executeQuery menjalankan SELECT dan mengembalikan ResultSet.",
+        "while (rs.next()) membaca baris demi baris; kursor mulai sebelum baris pertama.",
+        "getInt, getString, getBoolean membaca kolom berdasarkan nama atau nomor (mulai 1).",
+        "Saring, hitung, dan urutkan di SQL, bukan di Java."
+      ]
+    }
+  ]
+}

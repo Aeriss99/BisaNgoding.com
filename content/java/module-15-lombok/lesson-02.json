@@ -1,0 +1,219 @@
+{
+  "id": "java-lombok-02",
+  "moduleId": "lombok",
+  "order": 2,
+  "title": "ToString dan EqualsAndHashCode",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di kelas OOP kamu sudah menulis `toString`, `equals`, dan `hashCode` dengan tangan. Ketiganya penting: `toString` untuk menampilkan object, `equals` dan `hashCode` supaya object bisa dibandingkan dan disimpan di `HashSet` atau `HashMap`. Tetapi menulisnya panjang dan mudah salah, misalnya lupa menambahkan field baru ke `equals`.\n\nIbarat kartu identitas: `toString` adalah tulisan yang tercetak di kartu, sedangkan `equals` dan `hashCode` adalah cara petugas memutuskan apakah dua kartu milik orang yang sama. Lombok mencetak dan memeriksa kartu itu dengan aturan yang selalu konsisten."
+    },
+    {
+      "type": "theory",
+      "content": "| Anotasi | Yang dibuat |\n|---|---|\n| `@ToString` | `toString()` berformat `NamaClass(field1=nilai, field2=nilai)` |\n| `@EqualsAndHashCode` | `equals()` dan `hashCode()` yang membandingkan field |\n\nMengatur field mana yang ikut:\n\n```java\n@ToString.Exclude              // field ini tidak ditampilkan di toString\nprivate String sandi;\n\n@EqualsAndHashCode(onlyExplicitlyIncluded = true)   // di class: hanya field yang ditandai\nclass Todo {\n    @EqualsAndHashCode.Include                      // dua Todo sama kalau id-nya sama\n    private final int id;\n}\n```\n\nTanpa pengaturan, **semua** field ikut di `toString` dan di `equals`/`hashCode`.\n\nIngat aturan dari materi Collection: kalau `equals` dibuat, `hashCode` juga wajib dibuat dengan field yang sama. Lombok selalu membuat keduanya berpasangan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@Getter\n@ToString\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n}\n\nSystem.out.println(new Todo(1, \"Belajar Lombok\"));\n```\n\n```text\nTodo(id=1, judul=Belajar Lombok, selesai=false)\n```\n\nUntuk entity yang punya id, pilihan yang umum adalah membandingkan **id saja**: dua object Todo dengan id 1 dianggap todo yang sama, walaupun judulnya sudah diubah.\n\n```java\n@EqualsAndHashCode(onlyExplicitlyIncluded = true)\nclass Todo {\n    @EqualsAndHashCode.Include\n    private final int id;\n    ...\n}\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Titik p = new Titik(3, 4);\n        Titik q = new Titik(3, 4);\n        System.out.println(p);\n        System.out.println(p == q);\n        System.out.println(p.equals(q));\n        System.out.println(p.hashCode() == q.hashCode());\n    }\n}\n\n@ToString\n@EqualsAndHashCode\nclass Titik {\n    private final int x;\n    private final int y;\n\n    Titik(int x, int y) {\n        this.x = x;\n        this.y = y;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak di baris pertama, saat object p dicetak?",
+        "options": [
+          "Titik@3c",
+          "Titik(3, 4)",
+          "Titik(x=3, y=4)",
+          "{x=3, y=4}"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 16,
+          "note": "Format NamaClass(field=nilai)."
+        },
+        {
+          "line": 17,
+          "note": "equals membandingkan x dan y."
+        },
+        {
+          "line": 10,
+          "note": "== membandingkan alamat object, bukan isinya."
+        },
+        {
+          "line": 11,
+          "note": "equals buatan Lombok: isinya sama, jadi true."
+        }
+      ],
+      "explanation": "Operator == memeriksa apakah dua variabel menunjuk object yang sama persis, dan p serta q adalah dua object berbeda. equals buatan Lombok membandingkan isi field x dan y, jadi hasilnya true. hashCode keduanya juga sama, sehingga Titik aman disimpan di HashSet.",
+      "tryThis": [
+        {
+          "task": "Hapus @EqualsAndHashCode lalu jalankan. Apa hasil p.equals(q) sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Buat Titik r = new Titik(4, 3); dan bandingkan dengan p.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Data rahasia ikut di `toString`**\n\n`@ToString` menampilkan semua field, termasuk `sandi`. Begitu object dicetak ke log, sandinya ikut tercatat. Tandai dengan `@ToString.Exclude`.\n\n**2. `equals` memakai field yang berubah-ubah**\n\nKalau `selesai` ikut di `equals`/`hashCode`, todo yang disimpan di `HashSet` lalu diselesaikan akan \"hilang\": `contains` mencarinya di tempat yang salah karena hashCode-nya berubah. Untuk entity, bandingkan id saja.\n\n**3. Hubungan dua arah membuat `toString` tak berujung**\n\nKalau `Proyek` menyimpan daftar `Todo`, dan setiap `Todo` menyimpan `Proyek`-nya, `toString` keduanya saling memanggil sampai `StackOverflowError`. Kecualikan salah satu sisi dengan `@ToString.Exclude`.\n\n**4. Lupa `callSuper` pada class turunan**\n\n`@EqualsAndHashCode` di class turunan tidak membandingkan field milik class induk, kecuali ditulis `@EqualsAndHashCode(callSuper = true)`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Untuk **entity JPA** (tabel database, kelas JPA nanti), panduan umum tim Spring adalah: `equals`/`hashCode` hanya berdasarkan id, dan relasi ke entity lain dikecualikan dari `toString`. `@Data` (materi 4) **tidak** disarankan untuk entity karena membandingkan semua field.\n- Untuk object nilai (alamat, uang, koordinat), membandingkan semua field justru benar, karena dua alamat dengan isi sama memang alamat yang sama.\n- Saat code review, reviewer sering memeriksa: apakah ada field rahasia yang lupa di-`Exclude`?\n\n```java\n@ToString\nclass Pengguna {\n    private String email;\n    @ToString.Exclude\n    private String hashSandi;\n    @ToString.Exclude\n    private List<Pesanan> pesanan;   // relasi, hindari rantai toString\n}\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Ringkas 2: Menampilkan dan Membandingkan Todo",
+      "pembuka": "`Todo` sekarang memakai `@ToString`. Kita atur apa yang tampil dan kapan dua todo dianggap sama.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `println(a)` memakai `toString` buatan Lombok.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\");\n        a.selesaikan();\n        System.out.println(a);\n    }\n}\n\n@Getter\n@ToString\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=true)",
+          "otomatis": true,
+          "benar": "Format `Todo(id=..., judul=..., selesai=...)` dibuat otomatis.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan field `private String catatanPribadi = \"jangan ditampilkan\";` yang **tidak** boleh muncul di `toString`.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\");\n        a.selesaikan();\n        System.out.println(a);\n    }\n}\n\n@Getter\n@ToString\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n    @ToString.Exclude\n    private String catatanPribadi = \"jangan ditampilkan\";\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=true)",
+          "wajib": [
+            {
+              "pola": "@ToString\\.Exclude\\s+private\\s+String\\s+catatanPribadi",
+              "pesan": "pasang `@ToString.Exclude` di atas `catatanPribadi`."
+            }
+          ],
+          "benar": "Keluarannya tidak berubah: field baru disembunyikan.",
+          "petunjuk": "Pasang `@ToString.Exclude` tepat di atas field baru itu."
+        },
+        {
+          "arahan": "Dua todo dengan id yang sama harus dianggap sama. Tambahkan `@EqualsAndHashCode(onlyExplicitlyIncluded = true)` di class dan `@EqualsAndHashCode.Include` di field `id`. Lalu buat `Todo b = new Todo(1, \"Belajar Lombok\");` dan cetak `a.equals(b)`.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\");\n        a.selesaikan();\n        System.out.println(a);\n        Todo b = new Todo(1, \"Belajar Lombok\");\n        System.out.println(a.equals(b));\n    }\n}\n\n@Getter\n@ToString\n@EqualsAndHashCode(onlyExplicitlyIncluded = true)\nclass Todo {\n    @EqualsAndHashCode.Include\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n    @ToString.Exclude\n    private String catatanPribadi = \"jangan ditampilkan\";\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=true)\ntrue",
+          "wajib": [
+            {
+              "pola": "@EqualsAndHashCode\\s*\\(\\s*onlyExplicitlyIncluded\\s*=\\s*true\\s*\\)",
+              "pesan": "pasang `@EqualsAndHashCode(onlyExplicitlyIncluded = true)` di class."
+            },
+            {
+              "pola": "@EqualsAndHashCode\\.Include\\s+private\\s+final\\s+int\\s+id",
+              "pesan": "tandai field id dengan `@EqualsAndHashCode.Include`."
+            }
+          ],
+          "benar": "`true`, walaupun `a` sudah selesai dan `b` belum: yang dibandingkan hanya id.",
+          "petunjuk": "Anotasi class ditulis di bawah `@ToString`, anotasi field tepat di atas `private final int id;`."
+        },
+        {
+          "arahan": "Tantangan: masukkan `a`, `b`, dan `new Todo(2, \"Beli kopi\")` ke `Set<Todo> unik = new HashSet<>(Arrays.asList(...));` lalu cetak ukurannya.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\");\n        a.selesaikan();\n        System.out.println(a);\n        Todo b = new Todo(1, \"Belajar Lombok\");\n        System.out.println(a.equals(b));\n        Set<Todo> unik = new HashSet<>(Arrays.asList(a, b, new Todo(2, \"Beli kopi\")));\n        System.out.println(unik.size());\n    }\n}\n\n@Getter\n@ToString\n@EqualsAndHashCode(onlyExplicitlyIncluded = true)\nclass Todo {\n    @EqualsAndHashCode.Include\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n    @ToString.Exclude\n    private String catatanPribadi = \"jangan ditampilkan\";\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=true)\ntrue\n2",
+          "wajib": [
+            {
+              "pola": "new\\s+HashSet<>\\s*\\(\\s*Arrays\\.asList\\s*\\(\\s*a\\s*,\\s*b\\s*,\\s*new\\s+Todo\\s*\\(\\s*2\\s*,\\s*\"Beli kopi\"\\s*\\)\\s*\\)\\s*\\)",
+              "pesan": "buat `new HashSet<>(Arrays.asList(a, b, new Todo(2, \"Beli kopi\")))`."
+            },
+            {
+              "pola": "unik\\.size\\(\\)",
+              "pesan": "cetak `unik.size()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Ukurannya 2. `equals` dan `hashCode` buatan Lombok bekerja dengan HashSet.",
+          "petunjuk": "Karena `a` dan `b` dianggap sama, HashSet hanya menyimpan salah satunya."
+        }
+      ],
+      "penutup": "Todo sekarang bisa ditampilkan dan dibandingkan tanpa menulis satu method pun."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa field sandi sebaiknya diberi @ToString.Exclude?",
+          "options": [
+            "Supaya sandi tidak bisa diubah",
+            "Supaya sandi dienkripsi",
+            "Karena toString tidak bisa menampilkan String",
+            "Supaya sandi tidak ikut tercetak saat object ditampilkan atau dicatat di log"
+          ],
+          "answer": 3,
+          "explanation": "toString sering masuk log.",
+          "remedial": "`@ToString` menampilkan semua field. Object sering dicetak ke log saat debugging, jadi field rahasia harus dikecualikan supaya tidak bocor."
+        },
+        {
+          "question": "Dua object Todo dengan id 1 tapi judul berbeda. Class memakai @EqualsAndHashCode(onlyExplicitlyIncluded = true) dan @EqualsAndHashCode.Include hanya di id. Hasil equals-nya...",
+          "options": [
+            "true",
+            "false",
+            "Error",
+            "Tergantung urutan pembuatan"
+          ],
+          "answer": 0,
+          "explanation": "Hanya id yang dibandingkan.",
+          "remedial": "Dengan `onlyExplicitlyIncluded = true`, hanya field bertanda `@EqualsAndHashCode.Include` yang dibandingkan. Id keduanya sama, jadi dianggap todo yang sama."
+        },
+        {
+          "question": "Apa format keluaran toString buatan @ToString untuk new Todo(1, \"Belajar\") dengan selesai false?",
+          "options": [
+            "Todo@1b6d3586",
+            "Todo(id=1, judul=Belajar, selesai=false)",
+            "{id: 1, judul: Belajar, selesai: false}",
+            "Todo[1, Belajar, false]"
+          ],
+          "answer": 1,
+          "explanation": "NamaClass(field=nilai, ...).",
+          "remedial": "Lombok menulis nama class, lalu setiap field dengan format `nama=nilai` dipisah koma, di dalam kurung biasa."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa field yang nilainya sering berubah sebaiknya tidak dipakai di equals/hashCode?",
+      "options": [
+        "Field yang berubah tidak bisa dibandingkan",
+        "Lombok menolak field yang tidak final",
+        "Object di HashSet bisa tidak ditemukan lagi setelah nilainya berubah",
+        "equals jadi lebih lambat"
+      ],
+      "answer": 2,
+      "explanation": "hashCode berubah, posisi di HashSet salah."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca akun dari input dengan format email;nama;sandi per baris, menyimpannya di LinkedHashSet, lalu mencetak setiap akun dan jumlahnya. Dua akun dengan email yang sama harus dianggap akun yang sama walaupun nama atau sandinya berbeda, dan sandi tidak boleh pernah tercetak. Tambahkan anotasi Lombok di class Akun supaya toString berformat Akun(email=..., nama=...) dan kesamaan akun hanya ditentukan oleh email.",
+      "starterCode": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        Set<Akun> semua = new LinkedHashSet<>();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            semua.add(new Akun(d[0], d[1], d[2]));\n        }\n        for (Akun a : semua) {\n            System.out.println(a);\n        }\n        System.out.println(\"Jumlah akun: \" + semua.size());\n    }\n}\n\nclass Akun {\n    private final String email;\n    private final String nama;\n    private final String sandi;\n\n    Akun(String email, String nama, String sandi) {\n        this.email = email;\n        this.nama = nama;\n        this.sandi = sandi;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        Set<Akun> semua = new LinkedHashSet<>();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            semua.add(new Akun(d[0], d[1], d[2]));\n        }\n        for (Akun a : semua) {\n            System.out.println(a);\n        }\n        System.out.println(\"Jumlah akun: \" + semua.size());\n    }\n}\n\n@ToString\n@EqualsAndHashCode(onlyExplicitlyIncluded = true)\nclass Akun {\n    @EqualsAndHashCode.Include\n    private final String email;\n    private final String nama;\n    @ToString.Exclude\n    private final String sandi;\n\n    Akun(String email, String nama, String sandi) {\n        this.email = email;\n        this.nama = nama;\n        this.sandi = sandi;\n    }\n}",
+      "tests": [
+        {
+          "input": "sari@contoh.id;Sari;rahasia1\nbudi@contoh.id;Budi;budi123\nsari@contoh.id;Sari W;rahasia2\n",
+          "expectedOutput": "Akun(email=sari@contoh.id, nama=Sari)\nAkun(email=budi@contoh.id, nama=Budi)\nJumlah akun: 2\n"
+        },
+        {
+          "input": "ani@contoh.id;Ani;ani\n",
+          "expectedOutput": "Akun(email=ani@contoh.id, nama=Ani)\nJumlah akun: 1\n"
+        }
+      ],
+      "hints": [
+        "Pakai @ToString di class dan @ToString.Exclude di field sandi.",
+        "Pakai @EqualsAndHashCode(onlyExplicitlyIncluded = true) di class dan @EqualsAndHashCode.Include di field email."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@ToString membuat toString berformat NamaClass(field=nilai).",
+        "@EqualsAndHashCode membuat equals dan hashCode berpasangan.",
+        "@ToString.Exclude menyembunyikan field; onlyExplicitlyIncluded dengan @EqualsAndHashCode.Include memilih field pembanding.",
+        "Untuk entity, bandingkan id saja dan kecualikan data rahasia dari toString."
+      ]
+    }
+  ]
+}
