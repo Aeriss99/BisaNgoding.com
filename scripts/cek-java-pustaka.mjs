@@ -57,11 +57,13 @@ for (const t of daftar) {
     }
   }
   waktu.push([Date.now() - mulai, t.asal]);
+  const sebelum = temuan.length;
   if (r.timedOut) temuan.push(`${t.asal}: TIMEOUT`);
   else if (r.exitCode !== 0) temuan.push(`${t.asal}: exit ${r.exitCode} ${(r.stderr || '').slice(0, 400)}`);
   else if (t.harap !== undefined && rapi(r.stdout) !== rapi(t.harap)) temuan.push(`${t.asal}: BEDA\n   harap=${JSON.stringify(rapi(t.harap)).slice(0, 600)}\n   dapat=${JSON.stringify(rapi(r.stdout)).slice(0, 600)}`);
   else if (t.baris !== undefined && !rapi(r.stdout).split('\n').map((b) => b.trim()).includes(t.baris.trim())) temuan.push(`${t.asal}: BARIS TIDAK ADA ${JSON.stringify(t.baris)}\n   dapat=${JSON.stringify(rapi(r.stdout)).slice(0, 600)}`);
-  if (i % 10 === 0) console.log(`  ${i}/${daftar.length}, temuan ${temuan.length}`);
+  console.log(`  ${i}/${daftar.length} ${t.asal} ${Date.now() - mulai}ms${temuan.length > sebelum ? ' TEMUAN ' + temuan[temuan.length - 1].slice(0, 300) : ''}`);
+  if (r.timedOut || r.exitCode === -9 || r.exitCode === -8) await halamanBaru();
 }
 waktu.sort((a, b) => b[0] - a[0]);
 console.log('PALING LAMA: ' + waktu.slice(0, 8).map(([m, a]) => `${a} ${m}ms`).join(' | '));
