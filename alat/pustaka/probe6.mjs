@@ -9,12 +9,12 @@ async function jalan(html, berkas) {
   await page.goto('http://localhost:8080/' + html);
   await page.evaluate(() => window.siap);
   for (const b of berkas) {
-    const code = fs.readFileSync('p6/' + b, 'utf8');
+    const code = fs.readFileSync(b, 'utf8');
     const cp = cpDari(code.split('\n')[0].replace('//cp:', '').trim());
-    for (let k = 1; k <= 2; k++) {
+    for (let k = 1; k <= 1; k++) {
       const t = Date.now();
       let r;
-      try { r = await Promise.race([page.evaluate(({ code, cp }) => window.jalankan(code, cp), { code, cp }), new Promise((_, j) => setTimeout(() => j(new Error('timeout 240s')), 240000))]); }
+      try { r = await Promise.race([page.evaluate(({ code, cp }) => window.jalankan(code, cp), { code, cp }), new Promise((_, j) => setTimeout(() => j(new Error('timeout 60s')), 60000))]); }
       catch (e) { r = { err: String(e) }; }
       console.log(`===== ${html} ${b} jalan ${k} (${Date.now() - t} ms) cp=${cp.split(':').length}\n${JSON.stringify({ exit: r.exit, tahap: r.tahap, msCompile: r.msCompile, msRun: r.msRun })}\nOUT:\n${r.out ?? ''}\nERR:\n${(r.err ?? '').slice(0, 3000)}`);
       if (r.err && String(r.err).startsWith('Error: timeout')) break;
@@ -22,5 +22,7 @@ async function jalan(html, berkas) {
   }
   await page.close();
 }
-await jalan('index21.html', ['j21_a.java', 'a_i18n.java', 'c_thread.java', 'b_refleksi.java', 'e_hibernate.java']);
+const t = fs.readdirSync('p7').sort().map((f) => 'p7/' + f);
+for (const f of t) { await jalan('index.html', [f]); }
+for (const f of [...t, 'p6/a_i18n.java']) { await jalan('index21.html', [f]); }
 await browser.close();
