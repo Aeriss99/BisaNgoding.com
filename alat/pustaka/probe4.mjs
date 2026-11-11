@@ -3,7 +3,28 @@ const JEJAK = `
   static StringBuilder j = new StringBuilder();
   static synchronized void jejak(String s) { j.append(s).append(" ").append(System.currentTimeMillis() - T0).append("ms\\n"); try { java.io.FileOutputStream f = new java.io.FileOutputStream("/files/jejak.txt"); f.write(j.toString().getBytes()); f.close(); } catch (Exception e) {} }
   static long T0 = System.currentTimeMillis();`;
+import fs from 'fs';
+const lib = fs.readdirSync('www/lib').filter((f) => f.endsWith('.jar'));
+const cpDari = (...awal) => lib.filter((f) => awal.some((a) => f.startsWith(a))).map((f) => '/app/lib/' + f).join(':');
 const P = {
+  hv: { cp: cpDari('hibernate-validator', 'jakarta.', 'jboss-logging', 'classmate'), code: `
+import jakarta.validation.*;
+import jakarta.validation.constraints.*;
+import java.util.*;
+class Alamat { @NotBlank String kota = ""; }
+class Daftar { @NotBlank String nama = " "; @Email String email = "salah"; @Min(17) int umur = 15; @Size(min = 8, message = "sandi minimal {min} huruf") String sandi = "123"; @Valid Alamat alamat = new Alamat(); List<@NotBlank String> tag = Arrays.asList("a", " "); }
+public class Main {${JEJAK}
+  public static void main(String[] a) {
+    jejak("mulai");
+    Validator v = Validation.buildDefaultValidatorFactory().getValidator();
+    jejak("validator");
+    List<String> l = new ArrayList<>();
+    for (ConstraintViolation<Daftar> x : v.validate(new Daftar())) l.add(x.getPropertyPath() + ": " + x.getMessage() + " (" + x.getInvalidValue() + ")");
+    jejak("validate");
+    Collections.sort(l); l.forEach(System.out::println);
+    System.out.println(v.validateProperty(new Daftar(), "umur").size());
+  }
+}` },
   annotated: { cp: '', code: `
 import java.lang.reflect.*;
 import java.lang.annotation.*;
