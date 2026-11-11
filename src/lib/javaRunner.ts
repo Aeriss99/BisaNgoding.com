@@ -12,7 +12,7 @@ const CHEERPJ_CDN = 'https://cjrtnc.leaningtech.com/3.0/cj3loader.js';
 // Mode percobaan Java 21: CheerpJ 5 membawa JDK lengkap (termasuk javac), jadi tidak memakai tools.jar.
 const CHEERPJ5_CDN = 'https://cjrtnc.leaningtech.com/5.0/loader.js';
 const TIMEOUT_MS = 20_000;
-// Kode yang memakai library (JUnit, Mockito, Jackson, dan lainnya): pemuatan pertama library bisa makan waktu.
+// Kode yang memakai library (JUnit, Mockito, Jackson, dan lainnya) atau Java 21: pemuatan pertama bisa makan waktu.
 const TIMEOUT_PUSTAKA_MS = 90_000;
 const KUNCI_MODE = 'bn_java_versi';
 
@@ -32,8 +32,13 @@ export function versiJava(): VersiJava {
   }
 }
 
-let hiddenIframe: HTMLIFrameElement | null = null;
-let iframeReadyPromise: Promise<void> | null = null;
+/** Versi yang dipakai untuk satu materi: materi bertanda javaVersion 21 selalu memakai Java 21, sisanya mengikuti mode situs. */
+export function versiUntukMateri(javaVersion?: number): VersiJava {
+  return javaVersion === 21 ? 21 : versiJava();
+}
+
+// Satu iframe CheerpJ per versi Java (Java 8 dan Java 21 bisa dipakai bergantian di satu sesi).
+const iframes = new Map<VersiJava, { iframe: HTMLIFrameElement; siap: Promise<void> }>();
 let runCounter = 0;
 
 interface PendingCallback {
@@ -169,16 +174,16 @@ function getToolsPath(): string {
   return ('/app/' + base + 'tools.jar').replace(/\/{2,}/g, '/');
 }
 
-function getOrCreateIframe(): Promise<void> {
-  if (hiddenIframe && hiddenIframe.parentNode && iframeReadyPromise) {
-    return iframeReadyPromise;
+function getOrCreateIframe(versi: VersiJava): Promise<HTMLIFrameElement> {
+  const ada = iframes.get(versi);
+  if (ada && ada.iframe.parentNode) {
+    return ada.siap.then(() => ada.iframe);
   }
   const iframe = document.createElement('iframe');
   iframe.style.display = 'none';
   document.body.appendChild(iframe);
-  hiddenIframe = iframe;
 
-  iframeReadyPromise = new Promise<void>((resolve, reject) => {
+  const siap = new Promise<void>((resolve, reject) => {
     const onMsg = (e: MessageEvent) => {
       if (e.source !== iframe.contentWindow) return;
       if (e.data?.type === 'cheerpj-ready') {
@@ -186,24 +191,25 @@ function getOrCreateIframe(): Promise<void> {
         resolve();
       } else if (e.data?.type === 'cheerpj-error') {
         window.removeEventListener('message', onMsg);
+        iframes.delete(versi);
         reject(new Error(e.data.message || 'CheerpJ gagal diinisialisasi'));
       }
     };
     window.addEventListener('message', onMsg);
-    
-    const versi = versiJava();
-    if (versi === 21) console.info('[BisaNgoding] Mode percobaan Java 21 (CheerpJ 5). Kembali ke Java 8: tambahkan ?java=8');
+
+    if (versi === 21) console.info('[BisaNgoding] Java 21 (CheerpJ 5).');
     iframe.srcdoc = buildIframeSrcdoc(versi);
   });
-  return iframeReadyPromise;
+  iframes.set(versi, { iframe, siap });
+  return siap.then(() => iframe);
 }
 
-function sendToIframe(message: Record<string, unknown>, onStatus?: (s: string) => void): Promise<RunResult> {
+function sendToIframe(iframe: HTMLIFrameElement, message: Record<string, unknown>, onStatus?: (s: string) => void): Promise<RunResult> {
   return new Promise<RunResult>((resolve, reject) => {
     const id = message.id as string;
     pendingCallbacks.set(id, { resolve, reject, onStatus });
 
-    const capturedIframe = hiddenIframe;
+    const capturedIframe = iframe;
     const onMsg = (e: MessageEvent) => {
       if (e.source !== capturedIframe?.contentWindow) return;
       const data = e.data;
@@ -219,8 +225,8 @@ function sendToIframe(message: Record<string, unknown>, onStatus?: (s: string) =
     };
     window.addEventListener('message', onMsg);
 
-    if (hiddenIframe?.contentWindow) {
-      hiddenIframe.contentWindow.postMessage(message, '*');
+    if (iframe.contentWindow) {
+      iframe.contentWindow.postMessage(message, '*');
     } else {
       pendingCallbacks.delete(id);
       reject(new Error('Iframe tidak tersedia'));
@@ -228,17 +234,22 @@ function sendToIframe(message: Record<string, unknown>, onStatus?: (s: string) =
   });
 }
 
-export async function initCheerpJ(_onProgress?: (msg: string) => void): Promise<void> {
-  await getOrCreateIframe();
+export async function initCheerpJ(_onProgress?: (msg: string) => void, javaVersion?: number): Promise<void> {
+  await getOrCreateIframe(versiUntukMateri(javaVersion));
 }
 
 export function resetJavaRunner(): void {
   // no-op: we no longer kill iframe on stop
 }
 
-export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: string) => void): Promise<RunResult> {
+/**
+ * Jalankan kode Java. javaVersion diisi dari materi (lesson.javaVersion): 21 berarti Java 21 (CheerpJ 5),
+ * selain itu Java 8 (CheerpJ 3) kecuali mode percobaan ?java=21 sedang menyala.
+ */
+export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: string) => void, javaVersion?: number): Promise<RunResult> {
   code = rapikanKetikan(code);
-  await getOrCreateIframe();
+  const versi = versiUntukMateri(javaVersion);
+  const iframe = await getOrCreateIframe(versi);
 
   runCounter++;
   const runId = runCounter;
@@ -246,7 +257,7 @@ export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: 
   const runnerSource = buildRunnerSource();
   const cp = classpathPustaka(code, import.meta.env.BASE_URL || '/');
 
-  const runPromise = sendToIframe({
+  const runPromise = sendToIframe(iframe, {
     type: 'run',
     id: msgId,
     runId,
@@ -261,7 +272,7 @@ export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: 
     setTimeout(() => {
       pendingCallbacks.delete(msgId);
       resolve({ stdout: '', stderr: '', exitCode: -1, timedOut: true });
-    }, cp ? TIMEOUT_PUSTAKA_MS : TIMEOUT_MS);
+    }, cp || versi === 21 ? TIMEOUT_PUSTAKA_MS : TIMEOUT_MS);
   });
 
   return Promise.race([runPromise, timeoutPromise]);

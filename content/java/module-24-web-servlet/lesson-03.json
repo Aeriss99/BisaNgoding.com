@@ -1,0 +1,203 @@
+{
+  "id": "java-web-servlet-03",
+  "moduleId": "web-servlet",
+  "order": 3,
+  "title": "Menyusun Response",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Response bukan hanya isi. **Status code** memberi tahu klien apakah permintaannya berhasil, **header** memberi tahu jenis isi dan perintah tambahan (misalnya \"pindah ke alamat lain\" atau \"unduh sebagai file\"), baru setelah itu **isi**.\n\nBrowser, aplikasi HP, dan program lain bergantung pada status dan header yang benar. Response dengan status 200 tetapi isinya pesan error membingungkan semua pihak.\n\nIbarat paket kiriman: label di luar (status dan header) dibaca kurir sebelum paket dibuka. Label \"pecah belah\" atau \"kembalikan ke pengirim\" menentukan perlakuan, apa pun isinya."
+    },
+    {
+      "type": "theory",
+      "content": "| Method | Gunanya |\n|---|---|\n| `setStatus(201)` | atur status (bawaan 200) |\n| `sendError(404, \"pesan\")` | kirim status error beserta halaman atau pesan error |\n| `sendRedirect(\"/todo\")` | status 302 + header `Location`, browser pindah ke alamat itu |\n| `setContentType(\"text/plain;charset=UTF-8\")` | jenis isi dan encoding |\n| `setHeader(nama, nilai)` / `addHeader` | header lain |\n| `getWriter()` | menulis isi teks |\n| `getOutputStream()` | menulis isi biner (gambar, PDF); tidak boleh dicampur dengan `getWriter()` |\n\nStatus code yang paling sering dipakai:\n\n| Status | Arti |\n|---|---|\n| 200 OK | berhasil |\n| 201 Created | data baru dibuat |\n| 204 No Content | berhasil, tanpa isi |\n| 302 Found | pindah ke alamat lain (redirect) |\n| 400 Bad Request | request salah |\n| 401 / 403 | belum login / tidak punya izin |\n| 404 Not Found | data atau alamat tidak ada |\n| 500 Internal Server Error | server gagal |\n\n**Encoding:** kalau hanya `setContentType(\"text/plain\")`, spesifikasi Servlet memakai **ISO-8859-1**, yang tidak bisa menampung emoji dan banyak huruf non-Latin. Selalu sebutkan `charset=UTF-8`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n**Post/Redirect/Get (PRG)**: setelah form disimpan dengan POST, jangan langsung menampilkan halaman. Kirim redirect ke halaman daftar, supaya menekan tombol refresh di browser tidak mengirim form dua kali.\n\n```java\nprotected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n    DaftarTodo.data.add(req.getParameter(\"judul\"));\n    res.sendRedirect(\"/todo\");          // 302, Location: /todo\n}\n```\n\n```text\nHTTP 302 Found\nLocation: /todo\n```\n\nBrowser lalu mengirim `GET /todo` sendiri.\n\nMengunduh file: header `Content-Disposition: attachment; filename=\"todo.csv\"` membuat browser menyimpan isi sebagai file, bukan menampilkannya.\n\nDi editor, `DaftarTodo.data` (List static) menyimpan data di memori. Di aplikasi sungguhan data ada di database."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new SapaServlet());\n        server.cetak(\"GET\", \"/sapa\");\n    }\n}\n\n@WebServlet(\"/sapa\")\nclass SapaServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain\");\n        res.getWriter().print(\"Selamat pagi\");\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: hanya text/plain yang diatur. Apa header Content-Type yang dikirim?",
+        "options": [
+          "Content-Type: text/plain;charset=UTF-8",
+          "Content-Type: text/plain",
+          "Content-Type: text/html",
+          "Content-Type: text/plain;charset=ISO-8859-1"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 21,
+          "note": "Tanpa charset."
+        },
+        {
+          "line": 22,
+          "note": "getWriter memakai encoding bawaan."
+        }
+      ],
+      "explanation": "Saat getWriter dipanggil tanpa charset, spesifikasi Servlet memakai ISO-8859-1 dan menuliskannya di header. Teks Selamat pagi aman, tetapi emoji, huruf Arab, atau huruf Jepang akan rusak menjadi tanda tanya.",
+      "tryThis": [
+        {
+          "task": "Ubah menjadi text/plain;charset=UTF-8.",
+          "hint": null
+        },
+        {
+          "task": "Panggil res.setCharacterEncoding(\"UTF-8\") sebelum getWriter.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Status 200 untuk kesalahan**\n\nMenjawab `200 OK` dengan isi \"Data tidak ditemukan\" membuat aplikasi klien mengira berhasil. Pakai status yang sesuai.\n\n**2. Menulis isi lalu redirect**\n\n`sendRedirect` setelah isi mulai dikirim melempar `IllegalStateException` di server sungguhan. Putuskan redirect sebelum menulis apa pun, lalu `return`.\n\n**3. Lupa `return` setelah `sendError` atau `sendRedirect`**\n\nKode di bawahnya tetap berjalan dan bisa menulis isi tambahan atau menyimpan data.\n\n**4. Mencampur `getWriter()` dan `getOutputStream()`**\n\nMemanggil keduanya di satu response melempar `IllegalStateException`.\n\n**5. Redirect ke alamat dari input pengguna**\n\n`sendRedirect(req.getParameter(\"kembali\"))` bisa dipakai penipu untuk mengarahkan korban ke situs palsu (*open redirect*). Batasi ke alamat di aplikasi sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Spring Boot mengatur encoding response ke UTF-8 secara bawaan (`server.servlet.encoding`), dan `ResponseEntity.status(201).body(...)` menggantikan `setStatus` + `getWriter`.\n- REST API memakai status code dengan teliti: 201 + header `Location: /todo/7` untuk data baru, 204 untuk hapus, 409 untuk konflik, 422 untuk validasi bisnis.\n- Header keamanan yang biasa ditambahkan ke setiap response (sering lewat filter): `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security`.\n- Header `Cache-Control` menentukan berapa lama browser dan CDN boleh menyimpan response, penting untuk performa."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Web 3: Status yang Jujur",
+      "pembuka": "`TodoServlet` menyimpan dan menampilkan todo dengan status yang tepat.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. POST yang benar dijawab 201, POST tanpa judul dijawab 400.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new TodoServlet());\n        server.cetak(\"POST\", \"/todo\", \"judul=Belajar+Servlet\");\n        server.cetak(\"POST\", \"/todo\", \"judul=\");\n        server.cetak(\"GET\", \"/todo\");\n    }\n}\n\nclass DaftarTodo {\n    static final List<String> data = new ArrayList<>();\n}\n\n@WebServlet(\"/todo\")\nclass TodoServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        PrintWriter out = res.getWriter();\n        for (int i = 0; i < DaftarTodo.data.size(); i++) {\n            out.println((i + 1) + \". \" + DaftarTodo.data.get(i));\n        }\n    }\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String judul = req.getParameter(\"judul\");\n        if (judul == null || judul.trim().isEmpty()) {\n            res.sendError(400, \"judul wajib diisi\");\n            return;\n        }\n        DaftarTodo.data.add(judul.trim());\n        res.setStatus(201);\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Tersimpan: \" + judul.trim());\n    }\n}\n",
+          "keluaran": "POST /todo  [judul=Belajar+Servlet]\nHTTP 201 Created\nContent-Type: text/plain;charset=UTF-8\n\nTersimpan: Belajar Servlet\nPOST /todo  [judul=]\nHTTP 400 Bad Request\nContent-Type: text/plain;charset=UTF-8\n\njudul wajib diisi\nGET /todo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\n1. Belajar Servlet",
+          "otomatis": true,
+          "benar": "Status memberi tahu hasilnya tanpa membaca isi.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Terapkan Post/Redirect/Get: setelah menyimpan, ganti jawaban 201 dengan `res.sendRedirect(\"/todo\")`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new TodoServlet());\n        server.cetak(\"POST\", \"/todo\", \"judul=Belajar+Servlet\");\n        server.cetak(\"POST\", \"/todo\", \"judul=\");\n        server.cetak(\"GET\", \"/todo\");\n    }\n}\n\nclass DaftarTodo {\n    static final List<String> data = new ArrayList<>();\n}\n\n@WebServlet(\"/todo\")\nclass TodoServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        PrintWriter out = res.getWriter();\n        for (int i = 0; i < DaftarTodo.data.size(); i++) {\n            out.println((i + 1) + \". \" + DaftarTodo.data.get(i));\n        }\n    }\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String judul = req.getParameter(\"judul\");\n        if (judul == null || judul.trim().isEmpty()) {\n            res.sendError(400, \"judul wajib diisi\");\n            return;\n        }\n        DaftarTodo.data.add(judul.trim());\n        res.sendRedirect(\"/todo\");\n    }\n}\n",
+          "keluaran": "POST /todo  [judul=Belajar+Servlet]\nHTTP 302 Found\nLocation: /todo\nPOST /todo  [judul=]\nHTTP 400 Bad Request\nContent-Type: text/plain;charset=UTF-8\n\njudul wajib diisi\nGET /todo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\n1. Belajar Servlet",
+          "wajib": [
+            {
+              "pola": "res\\.sendRedirect\\s*\\(\\s*\"/todo\"\\s*\\)",
+              "pesan": "pakai `res.sendRedirect(\"/todo\")`."
+            }
+          ],
+          "benar": "POST sekarang dijawab 302 dengan header `Location`.",
+          "petunjuk": "Hapus `setStatus`, `setContentType`, dan `print` di `doPost` bagian sukses, ganti dengan `sendRedirect`."
+        },
+        {
+          "arahan": "Tambahkan todo kedua `Rapat tim`, lalu tampilkan daftar lagi.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new TodoServlet());\n        server.cetak(\"POST\", \"/todo\", \"judul=Belajar+Servlet\");\n        server.cetak(\"POST\", \"/todo\", \"judul=\");\n        server.cetak(\"GET\", \"/todo\");\n        server.cetak(\"POST\", \"/todo\", \"judul=Rapat+tim\");\n        server.cetak(\"GET\", \"/todo\");\n    }\n}\n\nclass DaftarTodo {\n    static final List<String> data = new ArrayList<>();\n}\n\n@WebServlet(\"/todo\")\nclass TodoServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        PrintWriter out = res.getWriter();\n        for (int i = 0; i < DaftarTodo.data.size(); i++) {\n            out.println((i + 1) + \". \" + DaftarTodo.data.get(i));\n        }\n    }\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String judul = req.getParameter(\"judul\");\n        if (judul == null || judul.trim().isEmpty()) {\n            res.sendError(400, \"judul wajib diisi\");\n            return;\n        }\n        DaftarTodo.data.add(judul.trim());\n        res.sendRedirect(\"/todo\");\n    }\n}\n",
+          "keluaran": "POST /todo  [judul=Belajar+Servlet]\nHTTP 302 Found\nLocation: /todo\nPOST /todo  [judul=]\nHTTP 400 Bad Request\nContent-Type: text/plain;charset=UTF-8\n\njudul wajib diisi\nGET /todo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\n1. Belajar Servlet\nPOST /todo  [judul=Rapat+tim]\nHTTP 302 Found\nLocation: /todo\nGET /todo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\n1. Belajar Servlet\n2. Rapat tim",
+          "wajib": [
+            {
+              "pola": "judul=Rapat\\+tim",
+              "pesan": "kirim `judul=Rapat+tim`."
+            }
+          ],
+          "benar": "Daftar berisi dua todo.",
+          "petunjuk": "Dua baris `server.cetak` lagi."
+        },
+        {
+          "arahan": "Tantangan: buat `EksporServlet` di `/todo.csv` yang mengirim daftar sebagai CSV (`text/csv;charset=UTF-8`, header `no,judul`) dengan header `Content-Disposition: attachment; filename=\"todo.csv\"`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new TodoServlet());\n        server.tambah(new EksporServlet());\n        server.cetak(\"POST\", \"/todo\", \"judul=Belajar+Servlet\");\n        server.cetak(\"POST\", \"/todo\", \"judul=\");\n        server.cetak(\"GET\", \"/todo\");\n        server.cetak(\"POST\", \"/todo\", \"judul=Rapat+tim\");\n        server.cetak(\"GET\", \"/todo\");\n        server.cetak(\"GET\", \"/todo.csv\");\n    }\n}\n\nclass DaftarTodo {\n    static final List<String> data = new ArrayList<>();\n}\n\n@WebServlet(\"/todo\")\nclass TodoServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        PrintWriter out = res.getWriter();\n        for (int i = 0; i < DaftarTodo.data.size(); i++) {\n            out.println((i + 1) + \". \" + DaftarTodo.data.get(i));\n        }\n    }\n\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String judul = req.getParameter(\"judul\");\n        if (judul == null || judul.trim().isEmpty()) {\n            res.sendError(400, \"judul wajib diisi\");\n            return;\n        }\n        DaftarTodo.data.add(judul.trim());\n        res.sendRedirect(\"/todo\");\n    }\n}\n\n@WebServlet(\"/todo.csv\")\nclass EksporServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/csv;charset=UTF-8\");\n        res.setHeader(\"Content-Disposition\", \"attachment; filename=\\\"todo.csv\\\"\");\n        PrintWriter out = res.getWriter();\n        out.println(\"no,judul\");\n        for (int i = 0; i < DaftarTodo.data.size(); i++) {\n            out.println((i + 1) + \",\" + DaftarTodo.data.get(i));\n        }\n    }\n}\n",
+          "keluaran": "POST /todo  [judul=Belajar+Servlet]\nHTTP 302 Found\nLocation: /todo\nPOST /todo  [judul=]\nHTTP 400 Bad Request\nContent-Type: text/plain;charset=UTF-8\n\njudul wajib diisi\nGET /todo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\n1. Belajar Servlet\nPOST /todo  [judul=Rapat+tim]\nHTTP 302 Found\nLocation: /todo\nGET /todo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\n1. Belajar Servlet\n2. Rapat tim\nGET /todo.csv\nHTTP 200 OK\nContent-Disposition: attachment; filename=\"todo.csv\"\nContent-Type: text/csv;charset=UTF-8\n\nno,judul\n1,Belajar Servlet\n2,Rapat tim",
+          "wajib": [
+            {
+              "pola": "setHeader\\s*\\(\\s*\"Content-Disposition\"",
+              "pesan": "atur header `Content-Disposition`."
+            },
+            {
+              "pola": "text/csv;charset=UTF-8",
+              "pesan": "pakai content type `text/csv;charset=UTF-8`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Browser akan mengunduhnya sebagai file `todo.csv`.",
+          "petunjuk": "`res.setHeader(\"Content-Disposition\", \"attachment; filename=\\\"todo.csv\\\"\");`"
+        }
+      ],
+      "penutup": "Response sudah jujur dan rapi. Berikutnya: mengingat pengguna dengan session dan cookie."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Status yang tepat setelah berhasil membuat data baru adalah...",
+          "options": [
+            "201 Created",
+            "200 OK",
+            "302 Found",
+            "204 No Content"
+          ],
+          "answer": 0,
+          "explanation": "Dibuat.",
+          "remedial": "201 memberi tahu klien bahwa data baru sudah dibuat. Di REST API biasanya disertai header `Location` berisi alamat data itu."
+        },
+        {
+          "question": "Pola Post/Redirect/Get dipakai supaya...",
+          "options": [
+            "Form lebih cepat dikirim",
+            "Refresh browser setelah submit form tidak mengirim form dua kali",
+            "Data tidak perlu disimpan",
+            "Status selalu 200"
+          ],
+          "answer": 1,
+          "explanation": "Refresh yang aman.",
+          "remedial": "Setelah POST, server menjawab redirect ke halaman GET. Yang diulang browser saat refresh adalah GET itu, bukan POST."
+        },
+        {
+          "question": "setContentType(\"text/plain\") tanpa charset membuat isi dikirim dengan encoding...",
+          "options": [
+            "UTF-8",
+            "UTF-16",
+            "ISO-8859-1",
+            "ASCII"
+          ],
+          "answer": 2,
+          "explanation": "Bawaan spesifikasi.",
+          "remedial": "Spesifikasi Servlet memakai ISO-8859-1 kalau charset tidak disebut. Karakter di luar Latin-1 akan rusak."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method untuk mengarahkan browser ke alamat lain dengan status 302 adalah...",
+      "options": [
+        "sendError",
+        "setHeader(\"Pindah\")",
+        "forward",
+        "sendRedirect"
+      ],
+      "answer": 3,
+      "explanation": "Redirect."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program mengirim GET dari input ke ProdukServlet dengan pola /produk/*, yang menjawab harga produk. Untuk produk yang tidak ada (termasuk alamat /produk tanpa nama), servlet saat ini menjawab 200 dengan harga null atau gagal. Ubah supaya produk yang tidak ada dijawab sendError(404, \"produk nama tidak ada\"), dengan nama diganti nama yang diminta (kosong untuk /produk).",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new ProdukServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            server.cetak(\"GET\", in.nextLine());\n        }\n    }\n}\n\n@WebServlet(\"/produk/*\")\nclass ProdukServlet extends HttpServlet {\n    private final Map<String, Integer> harga = new TreeMap<>();\n\n    @Override\n    public void init() {\n        harga.put(\"kopi\", 18000);\n        harga.put(\"teh\", 8000);\n    }\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String nama = req.getPathInfo().substring(1);\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(nama + \": \" + harga.get(nama));\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new ProdukServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            server.cetak(\"GET\", in.nextLine());\n        }\n    }\n}\n\n@WebServlet(\"/produk/*\")\nclass ProdukServlet extends HttpServlet {\n    private final Map<String, Integer> harga = new TreeMap<>();\n\n    @Override\n    public void init() {\n        harga.put(\"kopi\", 18000);\n        harga.put(\"teh\", 8000);\n    }\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String nama = req.getPathInfo() == null ? \"\" : req.getPathInfo().substring(1);\n        if (!harga.containsKey(nama)) {\n            res.sendError(404, \"produk \" + nama + \" tidak ada\");\n            return;\n        }\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(nama + \": \" + harga.get(nama));\n    }\n}",
+      "tests": [
+        {
+          "input": "/produk/kopi\n/produk/susu\n/produk\n",
+          "expectedOutput": "GET /produk/kopi\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nkopi: 18000\nGET /produk/susu\nHTTP 404 Not Found\nContent-Type: text/plain;charset=UTF-8\n\nproduk susu tidak ada\nGET /produk\nHTTP 404 Not Found\nContent-Type: text/plain;charset=UTF-8\n\nproduk  tidak ada\n"
+        }
+      ],
+      "hints": [
+        "getPathInfo() bernilai null untuk alamat /produk; anggap namanya kosong.",
+        "Periksa harga.containsKey(nama); kalau tidak ada, sendError(404, ...) lalu return."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Status, header, lalu isi: atur status dan header sebelum menulis isi.",
+        "sendError untuk error, sendRedirect untuk 302 dan Location.",
+        "Selalu text/...;charset=UTF-8; tanpa itu bawaannya ISO-8859-1.",
+        "Post/Redirect/Get mencegah form terkirim dua kali."
+      ]
+    }
+  ]
+}

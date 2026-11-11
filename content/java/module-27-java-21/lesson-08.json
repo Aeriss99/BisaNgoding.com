@@ -1,0 +1,200 @@
+{
+  "id": "java-java-21-08",
+  "moduleId": "java-21",
+  "order": 8,
+  "title": "Proyek: Kasir Modern",
+  "estimatedMinutes": 19,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya menggabungkan semua fitur Java 21 di satu program: kasir yang menerima perintah teks, menyimpan keranjang, dan menerima pembayaran.\n\n- **Record** untuk produk, perintah, dan pembayaran.\n- **Sealed interface** untuk himpunan perintah dan cara bayar yang tetap.\n- **Pattern switch + record pattern** untuk menjalankan perintah, lengkap dengan guard.\n- **SequencedMap** untuk keranjang yang mengingat urutan.\n- **Text block** dan `lines()` untuk naskah uji.\n\nIbarat mesin kasir modern di minimarket: tombolnya sedikit dan jelas, setiap jenis transaksi punya jalurnya sendiri, dan struk tercetak rapi sesuai urutan barang dipindai."
+    },
+    {
+      "type": "theory",
+      "content": "Rancangan:\n\n```java\nsealed interface Perintah permits Tambah, Hapus, Bayar {}\nrecord Tambah(String kode, int jumlah) implements Perintah {}\nrecord Hapus(String kode) implements Perintah {}\nrecord Bayar(Pembayaran cara) implements Perintah {}\n```\n\n| Bagian | Tugas |\n|---|---|\n| `urai(String)` | mengubah teks `tambah K01 2` menjadi `Tambah(\"K01\", 2)` dengan switch expression |\n| `Kasir.jalankan(Perintah)` | satu pattern switch untuk semua perintah |\n| `Kasir.bayar(Pembayaran)` | pattern switch untuk cara bayar, dengan guard uang kurang |\n| keranjang `SequencedMap` | urutan barang sesuai waktu ditambahkan |\n\nMemisahkan **penguraian teks** (`urai`) dari **eksekusi** (`jalankan`) membuat kasir bisa dipakai dari antarmuka lain: tombol aplikasi, REST API, atau pesan antrean, cukup dengan membuat object `Perintah` yang sama."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nString jalankan(Perintah perintah) {\n    return switch (perintah) {\n        case Tambah(var kode, var jumlah) when !katalog.containsKey(kode) -> \"Produk \" + kode + \" tidak ada\";\n        case Tambah(var kode, var jumlah) -> { ... yield \"+ ...\"; }\n        case Hapus(var kode) -> ...;\n        case Bayar(var cara) -> bayar(cara);\n    };\n}\n```\n\nPola bersarang juga bisa membongkar perintah dan cara bayar sekaligus:\n\n```java\ncase Bayar(Tunai(var dibayar)) -> \"bayar tunai \" + dibayar;\ncase Bayar(Qris(var id)) -> \"bayar qris \" + id;\n```\n\nKalau suatu hari ditambahkan perintah `Diskon`, compiler menunjukkan setiap switch yang harus diperbarui."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\npublic class Main {\n    static Perintah urai(String baris) {\n        String[] d = baris.strip().split(\" \");\n        return switch (d[0]) {\n            case \"tambah\" -> new Tambah(d[1], Integer.parseInt(d[2]));\n            case \"hapus\" -> new Hapus(d[1]);\n            case \"tunai\" -> new Bayar(new Tunai(Integer.parseInt(d[1])));\n            case \"qris\" -> new Bayar(new Qris(d[1]));\n            default -> throw new IllegalArgumentException(\"perintah tidak dikenal: \" + d[0]);\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Kasir kasir = new Kasir(List.of(\n                new Produk(\"K01\", \"Kopi\", 18000),\n                new Produk(\"T01\", \"Teh\", 8000),\n                new Produk(\"R01\", \"Roti\", 12000)));\n        System.out.println(kasir.jalankan(new Tambah(\"K01\", 1)));\n        System.out.println(kasir.jalankan(new Bayar(new Qris(\"QR-9\"))));\n    }\n}\n\nrecord Produk(String kode, String nama, int harga) {}\n\nsealed interface Perintah permits Tambah, Hapus, Bayar {}\n\nrecord Tambah(String kode, int jumlah) implements Perintah {}\n\nrecord Hapus(String kode) implements Perintah {}\n\nrecord Bayar(Pembayaran cara) implements Perintah {}\n\nsealed interface Pembayaran permits Tunai, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Qris(String id) implements Pembayaran {}\n\nclass Kasir {\n    private final Map<String, Produk> katalog;\n    private final SequencedMap<String, Integer> keranjang = new LinkedHashMap<>();\n\n    Kasir(List<Produk> produk) {\n        katalog = new HashMap<>();\n        for (Produk p : produk) {\n            katalog.put(p.kode(), p);\n        }\n    }\n\n    String jalankan(Perintah perintah) {\n        return switch (perintah) {\n            case Tambah(var kode, var jumlah) when !katalog.containsKey(kode) -> \"Produk \" + kode + \" tidak ada\";\n            case Tambah(var kode, var jumlah) -> {\n                keranjang.merge(kode, jumlah, Integer::sum);\n                yield \"+ \" + katalog.get(kode).nama() + \" x\" + jumlah;\n            }\n            case Hapus(var kode) -> keranjang.remove(kode) != null ? \"- \" + kode : \"Tidak ada di keranjang: \" + kode;\n            case Bayar(var cara) -> bayar(cara);\n        };\n    }\n\n    int total() {\n        int t = 0;\n        for (var e : keranjang.entrySet()) {\n            t += katalog.get(e.getKey()).harga() * e.getValue();\n        }\n        return t;\n    }\n\n    private String bayar(Pembayaran cara) {\n        int total = total();\n        return switch (cara) {\n            case Tunai(var dibayar) when dibayar < total -> \"Uang kurang \" + (total - dibayar);\n            case Tunai(var dibayar) -> \"Lunas tunai \" + total + \", kembali \" + (dibayar - total);\n            case Qris(var id) -> \"Lunas QRIS \" + total + \" (\" + id + \")\";\n        };\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa baris kedua yang tercetak?",
+        "options": [
+          "Lunas QRIS 18000 (QR-9)",
+          "Lunas QRIS 0 (QR-9)",
+          "Lunas QRIS 18000 (Qris)",
+          "Uang kurang 18000"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 20,
+          "note": "Satu kopi masuk keranjang."
+        },
+        {
+          "line": 77,
+          "note": "Cabang QRIS."
+        }
+      ],
+      "explanation": "Perintah Tambah memasukkan satu kopi, sehingga total menjadi 18000. Perintah Bayar membawa Qris, lalu method bayar memilih cabang Qris lewat record pattern.",
+      "tryThis": [
+        {
+          "task": "Ganti pembayaran dengan new Tunai(10000).",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan perintah Hapus(\"K01\") sebelum membayar.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mencampur penguraian teks dan aturan bisnis**\n\nKasir yang membaca `String` langsung tidak bisa dipakai dari REST API. Ubah teks menjadi object perintah di satu tempat.\n\n**2. `default` di switch atas sealed**\n\nMenghilangkan pemeriksaan kelengkapan. Saat perintah baru ditambahkan, tidak ada yang mengingatkan.\n\n**3. Keranjang dengan `HashMap`**\n\nUrutan barang di struk menjadi acak. `LinkedHashMap` (sequenced) menjaga urutan.\n\n**4. Uang dengan `int` untuk sistem sungguhan**\n\nContoh ini memakai `int` rupiah supaya ringkas. Sistem keuangan sungguhan memakai `BigDecimal` atau `long` dalam satuan terkecil."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola perintah sebagai sealed record (*command*) dan hasil sebagai sealed record dipakai di arsitektur *event-driven* dan CQRS, misalnya dengan Axon Framework atau sekadar Spring biasa.\n- Proyek Spring Boot 3 dengan Java 21 menggabungkan record untuk DTO, sealed untuk hasil layanan, pattern switch di controller, dan virtual thread untuk melayani request.\n- Fitur-fitur ini adalah alasan utama perusahaan memigrasikan aplikasi dari Java 8 dan 11. Pengalaman menulis kode gaya Java 21 menjadi nilai tambah di wawancara kerja."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Kasir Modern 8: Kasir Lengkap",
+      "pembuka": "Kita rakit Kasir Modern dari semua fitur Java 21.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Naskah perintah ditulis dengan text block, diurai, lalu dijalankan kasir.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static Perintah urai(String baris) {\n        String[] d = baris.strip().split(\" \");\n        return switch (d[0]) {\n            case \"tambah\" -> new Tambah(d[1], Integer.parseInt(d[2]));\n            case \"hapus\" -> new Hapus(d[1]);\n            case \"tunai\" -> new Bayar(new Tunai(Integer.parseInt(d[1])));\n            case \"qris\" -> new Bayar(new Qris(d[1]));\n            default -> throw new IllegalArgumentException(\"perintah tidak dikenal: \" + d[0]);\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Kasir kasir = new Kasir(List.of(\n                new Produk(\"K01\", \"Kopi\", 18000),\n                new Produk(\"T01\", \"Teh\", 8000),\n                new Produk(\"R01\", \"Roti\", 12000)));\n        String naskah = \"\"\"\n                tambah K01 2\n                tambah R01 1\n                tambah X99 1\n                \"\"\";\n        for (String baris : naskah.lines().toList()) {\n            System.out.println(kasir.jalankan(urai(baris)));\n        }\n        System.out.println(\"Total: \" + kasir.total());\n    }\n}\n\nrecord Produk(String kode, String nama, int harga) {}\n\nsealed interface Perintah permits Tambah, Hapus, Bayar {}\n\nrecord Tambah(String kode, int jumlah) implements Perintah {}\n\nrecord Hapus(String kode) implements Perintah {}\n\nrecord Bayar(Pembayaran cara) implements Perintah {}\n\nsealed interface Pembayaran permits Tunai, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Qris(String id) implements Pembayaran {}\n\nclass Kasir {\n    private final Map<String, Produk> katalog;\n    private final SequencedMap<String, Integer> keranjang = new LinkedHashMap<>();\n\n    Kasir(List<Produk> produk) {\n        katalog = new HashMap<>();\n        for (Produk p : produk) {\n            katalog.put(p.kode(), p);\n        }\n    }\n\n    String jalankan(Perintah perintah) {\n        return switch (perintah) {\n            case Tambah(var kode, var jumlah) when !katalog.containsKey(kode) -> \"Produk \" + kode + \" tidak ada\";\n            case Tambah(var kode, var jumlah) -> {\n                keranjang.merge(kode, jumlah, Integer::sum);\n                yield \"+ \" + katalog.get(kode).nama() + \" x\" + jumlah;\n            }\n            case Hapus(var kode) -> keranjang.remove(kode) != null ? \"- \" + kode : \"Tidak ada di keranjang: \" + kode;\n            case Bayar(var cara) -> bayar(cara);\n        };\n    }\n\n    int total() {\n        int t = 0;\n        for (var e : keranjang.entrySet()) {\n            t += katalog.get(e.getKey()).harga() * e.getValue();\n        }\n        return t;\n    }\n\n    private String bayar(Pembayaran cara) {\n        int total = total();\n        return switch (cara) {\n            case Tunai(var dibayar) when dibayar < total -> \"Uang kurang \" + (total - dibayar);\n            case Tunai(var dibayar) -> \"Lunas tunai \" + total + \", kembali \" + (dibayar - total);\n            case Qris(var id) -> \"Lunas QRIS \" + total + \" (\" + id + \")\";\n        };\n    }\n}\n",
+          "keluaran": "+ Kopi x2\n+ Roti x1\nProduk X99 tidak ada\nTotal: 48000",
+          "otomatis": true,
+          "benar": "Produk yang tidak ada ditolak oleh guard `when`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan dua perintah ke naskah: `tambah T01 3` dan `hapus R01`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static Perintah urai(String baris) {\n        String[] d = baris.strip().split(\" \");\n        return switch (d[0]) {\n            case \"tambah\" -> new Tambah(d[1], Integer.parseInt(d[2]));\n            case \"hapus\" -> new Hapus(d[1]);\n            case \"tunai\" -> new Bayar(new Tunai(Integer.parseInt(d[1])));\n            case \"qris\" -> new Bayar(new Qris(d[1]));\n            default -> throw new IllegalArgumentException(\"perintah tidak dikenal: \" + d[0]);\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Kasir kasir = new Kasir(List.of(\n                new Produk(\"K01\", \"Kopi\", 18000),\n                new Produk(\"T01\", \"Teh\", 8000),\n                new Produk(\"R01\", \"Roti\", 12000)));\n        String naskah = \"\"\"\n                tambah K01 2\n                tambah R01 1\n                tambah X99 1\n                tambah T01 3\n                hapus R01\n                \"\"\";\n        for (String baris : naskah.lines().toList()) {\n            System.out.println(kasir.jalankan(urai(baris)));\n        }\n        System.out.println(\"Total: \" + kasir.total());\n    }\n}\n\nrecord Produk(String kode, String nama, int harga) {}\n\nsealed interface Perintah permits Tambah, Hapus, Bayar {}\n\nrecord Tambah(String kode, int jumlah) implements Perintah {}\n\nrecord Hapus(String kode) implements Perintah {}\n\nrecord Bayar(Pembayaran cara) implements Perintah {}\n\nsealed interface Pembayaran permits Tunai, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Qris(String id) implements Pembayaran {}\n\nclass Kasir {\n    private final Map<String, Produk> katalog;\n    private final SequencedMap<String, Integer> keranjang = new LinkedHashMap<>();\n\n    Kasir(List<Produk> produk) {\n        katalog = new HashMap<>();\n        for (Produk p : produk) {\n            katalog.put(p.kode(), p);\n        }\n    }\n\n    String jalankan(Perintah perintah) {\n        return switch (perintah) {\n            case Tambah(var kode, var jumlah) when !katalog.containsKey(kode) -> \"Produk \" + kode + \" tidak ada\";\n            case Tambah(var kode, var jumlah) -> {\n                keranjang.merge(kode, jumlah, Integer::sum);\n                yield \"+ \" + katalog.get(kode).nama() + \" x\" + jumlah;\n            }\n            case Hapus(var kode) -> keranjang.remove(kode) != null ? \"- \" + kode : \"Tidak ada di keranjang: \" + kode;\n            case Bayar(var cara) -> bayar(cara);\n        };\n    }\n\n    int total() {\n        int t = 0;\n        for (var e : keranjang.entrySet()) {\n            t += katalog.get(e.getKey()).harga() * e.getValue();\n        }\n        return t;\n    }\n\n    private String bayar(Pembayaran cara) {\n        int total = total();\n        return switch (cara) {\n            case Tunai(var dibayar) when dibayar < total -> \"Uang kurang \" + (total - dibayar);\n            case Tunai(var dibayar) -> \"Lunas tunai \" + total + \", kembali \" + (dibayar - total);\n            case Qris(var id) -> \"Lunas QRIS \" + total + \" (\" + id + \")\";\n        };\n    }\n}\n",
+          "keluaran": "+ Kopi x2\n+ Roti x1\nProduk X99 tidak ada\n+ Teh x3\n- R01\nTotal: 60000",
+          "wajib": [
+            {
+              "pola": "hapus R01",
+              "pesan": "tambahkan `hapus R01`."
+            }
+          ],
+          "benar": "Keranjang kini berisi kopi dan teh.",
+          "petunjuk": "Cukup dua baris baru di text block."
+        },
+        {
+          "arahan": "Tambahkan pembayaran `tunai 50000` lalu `tunai 100000`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static Perintah urai(String baris) {\n        String[] d = baris.strip().split(\" \");\n        return switch (d[0]) {\n            case \"tambah\" -> new Tambah(d[1], Integer.parseInt(d[2]));\n            case \"hapus\" -> new Hapus(d[1]);\n            case \"tunai\" -> new Bayar(new Tunai(Integer.parseInt(d[1])));\n            case \"qris\" -> new Bayar(new Qris(d[1]));\n            default -> throw new IllegalArgumentException(\"perintah tidak dikenal: \" + d[0]);\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Kasir kasir = new Kasir(List.of(\n                new Produk(\"K01\", \"Kopi\", 18000),\n                new Produk(\"T01\", \"Teh\", 8000),\n                new Produk(\"R01\", \"Roti\", 12000)));\n        String naskah = \"\"\"\n                tambah K01 2\n                tambah R01 1\n                tambah X99 1\n                tambah T01 3\n                hapus R01\n                tunai 50000\n                tunai 100000\n                \"\"\";\n        for (String baris : naskah.lines().toList()) {\n            System.out.println(kasir.jalankan(urai(baris)));\n        }\n        System.out.println(\"Total: \" + kasir.total());\n    }\n}\n\nrecord Produk(String kode, String nama, int harga) {}\n\nsealed interface Perintah permits Tambah, Hapus, Bayar {}\n\nrecord Tambah(String kode, int jumlah) implements Perintah {}\n\nrecord Hapus(String kode) implements Perintah {}\n\nrecord Bayar(Pembayaran cara) implements Perintah {}\n\nsealed interface Pembayaran permits Tunai, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Qris(String id) implements Pembayaran {}\n\nclass Kasir {\n    private final Map<String, Produk> katalog;\n    private final SequencedMap<String, Integer> keranjang = new LinkedHashMap<>();\n\n    Kasir(List<Produk> produk) {\n        katalog = new HashMap<>();\n        for (Produk p : produk) {\n            katalog.put(p.kode(), p);\n        }\n    }\n\n    String jalankan(Perintah perintah) {\n        return switch (perintah) {\n            case Tambah(var kode, var jumlah) when !katalog.containsKey(kode) -> \"Produk \" + kode + \" tidak ada\";\n            case Tambah(var kode, var jumlah) -> {\n                keranjang.merge(kode, jumlah, Integer::sum);\n                yield \"+ \" + katalog.get(kode).nama() + \" x\" + jumlah;\n            }\n            case Hapus(var kode) -> keranjang.remove(kode) != null ? \"- \" + kode : \"Tidak ada di keranjang: \" + kode;\n            case Bayar(var cara) -> bayar(cara);\n        };\n    }\n\n    int total() {\n        int t = 0;\n        for (var e : keranjang.entrySet()) {\n            t += katalog.get(e.getKey()).harga() * e.getValue();\n        }\n        return t;\n    }\n\n    private String bayar(Pembayaran cara) {\n        int total = total();\n        return switch (cara) {\n            case Tunai(var dibayar) when dibayar < total -> \"Uang kurang \" + (total - dibayar);\n            case Tunai(var dibayar) -> \"Lunas tunai \" + total + \", kembali \" + (dibayar - total);\n            case Qris(var id) -> \"Lunas QRIS \" + total + \" (\" + id + \")\";\n        };\n    }\n}\n",
+          "keluaran": "+ Kopi x2\n+ Roti x1\nProduk X99 tidak ada\n+ Teh x3\n- R01\nUang kurang 10000\nLunas tunai 60000, kembali 40000\nTotal: 60000",
+          "wajib": [
+            {
+              "pola": "tunai 100000",
+              "pesan": "tambahkan `tunai 100000`."
+            }
+          ],
+          "benar": "Pembayaran pertama ditolak guard uang kurang, yang kedua lunas dengan kembalian.",
+          "petunjuk": "Dua baris lagi di text block."
+        },
+        {
+          "arahan": "Tantangan: tambahkan method `terakhirDitambah()` di `Kasir` yang mengembalikan `keranjang.lastEntry()`, lalu cetak `Terakhir ditambah: ` di akhir.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static Perintah urai(String baris) {\n        String[] d = baris.strip().split(\" \");\n        return switch (d[0]) {\n            case \"tambah\" -> new Tambah(d[1], Integer.parseInt(d[2]));\n            case \"hapus\" -> new Hapus(d[1]);\n            case \"tunai\" -> new Bayar(new Tunai(Integer.parseInt(d[1])));\n            case \"qris\" -> new Bayar(new Qris(d[1]));\n            default -> throw new IllegalArgumentException(\"perintah tidak dikenal: \" + d[0]);\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Kasir kasir = new Kasir(List.of(\n                new Produk(\"K01\", \"Kopi\", 18000),\n                new Produk(\"T01\", \"Teh\", 8000),\n                new Produk(\"R01\", \"Roti\", 12000)));\n        String naskah = \"\"\"\n                tambah K01 2\n                tambah R01 1\n                tambah X99 1\n                tambah T01 3\n                hapus R01\n                tunai 50000\n                tunai 100000\n                \"\"\";\n        for (String baris : naskah.lines().toList()) {\n            System.out.println(kasir.jalankan(urai(baris)));\n        }\n        System.out.println(\"Total: \" + kasir.total());\n        System.out.println(\"Terakhir ditambah: \" + kasir.terakhirDitambah());\n    }\n}\n\nrecord Produk(String kode, String nama, int harga) {}\n\nsealed interface Perintah permits Tambah, Hapus, Bayar {}\n\nrecord Tambah(String kode, int jumlah) implements Perintah {}\n\nrecord Hapus(String kode) implements Perintah {}\n\nrecord Bayar(Pembayaran cara) implements Perintah {}\n\nsealed interface Pembayaran permits Tunai, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Qris(String id) implements Pembayaran {}\n\nclass Kasir {\n    private final Map<String, Produk> katalog;\n    private final SequencedMap<String, Integer> keranjang = new LinkedHashMap<>();\n\n    Kasir(List<Produk> produk) {\n        katalog = new HashMap<>();\n        for (Produk p : produk) {\n            katalog.put(p.kode(), p);\n        }\n    }\n\n    String jalankan(Perintah perintah) {\n        return switch (perintah) {\n            case Tambah(var kode, var jumlah) when !katalog.containsKey(kode) -> \"Produk \" + kode + \" tidak ada\";\n            case Tambah(var kode, var jumlah) -> {\n                keranjang.merge(kode, jumlah, Integer::sum);\n                yield \"+ \" + katalog.get(kode).nama() + \" x\" + jumlah;\n            }\n            case Hapus(var kode) -> keranjang.remove(kode) != null ? \"- \" + kode : \"Tidak ada di keranjang: \" + kode;\n            case Bayar(var cara) -> bayar(cara);\n        };\n    }\n\n    Map.Entry<String, Integer> terakhirDitambah() {\n        return keranjang.lastEntry();\n    }\n\n    int total() {\n        int t = 0;\n        for (var e : keranjang.entrySet()) {\n            t += katalog.get(e.getKey()).harga() * e.getValue();\n        }\n        return t;\n    }\n\n    private String bayar(Pembayaran cara) {\n        int total = total();\n        return switch (cara) {\n            case Tunai(var dibayar) when dibayar < total -> \"Uang kurang \" + (total - dibayar);\n            case Tunai(var dibayar) -> \"Lunas tunai \" + total + \", kembali \" + (dibayar - total);\n            case Qris(var id) -> \"Lunas QRIS \" + total + \" (\" + id + \")\";\n        };\n    }\n}\n",
+          "keluaran": "+ Kopi x2\n+ Roti x1\nProduk X99 tidak ada\n+ Teh x3\n- R01\nUang kurang 10000\nLunas tunai 60000, kembali 40000\nTotal: 60000\nTerakhir ditambah: T01=3",
+          "wajib": [
+            {
+              "pola": "keranjang\\.lastEntry\\(\\)",
+              "pesan": "pakai `keranjang.lastEntry()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Selamat, Kasir Modern memakai record, sealed, pattern matching, dan sequenced collection sekaligus.",
+          "petunjuk": "`Map.Entry<String, Integer> terakhirDitambah() { return keranjang.lastEntry(); }`"
+        }
+      ],
+      "penutup": "Selamat, kamu sudah menguasai fitur-fitur utama Java 21!"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa teks perintah diubah dulu menjadi object Perintah?",
+          "options": [
+            "Supaya teks lebih pendek",
+            "Supaya aturan kasir bisa dipakai dari antarmuka lain tanpa mengurai teks",
+            "Karena switch tidak bisa membaca String",
+            "Supaya program lebih lambat"
+          ],
+          "answer": 1,
+          "explanation": "Pisahkan masukan dan aturan.",
+          "remedial": "`Kasir.jalankan` hanya mengenal object `Perintah`. Teks, tombol, atau JSON cukup diubah menjadi object yang sama."
+        },
+        {
+          "question": "case Bayar(Tunai(var dibayar)) adalah contoh...",
+          "options": [
+            "Lambda",
+            "Generic method",
+            "Record pattern bersarang",
+            "Anonymous class"
+          ],
+          "answer": 2,
+          "explanation": "Pola di dalam pola.",
+          "remedial": "Pola `Bayar(...)` berisi pola `Tunai(...)`, sehingga perintah bayar dan isi pembayarannya dibongkar sekaligus."
+        },
+        {
+          "question": "Keranjang memakai LinkedHashMap supaya...",
+          "options": [
+            "Barang otomatis diurutkan abjad",
+            "Tidak bisa ada duplikat kunci",
+            "Lebih aman untuk banyak thread",
+            "Urutan barang sesuai waktu ditambahkan"
+          ],
+          "answer": 3,
+          "explanation": "Sequenced.",
+          "remedial": "`LinkedHashMap` menyimpan urutan penambahan dan mendukung `firstEntry` serta `lastEntry` sebagai `SequencedMap`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kalau perintah baru Diskon ditambahkan ke permits, switch atas Perintah tanpa default akan...",
+      "options": [
+        "Gagal di-compile sampai cabang Diskon ditambahkan",
+        "Tetap berjalan dan mengabaikan Diskon",
+        "Melempar NullPointerException",
+        "Memilih cabang pertama"
+      ],
+      "answer": 0,
+      "explanation": "Kelengkapan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca perintah kasir per baris (tambah, hapus, tunai, atau qris), mengurainya dengan urai, lalu mencetak ringkasannya. Method ringkasan baru menangani Tambah dengan instanceof dan cast, dan mengembalikan tanda tanya untuk yang lain. Tulis ulang dengan pattern switch tanpa default memakai record pattern, termasuk pola bersarang untuk Bayar: tambah kode xjumlah, hapus kode, bayar tunai jumlah, dan bayar qris id.",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static Perintah urai(String baris) {\n        String[] d = baris.strip().split(\" \");\n        return switch (d[0]) {\n            case \"tambah\" -> new Tambah(d[1], Integer.parseInt(d[2]));\n            case \"hapus\" -> new Hapus(d[1]);\n            case \"tunai\" -> new Bayar(new Tunai(Integer.parseInt(d[1])));\n            case \"qris\" -> new Bayar(new Qris(d[1]));\n            default -> throw new IllegalArgumentException(\"perintah tidak dikenal: \" + d[0]);\n        };\n    }\n\n    static String ringkasan(Perintah p) {\n        if (p instanceof Tambah) {\n            Tambah t = (Tambah) p;\n            return \"tambah \" + t.kode();\n        }\n        return \"?\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            System.out.println(ringkasan(urai(in.nextLine())));\n        }\n    }\n}\n\nrecord Produk(String kode, String nama, int harga) {}\n\nsealed interface Perintah permits Tambah, Hapus, Bayar {}\n\nrecord Tambah(String kode, int jumlah) implements Perintah {}\n\nrecord Hapus(String kode) implements Perintah {}\n\nrecord Bayar(Pembayaran cara) implements Perintah {}\n\nsealed interface Pembayaran permits Tunai, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Qris(String id) implements Pembayaran {}",
+      "solution": "import java.util.*;\n\npublic class Main {\n    static Perintah urai(String baris) {\n        String[] d = baris.strip().split(\" \");\n        return switch (d[0]) {\n            case \"tambah\" -> new Tambah(d[1], Integer.parseInt(d[2]));\n            case \"hapus\" -> new Hapus(d[1]);\n            case \"tunai\" -> new Bayar(new Tunai(Integer.parseInt(d[1])));\n            case \"qris\" -> new Bayar(new Qris(d[1]));\n            default -> throw new IllegalArgumentException(\"perintah tidak dikenal: \" + d[0]);\n        };\n    }\n\n    static String ringkasan(Perintah p) {\n        return switch (p) {\n            case Tambah(var kode, var jumlah) -> \"tambah \" + kode + \" x\" + jumlah;\n            case Hapus(var kode) -> \"hapus \" + kode;\n            case Bayar(Tunai(var dibayar)) -> \"bayar tunai \" + dibayar;\n            case Bayar(Qris(var id)) -> \"bayar qris \" + id;\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            System.out.println(ringkasan(urai(in.nextLine())));\n        }\n    }\n}\n\nrecord Produk(String kode, String nama, int harga) {}\n\nsealed interface Perintah permits Tambah, Hapus, Bayar {}\n\nrecord Tambah(String kode, int jumlah) implements Perintah {}\n\nrecord Hapus(String kode) implements Perintah {}\n\nrecord Bayar(Pembayaran cara) implements Perintah {}\n\nsealed interface Pembayaran permits Tunai, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Qris(String id) implements Pembayaran {}",
+      "tests": [
+        {
+          "input": "tambah K01 2\nhapus K01\ntunai 50000\nqris QR-1\n",
+          "expectedOutput": "tambah K01 x2\nhapus K01\nbayar tunai 50000\nbayar qris QR-1\n"
+        }
+      ],
+      "hints": [
+        "return switch (p) { case Tambah(var kode, var jumlah) -> ...; ... };",
+        "case Bayar(Tunai(var dibayar)) -> ... dan case Bayar(Qris(var id)) -> ..."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Record + sealed memodelkan perintah dan pembayaran sebagai himpunan jenis yang tetap.",
+        "Pattern switch dengan record pattern dan guard menjalankan setiap perintah.",
+        "Penguraian teks dipisahkan dari aturan bisnis; keranjang memakai SequencedMap.",
+        "Compiler mengingatkan setiap switch saat jenis baru ditambahkan."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

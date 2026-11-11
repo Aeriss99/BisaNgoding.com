@@ -1,0 +1,216 @@
+{
+  "id": "java-thread-02",
+  "moduleId": "thread",
+  "order": 2,
+  "title": "Race Condition dan synchronized",
+  "estimatedMinutes": 19,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Thread memang membuat program lebih cepat, tetapi membawa jenis bug baru yang paling sulit dicari: **race condition**. Dua thread membaca dan mengubah data yang sama pada waktu yang bertumpuk, sehingga hasilnya bergantung pada siapa yang lebih dulu.\n\nContoh dunia nyata: dua pembeli menekan tombol \"Beli\" untuk stok terakhir pada detik yang sama saat *flash sale*, dan keduanya dinyatakan berhasil. Atau dua setoran ke rekening yang sama, tetapi saldo hanya bertambah sekali.\n\nIbarat dua orang menulis di papan tulis yang sama tanpa melihat satu sama lain: masing-masing membaca angka 0, menambah 100 di kepala, lalu menulis 100. Seharusnya 200."
+    },
+    {
+      "type": "theory",
+      "content": "**Kenapa terjadi?** Operasi yang kelihatannya satu langkah sebenarnya beberapa langkah:\n\n```java\nsaldo = saldo + jumlah;     // 1. baca saldo  2. tambahkan  3. tulis kembali\n```\n\nKalau thread lain menyela di antara langkah 1 dan 3, perubahannya tertimpa (*lost update*). Pola berbahaya lain adalah **periksa-lalu-bertindak** (*check-then-act*): `if (stok >= n) stok -= n;`, karena stok bisa berubah setelah diperiksa.\n\n**`synchronized`** memastikan hanya satu thread yang menjalankan bagian itu dalam satu waktu untuk object yang sama:\n\n```java\nsynchronized void setor(int jumlah) {      // kunci: object this\n    saldo = saldo + jumlah;\n}\n\nvoid setor(int jumlah) {\n    synchronized (kunci) {                  // kunci: object pilihan sendiri\n        saldo = saldo + jumlah;\n    }\n}\n```\n\nThread lain yang ingin masuk akan menunggu (status `BLOCKED`) sampai kunci dilepas.\n\nSelain urutan, ada masalah **visibilitas**: perubahan di satu thread belum tentu langsung terlihat thread lain (tersimpan di cache CPU). `synchronized` juga menjamin visibilitas. Untuk satu variabel penanda sederhana, ada `volatile`, tetapi `volatile` tidak membuat `saldo = saldo + jumlah` aman."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nclass Rekening {\n    private int saldo;\n\n    void setor(int jumlah) {\n        int lama = saldo;\n        Jeda.ms(100);              // meniru pekerjaan lain\n        saldo = lama + jumlah;\n    }\n}\n```\n\nDua thread menyetor 100 bersamaan. Keduanya membaca saldo 0, menunggu, lalu menulis 100. Hasilnya 100, padahal seharusnya 200.\n\nMenambahkan `synchronized` di `setor` membuat thread kedua menunggu sampai thread pertama selesai, sehingga hasilnya selalu 200.\n\n**Aturan praktis:** setiap data yang bisa diubah dan dipakai bersama beberapa thread harus dilindungi kunci yang **sama**, baik saat mengubah maupun membaca.\n\n**Catatan tentang editor ini:** Java di website ini berjalan di dalam browser. Thread tetap bergantian sungguhan, tetapi tidak berjalan di beberapa inti CPU sekaligus. Karena itu contoh di modul ini memakai `Thread.sleep` untuk membuat urutan kejadian jelas dan hasilnya selalu sama. Di laptop atau server, masalah yang sama muncul lebih acak, dan justru itu yang membuatnya berbahaya."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Rekening r = new Rekening();\n        Thread a = new Thread(() -> r.setor(100));\n        Thread b = new Thread(() -> r.setor(100));\n        a.start();\n        b.start();\n        a.join();\n        b.join();\n        System.out.println(\"Saldo akhir: \" + r.saldo());\n    }\n}\n\nclass Rekening {\n    private int saldo;\n\n    void setor(int jumlah) {\n        int lama = saldo;\n        Jeda.ms(100);              // meniru pekerjaan lain, misalnya mencatat ke database\n        saldo = lama + jumlah;\n    }\n\n    int saldo() {\n        return saldo;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: dua thread masing-masing menyetor 100. Berapa saldo akhir?",
+        "options": [
+          "Saldo akhir: 200",
+          "Saldo akhir: 0",
+          "Saldo akhir: 100",
+          "Saldo akhir: 300"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 20,
+          "note": "Kedua thread membaca 0."
+        },
+        {
+          "line": 22,
+          "note": "Keduanya menulis 100."
+        }
+      ],
+      "explanation": "Thread a membaca saldo 0 lalu menunggu. Selama itu thread b juga membaca 0. Keduanya lalu menulis 0 + 100. Satu setoran hilang tanpa error apa pun. Inilah race condition: hasilnya salah, dan di server sungguhan hanya muncul sesekali.",
+      "tryThis": [
+        {
+          "task": "Tambahkan synchronized di depan void setor lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan thread ketiga yang juga menyetor 100.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Hanya melindungi tulis, bukan baca**\n\nMethod `stok()` tanpa `synchronized` bisa membaca nilai lama. Lindungi keduanya dengan kunci yang sama.\n\n**2. Kunci yang berbeda**\n\n`synchronized` pada dua object berbeda tidak saling menghalangi. Semua akses ke data yang sama harus memakai kunci yang sama.\n\n**3. Mengunci terlalu luas**\n\nMengunci seluruh method yang memanggil layanan lain atau database membuat semua thread antre dan aplikasi lambat. Kunci hanya bagian yang mengubah data bersama.\n\n**4. Mengira `volatile` cukup**\n\n`volatile int n; n++;` tetap tidak aman, karena `n++` adalah tiga langkah.\n\n**5. Deadlock**\n\nThread A memegang kunci X dan menunggu Y, sementara thread B memegang Y dan menunggu X. Keduanya menunggu selamanya. Cegah dengan selalu mengambil beberapa kunci dalam **urutan yang sama**."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di aplikasi web, race condition paling sering terjadi di **database**, bukan di variabel Java: dua request membaca stok yang sama lalu menyimpan hasilnya. Solusinya ada di database: `UPDATE ... SET stok = stok - 3 WHERE id = ? AND stok >= 3`, *optimistic locking* dengan kolom versi (`@Version` di JPA), atau `SELECT ... FOR UPDATE`.\n- Kalau aplikasi berjalan di beberapa server, `synchronized` hanya mengunci di satu JVM. Kunci lintas server memakai database atau Redis.\n- Cara paling aman adalah **tidak berbagi data yang bisa berubah**: object immutable (record, `final`), data lokal per thread, atau kirim pesan antar thread lewat antrean.\n- Bug concurrency dicari dengan *code review* yang teliti, alat analisis statis (SpotBugs, IntelliJ), dan test beban, karena test biasa jarang memunculkannya."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Pemroses Pesanan 2: Stok Terakhir",
+      "pembuka": "Pemroses Pesanan sekarang punya `Gudang` yang dipakai bersama para kasir.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Stok 5, dua kasir masing-masing mengambil 3.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Gudang g = new Gudang(5);\n        boolean[] hasil = new boolean[2];\n        Thread a = new Thread(() -> hasil[0] = g.ambil(3), \"kasir-1\");\n        Thread b = new Thread(() -> hasil[1] = g.ambil(3), \"kasir-2\");\n        a.start();\n        b.start();\n        a.join();\n        b.join();\n        System.out.println(\"kasir-1 berhasil: \" + hasil[0]);\n        System.out.println(\"kasir-2 berhasil: \" + hasil[1]);\n        System.out.println(\"Sisa stok: \" + g.stok());\n    }\n}\n\nclass Gudang {\n    private int stok;\n\n    Gudang(int stok) {\n        this.stok = stok;\n    }\n\n    boolean ambil(int n) {\n        if (stok >= n) {\n            Jeda.ms(100);          // memeriksa pembayaran\n            stok -= n;\n            return true;\n        }\n        return false;\n    }\n\n    int stok() {\n        return stok;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "kasir-1 berhasil: true\nkasir-2 berhasil: true\nSisa stok: -1",
+          "otomatis": true,
+          "benar": "Keduanya berhasil dan stok menjadi -1: barang terjual melebihi stok.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Perbaiki `Gudang` dengan menambahkan `synchronized` pada `ambil` dan `stok`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Gudang g = new Gudang(5);\n        boolean[] hasil = new boolean[2];\n        Thread a = new Thread(() -> hasil[0] = g.ambil(3), \"kasir-1\");\n        Thread b = new Thread(() -> hasil[1] = g.ambil(3), \"kasir-2\");\n        a.start();\n        b.start();\n        a.join();\n        b.join();\n        System.out.println(\"kasir-1 berhasil: \" + hasil[0]);\n        System.out.println(\"kasir-2 berhasil: \" + hasil[1]);\n        System.out.println(\"Sisa stok: \" + g.stok());\n    }\n}\n\nclass Gudang {\n    private int stok;\n\n    Gudang(int stok) {\n        this.stok = stok;\n    }\n\n    synchronized boolean ambil(int n) {\n        if (stok >= n) {\n            Jeda.ms(100);          // memeriksa pembayaran\n            stok -= n;\n            return true;\n        }\n        return false;\n    }\n\n    synchronized int stok() {\n        return stok;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "kasir-1 berhasil: true\nkasir-2 berhasil: false\nSisa stok: 2",
+          "wajib": [
+            {
+              "pola": "synchronized\\s+boolean\\s+ambil",
+              "pesan": "jadikan `ambil` synchronized."
+            },
+            {
+              "pola": "synchronized\\s+int\\s+stok",
+              "pesan": "jadikan `stok` synchronized."
+            }
+          ],
+          "benar": "Kasir kedua menunggu, lalu melihat stok tinggal 2 dan gagal. Stok tidak pernah minus.",
+          "petunjuk": "Cukup tambahkan kata `synchronized` sebelum tipe kembalian."
+        },
+        {
+          "arahan": "Tambahkan `synchronized void isiUlang(int n)`, lalu jalankan thread `pemasok` yang mengisi ulang 5 dan cetak `Sisa stok setelah diisi: `.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Gudang g = new Gudang(5);\n        boolean[] hasil = new boolean[2];\n        Thread a = new Thread(() -> hasil[0] = g.ambil(3), \"kasir-1\");\n        Thread b = new Thread(() -> hasil[1] = g.ambil(3), \"kasir-2\");\n        a.start();\n        b.start();\n        a.join();\n        b.join();\n        System.out.println(\"kasir-1 berhasil: \" + hasil[0]);\n        System.out.println(\"kasir-2 berhasil: \" + hasil[1]);\n        System.out.println(\"Sisa stok: \" + g.stok());\n        Thread c = new Thread(() -> g.isiUlang(5), \"pemasok\");\n        c.start();\n        c.join();\n        System.out.println(\"Sisa stok setelah diisi: \" + g.stok());\n    }\n}\n\nclass Gudang {\n    private int stok;\n\n    Gudang(int stok) {\n        this.stok = stok;\n    }\n\n    synchronized boolean ambil(int n) {\n        if (stok >= n) {\n            Jeda.ms(100);          // memeriksa pembayaran\n            stok -= n;\n            return true;\n        }\n        return false;\n    }\n\n    synchronized void isiUlang(int n) {\n        stok += n;\n    }\n\n    synchronized int stok() {\n        return stok;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "kasir-1 berhasil: true\nkasir-2 berhasil: false\nSisa stok: 2\nSisa stok setelah diisi: 7",
+          "wajib": [
+            {
+              "pola": "synchronized\\s+void\\s+isiUlang",
+              "pesan": "buat `synchronized void isiUlang`."
+            },
+            {
+              "pola": "\"pemasok\"",
+              "pesan": "beri nama thread `pemasok`."
+            }
+          ],
+          "benar": "Ketiga method dilindungi kunci yang sama.",
+          "petunjuk": "Semua method yang menyentuh `stok` memakai kunci yang sama."
+        },
+        {
+          "arahan": "Tantangan: ubah `Gudang` memakai `synchronized` blok dengan kunci `private final Object kunci`, lalu ganti `main` menjadi 4 kasir (perulangan) yang masing-masing mengambil 2 dari stok 5. Cetak jumlah berhasil, gagal, dan sisa stok.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Gudang g = new Gudang(5);\n        boolean[] hasil = new boolean[4];\n        List<Thread> kasir = new ArrayList<>();\n        for (int i = 0; i < 4; i++) {\n            int ke = i;\n            kasir.add(new Thread(() -> hasil[ke] = g.ambil(2), \"kasir-\" + (i + 1)));\n        }\n        for (Thread t : kasir) {\n            t.start();\n        }\n        for (Thread t : kasir) {\n            t.join();\n        }\n        int berhasil = 0;\n        for (boolean h : hasil) {\n            if (h) {\n                berhasil++;\n            }\n        }\n        System.out.println(\"Berhasil: \" + berhasil + \", gagal: \" + (4 - berhasil));\n        System.out.println(\"Sisa stok: \" + g.stok());\n    }\n}\n\nclass Gudang {\n    private final Object kunci = new Object();\n    private int stok;\n\n    Gudang(int stok) {\n        this.stok = stok;\n    }\n\n    boolean ambil(int n) {\n        synchronized (kunci) {\n            if (stok >= n) {\n                Jeda.ms(100);\n                stok -= n;\n                return true;\n            }\n            return false;\n        }\n    }\n\n    void isiUlang(int n) {\n        synchronized (kunci) {\n            stok += n;\n        }\n    }\n\n    int stok() {\n        synchronized (kunci) {\n            return stok;\n        }\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "Berhasil: 2, gagal: 2\nSisa stok: 1",
+          "wajib": [
+            {
+              "pola": "private\\s+final\\s+Object\\s+kunci",
+              "pesan": "buat `private final Object kunci`."
+            },
+            {
+              "pola": "synchronized\\s*\\(\\s*kunci\\s*\\)",
+              "pesan": "pakai `synchronized (kunci)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Dua kasir mendapat barang, dua kasir gagal, dan stok tersisa 1.",
+          "petunjuk": "Kunci privat tidak bisa dipakai kode lain dari luar class, sehingga lebih aman daripada mengunci `this`."
+        }
+      ],
+      "penutup": "Data bersama sudah terlindungi. Berikutnya: alat siap pakai dari java.util.concurrent."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa saldo = saldo + jumlah tidak aman dipakai banyak thread?",
+          "options": [
+            "Karena int terlalu kecil",
+            "Karena Java tidak mengizinkan penjumlahan di thread",
+            "Karena saldo harus static",
+            "Karena terdiri dari baca, tambah, dan tulis yang bisa diselingi thread lain"
+          ],
+          "answer": 3,
+          "explanation": "Lebih dari satu langkah.",
+          "remedial": "Thread lain bisa membaca nilai yang sama sebelum nilai baru ditulis, sehingga salah satu perubahan tertimpa."
+        },
+        {
+          "question": "synchronized method pada object Gudang memakai kunci...",
+          "options": [
+            "Object Gudang itu sendiri (this)",
+            "Class Thread",
+            "Thread yang memanggil",
+            "Semua object di program"
+          ],
+          "answer": 0,
+          "explanation": "Kunci bawaan.",
+          "remedial": "Method instance yang `synchronized` mengunci `this`. Dua object Gudang berbeda punya kunci berbeda dan tidak saling menghalangi."
+        },
+        {
+          "question": "Pola if (stok >= n) stok -= n; dari banyak thread disebut...",
+          "options": [
+            "Deadlock",
+            "Check-then-act yang tidak aman tanpa kunci",
+            "Immutable object",
+            "Visibility yang aman"
+          ],
+          "answer": 1,
+          "explanation": "Periksa lalu bertindak.",
+          "remedial": "Stok bisa berubah setelah diperiksa dan sebelum dikurangi. Pemeriksaan dan perubahan harus berada di dalam satu kunci."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Dua thread saling menunggu kunci yang dipegang lawannya disebut...",
+      "options": [
+        "Race condition",
+        "Lost update",
+        "Deadlock",
+        "Busy waiting"
+      ],
+      "answer": 2,
+      "explanation": "Saling tunggu selamanya."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca nomor kursi bioskop dari input (satu per baris). Setiap baris adalah satu pembeli yang memesan kursi itu di thread sendiri, lalu hasilnya dicetak. Saat ini dua pembeli bisa mendapat kursi yang sama. Perbaiki class Bioskop supaya satu kursi hanya bisa dijual sekali.",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Bioskop bioskop = new Bioskop();\n        Scanner in = new Scanner(System.in);\n        List<String> kursi = new ArrayList<>();\n        while (in.hasNextLine()) {\n            kursi.add(in.nextLine().trim());\n        }\n        boolean[] hasil = new boolean[kursi.size()];\n        List<Thread> pembeli = new ArrayList<>();\n        for (int i = 0; i < kursi.size(); i++) {\n            int ke = i;\n            pembeli.add(new Thread(() -> hasil[ke] = bioskop.pesan(kursi.get(ke))));\n        }\n        for (Thread t : pembeli) {\n            t.start();\n        }\n        for (Thread t : pembeli) {\n            t.join();\n        }\n        for (int i = 0; i < kursi.size(); i++) {\n            System.out.println(\"Pembeli \" + (i + 1) + \" kursi \" + kursi.get(i) + \": \" + (hasil[i] ? \"dapat\" : \"sudah terjual\"));\n        }\n    }\n}\n\nclass Bioskop {\n    private final Set<String> terjual = new TreeSet<>();\n\n    boolean pesan(String kursi) {\n        if (!terjual.contains(kursi)) {\n            Jeda.ms(100);\n            terjual.add(kursi);\n            return true;\n        }\n        return false;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Bioskop bioskop = new Bioskop();\n        Scanner in = new Scanner(System.in);\n        List<String> kursi = new ArrayList<>();\n        while (in.hasNextLine()) {\n            kursi.add(in.nextLine().trim());\n        }\n        boolean[] hasil = new boolean[kursi.size()];\n        List<Thread> pembeli = new ArrayList<>();\n        for (int i = 0; i < kursi.size(); i++) {\n            int ke = i;\n            pembeli.add(new Thread(() -> hasil[ke] = bioskop.pesan(kursi.get(ke))));\n        }\n        for (Thread t : pembeli) {\n            t.start();\n        }\n        for (Thread t : pembeli) {\n            t.join();\n        }\n        for (int i = 0; i < kursi.size(); i++) {\n            System.out.println(\"Pembeli \" + (i + 1) + \" kursi \" + kursi.get(i) + \": \" + (hasil[i] ? \"dapat\" : \"sudah terjual\"));\n        }\n    }\n}\n\nclass Bioskop {\n    private final Set<String> terjual = new TreeSet<>();\n\n    synchronized boolean pesan(String kursi) {\n        if (!terjual.contains(kursi)) {\n            Jeda.ms(100);\n            terjual.add(kursi);\n            return true;\n        }\n        return false;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "A1\nA1\nB2\n",
+          "expectedOutput": "Pembeli 1 kursi A1: dapat\nPembeli 2 kursi A1: sudah terjual\nPembeli 3 kursi B2: dapat\n"
+        },
+        {
+          "input": "C3\nC3\nC3\n",
+          "expectedOutput": "Pembeli 1 kursi C3: dapat\nPembeli 2 kursi C3: sudah terjual\nPembeli 3 kursi C3: sudah terjual\n"
+        }
+      ],
+      "hints": [
+        "Pemeriksaan contains dan add harus terjadi di dalam satu kunci.",
+        "Tambahkan synchronized pada method pesan."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Race condition: hasil bergantung pada urutan thread; operasi baca-ubah-tulis bisa tertimpa.",
+        "synchronized memastikan satu thread dalam satu waktu untuk kunci yang sama.",
+        "Lindungi baca dan tulis dengan kunci yang sama; jaga bagian yang dikunci tetap kecil.",
+        "Hindari deadlock dengan urutan kunci yang konsisten; data immutable lebih aman."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}
