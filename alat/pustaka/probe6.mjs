@@ -22,6 +22,6 @@ async function jalan(html, berkas) {
   }
   await page.close();
 }
-const t = fs.readdirSync('p10').sort().map((f) => 'p10/' + f);
-for (const f of t) { await jalan('index21.html', [f]); }
+const t = fs.readdirSync('p11').sort().map((f) => 'p11/' + f);
+for (let u = 0; u < 3; u++) for (const f of t) { await jalan('index21.html', [f]); }
 await browser.close();
