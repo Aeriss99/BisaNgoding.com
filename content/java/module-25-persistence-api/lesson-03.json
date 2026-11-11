@@ -1,0 +1,211 @@
+{
+  "id": "java-persistence-api-03",
+  "moduleId": "persistence-api",
+  "order": 3,
+  "title": "Siklus Hidup Entity dan Dirty Checking",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Dengan JDBC, mengubah data selalu berarti menulis `UPDATE`. Dengan JPA, ada yang terasa ajaib: ubah field object di dalam transaksi, lalu commit, dan Hibernate menjalankan `UPDATE` sendiri tanpa diminta.\n\nSupaya tidak bingung kapan \"ajaib\" itu terjadi dan kapan tidak, kita perlu memahami **siklus hidup entity**: keadaan sebuah object dari sudut pandang `EntityManager`.\n\nIbarat buku di perpustakaan: buku yang tercatat di sistem diawasi pustakawan, setiap perubahan dicatat. Buku yang sudah dibawa pulang tidak diawasi lagi; perubahan padanya tidak tercatat sampai dikembalikan dan didaftarkan ulang."
+    },
+    {
+      "type": "theory",
+      "content": "| Keadaan | Artinya | Contoh |\n|---|---|---|\n| **new / transient** | object biasa, belum dikenal JPA | `new Todo(\"Belajar\")` |\n| **managed** | diawasi `EntityManager`; perubahan otomatis disimpan saat commit | setelah `persist`, `find`, atau hasil query |\n| **detached** | pernah dikelola, tetapi `EntityManager` sudah ditutup atau di-`clear()` | object yang dikirim ke lapisan lain |\n| **removed** | ditandai untuk dihapus | setelah `remove` |\n\nPerpindahan keadaan:\n\n| Method | Efek |\n|---|---|\n| `persist(obj)` | new menjadi managed (`INSERT` saat commit) |\n| `remove(obj)` | managed menjadi removed (`DELETE` saat commit) |\n| `clear()`, `close()` | semua managed menjadi detached |\n| `merge(obj)` | salin isi object detached ke salinan managed, lalu **kembalikan salinan itu** |\n| `contains(obj)` | apakah object sedang managed |\n\n**Dirty checking**: saat commit (atau `flush()`), Hibernate membandingkan setiap entity managed dengan keadaan awalnya. Yang berubah otomatis di-`UPDATE`. Karena itu tidak ada method `update` di `EntityManager`.\n\nKumpulan entity managed di satu `EntityManager` disebut **persistence context**."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nem.getTransaction().begin();\nTodo t = em.find(Todo.class, 1L);   // managed\nt.selesaikan();                      // cukup ubah object\nem.getTransaction().commit();        // Hibernate: update todo set ... where id=?\n```\n\nObject detached harus di-`merge` supaya perubahannya tersimpan:\n\n```java\nTodo dikelola = em.merge(todoDetached);   // pakai hasilnya, bukan object lama\n```\n\n`merge` **tidak** mengubah object yang diberikan menjadi managed. Ia mengembalikan object lain yang managed. Kesalahan klasik adalah terus memakai object lama setelah merge."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Todo.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Todo t = new Todo(\"Belajar JPA\");\n        em.persist(t);\n        t.ubahJudul(\"Belajar JPA dan Hibernate\");\n        t.selesaikan();\n        em.getTransaction().commit();\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: judul diubah dan todo diselesaikan setelah persist, sebelum commit. Berapa SQL update yang dijalankan?",
+        "options": [
+          "Hibernate: update Todo set judul=? where id=?",
+          "Hibernate: update Todo set selesai=? where id=?",
+          "Hibernate: merge into Todo",
+          "Hibernate: update Todo set judul=?, selesai=? where id=?"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 12,
+          "note": "Mulai dikelola."
+        },
+        {
+          "line": 14,
+          "note": "Hanya mengubah object."
+        },
+        {
+          "line": 15,
+          "note": "Dirty checking terjadi di sini."
+        }
+      ],
+      "explanation": "persist dengan IDENTITY langsung menjalankan INSERT untuk mendapatkan id. Setelah itu dua perubahan pada object managed digabung menjadi satu UPDATE saat commit. Hibernate 5 memperbarui semua kolom sekaligus secara bawaan.",
+      "tryThis": [
+        {
+          "task": "Hapus baris t.ubahJudul lalu jalankan. Berubahkah UPDATE-nya?",
+          "hint": null
+        },
+        {
+          "task": "Pindahkan kedua perubahan ke setelah commit dan tanpa transaksi baru. Apakah UPDATE muncul?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengubah object detached lalu berharap tersimpan**\n\nObject dari `EntityManager` yang sudah ditutup tidak diawasi. Tanpa `merge`, perubahannya hilang diam-diam.\n\n**2. Memakai object lama setelah `merge`**\n\n`em.merge(t); t.selesaikan();` tidak tersimpan, karena `t` tetap detached. Pakai hasil `merge`.\n\n**3. Mengubah entity tanpa sadar**\n\nKode yang hanya ingin memformat tampilan lalu mengubah field entity managed ikut tersimpan saat commit. Jangan ubah entity untuk keperluan tampilan; pakai DTO.\n\n**4. Persistence context yang terlalu besar**\n\nMembaca 100.000 entity dalam satu `EntityManager` membuat dirty checking lambat dan memori penuh. Proses per kelompok, lalu `flush()` dan `clear()`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di Spring, satu transaksi (`@Transactional` pada method service) biasanya memakai satu persistence context. Entity yang diubah di dalam method otomatis tersimpan saat method selesai, tanpa memanggil `save`.\n- Karena itu, method service yang hanya membaca sebaiknya ditandai `@Transactional(readOnly = true)`: Hibernate melewati dirty checking dan lebih cepat.\n- Konsep detached menjelaskan error terkenal `LazyInitializationException`: data relasi yang belum dimuat tidak bisa diambil lagi dari entity detached (dibahas di materi relasi).\n- *Optimistic locking* dengan `@Version` mencegah dua pengguna saling menimpa perubahan: Hibernate menolak `UPDATE` kalau versinya sudah berubah."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JPA 3: Diawasi atau Terlepas",
+      "pembuka": "Kita amati kapan Hibernate menyimpan perubahan sendiri.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Todo diselesaikan di transaksi kedua tanpa memanggil method simpan apa pun.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Todo.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Todo t = new Todo(\"Belajar JPA\");\n        em.persist(t);\n        em.getTransaction().commit();\n        System.out.println(\"--- ubah tanpa memanggil method simpan\");\n        em.getTransaction().begin();\n        t.selesaikan();\n        em.getTransaction().commit();\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Hibernate: drop table if exists Todo CASCADE\nHibernate: create table Todo (id bigint generated by default as identity, judul varchar(255), selesai boolean not null, primary key (id))\nHibernate: insert into Todo (id, judul, selesai) values (default, ?, ?)\n--- ubah tanpa memanggil method simpan\nHibernate: update Todo set judul=?, selesai=? where id=?",
+          "otomatis": true,
+          "benar": "`update` muncul sendiri saat commit.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Hapus todo dengan `em.remove(t)` di transaksi baru, lalu cetak apakah `t` masih dikelola dengan `em.contains(t)`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Todo.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Todo t = new Todo(\"Belajar JPA\");\n        em.persist(t);\n        em.getTransaction().commit();\n        System.out.println(\"--- ubah tanpa memanggil method simpan\");\n        em.getTransaction().begin();\n        t.selesaikan();\n        em.getTransaction().commit();\n        System.out.println(\"--- hapus\");\n        em.getTransaction().begin();\n        em.remove(t);\n        em.getTransaction().commit();\n        System.out.println(\"Masih dikelola? \" + em.contains(t));\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Hibernate: drop table if exists Todo CASCADE\nHibernate: create table Todo (id bigint generated by default as identity, judul varchar(255), selesai boolean not null, primary key (id))\nHibernate: insert into Todo (id, judul, selesai) values (default, ?, ?)\n--- ubah tanpa memanggil method simpan\nHibernate: update Todo set judul=?, selesai=? where id=?\n--- hapus\nHibernate: delete from Todo where id=?\nMasih dikelola? false",
+          "wajib": [
+            {
+              "pola": "em\\.remove\\s*\\(\\s*t\\s*\\)",
+              "pesan": "hapus dengan `em.remove(t)`."
+            },
+            {
+              "pola": "em\\.contains\\s*\\(\\s*t\\s*\\)",
+              "pesan": "cetak `em.contains(t)`."
+            }
+          ],
+          "benar": "`delete` dijalankan saat commit, dan object tidak dikelola lagi.",
+          "petunjuk": "Cetak `--- hapus` lebih dulu supaya SQL-nya mudah dibaca."
+        },
+        {
+          "arahan": "Ganti bagian hapus dengan percobaan object terlepas: simpan todo `Rapat tim`, `em.clear()`, ubah judulnya menjadi `Rapat tim jam 10`, lalu simpan dengan `em.merge`. Cetak hasil merge dan apakah ia dikelola.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Todo.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Todo t = new Todo(\"Belajar JPA\");\n        em.persist(t);\n        em.getTransaction().commit();\n        System.out.println(\"--- ubah tanpa memanggil method simpan\");\n        em.getTransaction().begin();\n        t.selesaikan();\n        em.getTransaction().commit();\n        System.out.println(\"--- object terlepas\");\n        em.getTransaction().begin();\n        Todo kedua = new Todo(\"Rapat tim\");\n        em.persist(kedua);\n        em.getTransaction().commit();\n        em.clear();\n        System.out.println(\"Dikelola? \" + em.contains(kedua));\n        kedua.ubahJudul(\"Rapat tim jam 10\");\n        em.getTransaction().begin();\n        Todo dikelola = em.merge(kedua);\n        em.getTransaction().commit();\n        System.out.println(dikelola + \", dikelola? \" + em.contains(dikelola));\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Hibernate: drop table if exists Todo CASCADE\nHibernate: create table Todo (id bigint generated by default as identity, judul varchar(255), selesai boolean not null, primary key (id))\nHibernate: insert into Todo (id, judul, selesai) values (default, ?, ?)\n--- ubah tanpa memanggil method simpan\nHibernate: update Todo set judul=?, selesai=? where id=?\n--- object terlepas\nHibernate: insert into Todo (id, judul, selesai) values (default, ?, ?)\nDikelola? false\nHibernate: select todo0_.id as id1_0_0_, todo0_.judul as judul2_0_0_, todo0_.selesai as selesai3_0_0_ from Todo todo0_ where todo0_.id=?\nHibernate: update Todo set judul=?, selesai=? where id=?\n2. [ ] Rapat tim jam 10, dikelola? true",
+          "wajib": [
+            {
+              "pola": "Todo\\s+dikelola\\s*=\\s*em\\.merge\\s*\\(\\s*kedua\\s*\\)",
+              "pesan": "simpan hasil `em.merge(kedua)`."
+            },
+            {
+              "pola": "em\\.clear\\(\\)",
+              "pesan": "lepaskan dengan `em.clear()`."
+            }
+          ],
+          "benar": "`merge` membaca baris dari database, menyalin perubahan, lalu UPDATE.",
+          "petunjuk": "`Todo dikelola = em.merge(kedua);` di dalam transaksi."
+        },
+        {
+          "arahan": "Tantangan: cetak apakah object lama `kedua` sama (`==`) dengan hasil `merge`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Todo.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Todo t = new Todo(\"Belajar JPA\");\n        em.persist(t);\n        em.getTransaction().commit();\n        System.out.println(\"--- ubah tanpa memanggil method simpan\");\n        em.getTransaction().begin();\n        t.selesaikan();\n        em.getTransaction().commit();\n        System.out.println(\"--- object terlepas\");\n        em.getTransaction().begin();\n        Todo kedua = new Todo(\"Rapat tim\");\n        em.persist(kedua);\n        em.getTransaction().commit();\n        em.clear();\n        System.out.println(\"Dikelola? \" + em.contains(kedua));\n        kedua.ubahJudul(\"Rapat tim jam 10\");\n        em.getTransaction().begin();\n        Todo dikelola = em.merge(kedua);\n        em.getTransaction().commit();\n        System.out.println(dikelola + \", dikelola? \" + em.contains(dikelola));\n        System.out.println(\"Object lama sama dengan hasil merge? \" + (kedua == dikelola));\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Hibernate: drop table if exists Todo CASCADE\nHibernate: create table Todo (id bigint generated by default as identity, judul varchar(255), selesai boolean not null, primary key (id))\nHibernate: insert into Todo (id, judul, selesai) values (default, ?, ?)\n--- ubah tanpa memanggil method simpan\nHibernate: update Todo set judul=?, selesai=? where id=?\n--- object terlepas\nHibernate: insert into Todo (id, judul, selesai) values (default, ?, ?)\nDikelola? false\nHibernate: select todo0_.id as id1_0_0_, todo0_.judul as judul2_0_0_, todo0_.selesai as selesai3_0_0_ from Todo todo0_ where todo0_.id=?\nHibernate: update Todo set judul=?, selesai=? where id=?\n2. [ ] Rapat tim jam 10, dikelola? true\nObject lama sama dengan hasil merge? false",
+          "wajib": [
+            {
+              "pola": "kedua\\s*==\\s*dikelola",
+              "pesan": "bandingkan `kedua == dikelola`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Berbeda: `merge` mengembalikan object lain, sehingga hasilnya yang harus dipakai.",
+          "petunjuk": "`kedua == dikelola`."
+        }
+      ],
+      "penutup": "Siklus hidup entity sudah jelas. Berikutnya: mencari data dengan JPQL."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Entity managed diubah di dalam transaksi tanpa memanggil method apa pun. Saat commit...",
+          "options": [
+            "Hibernate otomatis menjalankan UPDATE (dirty checking)",
+            "Perubahan hilang",
+            "Harus memanggil em.update()",
+            "Hibernate melempar exception"
+          ],
+          "answer": 0,
+          "explanation": "Diawasi.",
+          "remedial": "Entity managed dibandingkan dengan keadaan awalnya saat commit. Yang berubah otomatis disimpan."
+        },
+        {
+          "question": "Setelah em.clear(), object yang tadinya managed menjadi...",
+          "options": [
+            "Removed",
+            "Detached",
+            "Transient",
+            "Tetap managed"
+          ],
+          "answer": 1,
+          "explanation": "Tidak diawasi lagi.",
+          "remedial": "`clear()` mengosongkan persistence context. Object yang pernah dikelola masih punya id, tetapi tidak diawasi lagi: detached."
+        },
+        {
+          "question": "Hasil em.merge(todoDetached) adalah...",
+          "options": [
+            "Object yang sama, sekarang managed",
+            "void",
+            "Object managed lain berisi salinan data; object lama tetap detached",
+            "Object baru dengan id baru"
+          ],
+          "answer": 2,
+          "explanation": "Pakai hasilnya.",
+          "remedial": "`merge` menyalin isi object detached ke entity managed dan mengembalikannya. Object yang diberikan tidak berubah keadaan."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method EntityManager yang menghapus entity saat commit adalah...",
+      "options": [
+        "delete",
+        "detach",
+        "clear",
+        "remove"
+      ],
+      "answer": 3,
+      "explanation": "Kebalikan persist."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program menyimpan todo dari input (satu judul per baris), membaca semuanya, lalu menutup EntityManager. Setelah itu judul todo pertama ditambah (penting) dan EntityManager baru dibuka untuk menyimpan perubahan itu. Saat dibaca ulang, perubahannya tidak ada. Perbaiki supaya perubahan todo pertama benar-benar tersimpan.",
+      "starterCode": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Todo.class);\n        Scanner in = new Scanner(System.in);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        while (in.hasNextLine()) {\n            em.persist(new Todo(in.nextLine()));\n        }\n        em.getTransaction().commit();\n        List<Todo> semua = em.createQuery(\"select t from Todo t order by t.id\", Todo.class).getResultList();\n        em.close();\n\n        Todo pertama = semua.get(0);\n        pertama.ubahJudul(pertama.getJudul() + \" (penting)\");\n        EntityManager em2 = emf.createEntityManager();\n        em2.getTransaction().begin();\n        em2.getTransaction().commit();\n        em2.close();\n\n        EntityManager em3 = emf.createEntityManager();\n        for (Todo t : em3.createQuery(\"select t from Todo t order by t.id\", Todo.class).getResultList()) {\n            System.out.println(t);\n        }\n        em3.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "solution": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Todo.class);\n        Scanner in = new Scanner(System.in);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        while (in.hasNextLine()) {\n            em.persist(new Todo(in.nextLine()));\n        }\n        em.getTransaction().commit();\n        List<Todo> semua = em.createQuery(\"select t from Todo t order by t.id\", Todo.class).getResultList();\n        em.close();\n\n        Todo pertama = semua.get(0);\n        pertama.ubahJudul(pertama.getJudul() + \" (penting)\");\n        EntityManager em2 = emf.createEntityManager();\n        em2.getTransaction().begin();\n        em2.merge(pertama);\n        em2.getTransaction().commit();\n        em2.close();\n\n        EntityManager em3 = emf.createEntityManager();\n        for (Todo t : em3.createQuery(\"select t from Todo t order by t.id\", Todo.class).getResultList()) {\n            System.out.println(t);\n        }\n        em3.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "tests": [
+        {
+          "input": "Belajar JPA\nRapat tim\n",
+          "expectedOutput": "1. [ ] Belajar JPA (penting)\n2. [ ] Rapat tim\n"
+        }
+      ],
+      "hints": [
+        "Object pertama sudah detached karena EntityManager pertama ditutup.",
+        "Di dalam transaksi em2, panggil em2.merge(pertama)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Keadaan entity: new, managed, detached, removed.",
+        "Entity managed yang berubah otomatis di-UPDATE saat commit (dirty checking).",
+        "clear dan close membuat entity detached; merge mengembalikan salinan managed.",
+        "Jangan memakai object lama setelah merge."
+      ]
+    }
+  ]
+}

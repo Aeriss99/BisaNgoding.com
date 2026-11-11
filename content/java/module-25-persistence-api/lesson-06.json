@@ -1,0 +1,203 @@
+{
+  "id": "java-persistence-api-06",
+  "moduleId": "persistence-api",
+  "order": 6,
+  "title": "Masalah N+1, JOIN FETCH, dan DTO",
+  "estimatedMinutes": 19,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Halaman daftar tugas menampilkan 50 tugas beserta nama kategorinya. Kodenya terlihat polos: baca semua tugas, lalu `t.getKategori().getNama()` untuk setiap tugas. Di database, yang terjadi adalah 1 query untuk tugas ditambah **1 query untuk setiap kategori yang dibaca**. Ini masalah performa JPA yang paling terkenal: **N+1 query**.\n\nDengan 3 data tidak terasa. Dengan 5.000 data dan database di server lain, halaman yang tadinya 50 ms menjadi beberapa detik.\n\nIbarat belanja ke pasar: membeli 10 barang dengan 10 kali bolak-balik ke pasar, padahal bisa sekali jalan dengan daftar belanja lengkap."
+    },
+    {
+      "type": "theory",
+      "content": "**Solusi 1: `join fetch`**, muat relasi dalam query yang sama:\n\n```java\nem.createQuery(\"select t from Tugas t join fetch t.kategori\", Tugas.class)\n```\n\nHasilnya satu query SQL dengan `inner join`. Relasi sudah terisi, jadi tidak ada query tambahan dan tidak ada `LazyInitializationException`.\n\n**Solusi 2: proyeksi DTO**, ambil hanya kolom yang dibutuhkan, langsung ke object biasa:\n\n```java\nem.createQuery(\n    \"select new RingkasanKategori(k.nama, count(t)) from Tugas t join t.kategori k group by k.nama\",\n    RingkasanKategori.class)\n```\n\n`select new` memanggil constructor **public** class itu untuk setiap baris; tipe parameternya harus cocok dengan hasil query (`count` menghasilkan `Long`). Hasilnya bukan entity (tidak diawasi, tidak ada dirty checking), sehingga ringan dan aman untuk ditampilkan atau dikirim sebagai JSON. Di proyek dengan paket, nama class ditulis lengkap: `select new com.toko.dto.RingkasanKategori(...)`.\n\n| Kebutuhan | Pilihan |\n|---|---|\n| perlu mengubah entity dan relasinya | `join fetch` |\n| hanya menampilkan atau melaporkan | proyeksi DTO |\n| relasi banyak (`@OneToMany`) dengan paging | query terpisah atau `@BatchSize`, karena `join fetch` + paging bermasalah |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nCara mengetahui jumlah query: nyalakan `show_sql`, atau pakai statistik Hibernate seperti di materi ini:\n\n```java\nStatistics s = emf.unwrap(SessionFactory.class).getStatistics();\ns.setStatisticsEnabled(true);\n...\ns.getPrepareStatementCount();   // jumlah query yang dijalankan\n```\n\nUntuk 6 tugas dalam 3 kategori:\n\n| Cara | Jumlah query |\n|---|---|\n| baca tugas, lalu akses kategori | 1 + 3 = 4 (kategori yang sama hanya dibaca sekali) |\n| `join fetch` | 1 |\n| proyeksi DTO dengan `group by` | 1 |\n\nDengan 1.000 kategori berbeda, cara pertama menjadi 1.001 query."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\nimport java.util.function.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        for (String nama : new String[] {\"Kantor\", \"Rumah\", \"Belajar\"}) {\n            Kategori k = new Kategori(nama);\n            k.tambah(new Tugas(nama + \" 1\"));\n            k.tambah(new Tugas(nama + \" 2\"));\n            em.persist(k);\n        }\n        em.getTransaction().commit();\n        em.close();\n        System.out.println(\"--- membaca semua tugas\");\n        EntityManager em2 = emf.createEntityManager();\n        for (Tugas t : em2.createQuery(\"select t from Tugas t where t.id <= 2\", Tugas.class).getResultList()) {\n            System.out.println(t.getJudul() + \" / \" + t.getKategori().getNama());\n        }\n        em2.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: dua tugas pertama dari kategori yang sama dibaca, lalu nama kategorinya. Berapa SELECT ke tabel Kategori?",
+        "options": [
+          "Kantor 1 / null",
+          "Kantor 2 / Rumah",
+          "Kantor 1 / Kantor",
+          "Rumah 1 / Rumah"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 22,
+          "note": "Satu query untuk tugas."
+        },
+        {
+          "line": 23,
+          "note": "Query tambahan saat kategori pertama kali dipakai."
+        }
+      ],
+      "explanation": "Perhatikan SQL di bawah tanda --- membaca semua tugas: satu select dari tabel Tugas, lalu satu select dari tabel Kategori saat nama kategori pertama kali diakses. Tugas kedua dari kategori yang sama tidak memicu query lagi karena kategorinya sudah ada di persistence context. Dengan kategori berbeda-beda, setiap kategori menambah satu query.",
+      "tryThis": [
+        {
+          "task": "Ubah kondisi menjadi t.id <= 6 lalu hitung baris select from Kategori.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan join fetch t.kategori ke query.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tidak pernah melihat SQL**\n\nN+1 tidak terlihat di kode Java. Nyalakan log SQL di lingkungan pengembangan dan periksa halaman-halaman utama.\n\n**2. Mengatasi N+1 dengan `EAGER`**\n\n`EAGER` tetap bisa menjalankan query terpisah untuk setiap baris, dan membuat setiap pembacaan berat. Tetap LAZY, lalu `join fetch` di query yang butuh.\n\n**3. `join fetch` koleksi bersama paging**\n\n`select k from Kategori k join fetch k.daftar` dengan `setMaxResults` membuat Hibernate mengambil semua baris lalu memotong di memori (ada peringatan `HHH000104`). Untuk paging, ambil id dulu, lalu muat relasinya.\n\n**4. Mengirim entity ke tampilan**\n\nEntity yang dikirim sebagai JSON bisa memicu pembacaan relasi tanpa batas. Pakai DTO."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di Spring Data JPA, `join fetch` ditulis di `@Query`, atau dengan `@EntityGraph(attributePaths = \"kategori\")` di method repository.\n- Proyeksi DTO di Spring Data bisa berupa interface (`interface RingkasanKategori { String getNama(); long getJumlah(); }`) atau record Java 17.\n- Hibernate menyediakan `@BatchSize(size = 50)` dan `hibernate.default_batch_fetch_size`: relasi LAZY dibaca 50 sekaligus dengan `where id in (...)`, mengubah N+1 menjadi 1 + N/50.\n- Alat seperti **Hypersistence Utils** atau test yang menghitung query (seperti `hitungSelect` di materi ini) dipakai tim untuk memastikan N+1 tidak muncul lagi setelah perubahan kode."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JPA 6: Satu Kali Jalan",
+      "pembuka": "Tiga kategori dengan dua tugas masing-masing. Kita hitung query yang dijalankan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Membaca semua tugas lalu nama kategorinya.",
+          "jawaban": "import java.util.*;\nimport java.util.function.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    static int hitungSelect(EntityManagerFactory emf, Consumer<EntityManager> kerja) {\n        org.hibernate.stat.Statistics s = emf.unwrap(org.hibernate.SessionFactory.class).getStatistics();\n        s.setStatisticsEnabled(true);\n        s.clear();\n        EntityManager em = emf.createEntityManager();\n        kerja.accept(em);\n        em.close();\n        return (int) s.getPrepareStatementCount();\n    }\n\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        for (String nama : new String[] {\"Kantor\", \"Rumah\", \"Belajar\"}) {\n            Kategori k = new Kategori(nama);\n            k.tambah(new Tugas(nama + \" 1\"));\n            k.tambah(new Tugas(nama + \" 2\"));\n            em.persist(k);\n        }\n        em.getTransaction().commit();\n        em.close();\n        int n1 = hitungSelect(emf, em2 -> {\n            for (Tugas t : em2.createQuery(\"select t from Tugas t order by t.id\", Tugas.class).getResultList()) {\n                t.getKategori().getNama();\n            }\n        });\n        System.out.println(\"Tanpa join fetch: \" + n1 + \" query\");\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Tanpa join fetch: 4 query",
+          "otomatis": true,
+          "benar": "1 query untuk tugas + 3 query untuk kategori.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Hitung lagi dengan query `select t from Tugas t join fetch t.kategori order by t.id` dan cetak `Dengan join fetch: ` diikuti jumlah query.",
+          "jawaban": "import java.util.*;\nimport java.util.function.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    static int hitungSelect(EntityManagerFactory emf, Consumer<EntityManager> kerja) {\n        org.hibernate.stat.Statistics s = emf.unwrap(org.hibernate.SessionFactory.class).getStatistics();\n        s.setStatisticsEnabled(true);\n        s.clear();\n        EntityManager em = emf.createEntityManager();\n        kerja.accept(em);\n        em.close();\n        return (int) s.getPrepareStatementCount();\n    }\n\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        for (String nama : new String[] {\"Kantor\", \"Rumah\", \"Belajar\"}) {\n            Kategori k = new Kategori(nama);\n            k.tambah(new Tugas(nama + \" 1\"));\n            k.tambah(new Tugas(nama + \" 2\"));\n            em.persist(k);\n        }\n        em.getTransaction().commit();\n        em.close();\n        int n1 = hitungSelect(emf, em2 -> {\n            for (Tugas t : em2.createQuery(\"select t from Tugas t order by t.id\", Tugas.class).getResultList()) {\n                t.getKategori().getNama();\n            }\n        });\n        System.out.println(\"Tanpa join fetch: \" + n1 + \" query\");\n        int jf = hitungSelect(emf, em2 -> {\n            for (Tugas t : em2.createQuery(\"select t from Tugas t join fetch t.kategori order by t.id\", Tugas.class).getResultList()) {\n                t.getKategori().getNama();\n            }\n        });\n        System.out.println(\"Dengan join fetch: \" + jf + \" query\");\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Tanpa join fetch: 4 query\nDengan join fetch: 1 query",
+          "wajib": [
+            {
+              "pola": "join\\s+fetch\\s+t\\.kategori",
+              "pesan": "pakai `join fetch t.kategori`."
+            }
+          ],
+          "benar": "Satu query saja.",
+          "petunjuk": "Salin blok `hitungSelect` dan ganti query-nya."
+        },
+        {
+          "arahan": "Buat class `RingkasanKategori` dengan constructor `public RingkasanKategori(String nama, Long jumlah)` dan query `select new RingkasanKategori(k.nama, count(t)) from Tugas t join t.kategori k group by k.nama order by k.nama`. Cetak `nama: jumlah tugas` untuk setiap baris.",
+          "jawaban": "import java.util.*;\nimport java.util.function.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    static int hitungSelect(EntityManagerFactory emf, Consumer<EntityManager> kerja) {\n        org.hibernate.stat.Statistics s = emf.unwrap(org.hibernate.SessionFactory.class).getStatistics();\n        s.setStatisticsEnabled(true);\n        s.clear();\n        EntityManager em = emf.createEntityManager();\n        kerja.accept(em);\n        em.close();\n        return (int) s.getPrepareStatementCount();\n    }\n\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        for (String nama : new String[] {\"Kantor\", \"Rumah\", \"Belajar\"}) {\n            Kategori k = new Kategori(nama);\n            k.tambah(new Tugas(nama + \" 1\"));\n            k.tambah(new Tugas(nama + \" 2\"));\n            em.persist(k);\n        }\n        em.getTransaction().commit();\n        em.close();\n        int n1 = hitungSelect(emf, em2 -> {\n            for (Tugas t : em2.createQuery(\"select t from Tugas t order by t.id\", Tugas.class).getResultList()) {\n                t.getKategori().getNama();\n            }\n        });\n        System.out.println(\"Tanpa join fetch: \" + n1 + \" query\");\n        int jf = hitungSelect(emf, em2 -> {\n            for (Tugas t : em2.createQuery(\"select t from Tugas t join fetch t.kategori order by t.id\", Tugas.class).getResultList()) {\n                t.getKategori().getNama();\n            }\n        });\n        System.out.println(\"Dengan join fetch: \" + jf + \" query\");\n        EntityManager em3 = emf.createEntityManager();\n        List<RingkasanKategori> ringkasan = em3.createQuery(\n                \"select new RingkasanKategori(k.nama, count(t)) from Tugas t join t.kategori k group by k.nama order by k.nama\",\n                RingkasanKategori.class).getResultList();\n        for (RingkasanKategori r : ringkasan) {\n            System.out.println(r.nama + \": \" + r.jumlah + \" tugas\");\n        }\n        em3.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass RingkasanKategori {\n    final String nama;\n    final long jumlah;\n\n    public RingkasanKategori(String nama, Long jumlah) {\n        this.nama = nama;\n        this.jumlah = jumlah;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Tanpa join fetch: 4 query\nDengan join fetch: 1 query\nBelajar: 2 tugas\nKantor: 2 tugas\nRumah: 2 tugas",
+          "wajib": [
+            {
+              "pola": "select\\s+new\\s+RingkasanKategori\\s*\\(",
+              "pesan": "pakai `select new RingkasanKategori(...)`."
+            },
+            {
+              "pola": "class\\s+RingkasanKategori",
+              "pesan": "buat class `RingkasanKategori`."
+            }
+          ],
+          "benar": "Hasilnya object biasa, bukan entity.",
+          "petunjuk": "Constructor harus `public`, dengan tipe parameter sesuai hasil query: `count` menghasilkan `Long`."
+        },
+        {
+          "arahan": "Tantangan: hitung jumlah query untuk ringkasan DTO dengan `hitungSelect` dan cetak `Ringkasan DTO: 1 query`.",
+          "jawaban": "import java.util.*;\nimport java.util.function.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    static int hitungSelect(EntityManagerFactory emf, Consumer<EntityManager> kerja) {\n        org.hibernate.stat.Statistics s = emf.unwrap(org.hibernate.SessionFactory.class).getStatistics();\n        s.setStatisticsEnabled(true);\n        s.clear();\n        EntityManager em = emf.createEntityManager();\n        kerja.accept(em);\n        em.close();\n        return (int) s.getPrepareStatementCount();\n    }\n\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        for (String nama : new String[] {\"Kantor\", \"Rumah\", \"Belajar\"}) {\n            Kategori k = new Kategori(nama);\n            k.tambah(new Tugas(nama + \" 1\"));\n            k.tambah(new Tugas(nama + \" 2\"));\n            em.persist(k);\n        }\n        em.getTransaction().commit();\n        em.close();\n        int n1 = hitungSelect(emf, em2 -> {\n            for (Tugas t : em2.createQuery(\"select t from Tugas t order by t.id\", Tugas.class).getResultList()) {\n                t.getKategori().getNama();\n            }\n        });\n        System.out.println(\"Tanpa join fetch: \" + n1 + \" query\");\n        int jf = hitungSelect(emf, em2 -> {\n            for (Tugas t : em2.createQuery(\"select t from Tugas t join fetch t.kategori order by t.id\", Tugas.class).getResultList()) {\n                t.getKategori().getNama();\n            }\n        });\n        System.out.println(\"Dengan join fetch: \" + jf + \" query\");\n        EntityManager em3 = emf.createEntityManager();\n        List<RingkasanKategori> ringkasan = em3.createQuery(\n                \"select new RingkasanKategori(k.nama, count(t)) from Tugas t join t.kategori k group by k.nama order by k.nama\",\n                RingkasanKategori.class).getResultList();\n        for (RingkasanKategori r : ringkasan) {\n            System.out.println(r.nama + \": \" + r.jumlah + \" tugas\");\n        }\n        em3.close();\n        int dto = hitungSelect(emf, em4 -> em4.createQuery(\n                \"select new RingkasanKategori(k.nama, count(t)) from Tugas t join t.kategori k group by k.nama\",\n                RingkasanKategori.class).getResultList());\n        System.out.println(\"Ringkasan DTO: \" + dto + \" query\");\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass RingkasanKategori {\n    final String nama;\n    final long jumlah;\n\n    public RingkasanKategori(String nama, Long jumlah) {\n        this.nama = nama;\n        this.jumlah = jumlah;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Tanpa join fetch: 4 query\nDengan join fetch: 1 query\nBelajar: 2 tugas\nKantor: 2 tugas\nRumah: 2 tugas\nRingkasan DTO: 1 query",
+          "wajib": [
+            {
+              "pola": "Ringkasan DTO: ",
+              "pesan": "cetak `Ringkasan DTO: ...`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Laporan per kategori cukup satu query, berapa pun jumlah datanya.",
+          "petunjuk": "Lambda bisa langsung memanggil `em4.createQuery(...).getResultList()`."
+        }
+      ],
+      "penutup": "Data dimuat dengan efisien. Materi terakhir: repository JPA untuk Todolist."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Masalah N+1 adalah...",
+          "options": [
+            "Query yang mengembalikan N+1 baris",
+            "Error saat id bernilai N+1",
+            "Tabel dengan N+1 kolom",
+            "Satu query untuk daftar, ditambah satu query untuk setiap relasi yang dibaca"
+          ],
+          "answer": 3,
+          "explanation": "Banyak bolak-balik.",
+          "remedial": "Membaca daftar menjalankan satu query. Mengakses relasi LAZY di setiap baris menambah query terpisah untuk setiap baris yang relasinya belum dimuat."
+        },
+        {
+          "question": "Cara memuat tugas beserta kategorinya dalam satu query adalah...",
+          "options": [
+            "select t from Tugas t join fetch t.kategori",
+            "Mengubah fetch menjadi EAGER saja",
+            "Memanggil em.find untuk setiap kategori",
+            "select t from Tugas t where t.kategori is not null"
+          ],
+          "answer": 0,
+          "explanation": "Join yang mengisi relasi.",
+          "remedial": "`join fetch` menyuruh Hibernate membaca relasi di query yang sama dan langsung mengisi field relasinya."
+        },
+        {
+          "question": "Kelebihan proyeksi DTO dengan select new dibanding membaca entity adalah...",
+          "options": [
+            "Hasilnya bisa diubah lalu tersimpan otomatis",
+            "Hanya kolom yang dibutuhkan diambil dan hasilnya tidak diawasi persistence context",
+            "Tidak butuh query sama sekali",
+            "Selalu memakai EAGER"
+          ],
+          "answer": 1,
+          "explanation": "Ringan untuk tampilan.",
+          "remedial": "DTO hanya berisi data yang dibutuhkan tampilan atau laporan. Karena bukan entity, tidak ada dirty checking dan tidak ada relasi LAZY yang bisa memicu query."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pengaturan Hibernate yang membaca relasi LAZY dalam kelompok untuk mengurangi N+1 adalah...",
+      "options": [
+        "hbm2ddl.auto",
+        "show_sql",
+        "@BatchSize atau default_batch_fetch_size",
+        "@Transient"
+      ],
+      "answer": 2,
+      "explanation": "Baca berkelompok."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca kategori dan tugas dari input dengan format kategori;tugas1;tugas2 per baris, menyimpannya, lalu mencetak setiap tugas dengan nama kategorinya dan jumlah query yang dijalankan. Hasilnya benar, tetapi jumlah query bertambah setiap ada kategori baru (N+1). Ubah query JPQL-nya supaya semua dibaca dengan satu query.",
+      "starterCode": "import java.util.*;\nimport java.util.function.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    static int hitungSelect(EntityManagerFactory emf, Consumer<EntityManager> kerja) {\n        org.hibernate.stat.Statistics s = emf.unwrap(org.hibernate.SessionFactory.class).getStatistics();\n        s.setStatisticsEnabled(true);\n        s.clear();\n        EntityManager em = emf.createEntityManager();\n        kerja.accept(em);\n        em.close();\n        return (int) s.getPrepareStatementCount();\n    }\n\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        Scanner in = new Scanner(System.in);\n        em.getTransaction().begin();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            Kategori k = new Kategori(d[0]);\n            for (int i = 1; i < d.length; i++) {\n                k.tambah(new Tugas(d[i]));\n            }\n            em.persist(k);\n        }\n        em.getTransaction().commit();\n        em.close();\n        int query = hitungSelect(emf, em2 -> {\n            for (Tugas t : em2.createQuery(\"select t from Tugas t order by t.id\", Tugas.class).getResultList()) {\n                System.out.println(t.getKategori().getNama() + \" - \" + t.getJudul());\n            }\n        });\n        System.out.println(\"Query: \" + query);\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "solution": "import java.util.*;\nimport java.util.function.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    static int hitungSelect(EntityManagerFactory emf, Consumer<EntityManager> kerja) {\n        org.hibernate.stat.Statistics s = emf.unwrap(org.hibernate.SessionFactory.class).getStatistics();\n        s.setStatisticsEnabled(true);\n        s.clear();\n        EntityManager em = emf.createEntityManager();\n        kerja.accept(em);\n        em.close();\n        return (int) s.getPrepareStatementCount();\n    }\n\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        Scanner in = new Scanner(System.in);\n        em.getTransaction().begin();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            Kategori k = new Kategori(d[0]);\n            for (int i = 1; i < d.length; i++) {\n                k.tambah(new Tugas(d[i]));\n            }\n            em.persist(k);\n        }\n        em.getTransaction().commit();\n        em.close();\n        int query = hitungSelect(emf, em2 -> {\n            for (Tugas t : em2.createQuery(\"select t from Tugas t join fetch t.kategori order by t.id\", Tugas.class).getResultList()) {\n                System.out.println(t.getKategori().getNama() + \" - \" + t.getJudul());\n            }\n        });\n        System.out.println(\"Query: \" + query);\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "tests": [
+        {
+          "input": "Kantor;Kirim laporan;Rapat tim\nRumah;Cuci piring\nBelajar;JPA;Hibernate\n",
+          "expectedOutput": "Kantor - Kirim laporan\nKantor - Rapat tim\nRumah - Cuci piring\nBelajar - JPA\nBelajar - Hibernate\nQuery: 1\n"
+        }
+      ],
+      "hints": [
+        "Relasi kategori perlu dimuat bersama tugas di query yang sama.",
+        "select t from Tugas t join fetch t.kategori order by t.id"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "N+1: satu query daftar ditambah satu query per relasi yang dibaca.",
+        "join fetch memuat relasi dalam query yang sama.",
+        "select new Kelas(...) membuat DTO ringan untuk tampilan dan laporan.",
+        "Selalu periksa SQL atau jumlah query; jangan mengatasi N+1 dengan EAGER."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,211 @@
+{
+  "id": "java-persistence-api-01",
+  "moduleId": "persistence-api",
+  "order": 1,
+  "title": "Mengenal JPA dan Hibernate",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul JDBC, setiap operasi database butuh SQL, `PreparedStatement`, dan perulangan `ResultSet` untuk menyalin kolom ke field object, satu per satu. Untuk aplikasi dengan puluhan tabel, kode seperti itu menjadi sangat banyak dan mudah salah.\n\n**ORM** (*Object-Relational Mapping*) menjembatani dunia object dan dunia tabel secara otomatis: object disimpan menjadi baris, baris dibaca menjadi object. Di Java, standarnya adalah **JPA** (*Jakarta Persistence API*), dan implementasi yang paling banyak dipakai adalah **Hibernate**.\n\nIbarat penerjemah tetap di kantor dua negara: setiap pihak bicara bahasanya sendiri (object dan SQL), penerjemah yang menyampaikan ke pihak lain."
+    },
+    {
+      "type": "theory",
+      "content": "Bagian-bagian utama JPA:\n\n| Bagian | Peran |\n|---|---|\n| **Entity** | class yang dipetakan ke tabel, ditandai `@Entity` |\n| `@Id` | field kunci utama (primary key) |\n| `EntityManagerFactory` | dibuat sekali per aplikasi, berat, aman dipakai bersama |\n| `EntityManager` | dipakai untuk satu unit kerja: menyimpan, mencari, menghapus |\n| transaksi | `em.getTransaction().begin()` dan `commit()` |\n\n```java\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n    private String judul;\n    private boolean selesai;\n\n    protected Todo() { }   // wajib untuk JPA\n}\n```\n\nOperasi dasar:\n\n| Method | SQL yang dijalankan Hibernate |\n|---|---|\n| `em.persist(obj)` | `INSERT` |\n| `em.find(Todo.class, id)` | `SELECT ... WHERE id = ?` (atau tanpa query kalau sudah ada di memori) |\n\nTabel dibuat otomatis dari entity karena pengaturan `hibernate.hbm2ddl.auto=create`. Ini praktis untuk belajar dan test, tetapi **tidak dipakai di produksi**.\n\nDi editor website ini, pengaturan koneksi ditulis di class kecil `Jpa` (database H2 di memori). Di proyek sungguhan, pengaturan ini ada di file `persistence.xml` atau `application.properties` Spring Boot."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nEntityManagerFactory emf = Jpa.buat(false, Todo.class);\nEntityManager em = emf.createEntityManager();\n\nem.getTransaction().begin();\nTodo t = new Todo(\"Belajar JPA\");\nem.persist(t);                      // INSERT\nem.getTransaction().commit();\n\nSystem.out.println(t.getId());      // 1, diisi otomatis oleh database\nTodo dicari = em.find(Todo.class, 1L);\n```\n\nTidak ada satu baris SQL pun yang ditulis. Hibernate menyusunnya dari entity.\n\nDengan `Jpa.buat(true, ...)`, SQL yang dijalankan Hibernate ikut dicetak (`hibernate.show_sql`), diawali `Hibernate:`. Selalu perhatikan SQL ini saat belajar: ORM yang tidak dipahami SQL-nya adalah sumber masalah performa yang paling umum.\n\n`EntityManager` dan `EntityManagerFactory` ditutup dengan `close()` setelah selesai."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Todo.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        em.persist(new Todo(\"Belajar JPA\"));\n        em.getTransaction().commit();\n        Todo a = em.find(Todo.class, 1L);\n        Todo b = em.find(Todo.class, 1L);\n        System.out.println(\"Sama? \" + (a == b));\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: find dipanggil dua kali untuk id yang sama. Apa yang tercetak di baris terakhir?",
+        "options": [
+          "Sama? false",
+          "Sama? true",
+          "Hibernate: select todo0_.id from todo",
+          "null"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 11,
+          "note": "INSERT saat commit."
+        },
+        {
+          "line": 13,
+          "note": "Sudah ada di memori EntityManager."
+        },
+        {
+          "line": 15,
+          "note": "Object yang sama persis."
+        }
+      ],
+      "explanation": "EntityManager menyimpan setiap entity yang dikelolanya di memori, disebut persistence context. Todo yang baru di-persist sudah ada di sana, jadi kedua find mengembalikan object yang sama tanpa query SELECT sama sekali. Perhatikan: hanya ada SQL untuk tabel dan INSERT.",
+      "tryThis": [
+        {
+          "task": "Tambahkan em.clear() sebelum find pertama. Apakah SELECT muncul?",
+          "hint": null
+        },
+        {
+          "task": "Cetak a.getJudul() dan b.getJudul().",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa constructor tanpa parameter**\n\nHibernate membuat object entity dengan constructor kosong. Tanpa itu muncul `InstantiationException: No default constructor for entity`. Boleh `protected` supaya tidak dipakai kode lain.\n\n**2. Lupa `@Entity` atau tidak mendaftarkan class**\n\n`IllegalArgumentException: Unknown entity` atau `Not an entity`. Class harus diberi `@Entity` dan terdaftar di unit persistence.\n\n**3. Menyimpan tanpa transaksi**\n\n`persist` tanpa `begin` dan `commit` tidak pernah sampai ke database.\n\n**4. Membuat `EntityManagerFactory` berkali-kali**\n\nPembuatannya berat (membaca semua entity, menyiapkan koneksi). Buat sekali saat aplikasi mulai.\n\n**5. `hbm2ddl.auto=create` di produksi**\n\n`create` menghapus tabel lalu membuatnya lagi: data produksi hilang. Struktur tabel di produksi dikelola dengan alat migrasi seperti **Flyway** atau **Liquibase**."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- JPA adalah spesifikasi; Hibernate implementasi yang dipakai Spring Boot secara bawaan. Alternatifnya EclipseLink.\n- Dependency Maven untuk proyek Java 17 ke atas:\n\n```xml\n<dependency>\n  <groupId>org.hibernate.orm</groupId>\n  <artifactId>hibernate-core</artifactId>\n  <version>6.6.4.Final</version>\n</dependency>\n```\n\nEditor website ini memakai Hibernate 5.6 (versi Jakarta) karena berjalan di Java 8. Anotasi dan method JPA di modul ini sama di Hibernate 6; yang berbeda terutama bentuk SQL yang dicetak (misalnya alias `t1_0` di Hibernate 6, `todo0_` di Hibernate 5).\n- Paket lama `javax.persistence` sudah berganti menjadi `jakarta.persistence` sejak Jakarta EE 9 dan Spring Boot 3.\n- Di Spring Boot, `EntityManager` dan transaksi diurus framework: cukup `@Transactional` dan interface Spring Data JPA (`JpaRepository`), dibahas di kelas Spring Boot."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JPA 1: Todo Pertama di Database",
+      "pembuka": "Mulai materi ini kita buat **Todolist JPA**: todo disimpan ke database tanpa menulis SQL.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Satu todo disimpan dengan `persist`, lalu dicari dengan `find`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Todo.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Todo t = new Todo(\"Belajar JPA\");\n        em.persist(t);\n        em.getTransaction().commit();\n        System.out.println(\"Tersimpan dengan id \" + t.getId());\n        System.out.println(em.find(Todo.class, t.getId()));\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Tersimpan dengan id 1\n1. [ ] Belajar JPA",
+          "otomatis": true,
+          "benar": "Id diisi otomatis oleh database.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Simpan todo kedua `Rapat tim` di transaksi yang sama, lalu cetak hasil `em.find(Todo.class, 2L)`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Todo.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Todo t = new Todo(\"Belajar JPA\");\n        em.persist(t);\n        em.persist(new Todo(\"Rapat tim\"));\n        em.getTransaction().commit();\n        System.out.println(\"Tersimpan dengan id \" + t.getId());\n        System.out.println(em.find(Todo.class, t.getId()));\n        System.out.println(em.find(Todo.class, 2L));\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Tersimpan dengan id 1\n1. [ ] Belajar JPA\n2. [ ] Rapat tim",
+          "wajib": [
+            {
+              "pola": "em\\.persist\\s*\\(\\s*new\\s+Todo\\s*\\(\\s*\"Rapat tim\"\\s*\\)\\s*\\)",
+              "pesan": "simpan `new Todo(\"Rapat tim\")`."
+            },
+            {
+              "pola": "em\\.find\\s*\\(\\s*Todo\\.class\\s*,\\s*2L\\s*\\)",
+              "pesan": "cari dengan `em.find(Todo.class, 2L)`."
+            }
+          ],
+          "benar": "Id 2 diberikan otomatis.",
+          "petunjuk": "`em.persist(new Todo(\"Rapat tim\"));` sebelum commit."
+        },
+        {
+          "arahan": "Nyalakan tampilan SQL dengan `Jpa.buat(true, Todo.class)`, lalu setelah find yang ada, panggil `em.clear()`, cetak `Setelah clear:`, dan cari todo 2 sekali lagi.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Todo.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Todo t = new Todo(\"Belajar JPA\");\n        em.persist(t);\n        em.persist(new Todo(\"Rapat tim\"));\n        em.getTransaction().commit();\n        System.out.println(\"Tersimpan dengan id \" + t.getId());\n        System.out.println(em.find(Todo.class, t.getId()));\n        System.out.println(em.find(Todo.class, 2L));\n        em.clear();\n        System.out.println(\"Setelah clear:\");\n        System.out.println(em.find(Todo.class, 2L));\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Hibernate: drop table if exists Todo CASCADE\nHibernate: create table Todo (id bigint generated by default as identity, judul varchar(255), selesai boolean not null, primary key (id))\nHibernate: insert into Todo (id, judul, selesai) values (default, ?, ?)\nHibernate: insert into Todo (id, judul, selesai) values (default, ?, ?)\nTersimpan dengan id 1\n1. [ ] Belajar JPA\n2. [ ] Rapat tim\nSetelah clear:\nHibernate: select todo0_.id as id1_0_0_, todo0_.judul as judul2_0_0_, todo0_.selesai as selesai3_0_0_ from Todo todo0_ where todo0_.id=?\n2. [ ] Rapat tim",
+          "wajib": [
+            {
+              "pola": "Jpa\\.buat\\s*\\(\\s*true",
+              "pesan": "nyalakan SQL dengan `Jpa.buat(true, ...)`."
+            },
+            {
+              "pola": "em\\.clear\\(\\)",
+              "pesan": "panggil `em.clear()`."
+            }
+          ],
+          "benar": "Sebelum clear, find tidak menjalankan SELECT. Setelah clear, Hibernate harus membaca ulang dari database.",
+          "petunjuk": "Bandingkan SQL sebelum dan sesudah `em.clear()`."
+        },
+        {
+          "arahan": "Tantangan: cari todo nomor 99 yang tidak ada dan cetak dengan awalan `Nomor 99: `.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Todo.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Todo t = new Todo(\"Belajar JPA\");\n        em.persist(t);\n        em.persist(new Todo(\"Rapat tim\"));\n        em.getTransaction().commit();\n        System.out.println(\"Tersimpan dengan id \" + t.getId());\n        System.out.println(em.find(Todo.class, t.getId()));\n        System.out.println(em.find(Todo.class, 2L));\n        em.clear();\n        System.out.println(\"Setelah clear:\");\n        System.out.println(em.find(Todo.class, 2L));\n        System.out.println(\"Nomor 99: \" + em.find(Todo.class, 99L));\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Todo {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    private boolean selesai;\n\n    protected Todo() {\n    }\n\n    Todo(String judul) {\n        this.judul = judul;\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    void ubahJudul(String judul) {\n        this.judul = judul;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Hibernate: drop table if exists Todo CASCADE\nHibernate: create table Todo (id bigint generated by default as identity, judul varchar(255), selesai boolean not null, primary key (id))\nHibernate: insert into Todo (id, judul, selesai) values (default, ?, ?)\nHibernate: insert into Todo (id, judul, selesai) values (default, ?, ?)\nTersimpan dengan id 1\n1. [ ] Belajar JPA\n2. [ ] Rapat tim\nSetelah clear:\nHibernate: select todo0_.id as id1_0_0_, todo0_.judul as judul2_0_0_, todo0_.selesai as selesai3_0_0_ from Todo todo0_ where todo0_.id=?\n2. [ ] Rapat tim\nHibernate: select todo0_.id as id1_0_0_, todo0_.judul as judul2_0_0_, todo0_.selesai as selesai3_0_0_ from Todo todo0_ where todo0_.id=?\nNomor 99: null",
+          "wajib": [
+            {
+              "pola": "em\\.find\\s*\\(\\s*Todo\\.class\\s*,\\s*99L\\s*\\)",
+              "pesan": "cari `99L`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "`find` mengembalikan `null` untuk id yang tidak ada.",
+          "petunjuk": "`em.find(Todo.class, 99L)`."
+        }
+      ],
+      "penutup": "Todo tersimpan tanpa SQL. Berikutnya: mengatur nama tabel, kolom, dan tipe data."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "JPA dan Hibernate hubungannya adalah...",
+          "options": [
+            "Hibernate standar, JPA implementasinya",
+            "Keduanya nama lain untuk JDBC",
+            "JPA spesifikasi standar, Hibernate salah satu implementasinya",
+            "JPA khusus MySQL, Hibernate khusus PostgreSQL"
+          ],
+          "answer": 2,
+          "explanation": "Standar dan implementasi.",
+          "remedial": "JPA mendefinisikan anotasi dan interface (`@Entity`, `EntityManager`). Hibernate adalah library yang menjalankannya, seperti Hibernate Validator untuk Bean Validation."
+        },
+        {
+          "question": "em.persist(todo) diikuti commit menjalankan SQL...",
+          "options": [
+            "SELECT",
+            "UPDATE",
+            "CREATE TABLE",
+            "INSERT"
+          ],
+          "answer": 3,
+          "explanation": "Menyimpan object baru.",
+          "remedial": "`persist` mendaftarkan object baru ke EntityManager. Saat transaksi di-commit, Hibernate menjalankan `INSERT`."
+        },
+        {
+          "question": "Kenapa hbm2ddl.auto=create tidak dipakai di produksi?",
+          "options": [
+            "Karena tabel dihapus dan dibuat ulang sehingga data hilang",
+            "Karena terlalu cepat",
+            "Karena hanya untuk H2",
+            "Karena tidak membuat tabel"
+          ],
+          "answer": 0,
+          "explanation": "Drop lalu create.",
+          "remedial": "`create` menjalankan `DROP TABLE` sebelum membuat tabel. Di produksi, perubahan struktur tabel dikelola dengan migrasi seperti Flyway."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Object yang dibuat sekali per aplikasi dan dipakai untuk membuat EntityManager adalah...",
+      "options": [
+        "EntityTransaction",
+        "EntityManagerFactory",
+        "Entity",
+        "TypedQuery"
+      ],
+      "answer": 1,
+      "explanation": "Pabrik."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca produk dengan format nama;harga per baris, menyimpannya dengan JPA, dan mencetak id. nama. Program gagal karena Hibernate tidak mengenali class Produk sebagai entity. Perbaiki class Produk.",
+      "starterCode": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Produk.class);\n        EntityManager em = emf.createEntityManager();\n        Scanner in = new Scanner(System.in);\n        em.getTransaction().begin();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            Produk p = new Produk(d[0], Integer.parseInt(d[1]));\n            em.persist(p);\n            System.out.println(p.id + \". \" + p.nama);\n        }\n        em.getTransaction().commit();\n        em.close();\n        emf.close();\n    }\n}\n\nclass Produk {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    Long id;\n\n    String nama;\n\n    int harga;\n\n    protected Produk() {\n    }\n\n    Produk(String nama, int harga) {\n        this.nama = nama;\n        this.harga = harga;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "solution": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Produk.class);\n        EntityManager em = emf.createEntityManager();\n        Scanner in = new Scanner(System.in);\n        em.getTransaction().begin();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            Produk p = new Produk(d[0], Integer.parseInt(d[1]));\n            em.persist(p);\n            System.out.println(p.id + \". \" + p.nama);\n        }\n        em.getTransaction().commit();\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Produk {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    Long id;\n\n    String nama;\n\n    int harga;\n\n    protected Produk() {\n    }\n\n    Produk(String nama, int harga) {\n        this.nama = nama;\n        this.harga = harga;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "tests": [
+        {
+          "input": "Kopi;18000\nTeh;8000\n",
+          "expectedOutput": "1. Kopi\n2. Teh\n"
+        }
+      ],
+      "hints": [
+        "Class entity harus diberi anotasi khusus JPA.",
+        "Tambahkan @Entity di atas class Produk."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "JPA: standar ORM Java; Hibernate: implementasi paling umum.",
+        "Entity ditandai @Entity, punya @Id, dan constructor tanpa parameter.",
+        "EntityManagerFactory dibuat sekali; EntityManager untuk unit kerja; perubahan di dalam transaksi.",
+        "persist menjadi INSERT, find menjadi SELECT (atau dari memori)."
+      ]
+    }
+  ]
+}
