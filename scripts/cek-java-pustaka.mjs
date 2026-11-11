@@ -48,7 +48,7 @@ for (const t of daftar) {
   const mulai = Date.now();
   for (let coba = 0; coba < 2; coba++) {
     try {
-      r = await page.evaluate(async ({ kode, input, versi }) => { try { return await window.runJavaCode(kode, input, undefined, versi); } catch (e) { return { stdout: '', stderr: String(e), exitCode: -9 }; } }, t);
+      r = await Promise.race([page.evaluate(async ({ kode, input, versi }) => { try { return await window.runJavaCode(kode, input, undefined, versi); } catch (e) { return { stdout: '', stderr: String(e), exitCode: -9 }; } }, t), new Promise((ok) => setTimeout(() => ok({ stdout: '', stderr: 'halaman beku 150 detik', exitCode: -8, timedOut: true }), 150000))]);
       break;
     } catch (e) {
       console.log(`  crash di ${t.asal}, ulang: ${String(e).slice(0, 80)}`);
