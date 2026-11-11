@@ -8,4 +8,5 @@ cp ../../public/tools.jar www/
 cp index.html www/
 node server.mjs "$PWD/www" 8080 &
 sleep 2
-node probe2.mjs
+cp bisangoding.jar www/lib/
+node probe3.mjs < mockito-junit.java
