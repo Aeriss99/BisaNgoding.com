@@ -14,7 +14,7 @@ async function jalan(html, berkas) {
     for (let k = 1; k <= 1; k++) {
       const t = Date.now();
       let r;
-      try { r = await Promise.race([page.evaluate(({ code, cp }) => window.jalankan(code, cp), { code, cp }), new Promise((_, j) => setTimeout(() => j(new Error('timeout 60s')), 60000))]); }
+      try { r = await Promise.race([page.evaluate(({ code, cp }) => window.jalankan(code, cp), { code, cp }), new Promise((_, j) => setTimeout(() => j(new Error('timeout 30s')), 30000))]); }
       catch (e) { r = { err: String(e) }; }
       console.log(`===== ${html} ${b} jalan ${k} (${Date.now() - t} ms) cp=${cp.split(':').length}\n${JSON.stringify({ exit: r.exit, tahap: r.tahap, msCompile: r.msCompile, msRun: r.msRun })}\nOUT:\n${r.out ?? ''}\nERR:\n${(r.err ?? '').slice(0, 3000)}`);
       if (r.err && String(r.err).startsWith('Error: timeout')) break;
@@ -22,7 +22,7 @@ async function jalan(html, berkas) {
   }
   await page.close();
 }
-const t = fs.readdirSync('p7').sort().map((f) => 'p7/' + f);
-for (const f of t) { await jalan('index.html', [f]); }
-for (const f of [...t, 'p6/a_i18n.java']) { await jalan('index21.html', [f]); }
+const t = fs.readdirSync('p8').sort().map((f) => 'p8/' + f);
+for (const f of t.filter((x) => !x.includes('o_virtual'))) { await jalan('index.html', [f]); }
+for (const f of t) { await jalan('index21.html', [f]); }
 await browser.close();
