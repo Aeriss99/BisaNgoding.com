@@ -1,0 +1,228 @@
+{
+  "id": "java-unit-test-03",
+  "moduleId": "unit-test",
+  "order": 3,
+  "title": "Menguji Exception",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kode yang baik tidak hanya bekerja untuk masukan yang benar, tetapi juga **menolak** masukan yang salah. `TodoService.tambah(\"\")` seharusnya melempar `IllegalArgumentException`. Aturan penolakan seperti ini juga harus diuji.\n\nIbarat menguji alarm kebakaran: tidak cukup memeriksa bahwa alarm diam saat tidak ada asap. Penguji juga meniupkan asap dan memastikan alarm benar-benar berbunyi.\n\nDi JUnit, \"meniupkan asap\" dilakukan dengan `assertThrows`."
+    },
+    {
+      "type": "theory",
+      "content": "`assertThrows` menerima dua hal: **jenis exception** yang diharapkan dan **kode yang dijalankan**, ditulis sebagai lambda.\n\n```java\nassertThrows(IllegalArgumentException.class, () -> service.tambah(\"\"));\n```\n\n| Yang terjadi saat lambda dijalankan | Hasil test |\n|---|---|\n| Melempar exception jenis itu (atau turunannya) | lulus ✔ |\n| Tidak melempar apa-apa | gagal: `Expected ... to be thrown, but nothing was thrown.` |\n| Melempar exception jenis lain | gagal: `Unexpected exception type thrown` |\n\n`assertThrows` juga **mengembalikan** exception yang tertangkap, sehingga pesannya bisa diperiksa:\n\n```java\nIllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> service.tambah(\"\"));\nassertEquals(\"Judul tidak boleh kosong\", e.getMessage());\n```\n\nKebalikannya, `assertDoesNotThrow(() -> ...)` memastikan kode berjalan tanpa exception."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMenguji aturan \"nomor todo harus ada\" di `TodoService`:\n\n```java\n@Test\nvoid selesaikanNomorTidakAda() {\n    TodoService service = new TodoService(new TodoRepositoryMemori());\n    TodoTidakDitemukanException e =\n        assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9));\n    assertEquals(\"Todo nomor 9 tidak ditemukan\", e.getMessage());\n}\n```\n\nKenapa harus lambda, bukan langsung `service.selesaikan(9)`? Kalau dipanggil langsung, exception terlempar **sebelum** `assertThrows` sempat menangkapnya, dan test berakhir dengan error. Lambda menunda pemanggilan sampai `assertThrows` siap menangkap."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(AngkaTest.class);\n    }\n}\n\nclass AngkaTest {\n    @Test\n    void parseAngkaBenar() {\n        assertThrows(IllegalArgumentException.class, () -> Integer.parseInt(\"25\"));\n    }\n\n    @Test\n    void parseHurufMelemparJenisLain() {\n        assertThrows(IllegalStateException.class, () -> Integer.parseInt(\"dua\"));\n    }\n\n    @Test\n    void parseHurufDitolak() {\n        NumberFormatException e = assertThrows(NumberFormatException.class, () -> Integer.parseInt(\"dua\"));\n        assertEquals(\"For input string: \\\"dua\\\"\", e.getMessage());\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa pesan gagal di bawah parseAngkaBenar()?",
+        "options": [
+          "For input string: \"25\"",
+          "Unexpected exception type thrown, expected: <java.lang.IllegalArgumentException> but was: <java.lang.NumberFormatException>",
+          "expected: <25> but was: <null>",
+          "Expected java.lang.IllegalArgumentException to be thrown, but nothing was thrown."
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 16,
+          "note": "\"25\" angka yang sah, jadi tidak ada exception."
+        },
+        {
+          "line": 21,
+          "note": "Yang terlempar NumberFormatException, bukan IllegalStateException."
+        },
+        {
+          "line": 26,
+          "note": "assertThrows mengembalikan exception yang tertangkap."
+        },
+        {
+          "line": 27,
+          "note": "Memeriksa pesan exception."
+        }
+      ],
+      "explanation": "Test pertama gagal karena Integer.parseInt(\"25\") berhasil dan tidak melempar apa pun. Test kedua gagal karena jenis exception-nya berbeda: yang terlempar NumberFormatException. Test ketiga lulus karena jenis dan pesannya sesuai.\n\nPerhatikan: NumberFormatException adalah turunan IllegalArgumentException. Jadi assertThrows(IllegalArgumentException.class, ...) untuk \"dua\" akan lulus juga.",
+      "tryThis": [
+        {
+          "task": "Ganti \"25\" di test pertama dengan \"dua25\". Apakah test itu jadi lulus?",
+          "hint": null
+        },
+        {
+          "task": "Ubah IllegalStateException di test kedua menjadi IllegalArgumentException. Kenapa sekarang lulus?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memanggil kode tanpa lambda**\n\n```java\nassertThrows(IllegalArgumentException.class, service.tambah(\"\"));   // tidak bisa di-compile\n```\n\nParameter kedua harus lambda `() -> service.tambah(\"\")`.\n\n**2. Menangkap exception dengan try-catch di dalam test**\n\n```java\ntry {\n    service.tambah(\"\");\n} catch (IllegalArgumentException e) {\n    // dianggap lulus\n}\n```\n\nKalau `tambah(\"\")` ternyata tidak melempar exception, test ini tetap lulus. Pakai `assertThrows` yang pasti gagal kalau exception tidak muncul.\n\n**3. Jenis exception terlalu umum**\n\n`assertThrows(Exception.class, ...)` lulus untuk exception apa pun, termasuk `NullPointerException` karena bug. Tulis jenis yang paling spesifik.\n\n**4. Tidak memeriksa pesan exception**\n\nDua aturan berbeda (judul kosong dan judul terlalu panjang) sama-sama melempar `IllegalArgumentException`. Tanpa memeriksa `getMessage()`, test tidak tahu aturan mana yang sebenarnya menolak."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- **Setiap aturan bisnis punya minimal dua test**: satu untuk masukan yang diterima, satu untuk masukan yang ditolak. Reviewer sering bertanya \"mana test untuk kasus gagalnya?\".\n- **Exception khusus** seperti `TodoTidakDitemukanException` lebih mudah diuji dan ditangani daripada `RuntimeException` biasa. Di Spring Boot, exception seperti ini biasanya diubah menjadi jawaban HTTP 404.\n- Pesan exception adalah bagian dari perilaku. Kalau pesannya ditampilkan ke pengguna, perubahan pesan juga harus disengaja, dan test yang memeriksa pesan akan mengingatkan.\n\n```java\n@Test\nvoid selesaikanNomorTidakAda() {\n    assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9));\n}\n// di aplikasi web, exception ini menjadi: 404 Not Found {\"pesan\": \"Todo nomor 9 tidak ditemukan\"}\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Uji Todolist 3: Aturan TodoService",
+      "pembuka": "`TodoService` punya tiga aturan penolakan. Kita uji semuanya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Judul kosong harus ditolak dengan `IllegalArgumentException`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    @Test\n    void judulKosongDitolak() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(\"\"));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ judulKosongDitolak()\n\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0",
+          "otomatis": true,
+          "benar": "Lulus, karena `tambah(\"\")` memang melempar exception itu.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Simpan exception yang dikembalikan `assertThrows` ke variabel `e`, lalu periksa pesannya: `\"Judul tidak boleh kosong\"`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    @Test\n    void judulKosongDitolak() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> service.tambah(\"\"));\n        assertEquals(\"Judul tidak boleh kosong\", e.getMessage());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ judulKosongDitolak()\n\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "IllegalArgumentException\\s+e\\s*=\\s*assertThrows",
+              "pesan": "simpan hasil `assertThrows` ke `IllegalArgumentException e`."
+            },
+            {
+              "pola": "e\\.getMessage\\(\\)",
+              "pesan": "periksa `e.getMessage()`."
+            }
+          ],
+          "benar": "Hasilnya masih lulus, tapi sekarang test tahu persis aturan mana yang menolak.",
+          "petunjuk": "Ubah barisnya menjadi `IllegalArgumentException e = assertThrows(...);` lalu tambahkan `assertEquals(\"Judul tidak boleh kosong\", e.getMessage());`."
+        },
+        {
+          "arahan": "Tambahkan test `judulTerlaluPanjangDitolak` dengan judul `\"Judul ini sengaja dibuat sangat panjang supaya lebih dari lima puluh huruf\"` (lebih dari 50 huruf). Pesan yang diharapkan: `\"Judul maksimal 50 huruf\"`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    @Test\n    void judulKosongDitolak() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> service.tambah(\"\"));\n        assertEquals(\"Judul tidak boleh kosong\", e.getMessage());\n    }\n\n    @Test\n    void judulTerlaluPanjangDitolak() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,\n            () -> service.tambah(\"Judul ini sengaja dibuat sangat panjang supaya lebih dari lima puluh huruf\"));\n        assertEquals(\"Judul maksimal 50 huruf\", e.getMessage());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ judulKosongDitolak()\n  ✔ judulTerlaluPanjangDitolak()\n\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "void\\s+judulTerlaluPanjangDitolak\\s*\\(\\s*\\)",
+              "pesan": "beri nama method `judulTerlaluPanjangDitolak`."
+            },
+            {
+              "pola": "\"Judul maksimal 50 huruf\"",
+              "pesan": "periksa pesan `\"Judul maksimal 50 huruf\"`."
+            }
+          ],
+          "benar": "Dua aturan judul sudah terlindungi.",
+          "petunjuk": "Polanya sama persis dengan test pertama, hanya judul dan pesannya yang berbeda."
+        },
+        {
+          "arahan": "Tambahkan test `selesaikanNomorTidakAda`: `service.selesaikan(9)` pada service kosong harus melempar `TodoTidakDitemukanException` dengan pesan `\"Todo nomor 9 tidak ditemukan\"`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    @Test\n    void judulKosongDitolak() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> service.tambah(\"\"));\n        assertEquals(\"Judul tidak boleh kosong\", e.getMessage());\n    }\n\n    @Test\n    void judulTerlaluPanjangDitolak() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,\n            () -> service.tambah(\"Judul ini sengaja dibuat sangat panjang supaya lebih dari lima puluh huruf\"));\n        assertEquals(\"Judul maksimal 50 huruf\", e.getMessage());\n    }\n\n    @Test\n    void selesaikanNomorTidakAda() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        TodoTidakDitemukanException e = assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9));\n        assertEquals(\"Todo nomor 9 tidak ditemukan\", e.getMessage());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ judulKosongDitolak()\n  ✔ judulTerlaluPanjangDitolak()\n  ✔ selesaikanNomorTidakAda()\n\nTests run: 3, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "assertThrows\\s*\\(\\s*TodoTidakDitemukanException\\.class",
+              "pesan": "pakai `assertThrows(TodoTidakDitemukanException.class, ...)`."
+            }
+          ],
+          "benar": "Tiga aturan penolakan teruji.",
+          "petunjuk": "Jenis exception-nya `TodoTidakDitemukanException.class`, dan variabelnya juga bertipe `TodoTidakDitemukanException`."
+        },
+        {
+          "arahan": "Tantangan: aturan juga harus **menerima** yang benar. Buat test `judulNormalDiterima` yang memastikan `service.tambah(\"Belajar\")` tidak melempar exception apa pun.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\nclass TodoServiceTest {\n    @Test\n    void judulKosongDitolak() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> service.tambah(\"\"));\n        assertEquals(\"Judul tidak boleh kosong\", e.getMessage());\n    }\n\n    @Test\n    void judulTerlaluPanjangDitolak() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,\n            () -> service.tambah(\"Judul ini sengaja dibuat sangat panjang supaya lebih dari lima puluh huruf\"));\n        assertEquals(\"Judul maksimal 50 huruf\", e.getMessage());\n    }\n\n    @Test\n    void selesaikanNomorTidakAda() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        TodoTidakDitemukanException e = assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9));\n        assertEquals(\"Todo nomor 9 tidak ditemukan\", e.getMessage());\n    }\n\n    @Test\n    void judulNormalDiterima() {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        assertDoesNotThrow(() -> service.tambah(\"Belajar\"));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ judulKosongDitolak()\n  ✔ judulNormalDiterima()\n  ✔ judulTerlaluPanjangDitolak()\n  ✔ selesaikanNomorTidakAda()\n\nTests run: 4, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "assertDoesNotThrow\\s*\\(",
+              "pesan": "pakai `assertDoesNotThrow(() -> ...)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Empat test lulus: tiga menolak, satu menerima.",
+          "petunjuk": "Ada assertion khusus yang kebalikan dari `assertThrows`."
+        }
+      ],
+      "penutup": "Setiap aturan di `TodoService` sekarang punya test. Tapi setiap test menulis `new TodoService(new TodoRepositoryMemori())` berulang-ulang. Di materi berikutnya kita rapikan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa parameter kedua assertThrows ditulis sebagai lambda () -> service.tambah(\"\")?",
+          "options": [
+            "Supaya pemanggilan ditunda sampai assertThrows siap menangkap exception",
+            "Supaya kodenya lebih pendek",
+            "Karena service.tambah tidak boleh dipanggil di test",
+            "Supaya exception tidak pernah terlempar"
+          ],
+          "answer": 0,
+          "explanation": "Lambda menunda eksekusi.",
+          "remedial": "Kalau `service.tambah(\"\")` ditulis langsung, Java menjalankannya lebih dulu sebelum masuk ke `assertThrows`. Exception terlempar di luar penangkap dan test berakhir error. Dengan lambda, `assertThrows` sendiri yang menjalankan kode itu di dalam penangkapnya."
+        },
+        {
+          "question": "Test berisi assertThrows(IllegalArgumentException.class, () -> service.tambah(\"Belajar\")). Judul itu valid. Apa hasilnya?",
+          "options": [
+            "Lulus, karena judulnya valid",
+            "Gagal, karena tidak ada exception yang terlempar",
+            "Error, karena lambda tidak boleh berisi string",
+            "Dilewati"
+          ],
+          "answer": 1,
+          "explanation": "assertThrows mewajibkan exception muncul.",
+          "remedial": "`assertThrows` hanya lulus kalau exception jenis itu benar-benar terlempar. Judul valid tidak menimbulkan exception, jadi pesannya `Expected java.lang.IllegalArgumentException to be thrown, but nothing was thrown.`"
+        },
+        {
+          "question": "Kenapa memeriksa e.getMessage() setelah assertThrows itu penting?",
+          "options": [
+            "Karena assertThrows tidak memeriksa jenis exception",
+            "Supaya test berjalan lebih cepat",
+            "Supaya tahu aturan mana yang menolak, karena beberapa aturan bisa melempar jenis exception yang sama",
+            "Karena exception tanpa pesan tidak bisa ditangkap"
+          ],
+          "answer": 2,
+          "explanation": "Satu jenis exception bisa punya banyak penyebab.",
+          "remedial": "Di `TodoService`, judul kosong dan judul terlalu panjang sama-sama melempar `IllegalArgumentException`. Hanya pesannya yang membedakan. Memeriksa pesan memastikan aturan yang benar yang bekerja."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Assertion untuk memastikan service.tambah(\"Belajar\") berjalan tanpa exception adalah...",
+      "options": [
+        "assertThrows(null, () -> service.tambah(\"Belajar\"))",
+        "assertTrue(service.tambah(\"Belajar\"))",
+        "assertNull(service.tambah(\"Belajar\"))",
+        "assertDoesNotThrow(() -> service.tambah(\"Belajar\"))"
+      ],
+      "answer": 3,
+      "explanation": "Kebalikan dari assertThrows."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Class Rekening punya method tarik yang belum memeriksa apa pun. Test di RekeningTest menuntut dua aturan: menarik 0 atau kurang ditolak dengan IllegalArgumentException berpesan \"Jumlah harus lebih dari nol\", dan menarik lebih dari saldo ditolak dengan IllegalArgumentException berpesan \"Saldo tidak cukup\" tanpa mengubah saldo. Lengkapi method tarik sampai ketiga test lulus.",
+      "starterCode": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(RekeningTest.class);\n    }\n}\n\nclass RekeningTest {\n    @Test\n    void tarikBerhasilMengurangiSaldo() {\n        Rekening r = new Rekening(100000);\n        r.tarik(30000);\n        assertEquals(70000, r.getSaldo());\n    }\n\n    @Test\n    void tarikMelebihiSaldoDitolak() {\n        Rekening r = new Rekening(100000);\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> r.tarik(150000));\n        assertEquals(\"Saldo tidak cukup\", e.getMessage());\n        assertEquals(100000, r.getSaldo());\n    }\n\n    @Test\n    void tarikNolDitolak() {\n        Rekening r = new Rekening(100000);\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> r.tarik(0));\n        assertEquals(\"Jumlah harus lebih dari nol\", e.getMessage());\n    }\n}\n\nclass Rekening {\n    private int saldo;\n\n    Rekening(int saldo) {\n        this.saldo = saldo;\n    }\n\n    int getSaldo() {\n        return saldo;\n    }\n\n    void tarik(int jumlah) {\n        saldo -= jumlah;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(RekeningTest.class);\n    }\n}\n\nclass RekeningTest {\n    @Test\n    void tarikBerhasilMengurangiSaldo() {\n        Rekening r = new Rekening(100000);\n        r.tarik(30000);\n        assertEquals(70000, r.getSaldo());\n    }\n\n    @Test\n    void tarikMelebihiSaldoDitolak() {\n        Rekening r = new Rekening(100000);\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> r.tarik(150000));\n        assertEquals(\"Saldo tidak cukup\", e.getMessage());\n        assertEquals(100000, r.getSaldo());\n    }\n\n    @Test\n    void tarikNolDitolak() {\n        Rekening r = new Rekening(100000);\n        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> r.tarik(0));\n        assertEquals(\"Jumlah harus lebih dari nol\", e.getMessage());\n    }\n}\n\nclass Rekening {\n    private int saldo;\n\n    Rekening(int saldo) {\n        this.saldo = saldo;\n    }\n\n    int getSaldo() {\n        return saldo;\n    }\n\n    void tarik(int jumlah) {\n        if (jumlah <= 0) {\n            throw new IllegalArgumentException(\"Jumlah harus lebih dari nol\");\n        }\n        if (jumlah > saldo) {\n            throw new IllegalArgumentException(\"Saldo tidak cukup\");\n        }\n        saldo -= jumlah;\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "RekeningTest\n  ✔ tarikBerhasilMengurangiSaldo()\n  ✔ tarikMelebihiSaldoDitolak()\n  ✔ tarikNolDitolak()\n\nTests run: 3, Failures: 0, Errors: 0, Skipped: 0\n"
+        }
+      ],
+      "hints": [
+        "Periksa jumlah <= 0 lebih dulu, lalu jumlah > saldo, masing-masing dengan throw new IllegalArgumentException(\"...\").",
+        "Pengurangan saldo hanya dilakukan setelah kedua pemeriksaan lolos."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "assertThrows(JenisException.class, () -> kode) lulus kalau exception jenis itu terlempar.",
+        "assertThrows mengembalikan exception, sehingga pesannya bisa diperiksa.",
+        "Jangan memakai try-catch untuk menguji exception.",
+        "assertDoesNotThrow memastikan kode berjalan tanpa exception."
+      ]
+    }
+  ]
+}

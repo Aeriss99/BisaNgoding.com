@@ -1,0 +1,220 @@
+{
+  "id": "java-unit-test-05",
+  "moduleId": "unit-test",
+  "order": 5,
+  "title": "Menata Test",
+  "estimatedMinutes": 15,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Test yang lulus hari ini akan dibaca lagi berbulan-bulan kemudian, biasanya saat ada yang gagal. Laporan test yang rapi langsung memberi tahu **perilaku mana** yang rusak, tanpa harus membuka kodenya.\n\nIbarat laci obat di apotek: obat dikelompokkan per jenis dan setiap laci diberi label yang jelas. Apoteker tidak perlu membuka semua laci untuk menemukan obat batuk.\n\nJUnit menyediakan empat alat untuk menata test: `@DisplayName`, `@Nested`, `@Disabled`, dan assumption."
+    },
+    {
+      "type": "theory",
+      "content": "| Alat | Fungsinya | Tampil di laporan |\n|---|---|---|\n| `@DisplayName(\"...\")` | memberi nama yang mudah dibaca untuk class atau method test | nama itu, bukan nama method |\n| `@Nested` pada inner class | mengelompokkan test, biasanya per method yang diuji | judul kelompok dengan test menjorok ke dalam |\n| `@Disabled(\"alasan\")` | mematikan test sementara | `↷ ... (dilewati: alasan)`, dihitung Skipped |\n| `Assumptions.assumeTrue(kondisi)` | membatalkan test kalau syarat lingkungannya belum terpenuhi | `↷ ... (dibatalkan: ...)`, dihitung Skipped |\n\nInner class `@Nested` **tidak** `static`, sehingga bisa memakai field dan `@BeforeEach` milik class luarnya.\n\nBeda `@Disabled` dan assumption: `@Disabled` selalu melewati test. Assumption memeriksa keadaan saat test berjalan, misalnya \"lewati test ini kalau database uji belum menyala\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@DisplayName(\"TodoService\")\nclass TodoServiceTest {\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() { service = new TodoService(new TodoRepositoryMemori()); }\n\n    @Nested\n    @DisplayName(\"tambah\")\n    class Tambah {\n        @Test\n        @DisplayName(\"todo pertama bernomor 1\")\n        void tambahPertama() { ... }\n    }\n}\n```\n\nLaporannya:\n\n```text\nTodoService\n  tambah\n    ✔ todo pertama bernomor 1\n```\n\nDibaca seperti kalimat: \"TodoService, tambah: todo pertama bernomor 1\". `@BeforeEach` di class luar tetap dijalankan sebelum test di dalam kelompok."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(LaporanTest.class);\n    }\n}\n\n@DisplayName(\"Laporan bulanan\")\nclass LaporanTest {\n    boolean databaseSiap = false;\n\n    @Test\n    @DisplayName(\"total kosong bernilai nol\")\n    void totalKosong() {\n        assertEquals(0, new ArrayList<Integer>().size());\n    }\n\n    @Test\n    @Disabled(\"format PDF belum dibuat\")\n    void cetakPdf() {\n        fail(\"belum dibuat\");\n    }\n\n    @Test\n    @DisplayName(\"membaca data dari database\")\n    void dariDatabase() {\n        Assumptions.assumeTrue(databaseSiap, \"database uji belum menyala\");\n        assertEquals(10, 10);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: databaseSiap bernilai false. Baris ringkasan apa yang muncul?",
+        "options": [
+          "Tests run: 3, Failures: 1, Errors: 0, Skipped: 1",
+          "Tests run: 3, Failures: 0, Errors: 0, Skipped: 2",
+          "Tests run: 1, Failures: 0, Errors: 0, Skipped: 0",
+          "Tests run: 3, Failures: 2, Errors: 0, Skipped: 0"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 13,
+          "note": "Nama class di laporan."
+        },
+        {
+          "line": 24,
+          "note": "Test ini tidak dijalankan sama sekali."
+        },
+        {
+          "line": 32,
+          "note": "Syarat tidak terpenuhi, test dibatalkan (bukan gagal)."
+        }
+      ],
+      "explanation": "Hanya totalKosong yang benar-benar dijalankan dan lulus. cetakPdf dilewati karena @Disabled, dan dariDatabase dibatalkan karena assumption tidak terpenuhi. Keduanya dihitung Skipped, bukan Failures.\n\nPerhatikan juga nama di laporan: method yang diberi @DisplayName tampil dengan nama itu, sedangkan cetakPdf tampil dengan nama method aslinya.",
+      "tryThis": [
+        {
+          "task": "Ubah databaseSiap menjadi true. Berapa Skipped sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Beri @DisplayName(\"mencetak PDF\") pada cetakPdf.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Inner class `@Nested` ditulis `static`**\n\nJUnit hanya menjalankan inner class non-static sebagai kelompok `@Nested`. Hapus kata `static`.\n\n**2. Lupa `@Nested`**\n\nInner class tanpa `@Nested` tidak dijalankan sama sekali. Semua test di dalamnya hilang dari laporan tanpa peringatan.\n\n**3. Test dimatikan dengan `@Disabled` lalu dilupakan**\n\n`@Disabled` tanpa alasan dan tanpa catatan kapan dinyalakan lagi pelan-pelan menumpuk. Selalu tulis alasannya, dan banyak tim mewajibkan nomor tiket: `@Disabled(\"TODO-142: menunggu fitur batal\")`.\n\n**4. Memakai assumption untuk menyembunyikan test yang gagal**\n\nAssumption untuk syarat lingkungan (database, sistem operasi), bukan untuk menghindari bug. Test yang gagal harus diperbaiki, bukan dibatalkan."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\nDua gaya penamaan test yang umum:\n\n```java\nvoid tambah_judulKosong_melemparException()   // method_kondisi_hasil\nvoid shouldRejectEmptyTitle()                 // should... (bahasa Inggris)\n```\n\nTim yang memakai `@DisplayName` biasanya menulis kalimat lengkap, dan IntelliJ menampilkannya sebagai pohon yang sama persis dengan laporan di sini.\n\n`@Tag` dipakai untuk memilih test yang dijalankan, misalnya memisahkan test lambat:\n\n```java\n@Tag(\"lambat\")\n@Test\nvoid imporSeribuTodo() { ... }\n```\n\nLalu di Maven: `mvn test -Dgroups=lambat` hanya menjalankan test bertag itu, atau `-DexcludedGroups=lambat` untuk melewatinya saat ingin cepat."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Uji Todolist 5: Laporan yang Rapi",
+      "pembuka": "Laporan `TodoServiceTest` akan kita buat terbaca seperti kalimat.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Class dan method diberi `@DisplayName`, jadi laporan memakai nama itu.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\n@DisplayName(\"TodoService\")\nclass TodoServiceTest {\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        service = new TodoService(new TodoRepositoryMemori());\n    }\n\n    @Test\n    @DisplayName(\"todo pertama bernomor 1\")\n    void tambahPertama() {\n        assertEquals(1, service.tambah(\"Belajar\").getId());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoService\n  ✔ todo pertama bernomor 1\n\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0",
+          "otomatis": true,
+          "benar": "Nama method `tambahPertama` diganti kalimat yang jelas di laporan.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Kelompokkan test tambah: buat inner class `Tambah` dengan `@Nested` dan `@DisplayName(\"tambah\")`, pindahkan `tambahPertama` ke dalamnya, lalu tambahkan test `judulKosong` dengan nama tampilan `menolak judul kosong`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\n@DisplayName(\"TodoService\")\nclass TodoServiceTest {\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        service = new TodoService(new TodoRepositoryMemori());\n    }\n\n    @Nested\n    @DisplayName(\"tambah\")\n    class Tambah {\n        @Test\n        @DisplayName(\"todo pertama bernomor 1\")\n        void tambahPertama() {\n            assertEquals(1, service.tambah(\"Belajar\").getId());\n        }\n\n        @Test\n        @DisplayName(\"menolak judul kosong\")\n        void judulKosong() {\n            assertThrows(IllegalArgumentException.class, () -> service.tambah(\"\"));\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoService\n  tambah\n    ✔ menolak judul kosong\n    ✔ todo pertama bernomor 1\n\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "@Nested\\s+@DisplayName\\(\"tambah\"\\)\\s+class\\s+Tambah",
+              "pesan": "tulis `@Nested`, `@DisplayName(\"tambah\")`, lalu `class Tambah`."
+            },
+            {
+              "pola": "@DisplayName\\(\"menolak judul kosong\"\\)",
+              "pesan": "beri test baru nama tampilan `menolak judul kosong`."
+            }
+          ],
+          "benar": "Laporan sekarang punya kelompok \"tambah\" yang menjorok ke dalam.",
+          "petunjuk": "Inner class ditulis di dalam `TodoServiceTest`, tanpa `static`: `@Nested @DisplayName(\"tambah\") class Tambah { ... }`."
+        },
+        {
+          "arahan": "Buat kelompok kedua `Selesaikan` (`@DisplayName(\"selesaikan\")`) berisi test `mengubah status todo` dan `menolak nomor yang tidak ada`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\n@DisplayName(\"TodoService\")\nclass TodoServiceTest {\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        service = new TodoService(new TodoRepositoryMemori());\n    }\n\n    @Nested\n    @DisplayName(\"tambah\")\n    class Tambah {\n        @Test\n        @DisplayName(\"todo pertama bernomor 1\")\n        void tambahPertama() {\n            assertEquals(1, service.tambah(\"Belajar\").getId());\n        }\n\n        @Test\n        @DisplayName(\"menolak judul kosong\")\n        void judulKosong() {\n            assertThrows(IllegalArgumentException.class, () -> service.tambah(\"\"));\n        }\n    }\n\n    @Nested\n    @DisplayName(\"selesaikan\")\n    class Selesaikan {\n        @Test\n        @DisplayName(\"mengubah status todo\")\n        void ubahStatus() {\n            service.tambah(\"Belajar\");\n            service.selesaikan(1);\n            assertTrue(service.semua().get(0).isSelesai());\n        }\n\n        @Test\n        @DisplayName(\"menolak nomor yang tidak ada\")\n        void nomorTidakAda() {\n            assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9));\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoService\n  selesaikan\n    ✔ mengubah status todo\n    ✔ menolak nomor yang tidak ada\n  tambah\n    ✔ menolak judul kosong\n    ✔ todo pertama bernomor 1\n\nTests run: 4, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "@Nested\\s+@DisplayName\\(\"selesaikan\"\\)\\s+class\\s+Selesaikan",
+              "pesan": "tulis `@Nested`, `@DisplayName(\"selesaikan\")`, lalu `class Selesaikan`."
+            },
+            {
+              "pola": "@DisplayName\\(\"mengubah status todo\"\\)",
+              "pesan": "beri nama tampilan `mengubah status todo`."
+            },
+            {
+              "pola": "@DisplayName\\(\"menolak nomor yang tidak ada\"\\)",
+              "pesan": "beri nama tampilan `menolak nomor yang tidak ada`."
+            }
+          ],
+          "benar": "Dua kelompok, empat test, dan `@BeforeEach` di class luar tetap berjalan untuk semuanya.",
+          "petunjuk": "Test pertama: tambah satu todo, `service.selesaikan(1)`, lalu `assertTrue(service.semua().get(0).isSelesai())`. Test kedua: `assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9))`."
+        },
+        {
+          "arahan": "Tantangan: fitur \"batal selesai\" belum dibuat. Di kelompok `Selesaikan`, tambahkan test `batalkan` dengan nama tampilan `bisa dibatalkan` yang dimatikan sementara dengan alasan `menunggu fitur batal selesai`. Isinya cukup `fail(\"belum dibuat\");`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\n@DisplayName(\"TodoService\")\nclass TodoServiceTest {\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        service = new TodoService(new TodoRepositoryMemori());\n    }\n\n    @Nested\n    @DisplayName(\"tambah\")\n    class Tambah {\n        @Test\n        @DisplayName(\"todo pertama bernomor 1\")\n        void tambahPertama() {\n            assertEquals(1, service.tambah(\"Belajar\").getId());\n        }\n\n        @Test\n        @DisplayName(\"menolak judul kosong\")\n        void judulKosong() {\n            assertThrows(IllegalArgumentException.class, () -> service.tambah(\"\"));\n        }\n    }\n\n    @Nested\n    @DisplayName(\"selesaikan\")\n    class Selesaikan {\n        @Test\n        @DisplayName(\"mengubah status todo\")\n        void ubahStatus() {\n            service.tambah(\"Belajar\");\n            service.selesaikan(1);\n            assertTrue(service.semua().get(0).isSelesai());\n        }\n\n        @Test\n        @DisplayName(\"menolak nomor yang tidak ada\")\n        void nomorTidakAda() {\n            assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9));\n        }\n\n        @Test\n        @Disabled(\"menunggu fitur batal selesai\")\n        @DisplayName(\"bisa dibatalkan\")\n        void batalkan() {\n            fail(\"belum dibuat\");\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoService\n  selesaikan\n    ↷ bisa dibatalkan (dilewati: menunggu fitur batal selesai)\n    ✔ mengubah status todo\n    ✔ menolak nomor yang tidak ada\n  tambah\n    ✔ menolak judul kosong\n    ✔ todo pertama bernomor 1\n\nTests run: 5, Failures: 0, Errors: 0, Skipped: 1",
+          "wajib": [
+            {
+              "pola": "@Disabled\\(\"menunggu fitur batal selesai\"\\)",
+              "pesan": "matikan dengan `@Disabled(\"menunggu fitur batal selesai\")`."
+            },
+            {
+              "pola": "@DisplayName\\(\"bisa dibatalkan\"\\)",
+              "pesan": "beri nama tampilan `bisa dibatalkan`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Test-nya tercatat Skipped dengan alasan yang jelas, jadi tidak terlupakan.",
+          "petunjuk": "Pakai anotasi yang melewati test beserta alasannya."
+        }
+      ],
+      "penutup": "Laporan `TodoServiceTest` sekarang terbaca seperti dokumen perilaku aplikasi. Berikutnya: menguji banyak masukan dengan satu test."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang terjadi pada inner class berisi test yang tidak diberi @Nested?",
+          "options": [
+            "Test di dalamnya dijalankan seperti biasa",
+            "Program gagal di-compile",
+            "Test di dalamnya tidak dijalankan",
+            "Test di dalamnya dihitung Skipped"
+          ],
+          "answer": 2,
+          "explanation": "@Nested wajib untuk inner class test.",
+          "remedial": "JUnit hanya masuk ke inner class yang diberi `@Nested`. Tanpanya, test di dalam inner class tidak ditemukan, tidak dihitung, dan tidak muncul di laporan."
+        },
+        {
+          "question": "Kapan assumption seperti assumeTrue(databaseSiap) tepat dipakai?",
+          "options": [
+            "Saat test sering gagal dan ingin disembunyikan",
+            "Untuk memeriksa hasil method",
+            "Untuk mengganti @BeforeEach",
+            "Saat test butuh syarat lingkungan yang belum tentu tersedia"
+          ],
+          "answer": 3,
+          "explanation": "Assumption untuk lingkungan, bukan untuk bug.",
+          "remedial": "Assumption membatalkan test kalau syarat seperti database uji atau sistem operasi tertentu tidak tersedia. Hasil method tetap diperiksa dengan assertion. Menyembunyikan test yang gagal adalah kebiasaan buruk."
+        },
+        {
+          "question": "Baris ringkasan dari kode ini adalah...",
+          "code": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(ContohTest.class);\n    }\n}\n\nclass ContohTest {\n    @Test\n    void a() {\n        assertTrue(true);\n    }\n\n    @Test\n    @Disabled(\"belum siap\")\n    void b() {\n        fail(\"x\");\n    }\n}",
+          "options": [
+            "Tests run: 2, Failures: 0, Errors: 0, Skipped: 1",
+            "Tests run: 2, Failures: 1, Errors: 0, Skipped: 0",
+            "Tests run: 1, Failures: 0, Errors: 0, Skipped: 0",
+            "Tests run: 2, Failures: 0, Errors: 0, Skipped: 0"
+          ],
+          "answer": 0,
+          "explanation": "Test yang di-@Disabled dihitung Skipped.",
+          "remedial": "Test `b` tidak pernah dijalankan, jadi `fail(\"x\")` tidak berpengaruh. Ia tetap dihitung di `Tests run`, tapi masuk kolom `Skipped`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa inner class @Nested tidak boleh static?",
+      "options": [
+        "Supaya lebih cepat",
+        "Supaya bisa memakai field dan @BeforeEach milik class luar",
+        "Karena class static tidak boleh punya method",
+        "Karena JUnit hanya membaca class public"
+      ],
+      "answer": 1,
+      "explanation": "Inner class non-static terikat pada object class luar."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "OngkirTest berisi tiga test yang semuanya lulus, tetapi laporannya masih datar. Tata ulang OngkirTest supaya laporannya berbentuk: judul class \"Ongkos kirim\", lalu kelompok \"dalam kota\" berisi test \"tarif tetap 10000\" dan \"berat tidak berpengaruh\", lalu kelompok \"luar kota\" berisi test \"15000 per kilo\". Pakai DisplayName untuk semua nama itu dan dua inner class Nested bernama DalamKota dan LuarKota. Nama method test tidak perlu diubah.",
+      "starterCode": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(OngkirTest.class);\n    }\n}\n\nclass OngkirTest {\n    @Test\n    void dalamKotaTetap() {\n        assertEquals(10000, Ongkir.hitung(\"dalam kota\", 1));\n    }\n\n    @Test\n    void dalamKotaBeratTidakBerpengaruh() {\n        assertEquals(10000, Ongkir.hitung(\"dalam kota\", 5));\n    }\n\n    @Test\n    void luarKotaPerKilo() {\n        assertEquals(30000, Ongkir.hitung(\"luar kota\", 2));\n    }\n}\n\nclass Ongkir {\n    static int hitung(String tujuan, int kilo) {\n        if (tujuan.equals(\"dalam kota\")) {\n            return 10000;\n        }\n        return 15000 * kilo;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(OngkirTest.class);\n    }\n}\n\n@DisplayName(\"Ongkos kirim\")\nclass OngkirTest {\n    @Nested\n    @DisplayName(\"dalam kota\")\n    class DalamKota {\n        @Test\n        @DisplayName(\"tarif tetap 10000\")\n        void dalamKotaTetap() {\n            assertEquals(10000, Ongkir.hitung(\"dalam kota\", 1));\n        }\n\n        @Test\n        @DisplayName(\"berat tidak berpengaruh\")\n        void dalamKotaBeratTidakBerpengaruh() {\n            assertEquals(10000, Ongkir.hitung(\"dalam kota\", 5));\n        }\n    }\n\n    @Nested\n    @DisplayName(\"luar kota\")\n    class LuarKota {\n        @Test\n        @DisplayName(\"15000 per kilo\")\n        void luarKotaPerKilo() {\n            assertEquals(30000, Ongkir.hitung(\"luar kota\", 2));\n        }\n    }\n}\n\nclass Ongkir {\n    static int hitung(String tujuan, int kilo) {\n        if (tujuan.equals(\"dalam kota\")) {\n            return 10000;\n        }\n        return 15000 * kilo;\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "Ongkos kirim\n  dalam kota\n    ✔ berat tidak berpengaruh\n    ✔ tarif tetap 10000\n  luar kota\n    ✔ 15000 per kilo\n\nTests run: 3, Failures: 0, Errors: 0, Skipped: 0\n"
+        }
+      ],
+      "hints": [
+        "Bungkus dua test dalam kota dengan class DalamKota yang diberi @Nested dan @DisplayName(\"dalam kota\").",
+        "Beri @DisplayName(\"Ongkos kirim\") di atas class OngkirTest dan @DisplayName untuk setiap method."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@DisplayName memberi nama yang mudah dibaca di laporan.",
+        "@Nested mengelompokkan test; inner class-nya tidak static.",
+        "@Disabled melewati test, wajib dengan alasan.",
+        "Assumption membatalkan test kalau syarat lingkungan tidak terpenuhi."
+      ]
+    }
+  ]
+}

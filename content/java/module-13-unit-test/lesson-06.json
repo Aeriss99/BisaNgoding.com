@@ -1,0 +1,232 @@
+{
+  "id": "java-unit-test-06",
+  "moduleId": "unit-test",
+  "order": 6,
+  "title": "Parameterized Test",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aturan \"judul tidak boleh kosong\" seharusnya menolak `\"\"`, `\" \"`, `\"   \"`, dan `null`. Menulis empat method test yang isinya sama persis kecuali satu nilai itu melelahkan, dan mudah ada yang terlewat.\n\n**Parameterized test** adalah satu method test yang dijalankan berkali-kali dengan data yang berbeda.\n\nIbarat mesin uji ketahanan kursi di pabrik: satu mesin yang sama dipakai untuk menguji beban 50 kg, 80 kg, dan 120 kg. Mesinnya tidak dibuat tiga kali, hanya bebannya yang diganti."
+    },
+    {
+      "type": "theory",
+      "content": "Ganti `@Test` dengan `@ParameterizedTest`, lalu tentukan sumber datanya:\n\n| Sumber | Contoh | Cocok untuk |\n|---|---|---|\n| `@ValueSource` | `@ValueSource(strings = {\"\", \" \"})` atau `ints = {1, 50}` | satu parameter |\n| `@NullAndEmptySource` | (tanpa isi) | menambahkan `null` dan `\"\"` |\n| `@CsvSource` | `@CsvSource({\"2, luar kota, 30000\"})` | beberapa parameter per baris |\n| `@MethodSource` | `@MethodSource(\"dataUji\")` | data yang dibuat dengan kode |\n\nDi `@CsvSource`, setiap teks adalah satu baris data, dipisah koma. Teks yang punya spasi di awal atau akhir dibungkus kutip tunggal: `\"'  Belajar  ', Belajar\"`.\n\nAtribut `name` mengatur nama setiap putaran di laporan. `{0}`, `{1}`, dan seterusnya diganti nilai parameter:\n\n```java\n@ParameterizedTest(name = \"skor {0} = {1}\")\n```\n\nParameterized test butuh import dari package `org.junit.jupiter.params`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.*;\n\nclass JudulTest {\n    @ParameterizedTest(name = \"judul \\\"{0}\\\" ditolak\")\n    @NullAndEmptySource\n    @ValueSource(strings = {\" \", \"   \"})\n    void judulKosongDitolak(String judul) {\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(judul));\n    }\n}\n```\n\nMethod ini dijalankan empat kali: `null`, `\"\"`, `\" \"`, dan `\"   \"`. Setiap putaran punya tanda ✔ atau ✘ sendiri, jadi kalau satu data gagal, data lain tetap diperiksa.\n\nTeknik memilih data yang dipakai penguji profesional: **nilai batas**. Untuk aturan \"maksimal 50 huruf\", uji 50 (harus diterima) dan 51 (harus ditolak). Bug paling sering bersembunyi tepat di batas."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(OngkirTest.class);\n    }\n}\n\nclass OngkirTest {\n    @ParameterizedTest(name = \"{0} kg ke {1} = {2}\")\n    @CsvSource({\n        \"1, dalam kota, 10000\",\n        \"5, dalam kota, 10000\",\n        \"2, luar kota, 30000\",\n        \"3, luar kota, 40000\"\n    })\n    void hitung(int kilo, String tujuan, int harapan) {\n        assertEquals(harapan, Ongkir.hitung(tujuan, kilo));\n    }\n}\n\nclass Ongkir {\n    static int hitung(String tujuan, int kilo) {\n        if (tujuan.equals(\"dalam kota\")) {\n            return 10000;\n        }\n        return 15000 * kilo;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: tarif luar kota 15000 per kilo. Baris mana yang mendapat tanda gagal?",
+        "options": [
+          "✘ 2 kg ke luar kota = 30000",
+          "✘ 5 kg ke dalam kota = 10000",
+          "✘ 3 kg ke luar kota = 40000",
+          "✘ 1 kg ke dalam kota = 10000"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 16,
+          "note": "Nama setiap putaran di laporan."
+        },
+        {
+          "line": 21,
+          "note": "Data ini salah: 3 x 15000 = 45000."
+        },
+        {
+          "line": 23,
+          "note": "Satu baris CSV mengisi tiga parameter ini."
+        }
+      ],
+      "explanation": "Method hitung dijalankan empat kali, sekali untuk setiap baris CSV. Teks seperti \"3\" otomatis diubah menjadi int karena parameternya int. Baris keempat gagal karena datanya keliru: 3 kg ke luar kota seharusnya 45000.\n\nKali ini yang salah adalah data test-nya, bukan kode Ongkir. Saat test gagal, periksa keduanya.",
+      "tryThis": [
+        {
+          "task": "Perbaiki baris keempat menjadi \"3, luar kota, 45000\".",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan baris data untuk 10 kg ke luar kota.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Masih menulis `@Test` bersama `@ParameterizedTest`**\n\nPakai salah satu saja. `@Test` pada method berparameter membuat JUnit tidak tahu harus mengisi parameter dengan apa.\n\n**2. Jumlah kolom CSV tidak sama dengan jumlah parameter**\n\n`@CsvSource({\"1, dalam kota\"})` untuk method dengan tiga parameter membuat test error. Hitung koma di setiap baris.\n\n**3. Lupa kutip tunggal untuk teks berspasi**\n\n`\"  Belajar  , Belajar\"` dibaca sebagai `Belajar` (spasi di tepi dibuang). Tulis `\"'  Belajar  ', Belajar\"`.\n\n**4. Hanya menguji nilai tengah**\n\nMenguji panjang judul 10, 20, dan 30 tidak akan menemukan bug `>` yang seharusnya `>=`. Selalu sertakan nilai batas."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Data uji yang banyak sering disimpan di file CSV terpisah: `@CsvFileSource(resources = \"/ongkir.csv\", numLinesToSkip = 1)`. File-nya diletakkan di `src/test/resources`.\n- `@EnumSource(StatusPesanan.class)` menjalankan test untuk setiap nilai enum, berguna supaya status baru tidak terlupa diuji.\n- `@MethodSource` dipakai saat datanya berupa object:\n\n```java\nstatic Stream<Arguments> dataOngkir() {\n    return Stream.of(\n        Arguments.of(new Alamat(\"Bandung\"), 2, 30000),\n        Arguments.of(new Alamat(\"Jakarta\"), 1, 10000));\n}\n```\n\nTim QA dan developer sering menyusun tabel nilai batas bersama sebelum fitur dibuat. Tabel itu lalu langsung menjadi isi `@CsvSource`."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Uji Todolist 6: Banyak Judul Sekaligus",
+      "pembuka": "Aturan judul di `TodoService` akan kita uji dengan banyak data sekaligus.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Satu method menguji tiga judul kosong.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(JudulTest.class);\n    }\n}\n\nclass JudulTest {\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        service = new TodoService(new TodoRepositoryMemori());\n    }\n\n    @ParameterizedTest(name = \"judul \\\"{0}\\\" ditolak\")\n    @ValueSource(strings = {\"\", \" \", \"   \"})\n    void judulKosongDitolak(String judul) {\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(judul));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "JudulTest\n  judulKosongDitolak(String)\n    ✔ judul \"\" ditolak\n    ✔ judul \" \" ditolak\n    ✔ judul \"   \" ditolak\n\nTests run: 3, Failures: 0, Errors: 0, Skipped: 0",
+          "otomatis": true,
+          "benar": "Tiga putaran, masing-masing dengan tanda ✔ sendiri.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Judul `null` juga harus ditolak. Ganti data `\"\"` dengan anotasi `@NullAndEmptySource` (tetap pertahankan `@ValueSource` untuk `\" \"` dan `\"   \"`).",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(JudulTest.class);\n    }\n}\n\nclass JudulTest {\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        service = new TodoService(new TodoRepositoryMemori());\n    }\n\n    @ParameterizedTest(name = \"judul \\\"{0}\\\" ditolak\")\n    @NullAndEmptySource\n    @ValueSource(strings = {\" \", \"   \"})\n    void judulKosongDitolak(String judul) {\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(judul));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "JudulTest\n  judulKosongDitolak(String)\n    ✔ judul \"null\" ditolak\n    ✔ judul \"\" ditolak\n    ✔ judul \" \" ditolak\n    ✔ judul \"   \" ditolak\n\nTests run: 4, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "@NullAndEmptySource",
+              "pesan": "tambahkan `@NullAndEmptySource`."
+            },
+            {
+              "pola": "@ValueSource\\(strings = \\{\" \", \"   \"\\}\\)",
+              "pesan": "sisakan `@ValueSource(strings = {\" \", \"   \"})`."
+            }
+          ],
+          "benar": "Sekarang empat putaran, termasuk `null`.",
+          "petunjuk": "Tulis `@NullAndEmptySource` di atas `@ValueSource(strings = {\" \", \"   \"})`."
+        },
+        {
+          "arahan": "Uji juga bahwa judul dirapikan. Tambahkan `judulDirapikan(String masukan, String hasil)` dengan `@CsvSource({\"'  Belajar  ', Belajar\", \"'Beli kopi ', Beli kopi\"})` dan nama `\"\\\"{0}\\\" disimpan sebagai \\\"{1}\\\"\"`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(JudulTest.class);\n    }\n}\n\nclass JudulTest {\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        service = new TodoService(new TodoRepositoryMemori());\n    }\n\n    @ParameterizedTest(name = \"judul \\\"{0}\\\" ditolak\")\n    @NullAndEmptySource\n    @ValueSource(strings = {\" \", \"   \"})\n    void judulKosongDitolak(String judul) {\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(judul));\n    }\n\n    @ParameterizedTest(name = \"\\\"{0}\\\" disimpan sebagai \\\"{1}\\\"\")\n    @CsvSource({\"'  Belajar  ', Belajar\", \"'Beli kopi ', Beli kopi\"})\n    void judulDirapikan(String masukan, String hasil) {\n        assertEquals(hasil, service.tambah(masukan).getJudul());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "JudulTest\n  judulDirapikan(String, String)\n    ✔ \"  Belajar  \" disimpan sebagai \"Belajar\"\n    ✔ \"Beli kopi \" disimpan sebagai \"Beli kopi\"\n  judulKosongDitolak(String)\n    ✔ judul \"null\" ditolak\n    ✔ judul \"\" ditolak\n    ✔ judul \" \" ditolak\n    ✔ judul \"   \" ditolak\n\nTests run: 6, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "@CsvSource",
+              "pesan": "pakai `@CsvSource`."
+            },
+            {
+              "pola": "void\\s+judulDirapikan\\s*\\(\\s*String\\s+masukan\\s*,\\s*String\\s+hasil\\s*\\)",
+              "pesan": "tulis `void judulDirapikan(String masukan, String hasil)`."
+            }
+          ],
+          "benar": "Spasi di tepi masukan dibuang oleh service, dan test membuktikannya.",
+          "petunjuk": "Isi test-nya: `assertEquals(hasil, service.tambah(masukan).getJudul());`. Perhatikan kutip tunggal di data CSV."
+        },
+        {
+          "arahan": "Uji nilai batas yang diterima: `panjangDiterima(int n)` dengan `@ValueSource(ints = {1, 25, 50})` dan nama `\"panjang {0} diterima\"`. Buat judul sepanjang n dengan `String.join(\"\", Collections.nCopies(n, \"a\"))`, lalu `assertDoesNotThrow`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(JudulTest.class);\n    }\n}\n\nclass JudulTest {\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        service = new TodoService(new TodoRepositoryMemori());\n    }\n\n    @ParameterizedTest(name = \"judul \\\"{0}\\\" ditolak\")\n    @NullAndEmptySource\n    @ValueSource(strings = {\" \", \"   \"})\n    void judulKosongDitolak(String judul) {\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(judul));\n    }\n\n    @ParameterizedTest(name = \"\\\"{0}\\\" disimpan sebagai \\\"{1}\\\"\")\n    @CsvSource({\"'  Belajar  ', Belajar\", \"'Beli kopi ', Beli kopi\"})\n    void judulDirapikan(String masukan, String hasil) {\n        assertEquals(hasil, service.tambah(masukan).getJudul());\n    }\n\n    @ParameterizedTest(name = \"panjang {0} diterima\")\n    @ValueSource(ints = {1, 25, 50})\n    void panjangDiterima(int n) {\n        String judul = String.join(\"\", Collections.nCopies(n, \"a\"));\n        assertDoesNotThrow(() -> service.tambah(judul));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "JudulTest\n  judulDirapikan(String, String)\n    ✔ \"  Belajar  \" disimpan sebagai \"Belajar\"\n    ✔ \"Beli kopi \" disimpan sebagai \"Beli kopi\"\n  judulKosongDitolak(String)\n    ✔ judul \"null\" ditolak\n    ✔ judul \"\" ditolak\n    ✔ judul \" \" ditolak\n    ✔ judul \"   \" ditolak\n  panjangDiterima(int)\n    ✔ panjang 1 diterima\n    ✔ panjang 25 diterima\n    ✔ panjang 50 diterima\n\nTests run: 9, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "@ValueSource\\(ints = \\{1, 25, 50\\}\\)",
+              "pesan": "pakai `@ValueSource(ints = {1, 25, 50})`."
+            },
+            {
+              "pola": "assertDoesNotThrow",
+              "pesan": "periksa dengan `assertDoesNotThrow`."
+            }
+          ],
+          "benar": "Panjang 50, tepat di batas, diterima.",
+          "petunjuk": "`Collections.nCopies(n, \"a\")` membuat List berisi n huruf \"a\", lalu `String.join` menyambungnya."
+        },
+        {
+          "arahan": "Tantangan: lengkapi sisi batas yang lain. Buat `panjangDitolak` dengan nama `\"panjang {0} ditolak\"` untuk panjang 51 dan 100.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(JudulTest.class);\n    }\n}\n\nclass JudulTest {\n    TodoService service;\n\n    @BeforeEach\n    void siapkan() {\n        service = new TodoService(new TodoRepositoryMemori());\n    }\n\n    @ParameterizedTest(name = \"judul \\\"{0}\\\" ditolak\")\n    @NullAndEmptySource\n    @ValueSource(strings = {\" \", \"   \"})\n    void judulKosongDitolak(String judul) {\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(judul));\n    }\n\n    @ParameterizedTest(name = \"\\\"{0}\\\" disimpan sebagai \\\"{1}\\\"\")\n    @CsvSource({\"'  Belajar  ', Belajar\", \"'Beli kopi ', Beli kopi\"})\n    void judulDirapikan(String masukan, String hasil) {\n        assertEquals(hasil, service.tambah(masukan).getJudul());\n    }\n\n    @ParameterizedTest(name = \"panjang {0} diterima\")\n    @ValueSource(ints = {1, 25, 50})\n    void panjangDiterima(int n) {\n        String judul = String.join(\"\", Collections.nCopies(n, \"a\"));\n        assertDoesNotThrow(() -> service.tambah(judul));\n    }\n\n    @ParameterizedTest(name = \"panjang {0} ditolak\")\n    @ValueSource(ints = {51, 100})\n    void panjangDitolak(int n) {\n        String judul = String.join(\"\", Collections.nCopies(n, \"a\"));\n        assertThrows(IllegalArgumentException.class, () -> service.tambah(judul));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "JudulTest\n  judulDirapikan(String, String)\n    ✔ \"  Belajar  \" disimpan sebagai \"Belajar\"\n    ✔ \"Beli kopi \" disimpan sebagai \"Beli kopi\"\n  judulKosongDitolak(String)\n    ✔ judul \"null\" ditolak\n    ✔ judul \"\" ditolak\n    ✔ judul \" \" ditolak\n    ✔ judul \"   \" ditolak\n  panjangDiterima(int)\n    ✔ panjang 1 diterima\n    ✔ panjang 25 diterima\n    ✔ panjang 50 diterima\n  panjangDitolak(int)\n    ✔ panjang 51 ditolak\n    ✔ panjang 100 ditolak\n\nTests run: 11, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "@ValueSource\\(ints = \\{51, 100\\}\\)",
+              "pesan": "pakai data 51 dan 100."
+            },
+            {
+              "pola": "void\\s+panjangDitolak\\s*\\(\\s*int\\s+n\\s*\\)",
+              "pesan": "tulis `void panjangDitolak(int n)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Batas 50 dan 51 teruji dari dua sisi. Kalau suatu hari ada yang mengubah `> 50` menjadi `> 51`, test ini langsung gagal.",
+          "petunjuk": "Kebalikan dari test sebelumnya: datanya 51 dan 100, dan pemeriksaannya `assertThrows`."
+        }
+      ],
+      "penutup": "Satu class `JudulTest` sekarang memeriksa belasan judul. Berikutnya kita masuk ke Mockito: menguji service tanpa repository sungguhan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Method dengan @ParameterizedTest dan @ValueSource(ints = {1, 25, 50}) dijalankan berapa kali?",
+          "options": [
+            "1 kali",
+            "50 kali",
+            "76 kali",
+            "3 kali"
+          ],
+          "answer": 3,
+          "explanation": "Sekali untuk setiap nilai.",
+          "remedial": "`@ValueSource` berisi tiga nilai, sehingga method dijalankan tiga kali dengan parameter 1, 25, dan 50. Setiap putaran punya hasil sendiri di laporan."
+        },
+        {
+          "question": "Untuk aturan \"judul maksimal 50 huruf\", nilai uji yang paling penting adalah...",
+          "options": [
+            "50 dan 51",
+            "10 dan 20",
+            "0 dan 1000",
+            "25 saja"
+          ],
+          "answer": 0,
+          "explanation": "Nilai batas.",
+          "remedial": "Bug paling sering ada di batas, misalnya `>` yang seharusnya `>=`. Panjang 50 harus diterima dan 51 harus ditolak. Nilai tengah seperti 25 jarang menemukan bug semacam itu."
+        },
+        {
+          "question": "Bagaimana menulis data CSV supaya teks \"  Belajar  \" (dengan spasi di tepi) tidak dirapikan?",
+          "options": [
+            "Diberi tanda garis miring di depan",
+            "Dibungkus kutip tunggal: '  Belajar  '",
+            "Ditulis di @ValueSource saja",
+            "Tidak bisa, CSV selalu membuang spasi"
+          ],
+          "answer": 1,
+          "explanation": "Kutip tunggal di dalam CsvSource.",
+          "remedial": "`@CsvSource` membuang spasi di awal dan akhir setiap kolom. Teks yang dibungkus kutip tunggal dibaca apa adanya, termasuk spasinya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Anotasi yang menambahkan null dan teks kosong sebagai data parameterized test adalah...",
+      "options": [
+        "@EmptySource saja",
+        "@NullSource saja",
+        "@NullAndEmptySource",
+        "@ValueSource(strings = {null, \"\"})"
+      ],
+      "answer": 2,
+      "explanation": "Satu anotasi untuk keduanya."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "NilaiTest menguji aturan nilai huruf dengan sepuluh baris data, termasuk nilai batas: A untuk skor 85 ke atas, B untuk 70 ke atas, C untuk 55 ke atas, D untuk 40 ke atas, selain itu E. Method huruf di class Nilai masih salah tepat di batasnya. Perbaiki class Nilai sampai semua putaran lulus.",
+      "starterCode": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(NilaiTest.class);\n    }\n}\n\nclass NilaiTest {\n    @ParameterizedTest(name = \"skor {0} = {1}\")\n    @CsvSource({\n        \"100, A\", \"85, A\",\n        \"84, B\", \"70, B\",\n        \"69, C\", \"55, C\",\n        \"54, D\", \"40, D\",\n        \"39, E\", \"0, E\"\n    })\n    void huruf(int skor, String harapan) {\n        assertEquals(harapan, Nilai.huruf(skor));\n    }\n}\n\nclass Nilai {\n    // A: 85 ke atas, B: 70 ke atas, C: 55 ke atas, D: 40 ke atas, selain itu E\n    static String huruf(int skor) {\n        if (skor > 85) {\n            return \"A\";\n        } else if (skor > 70) {\n            return \"B\";\n        } else if (skor > 55) {\n            return \"C\";\n        } else if (skor > 40) {\n            return \"D\";\n        }\n        return \"E\";\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.*;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(NilaiTest.class);\n    }\n}\n\nclass NilaiTest {\n    @ParameterizedTest(name = \"skor {0} = {1}\")\n    @CsvSource({\n        \"100, A\", \"85, A\",\n        \"84, B\", \"70, B\",\n        \"69, C\", \"55, C\",\n        \"54, D\", \"40, D\",\n        \"39, E\", \"0, E\"\n    })\n    void huruf(int skor, String harapan) {\n        assertEquals(harapan, Nilai.huruf(skor));\n    }\n}\n\nclass Nilai {\n    // A: 85 ke atas, B: 70 ke atas, C: 55 ke atas, D: 40 ke atas, selain itu E\n    static String huruf(int skor) {\n        if (skor >= 85) {\n            return \"A\";\n        } else if (skor >= 70) {\n            return \"B\";\n        } else if (skor >= 55) {\n            return \"C\";\n        } else if (skor >= 40) {\n            return \"D\";\n        }\n        return \"E\";\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "NilaiTest\n  huruf(int, String)\n    ✔ skor 100 = A\n    ✔ skor 85 = A\n    ✔ skor 84 = B\n    ✔ skor 70 = B\n    ✔ skor 69 = C\n    ✔ skor 55 = C\n    ✔ skor 54 = D\n    ✔ skor 40 = D\n    ✔ skor 39 = E\n    ✔ skor 0 = E\n\nTests run: 10, Failures: 0, Errors: 0, Skipped: 0\n"
+        }
+      ],
+      "hints": [
+        "Lihat putaran yang gagal: skor 85, 70, 55, dan 40. Semuanya tepat di batas.",
+        "Ganti perbandingan lebih besar (>) menjadi lebih besar sama dengan (>=)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@ParameterizedTest menjalankan satu method dengan banyak data.",
+        "Sumber data: @ValueSource, @NullAndEmptySource, @CsvSource, @MethodSource.",
+        "Atribut name mengatur nama setiap putaran: {0}, {1}, ...",
+        "Pilih data di nilai batas, misalnya 50 dan 51."
+      ]
+    }
+  ]
+}

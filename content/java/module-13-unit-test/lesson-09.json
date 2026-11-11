@@ -1,0 +1,218 @@
+{
+  "id": "java-unit-test-09",
+  "moduleId": "unit-test",
+  "order": 9,
+  "title": "Anotasi Mockito",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setiap class test sejauh ini menulis pola yang sama di `@BeforeEach`: buat mock dengan `mock(...)`, lalu masukkan ke constructor service. Kalau service punya tiga dependency, persiapannya makin panjang.\n\nMockito menyediakan **anotasi** yang mengerjakan persiapan itu secara otomatis, plus pemeriksaan tambahan yang menjaga test tetap bersih.\n\nIbarat kotak perkakas yang sudah tersusun: setiap alat punya tempat berlabel, jadi tukang tidak perlu menyiapkan satu per satu setiap kali mulai bekerja."
+    },
+    {
+      "type": "theory",
+      "content": "| Anotasi | Fungsinya |\n|---|---|\n| `@ExtendWith(MockitoExtension.class)` | di atas class test: menyalakan Mockito untuk JUnit 5 |\n| `@Mock` | di atas field: dibuatkan mock baru sebelum setiap test |\n| `@InjectMocks` | di atas field: object yang diuji dibuat, dan mock dimasukkan lewat constructor-nya |\n| `@Captor` | di atas field `ArgumentCaptor<T>`: dibuatkan captor |\n\n```java\n@ExtendWith(MockitoExtension.class)\nclass TodoServiceTest {\n    @Mock\n    TodoRepository repo;\n\n    @InjectMocks\n    TodoService service;   // sama dengan new TodoService(repo)\n}\n```\n\n`MockitoExtension` juga menjalankan **strict stubs**: kalau sebuah test mengatur `when(...)` yang tidak pernah dipakai, test itu gagal dengan `UnnecessaryStubbingException`. Tujuannya supaya test tidak berisi pengaturan yang menyesatkan pembaca.\n\nImport yang dibutuhkan: `org.junit.jupiter.api.extension.ExtendWith`, `org.mockito.*`, dan `org.mockito.junit.jupiter.MockitoExtension`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@ExtendWith(MockitoExtension.class)\nclass LanggananTest {\n    @Mock\n    Pembayaran bayar;\n\n    @Mock\n    Notifikasi notif;\n\n    @InjectMocks\n    Langganan langganan;   // new Langganan(bayar, notif)\n\n    @Test\n    void bayarBerhasil() {\n        when(bayar.tagih(\"sari\", 50000)).thenReturn(true);\n        assertTrue(langganan.aktifkan(\"sari\"));\n        verify(notif).kirim(\"sari\", \"Langganan aktif\");\n    }\n}\n```\n\n`@InjectMocks` mencari constructor terbesar, lalu mengisi parameternya dengan mock yang tipenya cocok. Urutan field `@Mock` tidak berpengaruh.\n\nKalau sebuah pengaturan memang sengaja tidak selalu dipakai, tandai dengan `lenient().when(...)`. Gunakan seperlunya."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.*;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(LanggananTest.class);\n    }\n}\n\n@ExtendWith(MockitoExtension.class)\nclass LanggananTest {\n    @Mock\n    Pembayaran bayar;\n\n    @Mock\n    Notifikasi notif;\n\n    @InjectMocks\n    Langganan langganan;\n\n    @Test\n    void bayarBerhasil() {\n        when(bayar.tagih(\"sari\", 50000)).thenReturn(true);\n        assertTrue(langganan.aktifkan(\"sari\"));\n        verify(notif).kirim(\"sari\", \"Langganan aktif\");\n    }\n\n    @Test\n    void bayarGagal() {\n        when(bayar.tagih(\"budi\", 50000)).thenReturn(false);\n        when(notif.terkirim()).thenReturn(0);\n        assertFalse(langganan.aktifkan(\"budi\"));\n    }\n}\n\ninterface Pembayaran {\n    boolean tagih(String pengguna, int jumlah);\n}\n\ninterface Notifikasi {\n    void kirim(String pengguna, String pesan);\n\n    int terkirim();\n}\n\nclass Langganan {\n    private final Pembayaran bayar;\n    private final Notifikasi notif;\n\n    Langganan(Pembayaran bayar, Notifikasi notif) {\n        this.bayar = bayar;\n        this.notif = notif;\n    }\n\n    boolean aktifkan(String pengguna) {\n        if (!bayar.tagih(pengguna, 50000)) {\n            return false;\n        }\n        notif.kirim(pengguna, \"Langganan aktif\");\n        return true;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: di bayarGagal ada pengaturan notif.terkirim() yang tidak pernah dipanggil Langganan. Baris ringkasan apa yang muncul?",
+        "options": [
+          "Tests run: 2, Failures: 0, Errors: 0, Skipped: 0",
+          "Tests run: 2, Failures: 0, Errors: 1, Skipped: 0",
+          "Tests run: 2, Failures: 1, Errors: 0, Skipped: 0",
+          "Tests run: 1, Failures: 0, Errors: 0, Skipped: 0"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 18,
+          "note": "Menyalakan Mockito, termasuk strict stubs."
+        },
+        {
+          "line": 26,
+          "note": "Langganan dibuat dengan kedua mock di atasnya."
+        },
+        {
+          "line": 39,
+          "note": "Pengaturan ini tidak pernah dipakai."
+        }
+      ],
+      "explanation": "Test bayarBerhasil lulus. Test bayarGagal sebenarnya benar, tetapi ada pengaturan when yang tidak pernah dipakai oleh Langganan. MockitoExtension menganggapnya kesalahan dan melempar UnnecessaryStubbingException, yang dihitung sebagai Errors.\n\nPesan itu membantu: pembaca test tidak lagi tertipu mengira terkirim() ikut menentukan hasil.",
+      "tryThis": [
+        {
+          "task": "Hapus baris when(notif.terkirim()).thenReturn(0); lalu jalankan lagi.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan verify(notif, never()).kirim(anyString(), anyString()); di test bayarGagal.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `@ExtendWith(MockitoExtension.class)`**\n\nField `@Mock` tetap `null`, dan test berhenti dengan `NullPointerException` saat mock dipakai. Tanpa extension, anotasi Mockito tidak dibaca.\n\n**2. Memakai `@Mock` untuk class yang diuji**\n\nClass yang diuji diberi `@InjectMocks`, bukan `@Mock`. Kalau di-mock, semua method-nya palsu dan test tidak menguji apa-apa.\n\n**3. Membuat object dengan `new` sekaligus `@InjectMocks`**\n\n```java\n@InjectMocks\nTodoService service = new TodoService(new TodoRepositoryMemori());\n```\n\nMockito memakai object yang sudah dibuat itu, sehingga mock tidak pernah masuk. Biarkan field `@InjectMocks` tanpa `new`.\n\n**4. Menyelesaikan `UnnecessaryStubbingException` dengan `lenient()` di mana-mana**\n\nBiasanya penyebabnya pengaturan yang tersisa dari test lain atau argumen yang salah ketik. Hapus pengaturannya atau perbaiki argumennya."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\nBentuk class test service di proyek Spring Boot hampir selalu seperti ini:\n\n```java\n@ExtendWith(MockitoExtension.class)\nclass PesananServiceTest {\n    @Mock PesananRepository pesananRepository;\n    @Mock PembayaranClient pembayaranClient;\n    @InjectMocks PesananService pesananService;\n\n    @Test\n    void pesananDibayarLaluDisimpan() { ... }\n}\n```\n\nIni disebut **unit test murni**: cepat (milidetik), tanpa menyalakan Spring. Untuk test yang butuh Spring, dipakai `@SpringBootTest` dan `@MockBean` (di versi baru `@MockitoBean`), dibahas di kelas Spring Boot Testing.\n\nDependency yang masuk lewat constructor, seperti di `TodoService`, membuat `@InjectMocks` bekerja paling andal. Itu salah satu alasan constructor injection menjadi standar di Spring."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Uji Todolist 9: TodoServiceTest Versi Rapi",
+      "pembuka": "Kita tulis ulang `TodoServiceTest` dengan anotasi Mockito, seperti di proyek sungguhan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Tidak ada lagi `@BeforeEach`: `@Mock` dan `@InjectMocks` yang menyiapkan semuanya.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.*;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\n@ExtendWith(MockitoExtension.class)\nclass TodoServiceTest {\n    @Mock\n    TodoRepository repo;\n\n    @InjectMocks\n    TodoService service;\n\n    @Test\n    void tambahMenyimpanJudulRapi() {\n        when(repo.simpan(\"Belajar\")).thenReturn(new Todo(1, \"Belajar\"));\n        assertEquals(1, service.tambah(\"  Belajar  \").getId());\n        verify(repo).simpan(\"Belajar\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ tambahMenyimpanJudulRapi()\n\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0",
+          "otomatis": true,
+          "benar": "Hasilnya sama, kodenya lebih ringkas.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan test `selesaikanNomorTidakAda`: `service.selesaikan(9)` melempar `TodoTidakDitemukanException`, dan `perbarui` tidak pernah dipanggil (pakai matcher `any()`).",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.*;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\n@ExtendWith(MockitoExtension.class)\nclass TodoServiceTest {\n    @Mock\n    TodoRepository repo;\n\n    @InjectMocks\n    TodoService service;\n\n    @Test\n    void tambahMenyimpanJudulRapi() {\n        when(repo.simpan(\"Belajar\")).thenReturn(new Todo(1, \"Belajar\"));\n        assertEquals(1, service.tambah(\"  Belajar  \").getId());\n        verify(repo).simpan(\"Belajar\");\n    }\n\n    @Test\n    void selesaikanNomorTidakAda() {\n        assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9));\n        verify(repo, never()).perbarui(any());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ selesaikanNomorTidakAda()\n  ✔ tambahMenyimpanJudulRapi()\n\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "verify\\s*\\(\\s*repo\\s*,\\s*never\\(\\)\\s*\\)\\s*\\.perbarui\\s*\\(\\s*any\\(\\)\\s*\\)",
+              "pesan": "tulis `verify(repo, never()).perbarui(any())`."
+            }
+          ],
+          "benar": "Tidak perlu mengatur `cari(9)`, karena mock mengembalikan `null`.",
+          "petunjuk": "Dua baris: `assertThrows(...)` lalu `verify(repo, never()).perbarui(any());`."
+        },
+        {
+          "arahan": "Tambahkan field `@Captor ArgumentCaptor<Todo> tangkap;` di bawah `service`, lalu test `selesaikanMenyimpanTodoSelesai` yang memeriksa todo yang dikirim ke `perbarui` sudah selesai.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.*;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\n@ExtendWith(MockitoExtension.class)\nclass TodoServiceTest {\n    @Mock\n    TodoRepository repo;\n\n    @InjectMocks\n    TodoService service;\n\n    @Captor\n    ArgumentCaptor<Todo> tangkap;\n\n    @Test\n    void tambahMenyimpanJudulRapi() {\n        when(repo.simpan(\"Belajar\")).thenReturn(new Todo(1, \"Belajar\"));\n        assertEquals(1, service.tambah(\"  Belajar  \").getId());\n        verify(repo).simpan(\"Belajar\");\n    }\n\n    @Test\n    void selesaikanNomorTidakAda() {\n        assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9));\n        verify(repo, never()).perbarui(any());\n    }\n\n    @Test\n    void selesaikanMenyimpanTodoSelesai() {\n        when(repo.cari(1)).thenReturn(new Todo(1, \"Belajar\"));\n        service.selesaikan(1);\n        verify(repo).perbarui(tangkap.capture());\n        assertTrue(tangkap.getValue().isSelesai());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ selesaikanMenyimpanTodoSelesai()\n  ✔ selesaikanNomorTidakAda()\n  ✔ tambahMenyimpanJudulRapi()\n\nTests run: 3, Failures: 0, Errors: 0, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "@Captor\\s+ArgumentCaptor<Todo>\\s+tangkap",
+              "pesan": "tulis field `@Captor ArgumentCaptor<Todo> tangkap;`."
+            },
+            {
+              "pola": "tangkap\\.capture\\(\\)",
+              "pesan": "pakai `tangkap.capture()` di verify."
+            }
+          ],
+          "benar": "Captor siap pakai tanpa satu baris persiapan pun.",
+          "petunjuk": "Isi test-nya sama dengan materi sebelumnya, hanya `ArgumentCaptor.forClass(...)` tidak perlu lagi karena captor sudah dibuat oleh `@Captor`."
+        },
+        {
+          "arahan": "Lihat strict stubs beraksi. Tambahkan test `hapusNomorTidakAda` yang mengatur `when(repo.cari(4)).thenReturn(null);` dan `when(repo.hapus(4)).thenReturn(false);`, lalu `assertThrows(TodoTidakDitemukanException.class, () -> service.hapus(4));`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.*;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\n@ExtendWith(MockitoExtension.class)\nclass TodoServiceTest {\n    @Mock\n    TodoRepository repo;\n\n    @InjectMocks\n    TodoService service;\n\n    @Captor\n    ArgumentCaptor<Todo> tangkap;\n\n    @Test\n    void tambahMenyimpanJudulRapi() {\n        when(repo.simpan(\"Belajar\")).thenReturn(new Todo(1, \"Belajar\"));\n        assertEquals(1, service.tambah(\"  Belajar  \").getId());\n        verify(repo).simpan(\"Belajar\");\n    }\n\n    @Test\n    void selesaikanNomorTidakAda() {\n        assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9));\n        verify(repo, never()).perbarui(any());\n    }\n\n    @Test\n    void selesaikanMenyimpanTodoSelesai() {\n        when(repo.cari(1)).thenReturn(new Todo(1, \"Belajar\"));\n        service.selesaikan(1);\n        verify(repo).perbarui(tangkap.capture());\n        assertTrue(tangkap.getValue().isSelesai());\n    }\n\n    @Test\n    void hapusNomorTidakAda() {\n        when(repo.cari(4)).thenReturn(null);\n        when(repo.hapus(4)).thenReturn(false);\n        assertThrows(TodoTidakDitemukanException.class, () -> service.hapus(4));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✘ hapusNomorTidakAda()\n      org.mockito.exceptions.misusing.UnnecessaryStubbingException:\n      Unnecessary stubbings detected.\n      Clean & maintainable test code requires zero unnecessary code.\n      Following stubbings are unnecessary (click to navigate to relevant line of code):\n      Please remove unnecessary stubbings or use 'lenient' strictness. More info: javadoc for UnnecessaryStubbingException class.\n  ✔ selesaikanMenyimpanTodoSelesai()\n  ✔ selesaikanNomorTidakAda()\n  ✔ tambahMenyimpanJudulRapi()\n\nTests run: 4, Failures: 0, Errors: 1, Skipped: 0",
+          "wajib": [
+            {
+              "pola": "void\\s+hapusNomorTidakAda\\s*\\(\\s*\\)",
+              "pesan": "beri nama method `hapusNomorTidakAda`."
+            },
+            {
+              "pola": "when\\s*\\(\\s*repo\\.cari\\(\\s*4\\s*\\)\\s*\\)",
+              "pesan": "atur juga `when(repo.cari(4))` untuk melihat akibatnya."
+            }
+          ],
+          "benar": "Test ini error dengan `UnnecessaryStubbingException`. Method `hapus` di service tidak pernah memanggil `cari`, jadi pengaturan itu menyesatkan.",
+          "petunjuk": "Tulis ketiga baris itu apa adanya, lalu jalankan dan baca pesannya."
+        },
+        {
+          "arahan": "Tantangan: perbaiki test `hapusNomorTidakAda` supaya lulus tanpa mengubah `TodoService`.",
+          "jawaban": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.*;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(TodoServiceTest.class);\n    }\n}\n\n@ExtendWith(MockitoExtension.class)\nclass TodoServiceTest {\n    @Mock\n    TodoRepository repo;\n\n    @InjectMocks\n    TodoService service;\n\n    @Captor\n    ArgumentCaptor<Todo> tangkap;\n\n    @Test\n    void tambahMenyimpanJudulRapi() {\n        when(repo.simpan(\"Belajar\")).thenReturn(new Todo(1, \"Belajar\"));\n        assertEquals(1, service.tambah(\"  Belajar  \").getId());\n        verify(repo).simpan(\"Belajar\");\n    }\n\n    @Test\n    void selesaikanNomorTidakAda() {\n        assertThrows(TodoTidakDitemukanException.class, () -> service.selesaikan(9));\n        verify(repo, never()).perbarui(any());\n    }\n\n    @Test\n    void selesaikanMenyimpanTodoSelesai() {\n        when(repo.cari(1)).thenReturn(new Todo(1, \"Belajar\"));\n        service.selesaikan(1);\n        verify(repo).perbarui(tangkap.capture());\n        assertTrue(tangkap.getValue().isSelesai());\n    }\n\n    @Test\n    void hapusNomorTidakAda() {\n        when(repo.hapus(4)).thenReturn(false);\n        assertThrows(TodoTidakDitemukanException.class, () -> service.hapus(4));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        return repo.simpan(judul.trim());\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "TodoServiceTest\n  ✔ hapusNomorTidakAda()\n  ✔ selesaikanMenyimpanTodoSelesai()\n  ✔ selesaikanNomorTidakAda()\n  ✔ tambahMenyimpanJudulRapi()\n\nTests run: 4, Failures: 0, Errors: 0, Skipped: 0",
+          "tantangan": true,
+          "benar": "Semua lulus. Test sekarang hanya berisi pengaturan yang benar-benar berperan.",
+          "petunjuk": "Hapus pengaturan yang tidak dipakai service."
+        }
+      ],
+      "penutup": "Inilah bentuk `TodoServiceTest` yang akan kamu temui di proyek Java sungguhan. Materi terakhir: menjalankan semua test ini dengan Maven."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang terjadi kalau class test memakai @Mock tetapi lupa @ExtendWith(MockitoExtension.class)?",
+          "options": [
+            "Mockito tetap membuat mock seperti biasa",
+            "Test dilewati otomatis",
+            "Field @Mock tetap null sehingga test error saat mock dipakai",
+            "Program gagal di-compile"
+          ],
+          "answer": 2,
+          "explanation": "Extension yang membaca anotasi.",
+          "remedial": "Anotasi `@Mock` hanya penanda. Yang membuat mock dan mengisi field adalah `MockitoExtension`. Tanpa extension, field tetap `null`, dan pemanggilan method pada field itu menghasilkan `NullPointerException`."
+        },
+        {
+          "question": "Field mana yang diberi @InjectMocks?",
+          "options": [
+            "Dependency yang dipalsukan, misalnya TodoRepository",
+            "ArgumentCaptor",
+            "Semua field di class test",
+            "Object yang sedang diuji, misalnya TodoService"
+          ],
+          "answer": 3,
+          "explanation": "InjectMocks = masukkan mock ke sini.",
+          "remedial": "`@InjectMocks` membuat object yang diuji dan memasukkan mock ke constructor-nya. Dependency yang dipalsukan diberi `@Mock`."
+        },
+        {
+          "question": "Kenapa MockitoExtension menggagalkan test yang punya pengaturan when yang tidak dipakai?",
+          "options": [
+            "Supaya test tidak berisi pengaturan yang menyesatkan pembaca",
+            "Karena pengaturan yang tidak dipakai memperlambat test",
+            "Karena Mockito tidak bisa menyimpan pengaturan",
+            "Karena when hanya boleh dipakai sekali"
+          ],
+          "answer": 0,
+          "explanation": "Strict stubs menjaga kejelasan test.",
+          "remedial": "Pengaturan yang tidak dipakai membuat pembaca mengira hal itu memengaruhi hasil. Sering juga itu tanda salah ketik argumen. Strict stubs memaksa test hanya berisi pengaturan yang benar-benar berperan."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Anotasi untuk membuat ArgumentCaptor sebagai field adalah...",
+      "options": [
+        "@Mock",
+        "@Captor",
+        "@Capture",
+        "@InjectMocks"
+      ],
+      "answer": 1,
+      "explanation": "Satu anotasi untuk setiap jenis field."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "PoinTest memakai MockitoExtension dengan dua mock, RiwayatBelanja dan Dompet. Aturannya: pelanggan mendapat 1 poin untuk setiap 10000 belanja, dan Dompet hanya dihubungi kalau poinnya lebih dari 0. Method berikan di class HadiahPoin masih membagi dengan angka yang salah dan selalu memanggil Dompet. Perbaiki method berikan sampai kedua test lulus.",
+      "starterCode": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.*;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(PoinTest.class);\n    }\n}\n\n@ExtendWith(MockitoExtension.class)\nclass PoinTest {\n    @Mock\n    RiwayatBelanja riwayat;\n\n    @Mock\n    Dompet dompet;\n\n    @InjectMocks\n    HadiahPoin hadiah;\n\n    @Test\n    void belanjaBanyakDapatPoin() {\n        when(riwayat.total(\"sari\")).thenReturn(250000);\n        assertEquals(25, hadiah.berikan(\"sari\"));\n        verify(dompet).tambahPoin(\"sari\", 25);\n    }\n\n    @Test\n    void belanjaSedikitTidakDapatPoin() {\n        when(riwayat.total(\"budi\")).thenReturn(5000);\n        assertEquals(0, hadiah.berikan(\"budi\"));\n        verifyNoInteractions(dompet);\n    }\n}\n\ninterface RiwayatBelanja {\n    int total(String pelanggan);\n}\n\ninterface Dompet {\n    void tambahPoin(String pelanggan, int poin);\n}\n\nclass HadiahPoin {\n    private final RiwayatBelanja riwayat;\n    private final Dompet dompet;\n\n    HadiahPoin(RiwayatBelanja riwayat, Dompet dompet) {\n        this.riwayat = riwayat;\n        this.dompet = dompet;\n    }\n\n    // 1 poin untuk setiap 10000 belanja\n    int berikan(String pelanggan) {\n        int poin = riwayat.total(pelanggan) / 1000;\n        dompet.tambahPoin(pelanggan, poin);\n        return poin;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.junit.jupiter.api.*;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.*;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        JalankanTest.kelas(PoinTest.class);\n    }\n}\n\n@ExtendWith(MockitoExtension.class)\nclass PoinTest {\n    @Mock\n    RiwayatBelanja riwayat;\n\n    @Mock\n    Dompet dompet;\n\n    @InjectMocks\n    HadiahPoin hadiah;\n\n    @Test\n    void belanjaBanyakDapatPoin() {\n        when(riwayat.total(\"sari\")).thenReturn(250000);\n        assertEquals(25, hadiah.berikan(\"sari\"));\n        verify(dompet).tambahPoin(\"sari\", 25);\n    }\n\n    @Test\n    void belanjaSedikitTidakDapatPoin() {\n        when(riwayat.total(\"budi\")).thenReturn(5000);\n        assertEquals(0, hadiah.berikan(\"budi\"));\n        verifyNoInteractions(dompet);\n    }\n}\n\ninterface RiwayatBelanja {\n    int total(String pelanggan);\n}\n\ninterface Dompet {\n    void tambahPoin(String pelanggan, int poin);\n}\n\nclass HadiahPoin {\n    private final RiwayatBelanja riwayat;\n    private final Dompet dompet;\n\n    HadiahPoin(RiwayatBelanja riwayat, Dompet dompet) {\n        this.riwayat = riwayat;\n        this.dompet = dompet;\n    }\n\n    // 1 poin untuk setiap 10000 belanja\n    int berikan(String pelanggan) {\n        int poin = riwayat.total(pelanggan) / 10000;\n        if (poin > 0) {\n            dompet.tambahPoin(pelanggan, poin);\n        }\n        return poin;\n    }\n}",
+      "tests": [
+        {
+          "input": "",
+          "expectedOutput": "PoinTest\n  ✔ belanjaBanyakDapatPoin()\n  ✔ belanjaSedikitTidakDapatPoin()\n\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0\n"
+        }
+      ],
+      "hints": [
+        "Satu poin untuk setiap 10000, jadi total dibagi 10000.",
+        "Bungkus dompet.tambahPoin dengan if (poin > 0)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@ExtendWith(MockitoExtension.class) menyalakan anotasi Mockito.",
+        "@Mock membuat mock; @InjectMocks membuat object yang diuji dengan mock di constructor-nya.",
+        "@Captor membuat ArgumentCaptor.",
+        "Strict stubs menggagalkan pengaturan when yang tidak dipakai."
+      ]
+    }
+  ]
+}

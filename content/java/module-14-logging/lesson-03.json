@@ -1,0 +1,220 @@
+{
+  "id": "java-logging-03",
+  "moduleId": "logging",
+  "order": 3,
+  "title": "Pesan Log yang Baik",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Log ditulis hari ini, tapi dibaca nanti, oleh orang lain, biasanya saat sedang terburu-buru memperbaiki masalah. Pesan seperti `\"error\"` atau `\"masuk sini\"` tidak membantu sama sekali.\n\nPesan log yang baik menjawab: **apa yang terjadi**, **pada data yang mana**, dan **kenapa** (kalau gagal).\n\nIbarat catatan serah terima perawat antar sif: bukan \"pasien kurang baik\", melainkan \"pasien kamar 12, suhu 39 derajat pukul 02.00, sudah diberi obat penurun panas\". Perawat berikutnya langsung tahu harus berbuat apa."
+    },
+    {
+      "type": "theory",
+      "content": "Tiga aturan menulis pesan log:\n\n**1. Pakai placeholder, bukan penyambungan teks**\n\n```java\nlog.debug(\"Todo \" + id + \" disimpan\");   // teks tetap disusun walau DEBUG mati\nlog.debug(\"Todo {} disimpan\", id);        // disusun hanya kalau pesannya ditampilkan\n```\n\n**2. Exception dikirim sebagai argumen terakhir**\n\n```java\nlog.error(\"Gagal menyimpan todo {}\", id, e);\n```\n\nSLF4J mengenali exception di posisi terakhir (yang tidak punya pasangan `{}`), lalu menulis nama exception, pesannya, dan stack trace-nya di bawah pesan. Di website ini stack trace disingkat menjadi satu baris nama dan pesan exception, karena nomor barisnya berbeda di setiap komputer.\n\n**3. Jangan pernah mencatat data rahasia**\n\nKata sandi, token, nomor kartu lengkap, PIN, dan NIK tidak boleh masuk log. Log dibaca banyak orang dan disimpan lama, sering di layanan pihak ketiga."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n| Kurang membantu | Lebih baik |\n|---|---|\n| `log.error(\"error\")` | `log.error(\"Gagal menyimpan todo {}\", id, e)` |\n| `log.info(\"masuk\")` | `log.info(\"Pengguna {} masuk\", nama)` |\n| `log.info(\"login \" + nama + \" \" + sandi)` | `log.info(\"Pengguna {} masuk\", nama)` |\n| `log.warn(\"tidak ada\")` | `log.warn(\"Todo nomor {} tidak ditemukan\", id)` |\n\nHasil `log.error(\"Gagal menyimpan pengguna {}\", nama, e)` di website ini:\n\n```text\nERROR Pendaftaran - Gagal menyimpan pengguna ani\njava.lang.IllegalStateException: kuota pengguna penuh\n```\n\nDi laptop, di bawahnya ikut tercetak baris-baris `at ...` yang menunjukkan file dan nomor baris tempat exception terjadi."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        int id = 42;\n        String judul = \"Belajar\";\n        log.info(\"Menyimpan todo \" + id + \" berjudul \" + judul);\n        log.info(\"Menyimpan todo {} berjudul {}\", id, judul);\n        try {\n            Integer.parseInt(\"empat\");\n        } catch (NumberFormatException e) {\n            log.error(\"Nomor todo tidak bisa dibaca: {}\", e.getMessage());\n            log.error(\"Nomor todo tidak bisa dibaca\", e);\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: baris error kedua mengirim exception sebagai argumen terakhir. Baris apa yang muncul tepat di bawahnya?",
+        "options": [
+          "ERROR Main - Nomor todo tidak bisa dibaca: null",
+          "Caused by: java.lang.NumberFormatException",
+          "Nomor todo tidak bisa dibaca {}",
+          "java.lang.NumberFormatException: For input string: \"empat\""
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 11,
+          "note": "Penyambungan teks: hasilnya sama, tapi selalu disusun."
+        },
+        {
+          "line": 12,
+          "note": "Placeholder: cara yang dianjurkan."
+        },
+        {
+          "line": 16,
+          "note": "Hanya pesannya; jenis exception hilang."
+        },
+        {
+          "line": 17,
+          "note": "Exception utuh sebagai argumen terakhir."
+        }
+      ],
+      "explanation": "Dua baris INFO pertama tampil sama persis, tapi yang memakai placeholder lebih hemat saat levelnya dimatikan. Baris error pertama hanya membawa pesan exception, jadi jenisnya (NumberFormatException) dan stack trace-nya hilang. Baris error kedua mengirim exception utuh, sehingga Logback menuliskan nama dan pesan exception di bawahnya.\n\nUntuk error, kirim selalu exception-nya sebagai argumen terakhir.",
+      "tryThis": [
+        {
+          "task": "Tambahkan placeholder di pesan error kedua: \"Nomor todo {} tidak bisa dibaca\" dengan argumen \"empat\" sebelum e.",
+          "hint": null
+        },
+        {
+          "task": "Hapus baris error pertama. Informasi apa yang tetap ada?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mencatat lalu melempar ulang di setiap lapisan**\n\n```java\ncatch (SQLException e) {\n    log.error(\"Gagal\", e);\n    throw new IllegalStateException(e);   // lapisan atas mencatat lagi\n}\n```\n\nSatu error muncul tiga kali di log dengan tiga stack trace. Pilih salah satu: tangani dan catat, atau lempar ke atas tanpa mencatat.\n\n**2. Menelan exception**\n\n`catch (Exception e) { }` tanpa log dan tanpa penanganan membuat masalah hilang tanpa jejak.\n\n**3. Hanya `e.getMessage()` untuk ERROR**\n\nPesannya sering `null` atau terlalu singkat. Kirim object `e`-nya.\n\n**4. Mencetak `e.printStackTrace()`**\n\nStack trace masuk ke `System.err`, tidak lewat logger, sehingga tidak tercatat di file log dan tidak punya waktu maupun level."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Data sensitif yang terlanjur dicatat menjadi temuan audit keamanan, dan di banyak negara melanggar aturan perlindungan data pribadi (di Indonesia, UU PDP). Kebiasaan aman: catat **id**, bukan isi data. Nomor kartu hanya empat digit terakhir.\n- Pesan log ditulis dengan pola yang konsisten supaya mudah dicari, misalnya selalu menyebut id: `Pesanan {} dibayar`, `Pesanan {} dikirim`. Tim lalu bisa mencari semua kejadian untuk satu pesanan.\n- Bahasa pesan log biasanya bahasa Inggris di perusahaan multinasional, dan bahasa Indonesia di banyak perusahaan lokal. Yang penting konsisten dalam satu proyek.\n\n```java\nlog.info(\"Pembayaran pesanan {} berhasil, kartu akhiran {}\", idPesanan, akhiranKartu);\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Log Todolist 3: Log Pendaftaran yang Aman",
+      "pembuka": "Fitur pendaftaran pengguna Todolist punya log yang berbahaya. Kita perbaiki bersama.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Log pendaftaran ini mencatat semuanya, termasuk kata sandi.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Pendaftaran p = new Pendaftaran();\n        p.daftar(\"sari\", \"sari@contoh.id\", \"rahasia123\");\n        p.daftar(\"budi\", \"budi@contoh.id\", \"budi2026\");\n    }\n}\n\nclass Pendaftaran {\n    private static final Logger log = LoggerFactory.getLogger(Pendaftaran.class);\n    private final List<String> pengguna = new ArrayList<>();\n\n    void daftar(String nama, String email, String sandi) {\n        log.info(\"Mendaftar \" + nama + \" \" + email + \" \" + sandi);\n        pengguna.add(nama);\n    }\n}\n",
+          "keluaran": "INFO  Pendaftaran - Mendaftar sari sari@contoh.id rahasia123\nINFO  Pendaftaran - Mendaftar budi budi@contoh.id budi2026",
+          "otomatis": true,
+          "benar": "Kata sandi Sari dan Budi terbaca jelas di log. Siapa pun yang membuka log bisa melihatnya.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Perbaiki pesan log di `daftar`: pakai placeholder dan jangan catat sandi. Pesannya: `Pengguna baru mendaftar: {} ({})` dengan argumen `nama` dan `email`.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Pendaftaran p = new Pendaftaran();\n        p.daftar(\"sari\", \"sari@contoh.id\", \"rahasia123\");\n        p.daftar(\"budi\", \"budi@contoh.id\", \"budi2026\");\n    }\n}\n\nclass Pendaftaran {\n    private static final Logger log = LoggerFactory.getLogger(Pendaftaran.class);\n    private final List<String> pengguna = new ArrayList<>();\n\n    void daftar(String nama, String email, String sandi) {\n        log.info(\"Pengguna baru mendaftar: {} ({})\", nama, email);\n        pengguna.add(nama);\n    }\n}\n",
+          "keluaran": "INFO  Pendaftaran - Pengguna baru mendaftar: sari (sari@contoh.id)\nINFO  Pendaftaran - Pengguna baru mendaftar: budi (budi@contoh.id)",
+          "wajib": [
+            {
+              "pola": "log\\.info\\s*\\(\\s*\"Pengguna baru mendaftar: \\{\\} \\(\\{\\}\\)\"\\s*,\\s*nama\\s*,\\s*email\\s*\\)",
+              "pesan": "tulis `log.info(\"Pengguna baru mendaftar: {} ({})\", nama, email)`."
+            }
+          ],
+          "benar": "Sandi tidak lagi tercatat, dan pesannya jelas.",
+          "petunjuk": "Ganti baris `log.info(...)` menjadi `log.info(\"Pengguna baru mendaftar: {} ({})\", nama, email);`."
+        },
+        {
+          "arahan": "Tolak email yang tidak memuat `@`. Di awal `daftar`, kalau email tidak memuat `@`, catat WARN `Pendaftaran {} ditolak: email tidak valid` dengan argumen nama, lalu `return`. Tambahkan juga pendaftaran `p.daftar(\"tono\", \"tono-contoh.id\", \"tono\");` di main.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Pendaftaran p = new Pendaftaran();\n        p.daftar(\"sari\", \"sari@contoh.id\", \"rahasia123\");\n        p.daftar(\"budi\", \"budi@contoh.id\", \"budi2026\");\n        p.daftar(\"tono\", \"tono-contoh.id\", \"tono\");\n    }\n}\n\nclass Pendaftaran {\n    private static final Logger log = LoggerFactory.getLogger(Pendaftaran.class);\n    private final List<String> pengguna = new ArrayList<>();\n\n    void daftar(String nama, String email, String sandi) {\n        if (!email.contains(\"@\")) {\n            log.warn(\"Pendaftaran {} ditolak: email tidak valid\", nama);\n            return;\n        }\n        log.info(\"Pengguna baru mendaftar: {} ({})\", nama, email);\n        pengguna.add(nama);\n    }\n}\n",
+          "keluaran": "INFO  Pendaftaran - Pengguna baru mendaftar: sari (sari@contoh.id)\nINFO  Pendaftaran - Pengguna baru mendaftar: budi (budi@contoh.id)\nWARN  Pendaftaran - Pendaftaran tono ditolak: email tidak valid",
+          "wajib": [
+            {
+              "pola": "log\\.warn\\s*\\(\\s*\"Pendaftaran \\{\\} ditolak: email tidak valid\"\\s*,\\s*nama\\s*\\)",
+              "pesan": "catat `log.warn(\"Pendaftaran {} ditolak: email tidak valid\", nama)`."
+            },
+            {
+              "pola": "p\\.daftar\\s*\\(\\s*\"tono\"",
+              "pesan": "tambahkan pendaftaran Tono di main."
+            }
+          ],
+          "benar": "Penolakan tercatat sebagai WARN, lengkap dengan nama pendaftarnya.",
+          "petunjuk": "Pakai `if (!email.contains(\"@\")) { log.warn(...); return; }`."
+        },
+        {
+          "arahan": "Aku sudah menambahkan method `simpan` yang melempar `IllegalStateException` kalau sudah ada 2 pengguna. Panggil `simpan(nama)` di dalam try, catat INFO setelahnya, dan di catch catat ERROR `Gagal menyimpan pengguna {}` dengan nama **dan exception-nya**. Tambahkan pendaftaran Ani (`ani@contoh.id`) di main.",
+          "kodeAwal": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Pendaftaran p = new Pendaftaran();\n        p.daftar(\"sari\", \"sari@contoh.id\", \"rahasia123\");\n        p.daftar(\"budi\", \"budi@contoh.id\", \"budi2026\");\n        p.daftar(\"tono\", \"tono-contoh.id\", \"tono\");\n    }\n}\n\nclass Pendaftaran {\n    private static final Logger log = LoggerFactory.getLogger(Pendaftaran.class);\n    private final List<String> pengguna = new ArrayList<>();\n\n    void daftar(String nama, String email, String sandi) {\n        if (!email.contains(\"@\")) {\n            log.warn(\"Pendaftaran {} ditolak: email tidak valid\", nama);\n            return;\n        }\n        log.info(\"Pengguna baru mendaftar: {} ({})\", nama, email);\n        pengguna.add(nama);\n    }\n\n    private void simpan(String nama) {\n        if (pengguna.size() >= 2) {\n            throw new IllegalStateException(\"kuota pengguna penuh\");\n        }\n        pengguna.add(nama);\n    }\n}\n",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Pendaftaran p = new Pendaftaran();\n        p.daftar(\"sari\", \"sari@contoh.id\", \"rahasia123\");\n        p.daftar(\"budi\", \"budi@contoh.id\", \"budi2026\");\n        p.daftar(\"tono\", \"tono-contoh.id\", \"tono\");\n        p.daftar(\"ani\", \"ani@contoh.id\", \"ani2026\");\n    }\n}\n\nclass Pendaftaran {\n    private static final Logger log = LoggerFactory.getLogger(Pendaftaran.class);\n    private final List<String> pengguna = new ArrayList<>();\n\n    void daftar(String nama, String email, String sandi) {\n        if (!email.contains(\"@\")) {\n            log.warn(\"Pendaftaran {} ditolak: email tidak valid\", nama);\n            return;\n        }\n        try {\n            simpan(nama);\n            log.info(\"Pengguna baru mendaftar: {} ({})\", nama, email);\n        } catch (IllegalStateException e) {\n            log.error(\"Gagal menyimpan pengguna {}\", nama, e);\n        }\n    }\n\n    private void simpan(String nama) {\n        if (pengguna.size() >= 2) {\n            throw new IllegalStateException(\"kuota pengguna penuh\");\n        }\n        pengguna.add(nama);\n    }\n}\n",
+          "keluaran": "INFO  Pendaftaran - Pengguna baru mendaftar: sari (sari@contoh.id)\nINFO  Pendaftaran - Pengguna baru mendaftar: budi (budi@contoh.id)\nWARN  Pendaftaran - Pendaftaran tono ditolak: email tidak valid\nERROR Pendaftaran - Gagal menyimpan pengguna ani\njava.lang.IllegalStateException: kuota pengguna penuh",
+          "wajib": [
+            {
+              "pola": "log\\.error\\s*\\(\\s*\"Gagal menyimpan pengguna \\{\\}\"\\s*,\\s*nama\\s*,\\s*e\\s*\\)",
+              "pesan": "catat `log.error(\"Gagal menyimpan pengguna {}\", nama, e)`."
+            },
+            {
+              "pola": "simpan\\s*\\(\\s*nama\\s*\\)",
+              "pesan": "panggil `simpan(nama)` di dalam try."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Baris ERROR diikuti nama dan pesan exception-nya. Di laptop, di bawahnya juga tercetak stack trace lengkap.",
+          "petunjuk": "Exception dikirim sebagai argumen terakhir: `log.error(\"Gagal menyimpan pengguna {}\", nama, e);`."
+        }
+      ],
+      "penutup": "Log pendaftaran sekarang jelas, aman, dan menyertakan exception saat gagal."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Cara yang benar mencatat exception e bersama pesan adalah...",
+          "options": [
+            "log.error(\"Gagal menyimpan todo {}\", id, e)",
+            "log.error(\"Gagal menyimpan todo \" + e)",
+            "e.printStackTrace()",
+            "log.error(\"Gagal menyimpan todo {}\", e, id)"
+          ],
+          "answer": 0,
+          "explanation": "Exception di posisi terakhir.",
+          "remedial": "SLF4J menganggap argumen terakhir yang tidak punya pasangan `{}` sebagai exception, lalu menulis jenis, pesan, dan stack trace-nya. Kalau `e` ditaruh di depan, ia dipakai untuk mengisi `{}` dan stack trace-nya hilang."
+        },
+        {
+          "question": "Mana pesan log yang aman untuk proses masuk aplikasi?",
+          "options": [
+            "log.info(\"Pengguna {} masuk dengan sandi {}\", nama, sandi)",
+            "log.info(\"Pengguna {} masuk\", nama)",
+            "log.info(\"Token sesi: {}\", token)",
+            "log.debug(\"Data login: \" + nama + \" \" + sandi)"
+          ],
+          "answer": 1,
+          "explanation": "Data rahasia tidak boleh masuk log.",
+          "remedial": "Sandi dan token tidak boleh pernah dicatat, bahkan di level DEBUG. Log dibaca banyak orang dan disimpan lama."
+        },
+        {
+          "question": "Kenapa placeholder lebih disarankan daripada \"Todo \" + id + \" disimpan\"?",
+          "options": [
+            "Placeholder membuat pesan lebih pendek",
+            "Penyambungan teks tidak bisa dipakai di log",
+            "Teks hanya disusun kalau pesannya benar-benar ditampilkan",
+            "Placeholder otomatis menerjemahkan pesan"
+          ],
+          "answer": 2,
+          "explanation": "Hemat saat level dimatikan.",
+          "remedial": "Dengan `+`, Java menyusun teks lebih dulu sebelum logger memeriksa level. Dengan placeholder, penyusunan dilakukan logger hanya kalau levelnya aktif."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kebiasaan yang membuat satu error tercatat berkali-kali di log adalah...",
+      "options": [
+        "Memakai placeholder",
+        "Mencatat id data",
+        "Memakai level WARN",
+        "Mencatat exception lalu melemparnya lagi di setiap lapisan"
+      ],
+      "answer": 3,
+      "explanation": "Catat sekali saja."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca data pembayaran dari input dengan format pesanan;nomorKartu;jumlah per baris. Log-nya sekarang mencatat nomor kartu lengkap dan pesannya tidak jelas. Perbaiki: untuk jumlah di atas 5000000 catat WARN \"Pembayaran pesanan P ditolak: jumlah J melebihi batas\", selain itu catat INFO \"Pembayaran pesanan P berhasil: J dengan kartu akhiran A\" dengan A empat digit terakhir nomor kartu. Hanya satu baris log per pembayaran, dan pakai placeholder untuk semua nilai.",
+      "starterCode": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            String pesanan = d[0];\n            String kartu = d[1];\n            int jumlah = Integer.parseInt(d[2]);\n            log.info(\"Bayar \" + pesanan + \" kartu \" + kartu + \" jumlah \" + jumlah);\n            if (jumlah > 5000000) {\n                log.info(\"Ditolak\");\n            }\n        }\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            String pesanan = d[0];\n            String kartu = d[1];\n            int jumlah = Integer.parseInt(d[2]);\n            String akhir = kartu.substring(kartu.length() - 4);\n            if (jumlah > 5000000) {\n                log.warn(\"Pembayaran pesanan {} ditolak: jumlah {} melebihi batas\", pesanan, jumlah);\n            } else {\n                log.info(\"Pembayaran pesanan {} berhasil: {} dengan kartu akhiran {}\", pesanan, jumlah, akhir);\n            }\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "A-101;4111222233334444;150000\n",
+          "expectedOutput": "INFO  Main - Pembayaran pesanan A-101 berhasil: 150000 dengan kartu akhiran 4444\n"
+        },
+        {
+          "input": "A-102;5500111122223333;7500000\nA-103;4000123412341234;99000\n",
+          "expectedOutput": "WARN  Main - Pembayaran pesanan A-102 ditolak: jumlah 7500000 melebihi batas\nINFO  Main - Pembayaran pesanan A-103 berhasil: 99000 dengan kartu akhiran 1234\n"
+        }
+      ],
+      "hints": [
+        "Empat digit terakhir: kartu.substring(kartu.length() - 4).",
+        "Pakai if-else supaya setiap pembayaran hanya menghasilkan satu baris log."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Pesan log menjawab apa yang terjadi, pada data mana, dan kenapa.",
+        "Pakai placeholder {}, bukan penyambungan teks.",
+        "Kirim exception sebagai argumen terakhir supaya jenis dan stack trace-nya tercatat.",
+        "Jangan pernah mencatat sandi, token, atau nomor kartu lengkap."
+      ]
+    }
+  ]
+}

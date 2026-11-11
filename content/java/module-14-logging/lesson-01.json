@@ -1,0 +1,219 @@
+{
+  "id": "java-logging-01",
+  "moduleId": "logging",
+  "order": 1,
+  "title": "Mengenal Logging",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi Todolist sudah berjalan. Suatu hari pengguna mengeluh: \"kemarin todo saya hilang\". Apa yang terjadi kemarin? Tanpa catatan, tidak ada yang tahu.\n\n**Log** adalah catatan kejadian yang ditulis aplikasi saat berjalan: kapan dimulai, data apa yang disimpan, error apa yang muncul. Saat ada masalah, log adalah tempat pertama yang dibaca developer.\n\nIbarat kotak hitam di pesawat: terus mencatat selama penerbangan, tidak mengganggu pilot, dan baru benar-benar dibaca saat terjadi sesuatu yang perlu diselidiki."
+    },
+    {
+      "type": "theory",
+      "content": "Kenapa tidak cukup dengan `System.out.println`?\n\n| | `System.out.println` | Logger |\n|---|---|---|\n| Tingkat kepentingan | semua sama | ada level: DEBUG, INFO, WARN, ERROR |\n| Mematikan pesan tertentu | harus menghapus baris kode | cukup ubah pengaturan |\n| Keterangan tambahan | tidak ada | waktu, nama class, thread otomatis |\n| Tujuan | hanya layar | layar, file, server log, sekaligus |\n\nStandar di dunia Java adalah **SLF4J** (Simple Logging Facade for Java) sebagai antarmuka, dan **Logback** sebagai mesin yang benar-benar menulis log. Kode hanya mengenal SLF4J:\n\n```java\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n}\n```\n\nSatu logger per class, `private static final`, diberi nama class itu sendiri.\n\nDi laptop, setiap baris log Logback diawali jam dan nama thread, misalnya `13:07:38.293 [main] INFO ...`. Di website ini jam dan thread tidak ditampilkan supaya hasilnya bisa dicek, jadi barisnya berbentuk `INFO  TodoService - pesan`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nlog.info(\"Todo baru disimpan: {}\", t);\n```\n\nTanda `{}` adalah **placeholder**: diganti nilai argumen berikutnya (memakai `toString()`). Hasilnya:\n\n```text\nINFO  TodoService - Todo baru disimpan: 1. [ ] Belajar logging\n```\n\nBagian-bagiannya: level (`INFO`), nama logger (`TodoService`), lalu pesan.\n\nIni keluaran asli aplikasi Todolist di laptop Sari, tanpa pengaturan tambahan:\n\n```text\n13:07:38.293 [com.bisangoding.todolist.App.main()] INFO com.bisangoding.todolist.App -- Aplikasi Todolist mulai\n13:07:38.296 [com.bisangoding.todolist.App.main()] INFO com.bisangoding.todolist.TodoService -- Todo baru disimpan: 1. [ ] Belajar logging\n```\n\nIsinya sama, hanya lebih panjang: ada jam, nama thread di kurung siku, dan nama class lengkap dengan package-nya."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Gudang gudang = new Gudang();\n        gudang.ambil(\"Pensil\", 3);\n        gudang.ambil(\"Buku\", 10);\n    }\n}\n\nclass Gudang {\n    private static final Logger log = LoggerFactory.getLogger(Gudang.class);\n    private final Map<String, Integer> stok = new HashMap<>();\n\n    Gudang() {\n        stok.put(\"Pensil\", 20);\n        stok.put(\"Buku\", 5);\n    }\n\n    void ambil(String barang, int jumlah) {\n        int ada = stok.get(barang);\n        if (jumlah > ada) {\n            System.out.println(\"stok \" + barang + \" kurang\");\n            log.warn(\"Stok {} kurang: diminta {}, tersedia {}\", barang, jumlah, ada);\n            return;\n        }\n        stok.put(barang, ada - jumlah);\n        log.info(\"{} diambil {}, sisa {}\", barang, jumlah, ada - jumlah);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: Buku tersisa 5 tapi diminta 10. Baris log apa yang muncul?",
+        "options": [
+          "INFO  Gudang - Buku diambil 10, sisa -5",
+          "WARN  Gudang - Stok Buku kurang: diminta 10, tersedia 5",
+          "ERROR Gudang - Stok Buku kurang: diminta 10, tersedia 5",
+          "WARN  Gudang - Stok {} kurang: diminta {}, tersedia {}"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 14,
+          "note": "Satu logger untuk class Gudang."
+        },
+        {
+          "line": 25,
+          "note": "println: tanpa level dan tanpa nama class."
+        },
+        {
+          "line": 26,
+          "note": "Tiga placeholder diisi tiga argumen secara berurutan."
+        },
+        {
+          "line": 30,
+          "note": "Kejadian normal dicatat dengan INFO."
+        }
+      ],
+      "explanation": "Pengambilan Pensil berhasil, jadi dicatat dengan level INFO. Pengambilan Buku melebihi stok, jadi dicatat dengan WARN: bukan error yang menghentikan aplikasi, tapi perlu diperhatikan. Setiap placeholder diganti argumen sesuai urutannya.\n\nBandingkan dengan baris println di atasnya: tidak ada level, tidak ada nama class, dan tidak bisa dimatikan tanpa mengubah kode.",
+      "tryThis": [
+        {
+          "task": "Ambil Pensil 25. Baris log apa yang muncul?",
+          "hint": null
+        },
+        {
+          "task": "Ganti log.warn menjadi log.error. Apa yang berubah di keluarannya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Logger memakai nama class yang salah**\n\n```java\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);   // salah salin\n}\n```\n\nSemua log `TodoService` tercatat seolah dari `Main`, sehingga menyesatkan saat menyelidiki masalah.\n\n**2. Logger dibuat di dalam method**\n\n`LoggerFactory.getLogger(...)` di setiap pemanggilan method itu boros. Simpan sekali di field `private static final`.\n\n**3. Mengimpor `Logger` yang salah**\n\nIDE kadang menawarkan `java.util.logging.Logger` atau `org.apache.logging.log4j.Logger`. Untuk SLF4J, import-nya `org.slf4j.Logger` dan `org.slf4j.LoggerFactory`.\n\n**4. Masih memakai `System.out.println` untuk catatan aplikasi**\n\nprintln tetap boleh untuk keluaran program yang memang ditujukan ke pengguna (seperti daftar todo di terminal). Catatan untuk developer ditulis dengan logger."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- **SLF4J + Logback adalah bawaan Spring Boot.** Proyek Spring Boot langsung bisa memakai `LoggerFactory.getLogger(...)` tanpa menambah dependency apa pun.\n- SLF4J hanya antarmuka. Mesinnya bisa ditukar (Logback, Log4j2) tanpa mengubah satu baris kode aplikasi. Library pihak ketiga juga memakai SLF4J, sehingga log mereka ikut tertulis di tempat yang sama.\n- Di proyek Maven, dependency-nya:\n\n```xml\n<dependency>\n  <groupId>ch.qos.logback</groupId>\n  <artifactId>logback-classic</artifactId>\n  <version>1.5.12</version>\n</dependency>\n```\n\n`logback-classic` otomatis membawa `slf4j-api`. Website ini memakai Logback 1.3 karena berjalan di Java 8; cara menulis kodenya sama.\n- Banyak tim memasang aturan di code review atau alat analisis kode: `System.out.println` di kode aplikasi tidak boleh lolos."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Log Todolist 1: Todolist Mulai Mencatat",
+      "pembuka": "`TodoService` sekarang punya logger. Kita tambahkan catatan di beberapa tempat penting.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Setiap todo yang tersimpan dicatat dengan `log.info`.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        service.tambah(\"Belajar logging\");\n        service.tambah(\"Beli kopi\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "INFO  TodoService - Todo baru disimpan: 1. [ ] Belajar logging\nINFO  TodoService - Todo baru disimpan: 2. [ ] Beli kopi",
+          "otomatis": true,
+          "benar": "Dua baris log, satu untuk setiap todo.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan logger untuk `Main` (sebagai field di atas `main`): `private static final Logger log = LoggerFactory.getLogger(Main.class);` Lalu catat `Aplikasi Todolist mulai` di awal `main` dan `Aplikasi selesai` di akhirnya.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        log.info(\"Aplikasi Todolist mulai\");\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        service.tambah(\"Belajar logging\");\n        service.tambah(\"Beli kopi\");\n        log.info(\"Aplikasi selesai\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "INFO  Main - Aplikasi Todolist mulai\nINFO  TodoService - Todo baru disimpan: 1. [ ] Belajar logging\nINFO  TodoService - Todo baru disimpan: 2. [ ] Beli kopi\nINFO  Main - Aplikasi selesai",
+          "wajib": [
+            {
+              "pola": "Logger\\s+log\\s*=\\s*LoggerFactory\\.getLogger\\(\\s*Main\\.class\\s*\\)",
+              "pesan": "buat logger dengan `LoggerFactory.getLogger(Main.class)`."
+            },
+            {
+              "pola": "log\\.info\\s*\\(\\s*\"Aplikasi selesai\"\\s*\\)",
+              "pesan": "catat `log.info(\"Aplikasi selesai\");` di akhir main."
+            }
+          ],
+          "benar": "Sekarang terlihat jelas kapan aplikasi mulai dan selesai, dan nama logger menunjukkan class mana yang mencatat.",
+          "petunjuk": "Field logger ditulis di dalam class Main, di luar method main. Kemudian `log.info(\"Aplikasi Todolist mulai\");` di baris pertama main."
+        },
+        {
+          "arahan": "Di method `selesaikan` milik `TodoService`, setelah `repo.perbarui(t);`, catat `log.info(\"Todo nomor {} selesai\", id);`. Lalu panggil `service.selesaikan(1);` di main sebelum log terakhir.",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        log.info(\"Aplikasi Todolist mulai\");\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        service.tambah(\"Belajar logging\");\n        service.tambah(\"Beli kopi\");\n        service.selesaikan(1);\n        log.info(\"Aplikasi selesai\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n        log.info(\"Todo nomor {} selesai\", id);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "INFO  Main - Aplikasi Todolist mulai\nINFO  TodoService - Todo baru disimpan: 1. [ ] Belajar logging\nINFO  TodoService - Todo baru disimpan: 2. [ ] Beli kopi\nINFO  TodoService - Todo nomor 1 selesai\nINFO  Main - Aplikasi selesai",
+          "wajib": [
+            {
+              "pola": "log\\.info\\s*\\(\\s*\"Todo nomor \\{\\} selesai\"\\s*,\\s*id\\s*\\)",
+              "pesan": "catat `log.info(\"Todo nomor {} selesai\", id);` di selesaikan."
+            },
+            {
+              "pola": "service\\.selesaikan\\s*\\(\\s*1\\s*\\)",
+              "pesan": "panggil `service.selesaikan(1);` di main."
+            }
+          ],
+          "benar": "Placeholder `{}` diganti nomor todonya.",
+          "petunjuk": "Ada dua tempat yang diubah: method `selesaikan` di class TodoService, dan isi method main."
+        },
+        {
+          "arahan": "Tantangan: di main, sebelum log terakhir, coba selesaikan todo nomor 9 yang tidak ada. Tangkap `TodoTidakDitemukanException`, lalu catat pesannya dengan level **WARN**: `Gagal menyelesaikan: ` diikuti pesan exception (pakai placeholder).",
+          "jawaban": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        log.info(\"Aplikasi Todolist mulai\");\n        TodoService service = new TodoService(new TodoRepositoryMemori());\n        service.tambah(\"Belajar logging\");\n        service.tambah(\"Beli kopi\");\n        service.selesaikan(1);\n        try {\n            service.selesaikan(9);\n        } catch (TodoTidakDitemukanException e) {\n            log.warn(\"Gagal menyelesaikan: {}\", e.getMessage());\n        }\n        log.info(\"Aplikasi selesai\");\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this.id = id;\n        this.judul = judul;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n    private int idBerikut = 1;\n\n    public Todo simpan(String judul) {\n        Todo t = new Todo(idBerikut++, judul);\n        data.add(t);\n        return t;\n    }\n\n    public List<Todo> semua() {\n        return new ArrayList<>(data);\n    }\n\n    public Todo cari(int id) {\n        for (Todo t : data) {\n            if (t.getId() == id) {\n                return t;\n            }\n        }\n        return null;\n    }\n\n    public boolean hapus(int id) {\n        Todo t = cari(id);\n        return t != null && data.remove(t);\n    }\n\n    public void perbarui(Todo todo) {\n        // data di memori sudah ikut berubah, tidak ada yang perlu disimpan\n    }\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n\nclass TodoService {\n    private static final Logger log = LoggerFactory.getLogger(TodoService.class);\n    private final TodoRepository repo;\n\n    TodoService(TodoRepository repo) {\n        this.repo = repo;\n    }\n\n    Todo tambah(String judul) {\n        if (judul == null || judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Judul tidak boleh kosong\");\n        }\n        if (judul.trim().length() > 50) {\n            throw new IllegalArgumentException(\"Judul maksimal 50 huruf\");\n        }\n        Todo t = repo.simpan(judul.trim());\n        log.info(\"Todo baru disimpan: {}\", t);\n        return t;\n    }\n\n    void selesaikan(int id) {\n        Todo t = repo.cari(id);\n        if (t == null) {\n            throw new TodoTidakDitemukanException(id);\n        }\n        t.selesaikan();\n        repo.perbarui(t);\n        log.info(\"Todo nomor {} selesai\", id);\n    }\n\n    void hapus(int id) {\n        if (!repo.hapus(id)) {\n            throw new TodoTidakDitemukanException(id);\n        }\n    }\n\n    List<Todo> semua() {\n        return repo.semua();\n    }\n}\n",
+          "keluaran": "INFO  Main - Aplikasi Todolist mulai\nINFO  TodoService - Todo baru disimpan: 1. [ ] Belajar logging\nINFO  TodoService - Todo baru disimpan: 2. [ ] Beli kopi\nINFO  TodoService - Todo nomor 1 selesai\nWARN  Main - Gagal menyelesaikan: Todo nomor 9 tidak ditemukan\nINFO  Main - Aplikasi selesai",
+          "wajib": [
+            {
+              "pola": "log\\.warn\\s*\\(\\s*\"Gagal menyelesaikan: \\{\\}\"\\s*,\\s*e\\.getMessage\\(\\)\\s*\\)",
+              "pesan": "catat `log.warn(\"Gagal menyelesaikan: {}\", e.getMessage())`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Aplikasi tidak berhenti, dan kejadian yang perlu diperhatikan tercatat dengan level WARN.",
+          "petunjuk": "Bungkus `service.selesaikan(9);` dengan try-catch, lalu di catch: `log.warn(\"...: {}\", e.getMessage());`."
+        }
+      ],
+      "penutup": "Aplikasi Todolist sekarang meninggalkan jejak. Berikutnya: memilih level yang tepat dan mengatur level mana yang tampil."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa logger lebih baik daripada System.out.println untuk catatan aplikasi?",
+          "options": [
+            "Logger lebih cepat mencetak ke layar",
+            "println tidak bisa mencetak angka",
+            "Logger punya level dan bisa dimatikan atau diarahkan lewat pengaturan",
+            "Logger tidak perlu import"
+          ],
+          "answer": 2,
+          "explanation": "Level dan pengaturan tanpa mengubah kode.",
+          "remedial": "Dengan logger, setiap pesan punya level (DEBUG, INFO, WARN, ERROR) dan keterangan otomatis. Pesan bisa dimatikan, disaring, atau ditulis ke file cukup dengan mengubah pengaturan, tanpa menyentuh kode."
+        },
+        {
+          "question": "Deklarasi logger yang benar untuk class TodoService adalah...",
+          "options": [
+            "Logger log = new Logger(\"TodoService\");",
+            "private static final Logger log = LoggerFactory.getLogger(Main.class);",
+            "static Logger log = System.getLogger();",
+            "private static final Logger log = LoggerFactory.getLogger(TodoService.class);"
+          ],
+          "answer": 3,
+          "explanation": "Satu logger per class, diberi nama class itu.",
+          "remedial": "Logger dibuat sekali lewat `LoggerFactory.getLogger` dengan class pemiliknya, lalu disimpan di field `private static final`. Memakai `Main.class` di `TodoService` membuat nama logger-nya salah."
+        },
+        {
+          "question": "log.info(\"Todo {} milik {}\", 3, \"Sari\") menghasilkan pesan...",
+          "options": [
+            "Todo 3 milik Sari",
+            "Todo {} milik {}",
+            "Todo 3, Sari milik",
+            "Todo milik 3 Sari"
+          ],
+          "answer": 0,
+          "explanation": "Placeholder diisi berurutan.",
+          "remedial": "Setiap `{}` diganti satu argumen sesuai urutannya: `{}` pertama menjadi 3, `{}` kedua menjadi Sari."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pasangan library logging standar di Java (dan bawaan Spring Boot) adalah...",
+      "options": [
+        "JUnit dan Mockito",
+        "SLF4J sebagai antarmuka dan Logback sebagai mesinnya",
+        "java.io dan java.nio",
+        "Jackson dan Lombok"
+      ],
+      "answer": 1,
+      "explanation": "Kode memakai SLF4J, Logback yang menulis."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program kasir membaca jumlah transaksi dari input, satu per baris, lalu mencetak total. Ubah semua println menjadi log: setiap angka yang sah dicatat dengan level INFO \"Transaksi diterima: \" diikuti angkanya, baris yang bukan angka tidak boleh membuat program berhenti tetapi dicatat dengan level WARN \"Transaksi ditolak: \" diikuti isi barisnya, dan di akhir catat dengan INFO \"Total hari ini: \" diikuti totalnya. Pakai placeholder untuk semua nilai. Logger untuk Main sudah tersedia.",
+      "starterCode": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        int total = 0;\n        while (in.hasNextLine()) {\n            String baris = in.nextLine().trim();\n            int jumlah = Integer.parseInt(baris);\n            total += jumlah;\n            System.out.println(\"Transaksi diterima: \" + jumlah);\n        }\n        System.out.println(\"Total hari ini: \" + total);\n    }\n}",
+      "solution": "import java.util.*;\n\nimport org.slf4j.*;\n\npublic class Main {\n    private static final Logger log = LoggerFactory.getLogger(Main.class);\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        int total = 0;\n        while (in.hasNextLine()) {\n            String baris = in.nextLine().trim();\n            try {\n                int jumlah = Integer.parseInt(baris);\n                total += jumlah;\n                log.info(\"Transaksi diterima: {}\", jumlah);\n            } catch (NumberFormatException e) {\n                log.warn(\"Transaksi ditolak: {}\", baris);\n            }\n        }\n        log.info(\"Total hari ini: {}\", total);\n    }\n}",
+      "tests": [
+        {
+          "input": "15000\n20000\n",
+          "expectedOutput": "INFO  Main - Transaksi diterima: 15000\nINFO  Main - Transaksi diterima: 20000\nINFO  Main - Total hari ini: 35000\n"
+        },
+        {
+          "input": "15000\nlima ribu\n7500\n",
+          "expectedOutput": "INFO  Main - Transaksi diterima: 15000\nWARN  Main - Transaksi ditolak: lima ribu\nINFO  Main - Transaksi diterima: 7500\nINFO  Main - Total hari ini: 22500\n"
+        }
+      ],
+      "hints": [
+        "Bungkus Integer.parseInt dengan try-catch NumberFormatException.",
+        "Contoh: log.info(\"Transaksi diterima: {}\", jumlah); dan log.warn(\"Transaksi ditolak: {}\", baris);"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Log adalah catatan kejadian aplikasi, dibaca saat menyelidiki masalah.",
+        "Standar Java: SLF4J (antarmuka) + Logback (mesin).",
+        "Satu logger per class: private static final Logger log = LoggerFactory.getLogger(NamaClass.class).",
+        "Placeholder {} diganti argumen secara berurutan."
+      ]
+    }
+  ]
+}

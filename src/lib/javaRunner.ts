@@ -1,4 +1,5 @@
 import { rapikanKetikan } from './ketikan';
+import { classpathPustaka } from './javaPustaka';
 
 export interface RunResult {
   stdout: string;
@@ -11,6 +12,8 @@ const CHEERPJ_CDN = 'https://cjrtnc.leaningtech.com/3.0/cj3loader.js';
 // Mode percobaan Java 21: CheerpJ 5 membawa JDK lengkap (termasuk javac), jadi tidak memakai tools.jar.
 const CHEERPJ5_CDN = 'https://cjrtnc.leaningtech.com/5.0/loader.js';
 const TIMEOUT_MS = 20_000;
+// Kode yang memakai library (JUnit, Mockito, Jackson, dan lainnya): pemuatan pertama library bisa makan waktu.
+const TIMEOUT_PUSTAKA_MS = 90_000;
 const KUNCI_MODE = 'bn_java_versi';
 
 export type VersiJava = 8 | 21;
@@ -74,7 +77,12 @@ function buildRunnerSource(): string {
 
 export function buildIframeSrcdoc(versi: VersiJava = 8): string {
   const loader = versi === 21 ? CHEERPJ5_CDN : CHEERPJ_CDN;
-  const init = versi === 21 ? "{ status: 'none', version: 21 }" : "{ status: 'none' }";
+  // CheerpJ 3 (Java 8) belum punya native untuk anotasi tipe, sehingga Hibernate Validator macet.
+  // Native pengganti mengembalikan null, artinya "tidak ada anotasi tipe".
+  const init =
+    versi === 21
+      ? "{ status: 'none', version: 21 }"
+      : "{ status: 'none', natives: { Java_java_lang_reflect_Field_getTypeAnnotationBytes0: tanpaAnotasiTipe, Java_java_lang_reflect_Executable_getTypeAnnotationBytes0: tanpaAnotasiTipe } }";
   // Java 21: javac bawaan JDK (classpath kosong). Java 8: javac dari tools.jar milik situs.
   const cekTools = versi === 21 ? 'false' : 'true';
   return `<!doctype html>
@@ -82,6 +90,7 @@ export function buildIframeSrcdoc(versi: VersiJava = 8): string {
 <script src="${loader}"></script>
 <script>
 window.lastCompiledHash = null;
+async function tanpaAnotasiTipe() { return null; }
   function hashString(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
@@ -99,7 +108,7 @@ window.lastCompiledHash = null;
   window.addEventListener('message', async function(ev) {
     var d = ev.data;
     if (!d || d.type !== 'run') return;
-    var id = d.id, runId = d.runId, toolsPath = d.toolsPath, enc = new TextEncoder();
+    var id = d.id, runId = d.runId, toolsPath = d.toolsPath, cp = d.cp || '', enc = new TextEncoder();
     var pakaiTools = ${cekTools};
     cheerpOSAddStringFile('/str/Main.java', enc.encode(d.code));
     cheerpOSAddStringFile('/str/Runner.java', enc.encode(d.runnerSource));
@@ -121,7 +130,7 @@ window.lastCompiledHash = null;
       if (window.lastCompiledHash !== currentHash) {
         window.parent.postMessage({ type: 'status', id: id, status: 'Mengompilasi' }, '*');
         var cx = await cheerpjRunMain(
-        'com.sun.tools.javac.Main', pakaiTools ? toolsPath : '',
+        'com.sun.tools.javac.Main', [pakaiTools ? toolsPath : '', cp].filter(Boolean).join(':'),
         '-Xstdout', '/files/javac' + runId + '.txt',
         '/str/Main.java', '/str/Runner.java', '-d', '/files/'
       );
@@ -139,7 +148,7 @@ window.lastCompiledHash = null;
         window.lastCompiledHash = currentHash;
       }
       window.parent.postMessage({ type: 'status', id: id, status: 'Menjalankan' }, '*');
-      var rx = await cheerpjRunMain('Runner', pakaiTools ? toolsPath + ':/files/' : '/files/', String(runId));
+      var rx = await cheerpjRunMain('Runner', (pakaiTools ? toolsPath + ':/files/' : '/files/') + (cp ? ':' + cp : ''), String(runId));
       var stdout = '', stderr = '';
       try { stdout = await (await cjFileBlob('/files/out' + runId + '.txt')).text(); } catch(_) {}
       try { stderr = await (await cjFileBlob('/files/err' + runId + '.txt')).text(); } catch(_) {}
@@ -233,6 +242,7 @@ export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: 
   const runId = runCounter;
   const msgId = `run-${runId}-${Date.now()}`;
   const runnerSource = buildRunnerSource();
+  const cp = classpathPustaka(code, import.meta.env.BASE_URL || '/');
 
   const runPromise = sendToIframe({
     type: 'run',
@@ -242,13 +252,14 @@ export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: 
     stdin: stdinInput,
     runnerSource,
     toolsPath: getToolsPath(),
+    cp,
   }, onStatus);
 
   const timeoutPromise = new Promise<RunResult>((resolve) => {
     setTimeout(() => {
       pendingCallbacks.delete(msgId);
       resolve({ stdout: '', stderr: '', exitCode: -1, timedOut: true });
-    }, TIMEOUT_MS);
+    }, cp ? TIMEOUT_PUSTAKA_MS : TIMEOUT_MS);
   });
 
   return Promise.race([runPromise, timeoutPromise]);
