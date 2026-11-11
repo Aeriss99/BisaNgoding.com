@@ -1,0 +1,215 @@
+{
+  "id": "java-database-todolist-01",
+  "moduleId": "database-todolist",
+  "order": 1,
+  "title": "Merancang Penyimpanan Database",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Proyek Todolist OOP menyimpan todo di memori (`TodoRepositoryMemori`) dan di file teks (`TodoRepositoryFile`). Di proyek ini kita membuat penyimpanan ketiga: **database**. Ini bentuk yang dipakai aplikasi sungguhan.\n\nHebatnya rancangan berlapis: `TodoService` dan tampilan tidak perlu diubah sama sekali. Cukup buat class baru `TodoRepositoryJdbc` yang mengimplementasikan interface `TodoRepository` yang sama.\n\nIbarat pindah gudang dari lemari rumah ke gudang besar berpendingin: koki (service) tetap memasak dengan resep yang sama, hanya alamat tempat mengambil bahan yang berubah."
+    },
+    {
+      "type": "theory",
+      "content": "Rancangan tabel mengikuti class `Todo`:\n\n| Field Java | Kolom | Tipe SQL |\n|---|---|---|\n| `int id` | `id` | `INT AUTO_INCREMENT PRIMARY KEY` |\n| `String judul` | `judul` | `VARCHAR(100) NOT NULL` |\n| `boolean selesai` | `selesai` | `BOOLEAN NOT NULL DEFAULT FALSE` |\n\nClass `Database` bertugas menyediakan **DataSource** (sumber koneksi) dan memastikan tabel sudah ada:\n\n```java\nclass Database {\n    static final String SKEMA = \"CREATE TABLE IF NOT EXISTS todo (...)\";\n\n    static DataSource buat() throws SQLException {\n        JdbcDataSource ds = new JdbcDataSource();    // H2 di website ini\n        ds.setURL(\"jdbc:h2:mem:todolist;MODE=MySQL;...\");\n        ...\n    }\n}\n```\n\n`CREATE TABLE IF NOT EXISTS` aman dijalankan berulang: tabel hanya dibuat kalau belum ada.\n\nClass `Todo` mendapat constructor kedua `Todo(int id, String judul, boolean selesai)` untuk membuat object dari baris database, sama seperti versi file di Proyek Todolist OOP.\n\nDi laptop, isi `buat()` diganti `HikariDataSource` ke MySQL (materi terakhir). Semua class lain tidak berubah, karena hanya bergantung pada `DataSource`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nDataSource ds = Database.buat();\ntry (Connection c = ds.getConnection();\n     Statement st = c.createStatement();\n     ResultSet rs = st.executeQuery(\"SELECT COUNT(*) FROM todo\")) {\n    rs.next();\n    System.out.println(\"Jumlah todo: \" + rs.getInt(1));\n}\n```\n\n`ds.getConnection()` menggantikan `DriverManager.getConnection(url, user, sandi)`. Alamat dan pengguna sudah diatur sekali di `Database.buat()`, sehingga kode lain tidak perlu tahu.\n\nMengubah baris database menjadi object `Todo`:\n\n```java\nTodo t = new Todo(rs.getInt(\"id\"), rs.getString(\"judul\"), rs.getBoolean(\"selesai\"));\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.sql.*;\nimport java.util.*;\n\nimport javax.sql.DataSource;\n\nimport org.h2.jdbcx.JdbcDataSource;\n\npublic class Main {\n    public static void main(String[] args) throws SQLException {\n        DataSource ds = Database.buat();\n        Database.buat();\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement()) {\n            st.executeUpdate(\"INSERT INTO todo (judul) VALUES ('Coba')\");\n            try (ResultSet rs = st.executeQuery(\"SELECT id, judul, selesai FROM todo\")) {\n                rs.next();\n                System.out.println(rs.getInt(\"id\") + \" \" + rs.getString(\"judul\") + \" \" + rs.getBoolean(\"selesai\"));\n            }\n        }\n    }\n}\n\nclass Database {\n    static final String SKEMA = \"CREATE TABLE IF NOT EXISTS todo (id INT AUTO_INCREMENT PRIMARY KEY, judul VARCHAR(100) NOT NULL, selesai BOOLEAN NOT NULL DEFAULT FALSE)\";\n\n    // Di website ini: H2 di memori yang meniru MySQL. Di laptop: HikariDataSource ke MySQL.\n    static DataSource buat() throws SQLException {\n        JdbcDataSource ds = new JdbcDataSource();\n        ds.setURL(\"jdbc:h2:mem:todolist;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\");\n        ds.setUser(\"sa\");\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement()) {\n            st.execute(SKEMA);\n        }\n        return ds;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: Database.buat() dipanggil dua kali. Apa yang tercetak?",
+        "options": [
+          "Error: tabel todo sudah ada",
+          "1 Coba false",
+          "0 Coba false",
+          "1 Coba null"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 10,
+          "note": "Dipanggil kedua kali: aman karena IF NOT EXISTS."
+        },
+        {
+          "line": 14,
+          "note": "id dan selesai diisi database."
+        },
+        {
+          "line": 17,
+          "note": "Nilai bawaan kolom: FALSE."
+        }
+      ],
+      "explanation": "Pemanggilan kedua tidak error karena skemanya memakai CREATE TABLE IF NOT EXISTS. Saat INSERT hanya mengisi judul, database mengisi id dengan AUTO_INCREMENT (1) dan selesai dengan nilai DEFAULT (false).",
+      "tryThis": [
+        {
+          "task": "Hapus IF NOT EXISTS dari SKEMA. Apa yang terjadi?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan INSERT kedua lalu cetak dengan perulangan while.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Nama kolom di Java tidak sama dengan di tabel**\n\n`rs.getString(\"title\")` untuk kolom `judul` melempar SQLException. Rancang tabel dan class bersamaan, lalu periksa nama kolom di setiap query.\n\n**2. `CREATE TABLE` tanpa `IF NOT EXISTS`**\n\nAplikasi gagal dijalankan kedua kali karena tabelnya sudah ada.\n\n**3. Tipe data yang tidak cocok**\n\nMenyimpan `boolean` di kolom `VARCHAR` membuat data berisi teks \"true\" dan \"false\" yang sulit dicari. Pilih tipe SQL yang sesuai dengan tipe Java.\n\n**4. Membuat koneksi baru di setiap baris kode**\n\nLogika JDBC yang tersebar di `main` sulit dirawat. Di materi berikutnya semua akses database dikumpulkan di `TodoRepositoryJdbc`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Skema database disimpan sebagai file SQL di repository, misalnya `src/main/resources/schema.sql`, atau sebagai migration Flyway (`V1__buat_tabel_todo.sql`). Membuat tabel dari kode Java seperti `Database.buat()` hanya cocok untuk aplikasi kecil dan test.\n- Spring Boot otomatis membuat `DataSource` dari `application.properties`, dan bisa menjalankan `schema.sql` saat aplikasi mulai.\n- Pemetaan baris ke object (`new Todo(rs.getInt(\"id\"), ...)`) adalah pekerjaan yang diotomatisasi oleh JPA/Hibernate di kelas berikutnya. Menulisnya manual sekali membuat kamu paham apa yang dikerjakan JPA di balik layar.\n\n```text\nsrc/main/resources/\n  schema.sql          CREATE TABLE IF NOT EXISTS todo (...)\n  application.properties\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Database 1: Tabel Todo",
+      "pembuka": "Kita mulai dari class `Database` yang menyiapkan tabel `todo`.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `Database.buat()` menyiapkan DataSource dan tabel, lalu aku hitung isinya.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\nimport javax.sql.DataSource;\n\nimport org.h2.jdbcx.JdbcDataSource;\n\npublic class Main {\n    public static void main(String[] args) throws SQLException {\n        DataSource ds = Database.buat();\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement();\n             ResultSet rs = st.executeQuery(\"SELECT COUNT(*) FROM todo\")) {\n            rs.next();\n            System.out.println(\"Jumlah todo: \" + rs.getInt(1));\n        }\n    }\n}\n\nclass Database {\n    static final String SKEMA = \"CREATE TABLE IF NOT EXISTS todo (id INT AUTO_INCREMENT PRIMARY KEY, judul VARCHAR(100) NOT NULL, selesai BOOLEAN NOT NULL DEFAULT FALSE)\";\n\n    // Di website ini: H2 di memori yang meniru MySQL. Di laptop: HikariDataSource ke MySQL.\n    static DataSource buat() throws SQLException {\n        JdbcDataSource ds = new JdbcDataSource();\n        ds.setURL(\"jdbc:h2:mem:todolist;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\");\n        ds.setUser(\"sa\");\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement()) {\n            st.execute(SKEMA);\n        }\n        return ds;\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this(id, judul, false);\n    }\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n",
+          "keluaran": "Jumlah todo: 0",
+          "otomatis": true,
+          "benar": "Tabel sudah ada dan masih kosong.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan dua todo, `\"Belajar database\"` dan `\"Beli kopi\"`, dengan satu PreparedStatement yang dipakai dua kali, sebelum menghitung.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\nimport javax.sql.DataSource;\n\nimport org.h2.jdbcx.JdbcDataSource;\n\npublic class Main {\n    public static void main(String[] args) throws SQLException {\n        DataSource ds = Database.buat();\n        try (Connection c = ds.getConnection()) {\n            try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO todo (judul) VALUES (?)\")) {\n                ps.setString(1, \"Belajar database\");\n                ps.executeUpdate();\n                ps.setString(1, \"Beli kopi\");\n                ps.executeUpdate();\n            }\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT COUNT(*) FROM todo\")) {\n                rs.next();\n                System.out.println(\"Jumlah todo: \" + rs.getInt(1));\n            }\n        }\n    }\n}\n\nclass Database {\n    static final String SKEMA = \"CREATE TABLE IF NOT EXISTS todo (id INT AUTO_INCREMENT PRIMARY KEY, judul VARCHAR(100) NOT NULL, selesai BOOLEAN NOT NULL DEFAULT FALSE)\";\n\n    // Di website ini: H2 di memori yang meniru MySQL. Di laptop: HikariDataSource ke MySQL.\n    static DataSource buat() throws SQLException {\n        JdbcDataSource ds = new JdbcDataSource();\n        ds.setURL(\"jdbc:h2:mem:todolist;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\");\n        ds.setUser(\"sa\");\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement()) {\n            st.execute(SKEMA);\n        }\n        return ds;\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this(id, judul, false);\n    }\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n",
+          "keluaran": "Jumlah todo: 2",
+          "wajib": [
+            {
+              "pola": "prepareStatement\\s*\\(\\s*\"INSERT INTO todo \\(judul\\) VALUES \\(\\?\\)\"\\s*\\)",
+              "pesan": "pakai `prepareStatement(\"INSERT INTO todo (judul) VALUES (?)\")`."
+            },
+            {
+              "pola": "\"Beli kopi\"",
+              "pesan": "tambahkan juga `\"Beli kopi\"`."
+            }
+          ],
+          "benar": "Satu PreparedStatement bisa dipakai berulang dengan nilai yang berbeda.",
+          "petunjuk": "Isi `ps.setString(1, ...)` lalu `ps.executeUpdate()`, dua kali dengan judul berbeda. Hitungannya ditaruh setelah INSERT, dalam koneksi yang sama."
+        },
+        {
+          "arahan": "Setelah hitungan, baca semua baris dengan `SELECT id, judul, selesai FROM todo ORDER BY id`, ubah setiap baris menjadi `Todo`, lalu cetak object-nya.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\nimport javax.sql.DataSource;\n\nimport org.h2.jdbcx.JdbcDataSource;\n\npublic class Main {\n    public static void main(String[] args) throws SQLException {\n        DataSource ds = Database.buat();\n        try (Connection c = ds.getConnection()) {\n            try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO todo (judul) VALUES (?)\")) {\n                ps.setString(1, \"Belajar database\");\n                ps.executeUpdate();\n                ps.setString(1, \"Beli kopi\");\n                ps.executeUpdate();\n            }\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT COUNT(*) FROM todo\")) {\n                rs.next();\n                System.out.println(\"Jumlah todo: \" + rs.getInt(1));\n            }\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT id, judul, selesai FROM todo ORDER BY id\")) {\n                while (rs.next()) {\n                    Todo t = new Todo(rs.getInt(\"id\"), rs.getString(\"judul\"), rs.getBoolean(\"selesai\"));\n                    System.out.println(t);\n                }\n            }\n        }\n    }\n}\n\nclass Database {\n    static final String SKEMA = \"CREATE TABLE IF NOT EXISTS todo (id INT AUTO_INCREMENT PRIMARY KEY, judul VARCHAR(100) NOT NULL, selesai BOOLEAN NOT NULL DEFAULT FALSE)\";\n\n    // Di website ini: H2 di memori yang meniru MySQL. Di laptop: HikariDataSource ke MySQL.\n    static DataSource buat() throws SQLException {\n        JdbcDataSource ds = new JdbcDataSource();\n        ds.setURL(\"jdbc:h2:mem:todolist;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\");\n        ds.setUser(\"sa\");\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement()) {\n            st.execute(SKEMA);\n        }\n        return ds;\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this(id, judul, false);\n    }\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n",
+          "keluaran": "Jumlah todo: 2\n1. [ ] Belajar database\n2. [ ] Beli kopi",
+          "wajib": [
+            {
+              "pola": "new\\s+Todo\\s*\\(\\s*rs\\.getInt\\(\\s*\"id\"\\s*\\)\\s*,\\s*rs\\.getString\\(\\s*\"judul\"\\s*\\)\\s*,\\s*rs\\.getBoolean\\(\\s*\"selesai\"\\s*\\)\\s*\\)",
+              "pesan": "buat `new Todo(rs.getInt(\"id\"), rs.getString(\"judul\"), rs.getBoolean(\"selesai\"))`."
+            }
+          ],
+          "benar": "Baris database sekarang menjadi object `Todo` yang punya `toString` sendiri.",
+          "petunjuk": "Di dalam `while (rs.next())`: `Todo t = new Todo(rs.getInt(\"id\"), rs.getString(\"judul\"), rs.getBoolean(\"selesai\"));`."
+        },
+        {
+          "arahan": "Tantangan: sebelum membaca, tandai todo nomor 2 selesai dengan UPDATE memakai PreparedStatement (`WHERE id = ?`).",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\nimport javax.sql.DataSource;\n\nimport org.h2.jdbcx.JdbcDataSource;\n\npublic class Main {\n    public static void main(String[] args) throws SQLException {\n        DataSource ds = Database.buat();\n        try (Connection c = ds.getConnection()) {\n            try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO todo (judul) VALUES (?)\")) {\n                ps.setString(1, \"Belajar database\");\n                ps.executeUpdate();\n                ps.setString(1, \"Beli kopi\");\n                ps.executeUpdate();\n            }\n            try (PreparedStatement ps = c.prepareStatement(\"UPDATE todo SET selesai = TRUE WHERE id = ?\")) {\n                ps.setInt(1, 2);\n                ps.executeUpdate();\n            }\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT COUNT(*) FROM todo\")) {\n                rs.next();\n                System.out.println(\"Jumlah todo: \" + rs.getInt(1));\n            }\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT id, judul, selesai FROM todo ORDER BY id\")) {\n                while (rs.next()) {\n                    Todo t = new Todo(rs.getInt(\"id\"), rs.getString(\"judul\"), rs.getBoolean(\"selesai\"));\n                    System.out.println(t);\n                }\n            }\n        }\n    }\n}\n\nclass Database {\n    static final String SKEMA = \"CREATE TABLE IF NOT EXISTS todo (id INT AUTO_INCREMENT PRIMARY KEY, judul VARCHAR(100) NOT NULL, selesai BOOLEAN NOT NULL DEFAULT FALSE)\";\n\n    // Di website ini: H2 di memori yang meniru MySQL. Di laptop: HikariDataSource ke MySQL.\n    static DataSource buat() throws SQLException {\n        JdbcDataSource ds = new JdbcDataSource();\n        ds.setURL(\"jdbc:h2:mem:todolist;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\");\n        ds.setUser(\"sa\");\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement()) {\n            st.execute(SKEMA);\n        }\n        return ds;\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private boolean selesai;\n\n    Todo(int id, String judul) {\n        this(id, judul, false);\n    }\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    int getId() {\n        return id;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n\n    void selesaikan() {\n        selesai = true;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n\ninterface TodoRepository {\n    Todo simpan(String judul);\n\n    List<Todo> semua();\n\n    Todo cari(int id);\n\n    boolean hapus(int id);\n\n    void perbarui(Todo todo);\n}\n\nclass TodoTidakDitemukanException extends RuntimeException {\n    TodoTidakDitemukanException(int id) {\n        super(\"Todo nomor \" + id + \" tidak ditemukan\");\n    }\n}\n",
+          "keluaran": "Jumlah todo: 2\n1. [ ] Belajar database\n2. [x] Beli kopi",
+          "wajib": [
+            {
+              "pola": "UPDATE todo SET selesai = TRUE WHERE id = \\?",
+              "pesan": "tulis `UPDATE todo SET selesai = TRUE WHERE id = ?`."
+            },
+            {
+              "pola": "setInt\\s*\\(\\s*1\\s*,\\s*2\\s*\\)",
+              "pesan": "isi parameternya dengan `setInt(1, 2)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "\"Beli kopi\" tampil dengan `[x]`. Semua kode JDBC masih di `main`; di materi berikutnya kita rapikan ke repository.",
+          "petunjuk": "Polanya seperti INSERT: `prepareStatement(\"UPDATE todo SET selesai = TRUE WHERE id = ?\")`, lalu `setInt(1, 2)`."
+        }
+      ],
+      "penutup": "Database dan tabelnya siap. Kode JDBC di `main` sudah panjang, jadi berikutnya kita pindahkan ke `TodoRepositoryJdbc`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa skema memakai CREATE TABLE IF NOT EXISTS?",
+          "options": [
+            "Supaya tabel selalu dikosongkan",
+            "Karena MySQL mewajibkannya",
+            "Supaya aman dijalankan berulang kali tanpa error",
+            "Supaya kolom ditambah otomatis"
+          ],
+          "answer": 2,
+          "explanation": "Hanya dibuat kalau belum ada.",
+          "remedial": "Aplikasi menjalankan skema setiap kali mulai. Tanpa `IF NOT EXISTS`, jalan kedua gagal dengan error tabel sudah ada."
+        },
+        {
+          "question": "Apa keuntungan memakai DataSource dibanding DriverManager.getConnection(url, user, sandi) di setiap tempat?",
+          "options": [
+            "DataSource tidak butuh driver",
+            "DataSource tidak perlu ditutup",
+            "DataSource membuat query lebih aman dari SQL injection",
+            "Alamat dan pengguna diatur sekali, kode lain cukup memanggil getConnection()"
+          ],
+          "answer": 3,
+          "explanation": "Pengaturan di satu tempat.",
+          "remedial": "Dengan DataSource, URL, pengguna, sandi, dan pool diatur di satu tempat. Repository hanya menerima DataSource, sehingga bisa dipakai dengan H2, MySQL, atau pool tanpa diubah."
+        },
+        {
+          "question": "Kenapa TodoService tidak perlu diubah saat penyimpanan berpindah ke database?",
+          "options": [
+            "Karena TodoService hanya bergantung pada interface TodoRepository",
+            "Karena TodoService ikut membaca database",
+            "Karena database otomatis menjalankan TodoService",
+            "Karena TodoService dihapus"
+          ],
+          "answer": 0,
+          "explanation": "Bergantung pada interface.",
+          "remedial": "`TodoService` hanya mengenal `TodoRepository`. Selama `TodoRepositoryJdbc` mengimplementasikan interface itu, service tidak tahu dan tidak peduli datanya disimpan di mana."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Constructor Todo yang dipakai untuk membuat object dari baris database adalah...",
+      "options": [
+        "Todo(String judul)",
+        "Todo(int id, String judul, boolean selesai)",
+        "Todo()",
+        "Todo(ResultSet rs, String judul)"
+      ],
+      "answer": 1,
+      "explanation": "Semua kolom ikut dibaca."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Todolist akan punya kategori. Program membaca nama kategori dari input, satu per baris. Lengkapi programnya: buat tabel kategori dengan kolom id (INT AUTO_INCREMENT PRIMARY KEY) dan nama (VARCHAR(30) NOT NULL UNIQUE) memakai IF NOT EXISTS, lalu masukkan setiap nama dengan PreparedStatement. Kalau nama sudah ada (melanggar UNIQUE), cetak \"Kategori sudah ada: \" diikuti namanya, selain itu \"Kategori ditambah: \" diikuti namanya. Di akhir cetak \"Total kategori: \" diikuti jumlah baris di tabel kategori.",
+      "starterCode": "import java.sql.*;\nimport java.util.*;\n\nimport javax.sql.DataSource;\n\nimport org.h2.jdbcx.JdbcDataSource;\n\npublic class Main {\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        DataSource ds = Database.buat();\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement()) {\n            // buat tabel kategori di sini\n            while (in.hasNextLine()) {\n                String nama = in.nextLine().trim();\n                System.out.println(\"Kategori ditambah: \" + nama);\n            }\n        }\n    }\n}\n\nclass Database {\n    static final String SKEMA = \"CREATE TABLE IF NOT EXISTS todo (id INT AUTO_INCREMENT PRIMARY KEY, judul VARCHAR(100) NOT NULL, selesai BOOLEAN NOT NULL DEFAULT FALSE)\";\n\n    // Di website ini: H2 di memori yang meniru MySQL. Di laptop: HikariDataSource ke MySQL.\n    static DataSource buat() throws SQLException {\n        JdbcDataSource ds = new JdbcDataSource();\n        ds.setURL(\"jdbc:h2:mem:todolist;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\");\n        ds.setUser(\"sa\");\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement()) {\n            st.execute(SKEMA);\n        }\n        return ds;\n    }\n}",
+      "solution": "import java.sql.*;\nimport java.util.*;\n\nimport javax.sql.DataSource;\n\nimport org.h2.jdbcx.JdbcDataSource;\n\npublic class Main {\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        DataSource ds = Database.buat();\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE IF NOT EXISTS kategori (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(30) NOT NULL UNIQUE)\");\n            while (in.hasNextLine()) {\n                String nama = in.nextLine().trim();\n                try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO kategori (nama) VALUES (?)\")) {\n                    ps.setString(1, nama);\n                    ps.executeUpdate();\n                    System.out.println(\"Kategori ditambah: \" + nama);\n                } catch (SQLException e) {\n                    System.out.println(\"Kategori sudah ada: \" + nama);\n                }\n            }\n            try (ResultSet rs = st.executeQuery(\"SELECT COUNT(*) FROM kategori\")) {\n                rs.next();\n                System.out.println(\"Total kategori: \" + rs.getInt(1));\n            }\n        }\n    }\n}\n\nclass Database {\n    static final String SKEMA = \"CREATE TABLE IF NOT EXISTS todo (id INT AUTO_INCREMENT PRIMARY KEY, judul VARCHAR(100) NOT NULL, selesai BOOLEAN NOT NULL DEFAULT FALSE)\";\n\n    // Di website ini: H2 di memori yang meniru MySQL. Di laptop: HikariDataSource ke MySQL.\n    static DataSource buat() throws SQLException {\n        JdbcDataSource ds = new JdbcDataSource();\n        ds.setURL(\"jdbc:h2:mem:todolist;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\");\n        ds.setUser(\"sa\");\n        try (Connection c = ds.getConnection();\n             Statement st = c.createStatement()) {\n            st.execute(SKEMA);\n        }\n        return ds;\n    }\n}",
+      "tests": [
+        {
+          "input": "Kerja\nRumah\nKerja\n",
+          "expectedOutput": "Kategori ditambah: Kerja\nKategori ditambah: Rumah\nKategori sudah ada: Kerja\nTotal kategori: 2\n"
+        },
+        {
+          "input": "Belajar\n",
+          "expectedOutput": "Kategori ditambah: Belajar\nTotal kategori: 1\n"
+        }
+      ],
+      "hints": [
+        "UNIQUE membuat INSERT nama yang sama melempar SQLException, jadi bungkus INSERT dengan try-catch SQLException.",
+        "Jumlah dihitung dengan SELECT COUNT(*) FROM kategori lalu rs.next() dan rs.getInt(1)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Todolist Database menambah penyimpanan ketiga tanpa mengubah TodoService.",
+        "Tabel todo: id AUTO_INCREMENT, judul VARCHAR NOT NULL, selesai BOOLEAN DEFAULT FALSE.",
+        "Class Database menyediakan DataSource dan menjalankan skema dengan IF NOT EXISTS.",
+        "Baris database diubah menjadi object dengan new Todo(id, judul, selesai)."
+      ]
+    }
+  ]
+}
