@@ -1,0 +1,215 @@
+{
+  "id": "java-resilience4j-05",
+  "moduleId": "resilience4j",
+  "order": 5,
+  "title": "Rate Limiter dan Bulkhead",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Dua pola terakhir melindungi dengan **membatasi**:\n\n- **Rate Limiter** membatasi **jumlah panggilan dalam satu periode**, misalnya 100 panggilan per menit. Dipakai untuk menghormati batas API pihak ketiga (layanan kurir yang hanya mengizinkan 3 panggilan per detik), atau melindungi aplikasi sendiri dari pengguna yang mengirim terlalu banyak permintaan.\n- **Bulkhead** membatasi **jumlah panggilan yang berjalan bersamaan**, misalnya maksimal 10 pembuatan laporan sekaligus. Kalau satu fitur lambat, ia tidak menghabiskan semua thread aplikasi.\n\nIbarat loket di bank: rate limiter seperti batas nomor antrean per jam, bulkhead seperti jumlah loket yang buka. Bulkhead sendiri diambil dari sekat kedap air di kapal: kalau satu ruangan bocor, ruangan lain tetap kering dan kapal tidak tenggelam."
+    },
+    {
+      "type": "theory",
+      "content": "**Rate Limiter**\n\n```java\nRateLimiter limiter = RateLimiter.of(\"api-kurir\", RateLimiterConfig.custom()\n        .limitForPeriod(3)                          // izin per periode\n        .limitRefreshPeriod(Duration.ofSeconds(1))  // panjang periode\n        .timeoutDuration(Duration.ZERO)             // lama menunggu izin; 0 = langsung tolak\n        .build());\n```\n\nPanggilan yang tidak dapat izin melempar `RequestNotPermitted`. Dengan `timeoutDuration` lebih dari 0, panggilan menunggu periode berikutnya dulu sebelum menyerah. `limiter.acquirePermission()` mengembalikan `true` atau `false` tanpa exception.\n\n**Bulkhead**\n\n```java\nBulkhead sekat = Bulkhead.of(\"laporan\", BulkheadConfig.custom()\n        .maxConcurrentCalls(2)             // maksimal 2 berjalan bersamaan\n        .maxWaitDuration(Duration.ZERO)    // langsung tolak kalau penuh\n        .build());\n```\n\nPanggilan yang ditolak melempar `BulkheadFullException`. Saat dibungkus dengan `decorateSupplier`, izin dikembalikan otomatis setelah panggilan selesai. Kalau memakai `tryAcquirePermission()` manual, kembalikan dengan `onComplete()`.\n\n| | Rate Limiter | Bulkhead |\n|---|---|---|\n| membatasi | jumlah per waktu | jumlah bersamaan |\n| pertanyaan | \"sudah berapa kali menit ini?\" | \"berapa yang sedang berjalan?\" |\n| exception | `RequestNotPermitted` | `BulkheadFullException` |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nSupplier<String> lacak = RateLimiter.decorateSupplier(limiter, () -> kurir.lacak(resi));\ntry {\n    lacak.get();\n} catch (RequestNotPermitted e) {\n    // balas 429 Too Many Requests\n}\n```\n\nDi REST API, permintaan yang ditolak rate limiter dijawab dengan status **429 Too Many Requests**, biasanya dengan header `Retry-After` yang memberi tahu kapan boleh mencoba lagi.\n\nRate limiter di Resilience4j berlaku **di dalam satu proses aplikasi**. Kalau aplikasi berjalan di 5 server, setiap server punya batasnya sendiri. Batas bersama untuk semua server memakai penyimpanan bersama seperti Redis atau API gateway."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.bulkhead.*;\nimport io.github.resilience4j.ratelimiter.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        RateLimiter limiter = RateLimiter.of(\"login\", RateLimiterConfig.custom()\n                .limitForPeriod(2)\n                .limitRefreshPeriod(Duration.ofSeconds(60))\n                .timeoutDuration(Duration.ZERO)\n                .build());\n        for (int i = 1; i <= 3; i++) {\n            System.out.println(\"Percobaan \" + i + \": \" + (limiter.acquirePermission() ? \"boleh\" : \"ditolak\"));\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: batasnya 2 per menit. Apa hasil percobaan ketiga?",
+        "options": [
+          "Percobaan 3: boleh",
+          "Percobaan 3: ditolak",
+          "Percobaan 2: ditolak",
+          "RequestNotPermitted"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 11,
+          "note": "Dua izin per periode."
+        },
+        {
+          "line": 13,
+          "note": "Tidak menunggu periode berikutnya."
+        },
+        {
+          "line": 16,
+          "note": "Bertanya izin tanpa exception."
+        }
+      ],
+      "explanation": "Dua izin pertama terpakai. Periode berikutnya baru dimulai setelah 60 detik, dan karena timeoutDuration nol, permintaan ketiga langsung ditolak. Pola seperti ini dipakai untuk membatasi percobaan login supaya sandi tidak bisa ditebak beruntun.",
+      "tryThis": [
+        {
+          "task": "Ubah limitForPeriod menjadi 3.",
+          "hint": null
+        },
+        {
+          "task": "Ubah perulangan menjadi 5 kali dan hitung berapa yang ditolak.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Rate limiter per proses untuk batas global**\n\nBatas API pihak ketiga 100 per menit, aplikasi berjalan di 4 server, masing-masing memasang batas 100: total bisa 400 per menit dan akun diblokir. Bagi batasnya atau pakai rate limiter bersama.\n\n**2. Lupa mengembalikan izin bulkhead**\n\n`tryAcquirePermission()` tanpa `onComplete()` membuat slot habis permanen. Lebih aman memakai `decorateSupplier`.\n\n**3. Menunggu izin terlalu lama**\n\n`timeoutDuration` beberapa detik membuat pengguna menunggu tanpa kabar. Untuk permintaan dari pengguna, biasanya lebih baik tolak cepat dengan pesan jelas.\n\n**4. Bulkhead yang terlalu besar**\n\nBatas 1.000 untuk fitur yang memakai koneksi database dari pool berisi 20 tetap menghabiskan pool. Sesuaikan dengan sumber daya yang dilindungi."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- API publik hampir selalu memakai rate limiting: GitHub, misalnya, membatasi permintaan per jam per token dan mengirim header `X-RateLimit-Remaining`.\n- Rate limiting di depan aplikasi sering dilakukan **API gateway** (Kong, Spring Cloud Gateway, AWS API Gateway) atau Nginx, sebelum permintaan sampai ke kode Java.\n- Resilience4j menyediakan dua jenis bulkhead: `SemaphoreBulkhead` (yang dipakai di materi ini) dan `ThreadPoolBulkhead` (panggilan berjalan di pool thread terpisah).\n- Di Spring Boot:\n\n```java\n@RateLimiter(name = \"api-kurir\")\n@Bulkhead(name = \"laporan\")\n```\n\n```yaml\nresilience4j.ratelimiter.instances.api-kurir:\n  limit-for-period: 3\n  limit-refresh-period: 1s\n  timeout-duration: 0\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Klien Gudang Tangguh 5: Antrean yang Tertib",
+      "pembuka": "API kurir hanya mengizinkan 3 panggilan per periode, dan laporan gudang berat dijalankan bersamaan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Lima pelacakan, tetapi hanya tiga yang mendapat izin.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.bulkhead.*;\nimport io.github.resilience4j.ratelimiter.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        RateLimiter limiter = RateLimiter.of(\"api-kurir\", RateLimiterConfig.custom()\n                .limitForPeriod(3)\n                .limitRefreshPeriod(Duration.ofSeconds(10))\n                .timeoutDuration(Duration.ZERO)\n                .build());\n        Supplier<String> lacak = RateLimiter.decorateSupplier(limiter, () -> \"dalam perjalanan\");\n        for (int i = 1; i <= 5; i++) {\n            try {\n                System.out.println(i + \". \" + lacak.get());\n            } catch (RequestNotPermitted e) {\n                System.out.println(i + \". ditolak: \" + e.getMessage());\n            }\n        }\n    }\n}\n",
+          "keluaran": "1. dalam perjalanan\n2. dalam perjalanan\n3. dalam perjalanan\n4. ditolak: RateLimiter 'api-kurir' does not permit further calls\n5. ditolak: RateLimiter 'api-kurir' does not permit further calls",
+          "otomatis": true,
+          "benar": "Dua sisanya ditolak tanpa memanggil API kurir.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Cetak sisa izin di periode ini dengan bentuk `Sisa izin: 0`.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.bulkhead.*;\nimport io.github.resilience4j.ratelimiter.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        RateLimiter limiter = RateLimiter.of(\"api-kurir\", RateLimiterConfig.custom()\n                .limitForPeriod(3)\n                .limitRefreshPeriod(Duration.ofSeconds(10))\n                .timeoutDuration(Duration.ZERO)\n                .build());\n        Supplier<String> lacak = RateLimiter.decorateSupplier(limiter, () -> \"dalam perjalanan\");\n        for (int i = 1; i <= 5; i++) {\n            try {\n                System.out.println(i + \". \" + lacak.get());\n            } catch (RequestNotPermitted e) {\n                System.out.println(i + \". ditolak: \" + e.getMessage());\n            }\n        }\n        System.out.println(\"Sisa izin: \" + limiter.getMetrics().getAvailablePermissions());\n    }\n}\n",
+          "keluaran": "1. dalam perjalanan\n2. dalam perjalanan\n3. dalam perjalanan\n4. ditolak: RateLimiter 'api-kurir' does not permit further calls\n5. ditolak: RateLimiter 'api-kurir' does not permit further calls\nSisa izin: 0",
+          "wajib": [
+            {
+              "pola": "getAvailablePermissions\\(\\)",
+              "pesan": "pakai `getAvailablePermissions()`."
+            }
+          ],
+          "benar": "Metrik ini membantu memantau seberapa dekat aplikasi dengan batas.",
+          "petunjuk": "`limiter.getMetrics().getAvailablePermissions()`."
+        },
+        {
+          "arahan": "Buat `Bulkhead sekat` bernama `laporan` dengan maksimal 2 panggilan bersamaan dan tanpa menunggu. Minta izin tiga kali dengan `tryAcquirePermission()` dan cetak hasilnya.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.bulkhead.*;\nimport io.github.resilience4j.ratelimiter.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        RateLimiter limiter = RateLimiter.of(\"api-kurir\", RateLimiterConfig.custom()\n                .limitForPeriod(3)\n                .limitRefreshPeriod(Duration.ofSeconds(10))\n                .timeoutDuration(Duration.ZERO)\n                .build());\n        Supplier<String> lacak = RateLimiter.decorateSupplier(limiter, () -> \"dalam perjalanan\");\n        for (int i = 1; i <= 5; i++) {\n            try {\n                System.out.println(i + \". \" + lacak.get());\n            } catch (RequestNotPermitted e) {\n                System.out.println(i + \". ditolak: \" + e.getMessage());\n            }\n        }\n        System.out.println(\"Sisa izin: \" + limiter.getMetrics().getAvailablePermissions());\n\n        Bulkhead sekat = Bulkhead.of(\"laporan\", BulkheadConfig.custom()\n                .maxConcurrentCalls(2)\n                .maxWaitDuration(Duration.ZERO)\n                .build());\n        System.out.println(\"Laporan 1: \" + sekat.tryAcquirePermission());\n        System.out.println(\"Laporan 2: \" + sekat.tryAcquirePermission());\n        System.out.println(\"Laporan 3: \" + sekat.tryAcquirePermission());\n    }\n}\n",
+          "keluaran": "1. dalam perjalanan\n2. dalam perjalanan\n3. dalam perjalanan\n4. ditolak: RateLimiter 'api-kurir' does not permit further calls\n5. ditolak: RateLimiter 'api-kurir' does not permit further calls\nSisa izin: 0\nLaporan 1: true\nLaporan 2: true\nLaporan 3: false",
+          "wajib": [
+            {
+              "pola": "maxConcurrentCalls\\s*\\(\\s*2\\s*\\)",
+              "pesan": "pakai `maxConcurrentCalls(2)`."
+            },
+            {
+              "pola": "tryAcquirePermission\\(\\)",
+              "pesan": "pakai `tryAcquirePermission()`."
+            }
+          ],
+          "benar": "Laporan ketiga ditolak selama dua laporan masih berjalan.",
+          "petunjuk": "`BulkheadConfig.custom().maxConcurrentCalls(2).maxWaitDuration(Duration.ZERO).build()`."
+        },
+        {
+          "arahan": "Tantangan: tandai satu laporan selesai dengan `sekat.onComplete()`, minta izin lagi, lalu cetak slot yang tersisa.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.bulkhead.*;\nimport io.github.resilience4j.ratelimiter.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        RateLimiter limiter = RateLimiter.of(\"api-kurir\", RateLimiterConfig.custom()\n                .limitForPeriod(3)\n                .limitRefreshPeriod(Duration.ofSeconds(10))\n                .timeoutDuration(Duration.ZERO)\n                .build());\n        Supplier<String> lacak = RateLimiter.decorateSupplier(limiter, () -> \"dalam perjalanan\");\n        for (int i = 1; i <= 5; i++) {\n            try {\n                System.out.println(i + \". \" + lacak.get());\n            } catch (RequestNotPermitted e) {\n                System.out.println(i + \". ditolak: \" + e.getMessage());\n            }\n        }\n        System.out.println(\"Sisa izin: \" + limiter.getMetrics().getAvailablePermissions());\n\n        Bulkhead sekat = Bulkhead.of(\"laporan\", BulkheadConfig.custom()\n                .maxConcurrentCalls(2)\n                .maxWaitDuration(Duration.ZERO)\n                .build());\n        System.out.println(\"Laporan 1: \" + sekat.tryAcquirePermission());\n        System.out.println(\"Laporan 2: \" + sekat.tryAcquirePermission());\n        System.out.println(\"Laporan 3: \" + sekat.tryAcquirePermission());\n        sekat.onComplete();\n        System.out.println(\"Setelah satu selesai: \" + sekat.tryAcquirePermission());\n        System.out.println(\"Slot tersisa: \" + sekat.getMetrics().getAvailableConcurrentCalls());\n    }\n}\n",
+          "keluaran": "1. dalam perjalanan\n2. dalam perjalanan\n3. dalam perjalanan\n4. ditolak: RateLimiter 'api-kurir' does not permit further calls\n5. ditolak: RateLimiter 'api-kurir' does not permit further calls\nSisa izin: 0\nLaporan 1: true\nLaporan 2: true\nLaporan 3: false\nSetelah satu selesai: true\nSlot tersisa: 0",
+          "wajib": [
+            {
+              "pola": "sekat\\.onComplete\\(\\)",
+              "pesan": "panggil `sekat.onComplete()`."
+            },
+            {
+              "pola": "getAvailableConcurrentCalls\\(\\)",
+              "pesan": "cetak `getAvailableConcurrentCalls()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Slot yang dikembalikan langsung bisa dipakai lagi.",
+          "petunjuk": "`sekat.getMetrics().getAvailableConcurrentCalls()`."
+        }
+      ],
+      "penutup": "Semua pola sudah dikuasai. Materi terakhir: merakit klien gudang yang siap produksi."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pola untuk membatasi 100 panggilan per menit ke API kurir adalah...",
+          "options": [
+            "Bulkhead",
+            "Circuit Breaker",
+            "Rate Limiter",
+            "Retry"
+          ],
+          "answer": 2,
+          "explanation": "Jumlah per waktu.",
+          "remedial": "Rate Limiter menghitung panggilan dalam setiap periode waktu. Bulkhead menghitung panggilan yang berjalan bersamaan."
+        },
+        {
+          "question": "Status HTTP yang tepat untuk permintaan yang ditolak rate limiter adalah...",
+          "options": [
+            "404 Not Found",
+            "500 Internal Server Error",
+            "400 Bad Request",
+            "429 Too Many Requests"
+          ],
+          "answer": 3,
+          "explanation": "Terlalu banyak permintaan.",
+          "remedial": "429 memberi tahu klien bahwa batas permintaan terlampaui. Header `Retry-After` biasanya menyertainya."
+        },
+        {
+          "question": "Bulkhead dengan maxConcurrentCalls(2) menolak panggilan ketiga ketika...",
+          "options": [
+            "Dua panggilan lain masih sedang berjalan",
+            "Sudah ada dua panggilan hari ini",
+            "Dua panggilan sebelumnya gagal",
+            "Panggilan ketiga lebih lambat"
+          ],
+          "answer": 0,
+          "explanation": "Bersamaan.",
+          "remedial": "Bulkhead melihat panggilan yang sedang berjalan. Begitu salah satunya selesai, slot kembali tersedia."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Exception yang dilempar bulkhead saat penuh adalah...",
+      "options": [
+        "RequestNotPermitted",
+        "BulkheadFullException",
+        "CallNotPermittedException",
+        "TimeoutException"
+      ],
+      "answer": 1,
+      "explanation": "Sekatnya penuh."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca batas permintaan per menit di baris pertama, lalu nama pengguna yang mengirim permintaan per baris. Setiap permintaan dicetak nomor. pengguna: diproses. Pasang Rate Limiter dengan batas itu (periode 60 detik, tanpa menunggu), supaya permintaan yang melewati batas dicetak nomor. pengguna: 429 terlalu banyak permintaan.",
+      "starterCode": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.bulkhead.*;\nimport io.github.resilience4j.ratelimiter.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        int batas = Integer.parseInt(in.nextLine());\n        int nomor = 1;\n        while (in.hasNextLine()) {\n            String pengguna = in.nextLine();\n            System.out.println(nomor++ + \". \" + pengguna + \": diproses\");\n        }\n    }\n}",
+      "solution": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.bulkhead.*;\nimport io.github.resilience4j.ratelimiter.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        int batas = Integer.parseInt(in.nextLine());\n        RateLimiter limiter = RateLimiter.of(\"api\", RateLimiterConfig.custom()\n                .limitForPeriod(batas)\n                .limitRefreshPeriod(Duration.ofSeconds(60))\n                .timeoutDuration(Duration.ZERO)\n                .build());\n        int nomor = 1;\n        while (in.hasNextLine()) {\n            String pengguna = in.nextLine();\n            String hasil = limiter.acquirePermission() ? \"diproses\" : \"429 terlalu banyak permintaan\";\n            System.out.println(nomor++ + \". \" + pengguna + \": \" + hasil);\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "2\nsari\nbudi\nsari\ndewi\n",
+          "expectedOutput": "1. sari: diproses\n2. budi: diproses\n3. sari: 429 terlalu banyak permintaan\n4. dewi: 429 terlalu banyak permintaan\n"
+        },
+        {
+          "input": "3\na\nb\n",
+          "expectedOutput": "1. a: diproses\n2. b: diproses\n"
+        }
+      ],
+      "hints": [
+        "RateLimiterConfig.custom().limitForPeriod(batas).limitRefreshPeriod(Duration.ofSeconds(60)).timeoutDuration(Duration.ZERO).build()",
+        "limiter.acquirePermission() mengembalikan true atau false."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Rate Limiter membatasi jumlah panggilan per periode; ditolak dengan RequestNotPermitted.",
+        "Bulkhead membatasi panggilan bersamaan; ditolak dengan BulkheadFullException.",
+        "Permintaan yang melewati batas dijawab 429 Too Many Requests.",
+        "Batas Resilience4j berlaku per proses; batas global butuh penyimpanan bersama atau gateway."
+      ]
+    }
+  ]
+}

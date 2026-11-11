@@ -1,0 +1,215 @@
+{
+  "id": "java-resilience4j-01",
+  "moduleId": "resilience4j",
+  "order": 1,
+  "title": "Kenapa Aplikasi Perlu Tangguh: Retry",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi modern jarang bekerja sendiri. Toko online memanggil layanan stok gudang, layanan pembayaran, dan layanan kurir lewat jaringan. Jaringan **pasti** kadang gagal: koneksi putus sesaat, server lain sedang sibuk, atau sedang dipasang versi baru.\n\nKalau setiap gangguan kecil membuat pesanan gagal, pengguna kecewa. Kalau aplikasi terus menunggu layanan yang mati, aplikasi kita ikut macet. Kemampuan bertahan menghadapi gangguan seperti ini disebut **resilience** (ketangguhan).\n\n**Resilience4j** adalah library Java yang menyediakan pola-pola ketangguhan. Pola pertama dan paling sederhana: **Retry**, mencoba lagi panggilan yang gagal.\n\nIbarat menelepon toko yang nadanya sibuk: kita tidak langsung menyerah, tetapi menunggu sebentar lalu menelepon lagi, dengan batas berapa kali mencoba."
+    },
+    {
+      "type": "theory",
+      "content": "Pola ketangguhan yang dibahas di modul ini:\n\n| Pola | Masalah yang diatasi |\n|---|---|\n| **Retry** | gangguan sesaat: coba lagi |\n| **Circuit Breaker** | layanan lain sedang mati: berhenti memanggil sementara |\n| **Fallback** | tetap memberi jawaban walau gagal, misalnya data terakhir |\n| **Rate Limiter** | batasi jumlah panggilan per waktu |\n| **Bulkhead** | batasi panggilan bersamaan supaya satu layanan lambat tidak menghabiskan semua thread |\n\nRetry di Resilience4j:\n\n```java\nRetryConfig config = RetryConfig.custom()\n        .maxAttempts(3)                      // total percobaan, termasuk yang pertama\n        .waitDuration(Duration.ofMillis(500))  // jeda antar percobaan\n        .build();\nRetry retry = Retry.of(\"gudang\", config);\n\nSupplier<Integer> cek = Retry.decorateSupplier(retry, () -> gudang.cekStok(\"kopi\"));\nint stok = cek.get();\n```\n\n`decorateSupplier` **membungkus** pemanggilan: hasilnya `Supplier` baru yang otomatis mencoba lagi kalau terjadi exception. Kalau semua percobaan gagal, exception terakhir dilempar ke pemanggil.\n\nPola \"bungkus\" ini sama untuk semua pola Resilience4j: `decorateSupplier`, `decorateRunnable`, `decorateFunction`, `decorateCallable`.\n\nEvent bisa dipantau: `retry.getEventPublisher().onRetry(e -> ...)`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDi materi ini layanan gudang diganti **`GudangPalsu`** yang hasilnya bisa diatur, supaya contoh selalu memberi hasil sama:\n\n```java\nGudangPalsu gudang = new GudangPalsu(\"timeout\", \"ok\");   // gagal sekali, lalu berhasil\nSupplier<Integer> cek = Retry.decorateSupplier(retry, () -> gudang.cekStok(\"kopi\"));\nSystem.out.println(cek.get());              // 7\nSystem.out.println(gudang.panggilan);       // 2\n```\n\nPengguna tidak tahu ada kegagalan pertama. Itu tujuan retry.\n\n`maxAttempts(3)` berarti **total 3 percobaan**: 1 percobaan awal + 2 ulangan. Konfigurasi bawaan (`RetryConfig.ofDefaults()`) juga 3 percobaan dengan jeda 500 ms.\n\nDi editor, jeda dibuat 10 ms supaya contoh cepat. Di produksi, jeda biasanya ratusan milidetik sampai beberapa detik."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        GudangPalsu gudang = new GudangPalsu(\"timeout\", \"timeout\", \"ok\");\n        Retry retry = Retry.of(\"gudang\", RetryConfig.custom().maxAttempts(2).waitDuration(Duration.ofMillis(10)).build());\n        try {\n            System.out.println(Retry.decorateSupplier(retry, () -> gudang.cekStok(\"kopi\")).get());\n        } catch (IllegalStateException e) {\n            System.out.println(\"Gagal: \" + e.getMessage());\n        }\n        System.out.println(\"Panggilan: \" + gudang.panggilan);\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: gudang gagal dua kali, retry hanya 2 percobaan. Apa yang tercetak di baris pertama?",
+        "options": [
+          "7",
+          "Gagal: timeout ke gudang",
+          "Gagal: retry habis",
+          "Panggilan: 3"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 10,
+          "note": "Total 2 percobaan."
+        },
+        {
+          "line": 12,
+          "note": "Dibungkus retry lalu dipanggil."
+        }
+      ],
+      "explanation": "maxAttempts menghitung semua percobaan, termasuk yang pertama. Dua percobaan habis untuk dua timeout, sehingga exception terakhir dilempar apa adanya. Gudang hanya dipanggil 2 kali; jawaban ok di jadwal ketiga tidak pernah tercapai.",
+      "tryThis": [
+        {
+          "task": "Ubah maxAttempts menjadi 3 lalu jalankan lagi.",
+          "hint": null
+        },
+        {
+          "task": "Pasang retry.getEventPublisher().onRetry(...) untuk mencetak setiap ulangan.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira `maxAttempts` jumlah ulangan**\n\n`maxAttempts(3)` berarti 3 percobaan total, bukan 3 ulangan setelah gagal.\n\n**2. Retry tanpa jeda**\n\nMencoba lagi langsung (jeda 0) ke server yang sedang kewalahan justru menambah bebannya. Selalu beri jeda, lebih baik lagi jeda yang bertambah (materi berikutnya).\n\n**3. Mengulang semua jenis kesalahan**\n\nData yang salah (`400 Bad Request`) tetap salah berapa kali pun dicoba. Retry hanya untuk gangguan sesaat seperti timeout dan `503`.\n\n**4. Menulis perulangan retry sendiri di mana-mana**\n\n`for` dengan `try-catch` dan `Thread.sleep` di setiap pemanggilan membuat kode berulang dan aturan tidak seragam. Library memberi konfigurasi, event, dan metrik di satu tempat."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Resilience4j adalah pengganti **Netflix Hystrix** (sudah tidak dikembangkan sejak 2018) dan menjadi pilihan bawaan **Spring Cloud Circuit Breaker**.\n- Dependency Maven untuk proyek Java 17 ke atas:\n\n```xml\n<dependency>\n  <groupId>io.github.resilience4j</groupId>\n  <artifactId>resilience4j-retry</artifactId>\n  <version>2.2.0</version>\n</dependency>\n```\n\nEditor website ini memakai versi 1.7 karena berjalan di Java 8; class dan method yang dipakai di modul ini sama di versi 2.\n- Di Spring Boot cukup anotasi dan file konfigurasi:\n\n```java\n@Retry(name = \"gudang\")\npublic int cekStok(String barang) { ... }\n```\n\n```yaml\nresilience4j.retry.instances.gudang:\n  max-attempts: 3\n  wait-duration: 500ms\n```"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Klien Gudang Tangguh 1: Coba Lagi Sekali",
+      "pembuka": "Mulai materi ini kita buat **Klien Gudang Tangguh**: kode toko yang memanggil layanan gudang yang kadang gagal.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Gudang gagal sekali, retry mencoba lagi dan berhasil.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        GudangPalsu gudang = new GudangPalsu(\"timeout\", \"ok\");\n        RetryConfig config = RetryConfig.custom()\n                .maxAttempts(3)\n                .waitDuration(Duration.ofMillis(10))\n                .build();\n        Retry retry = Retry.of(\"gudang\", config);\n        Supplier<Integer> cek = Retry.decorateSupplier(retry, () -> gudang.cekStok(\"kopi\"));\n        System.out.println(\"Stok: \" + cek.get());\n        System.out.println(\"Panggilan ke gudang: \" + gudang.panggilan);\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n",
+          "keluaran": "Stok: 7\nPanggilan ke gudang: 2",
+          "otomatis": true,
+          "benar": "Pengguna mendapat stok tanpa tahu ada kegagalan.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Pasang pemantau event: setiap kali mengulang, cetak `ulang ke-1: timeout ke gudang`.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        GudangPalsu gudang = new GudangPalsu(\"timeout\", \"ok\");\n        RetryConfig config = RetryConfig.custom()\n                .maxAttempts(3)\n                .waitDuration(Duration.ofMillis(10))\n                .build();\n        Retry retry = Retry.of(\"gudang\", config);\n        retry.getEventPublisher().onRetry(e -> System.out.println(\"ulang ke-\" + e.getNumberOfRetryAttempts() + \": \" + e.getLastThrowable().getMessage()));\n        Supplier<Integer> cek = Retry.decorateSupplier(retry, () -> gudang.cekStok(\"kopi\"));\n        System.out.println(\"Stok: \" + cek.get());\n        System.out.println(\"Panggilan ke gudang: \" + gudang.panggilan);\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n",
+          "keluaran": "ulang ke-1: timeout ke gudang\nStok: 7\nPanggilan ke gudang: 2",
+          "wajib": [
+            {
+              "pola": "getEventPublisher\\(\\)\\.onRetry",
+              "pesan": "pasang `getEventPublisher().onRetry(...)`."
+            }
+          ],
+          "benar": "Event membantu memantau seberapa sering layanan lain bermasalah.",
+          "petunjuk": "`retry.getEventPublisher().onRetry(e -> ...)` dengan `e.getNumberOfRetryAttempts()` dan `e.getLastThrowable().getMessage()`."
+        },
+        {
+          "arahan": "Buat gudang kedua `mati` yang selalu timeout (4 kali), bungkus dengan retry yang sama, lalu tangkap exception-nya dan cetak `Menyerah setelah 3 percobaan: timeout ke gudang`.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        GudangPalsu gudang = new GudangPalsu(\"timeout\", \"ok\");\n        RetryConfig config = RetryConfig.custom()\n                .maxAttempts(3)\n                .waitDuration(Duration.ofMillis(10))\n                .build();\n        Retry retry = Retry.of(\"gudang\", config);\n        retry.getEventPublisher().onRetry(e -> System.out.println(\"ulang ke-\" + e.getNumberOfRetryAttempts() + \": \" + e.getLastThrowable().getMessage()));\n        Supplier<Integer> cek = Retry.decorateSupplier(retry, () -> gudang.cekStok(\"kopi\"));\n        System.out.println(\"Stok: \" + cek.get());\n        System.out.println(\"Panggilan ke gudang: \" + gudang.panggilan);\n\n        GudangPalsu mati = new GudangPalsu(\"timeout\", \"timeout\", \"timeout\", \"timeout\");\n        Supplier<Integer> cekMati = Retry.decorateSupplier(retry, () -> mati.cekStok(\"teh\"));\n        try {\n            cekMati.get();\n        } catch (IllegalStateException e) {\n            System.out.println(\"Menyerah setelah \" + mati.panggilan + \" percobaan: \" + e.getMessage());\n        }\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n",
+          "keluaran": "ulang ke-1: timeout ke gudang\nStok: 7\nPanggilan ke gudang: 2\nulang ke-1: timeout ke gudang\nulang ke-2: timeout ke gudang\nMenyerah setelah 3 percobaan: timeout ke gudang",
+          "wajib": [
+            {
+              "pola": "catch\\s*\\(\\s*IllegalStateException\\s+e\\s*\\)",
+              "pesan": "tangkap `IllegalStateException`."
+            },
+            {
+              "pola": "mati\\.panggilan",
+              "pesan": "cetak `mati.panggilan`."
+            }
+          ],
+          "benar": "Setelah 3 percobaan, exception terakhir sampai ke pemanggil.",
+          "petunjuk": "`new GudangPalsu(\"timeout\", \"timeout\", \"timeout\", \"timeout\")`, lalu panggil `get()` di dalam try-catch `IllegalStateException`."
+        },
+        {
+          "arahan": "Tantangan: cetak dua metrik retry: jumlah panggilan yang berhasil setelah diulang, dan yang gagal setelah diulang.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        GudangPalsu gudang = new GudangPalsu(\"timeout\", \"ok\");\n        RetryConfig config = RetryConfig.custom()\n                .maxAttempts(3)\n                .waitDuration(Duration.ofMillis(10))\n                .build();\n        Retry retry = Retry.of(\"gudang\", config);\n        retry.getEventPublisher().onRetry(e -> System.out.println(\"ulang ke-\" + e.getNumberOfRetryAttempts() + \": \" + e.getLastThrowable().getMessage()));\n        Supplier<Integer> cek = Retry.decorateSupplier(retry, () -> gudang.cekStok(\"kopi\"));\n        System.out.println(\"Stok: \" + cek.get());\n        System.out.println(\"Panggilan ke gudang: \" + gudang.panggilan);\n\n        GudangPalsu mati = new GudangPalsu(\"timeout\", \"timeout\", \"timeout\", \"timeout\");\n        Supplier<Integer> cekMati = Retry.decorateSupplier(retry, () -> mati.cekStok(\"teh\"));\n        try {\n            cekMati.get();\n        } catch (IllegalStateException e) {\n            System.out.println(\"Menyerah setelah \" + mati.panggilan + \" percobaan: \" + e.getMessage());\n        }\n        System.out.println(\"Berhasil setelah diulang: \" + retry.getMetrics().getNumberOfSuccessfulCallsWithRetryAttempt());\n        System.out.println(\"Gagal setelah diulang: \" + retry.getMetrics().getNumberOfFailedCallsWithRetryAttempt());\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n",
+          "keluaran": "ulang ke-1: timeout ke gudang\nStok: 7\nPanggilan ke gudang: 2\nulang ke-1: timeout ke gudang\nulang ke-2: timeout ke gudang\nMenyerah setelah 3 percobaan: timeout ke gudang\nBerhasil setelah diulang: 1\nGagal setelah diulang: 1",
+          "wajib": [
+            {
+              "pola": "getNumberOfSuccessfulCallsWithRetryAttempt\\(\\)",
+              "pesan": "cetak jumlah berhasil setelah diulang."
+            },
+            {
+              "pola": "getNumberOfFailedCallsWithRetryAttempt\\(\\)",
+              "pesan": "cetak jumlah gagal setelah diulang."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Metrik seperti ini dikirim ke dashboard monitoring di produksi.",
+          "petunjuk": "`retry.getMetrics().getNumberOfSuccessfulCallsWithRetryAttempt()` dan `getNumberOfFailedCallsWithRetryAttempt()`."
+        }
+      ],
+      "penutup": "Retry sudah bekerja. Berikutnya: retry yang sopan dan hanya untuk kesalahan yang tepat."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "maxAttempts(3) pada Resilience4j berarti...",
+          "options": [
+            "3 ulangan setelah percobaan pertama",
+            "3 detik menunggu",
+            "Total 3 percobaan, termasuk percobaan pertama",
+            "3 kali sukses berturut-turut"
+          ],
+          "answer": 2,
+          "explanation": "Hitung semua percobaan.",
+          "remedial": "`maxAttempts` menghitung seluruh percobaan. Dengan nilai 3, ada 1 percobaan awal dan paling banyak 2 ulangan."
+        },
+        {
+          "question": "Retry cocok untuk kesalahan...",
+          "options": [
+            "Data yang dikirim salah format",
+            "Pengguna tidak punya izin",
+            "Barang memang tidak ada",
+            "Timeout atau server sedang sibuk sesaat"
+          ],
+          "answer": 3,
+          "explanation": "Gangguan sesaat.",
+          "remedial": "Retry berguna kalau mencoba lagi bisa berhasil. Data salah atau izin ditolak akan tetap gagal, jadi tidak perlu diulang."
+        },
+        {
+          "question": "Kalau semua percobaan retry gagal, pemanggil menerima...",
+          "options": [
+            "Exception dari percobaan terakhir",
+            "null",
+            "Hasil percobaan pertama",
+            "Nilai bawaan 0"
+          ],
+          "answer": 0,
+          "explanation": "Tidak disembunyikan.",
+          "remedial": "Retry tidak menyembunyikan kegagalan. Setelah percobaan habis, exception terakhir dilempar ke pemanggil, yang bisa menangani dengan fallback."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method Resilience4j untuk membungkus Supplier dengan retry adalah...",
+      "options": [
+        "retry.run(supplier)",
+        "Retry.decorateSupplier(retry, supplier)",
+        "new Retry(supplier)",
+        "Supplier.retry(3)"
+      ],
+      "answer": 1,
+      "explanation": "Pola decorate."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca pola jawaban server kurir di baris pertama input (x berarti gagal, o berarti berhasil, misalnya xxo), lalu melacak resi JKT123 sekali. Saat ini satu kegagalan langsung membuat pelacakan gagal. Bungkus pemanggilan kurir.lacak dengan Retry Resilience4j: maksimal 4 percobaan, jeda 10 milidetik. Kalau tetap gagal, program mencetak Gagal: pesan seperti sekarang.",
+      "starterCode": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        KurirPalsu kurir = new KurirPalsu(in.nextLine());\n        try {\n            System.out.println(kurir.lacak(\"JKT123\"));\n        } catch (IllegalStateException e) {\n            System.out.println(\"Gagal: \" + e.getMessage());\n        }\n    }\n}\n\nclass KurirPalsu {\n    private final Deque<Boolean> jadwal = new ArrayDeque<>();\n\n    KurirPalsu(String pola) {\n        for (char c : pola.toCharArray()) {\n            jadwal.add(c == 'o');\n        }\n    }\n\n    String lacak(String resi) {\n        if (!jadwal.isEmpty() && !jadwal.poll()) {\n            throw new IllegalStateException(\"server kurir sibuk\");\n        }\n        return resi + \": dalam perjalanan\";\n    }\n}",
+      "solution": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.retry.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        KurirPalsu kurir = new KurirPalsu(in.nextLine());\n        Retry retry = Retry.of(\"kurir\", RetryConfig.custom().maxAttempts(4).waitDuration(Duration.ofMillis(10)).build());\n        try {\n            System.out.println(Retry.decorateSupplier(retry, () -> kurir.lacak(\"JKT123\")).get());\n        } catch (IllegalStateException e) {\n            System.out.println(\"Gagal: \" + e.getMessage());\n        }\n    }\n}\n\nclass KurirPalsu {\n    private final Deque<Boolean> jadwal = new ArrayDeque<>();\n\n    KurirPalsu(String pola) {\n        for (char c : pola.toCharArray()) {\n            jadwal.add(c == 'o');\n        }\n    }\n\n    String lacak(String resi) {\n        if (!jadwal.isEmpty() && !jadwal.poll()) {\n            throw new IllegalStateException(\"server kurir sibuk\");\n        }\n        return resi + \": dalam perjalanan\";\n    }\n}",
+      "tests": [
+        {
+          "input": "xxo\n",
+          "expectedOutput": "JKT123: dalam perjalanan\n"
+        },
+        {
+          "input": "xxxxo\n",
+          "expectedOutput": "Gagal: server kurir sibuk\n"
+        },
+        {
+          "input": "o\n",
+          "expectedOutput": "JKT123: dalam perjalanan\n"
+        }
+      ],
+      "hints": [
+        "Retry.of(\"kurir\", RetryConfig.custom().maxAttempts(4).waitDuration(Duration.ofMillis(10)).build())",
+        "Retry.decorateSupplier(retry, () -> kurir.lacak(\"JKT123\")).get() di dalam try yang sama."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Jaringan pasti kadang gagal; aplikasi tangguh mengantisipasinya.",
+        "Retry mencoba lagi gangguan sesaat; maxAttempts menghitung semua percobaan.",
+        "Retry.decorateSupplier membungkus pemanggilan; kalau habis, exception terakhir dilempar.",
+        "Selalu beri jeda; jangan ulang kesalahan permanen seperti data salah."
+      ]
+    }
+  ]
+}
