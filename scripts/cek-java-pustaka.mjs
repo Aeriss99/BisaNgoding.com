@@ -9,12 +9,14 @@ const tugas = [];
 for (const f of folder) {
   for (const n of fs.readdirSync(`content/java/${f}`).filter((x) => x.startsWith('lesson-')).sort()) {
     const l = JSON.parse(fs.readFileSync(`content/java/${f}/${n}`, 'utf-8'));
+    const awal = tugas.length;
     for (const c of l.cards) {
       if (c.type === 'praktik_java') c.langkah.forEach((s, i) => tugas.push({ asal: `${l.id} praktik ${i + 1}`, kode: s.jawaban, input: s.input || '', harap: s.keluaran }));
       if (c.type === 'runnable') tugas.push({ asal: `${l.id} runnable`, kode: c.code, input: '', baris: c.predict.options[c.predict.answer] });
       if (c.type === 'code_challenge') c.tests.forEach((t, i) => tugas.push({ asal: `${l.id} tantangan ${i + 1}`, kode: c.solution, input: t.input, harap: t.expectedOutput }));
       if (c.type === 'understanding_check') c.questions.forEach((q, i) => { if (q.code) tugas.push({ asal: `${l.id} cek ${i + 1}`, kode: q.code, input: '', ...( /output|keluaran|dicetak|tercetak/i.test(q.question) ? { harap: q.options[q.answer] } : { baris: q.options[q.answer] }) }); });
     }
+    for (let k = awal; k < tugas.length; k++) tugas[k].versi = l.javaVersion;
   }
   const qf = `content/java/${f}/quiz.json`;
   if (fs.existsSync(qf)) for (const q of JSON.parse(fs.readFileSync(qf, 'utf-8'))) if (q.code) tugas.push({ asal: q.id, kode: q.code, input: '', ...( /output|keluaran|dicetak|tercetak/i.test(q.question) ? { harap: q.options[q.answer] } : { baris: q.options[q.answer] }) });
@@ -46,7 +48,7 @@ for (const t of daftar) {
   const mulai = Date.now();
   for (let coba = 0; coba < 2; coba++) {
     try {
-      r = await page.evaluate(async ({ kode, input }) => { try { return await window.runJavaCode(kode, input); } catch (e) { return { stdout: '', stderr: String(e), exitCode: -9 }; } }, t);
+      r = await page.evaluate(async ({ kode, input, versi }) => { try { return await window.runJavaCode(kode, input, undefined, versi); } catch (e) { return { stdout: '', stderr: String(e), exitCode: -9 }; } }, t);
       break;
     } catch (e) {
       console.log(`  crash di ${t.asal}, ulang: ${String(e).slice(0, 80)}`);
