@@ -1,0 +1,215 @@
+{
+  "id": "java-reflection-04",
+  "moduleId": "reflection",
+  "order": 4,
+  "title": "Membuat Anotasi Sendiri",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Sejak modul Unit Test kita memakai anotasi: `@Test`, `@BeforeEach`, `@NotBlank`, `@JsonProperty`, `@Entity`. Anotasi sendiri tidak melakukan apa-apa. Ia hanya **label** yang ditempel ke class, field, atau method. Yang bekerja adalah kode lain yang **membaca label itu lewat reflection**.\n\nKita bisa membuat anotasi sendiri, lalu menulis kode yang membacanya. Begitulah library-library tadi dibuat.\n\nIbarat label di kotak pindahan: tulisan \"PECAH BELAH\" tidak melindungi isinya. Petugas angkut yang membaca label itulah yang mengangkatnya dengan hati-hati."
+    },
+    {
+      "type": "theory",
+      "content": "```java\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Kolom {\n    String nama() default \"\";\n    boolean wajib() default false;\n}\n```\n\n| Bagian | Artinya |\n|---|---|\n| `@interface` | mendefinisikan anotasi |\n| elemen seperti `nama()` | atribut anotasi; tipenya primitif, String, Class, enum, anotasi, atau array dari itu |\n| `default` | nilai kalau tidak diisi saat dipakai |\n| elemen bernama `value` | boleh diisi tanpa nama: `@Tabel(\"tugas\")` |\n\n**`@Retention`**: sampai kapan anotasi disimpan.\n\n| Nilai | Anotasi tersedia |\n|---|---|\n| `SOURCE` | hanya di kode sumber, dibuang saat compile (contoh: `@Override`) |\n| `CLASS` | di file .class, tetapi tidak terbaca reflection (bawaan) |\n| `RUNTIME` | terbaca reflection saat program berjalan |\n\n**`@Target`**: di mana anotasi boleh dipasang: `TYPE` (class), `FIELD`, `METHOD`, `PARAMETER`, `CONSTRUCTOR`.\n\nMembaca anotasi:\n\n```java\nKolom k = field.getAnnotation(Kolom.class);   // null kalau tidak ada\nboolean ada = kelas.isAnnotationPresent(Tabel.class);\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@Tabel(\"tugas\")\nclass Tugas {\n    @Kolom(nama = \"id_tugas\", wajib = true)\n    int id;\n\n    @Kolom(wajib = true)\n    String judul;\n}\n```\n\n```java\nString tabel = Tugas.class.getAnnotation(Tabel.class).value();   // tugas\nfor (Field f : Tugas.class.getDeclaredFields()) {\n    Kolom k = f.getAnnotation(Kolom.class);\n    ...\n}\n```\n\nInilah cara kerja `@Entity`, `@Table`, dan `@Column` di JPA: Hibernate membaca anotasi itu untuk mengetahui nama tabel dan kolom.\n\nAnotasi tanpa elemen disebut *marker annotation*, misalnya `@Test` atau `@Override`. Kehadirannya saja sudah menjadi informasi."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        System.out.println(Layanan.class.getAnnotation(Penting.class));\n        System.out.println(Layanan.class.getAnnotation(Catatan.class).value());\n    }\n}\n\n@interface Penting {\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@interface Catatan {\n    String value();\n}\n\n@Penting\n@Catatan(\"dipakai tim keuangan\")\nclass Layanan {\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak di baris pertama?",
+        "options": [
+          "null",
+          "@Penting()",
+          "Penting",
+          "true"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 12,
+          "note": "Tanpa @Retention: bawaannya CLASS."
+        },
+        {
+          "line": 15,
+          "note": "Yang ini tersedia saat program berjalan."
+        },
+        {
+          "line": 8,
+          "note": "Membaca elemen value."
+        }
+      ],
+      "explanation": "Penting tidak diberi Retention, sehingga memakai bawaan CLASS: tersimpan di file class tetapi tidak terbaca reflection. getAnnotation mengembalikan null tanpa error apa pun. Catatan memakai RUNTIME dan terbaca normal.\n\nLupa RUNTIME adalah kesalahan paling umum saat membuat anotasi sendiri.",
+      "tryThis": [
+        {
+          "task": "Tambahkan @Retention(RetentionPolicy.RUNTIME) ke Penting lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Coba pasang @Catatan di sebuah method. Apakah boleh tanpa @Target?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `@Retention(RetentionPolicy.RUNTIME)`**\n\nAnotasi diam-diam tidak terbaca. Tidak ada error, hanya `null`.\n\n**2. Lupa memeriksa `null`**\n\n`getAnnotation` mengembalikan `null` untuk elemen yang tidak diberi anotasi. Memanggil method di atasnya menghasilkan NullPointerException.\n\n**3. Mengira anotasi menjalankan sesuatu**\n\nMenempel `@Kolom(wajib = true)` tidak memeriksa apa pun sampai ada kode yang membaca dan menindaklanjutinya.\n\n**4. Elemen dengan tipe yang tidak diizinkan**\n\nElemen anotasi tidak boleh bertipe `List`, `Integer`, atau class buatan sendiri, dan nilai `default` tidak boleh `null`. Pakai array dan string kosong."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Anotasi buatan sendiri yang umum di proyek: `@Audit` untuk mencatat siapa mengubah data, `@HanyaAdmin` untuk membatasi akses, `@Rahasia` untuk menyembunyikan field dari log, atau constraint validasi seperti di modul Validation.\n- Di Spring, anotasi seperti itu biasanya dibaca oleh *aspect* (AOP) yang membungkus method, dibahas di materi Dynamic Proxy.\n- Ada juga anotasi yang dibaca **saat compile**, bukan saat berjalan. Lombok dan MapStruct memakai *annotation processor* untuk membuat kode baru dari anotasi.\n- Anotasi juga bisa menggabungkan anotasi lain (*meta-annotation*). `@SpringBootApplication` misalnya adalah gabungan `@Configuration`, `@EnableAutoConfiguration`, dan `@ComponentScan`."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Mini Framework 4: Label Tabel dan Kolom",
+      "pembuka": "Kita buat anotasi `@Tabel` dan `@Kolom`, mirip JPA.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Anotasi `@Tabel` dipasang di class lalu dibaca.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Tabel t = Tugas.class.getAnnotation(Tabel.class);\n        System.out.println(\"Tabel: \" + t.value());\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.TYPE)\n@interface Tabel {\n    String value();\n}\n\n@Tabel(\"tugas\")\nclass Tugas {\n    int id;\n    String judul;\n    boolean selesai;\n}\n",
+          "keluaran": "Tabel: tugas",
+          "otomatis": true,
+          "benar": "Elemen `value` boleh ditulis tanpa nama.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Buat anotasi `@Kolom` (untuk field, RUNTIME) dengan elemen `String nama() default \"\"` dan `boolean wajib() default false`. Pasang `@Kolom(nama = \"id_tugas\", wajib = true)` di `id` dan `@Kolom(wajib = true)` di `judul`. Lalu cetak setiap field dengan nama kolomnya (pakai nama field kalau `nama` kosong) dan tanda `(wajib)`.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Tabel t = Tugas.class.getAnnotation(Tabel.class);\n        System.out.println(\"Tabel: \" + t.value());\n\n        for (Field f : Tugas.class.getDeclaredFields()) {\n            Kolom k = f.getAnnotation(Kolom.class);\n            if (k == null) {\n                System.out.println(f.getName() + \": tanpa @Kolom\");\n            } else {\n                String nama = k.nama().isEmpty() ? f.getName() : k.nama();\n                System.out.println(f.getName() + \" -> \" + nama + (k.wajib() ? \" (wajib)\" : \"\"));\n            }\n        }\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.TYPE)\n@interface Tabel {\n    String value();\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Kolom {\n    String nama() default \"\";\n\n    boolean wajib() default false;\n}\n\n@Tabel(\"tugas\")\nclass Tugas {\n    @Kolom(nama = \"id_tugas\", wajib = true)\n    int id;\n\n    @Kolom(wajib = true)\n    String judul;\n\n    boolean selesai;\n}\n",
+          "keluaran": "Tabel: tugas\nid -> id_tugas (wajib)\njudul -> judul (wajib)\nselesai: tanpa @Kolom",
+          "wajib": [
+            {
+              "pola": "@interface\\s+Kolom",
+              "pesan": "buat `@interface Kolom`."
+            },
+            {
+              "pola": "boolean\\s+wajib\\s*\\(\\s*\\)\\s*default\\s+false",
+              "pesan": "tambahkan elemen `boolean wajib() default false`."
+            },
+            {
+              "pola": "f\\.getAnnotation\\s*\\(\\s*Kolom\\.class\\s*\\)",
+              "pesan": "baca dengan `f.getAnnotation(Kolom.class)`."
+            }
+          ],
+          "benar": "Nilai default dipakai untuk elemen yang tidak diisi.",
+          "petunjuk": "Untuk field tanpa anotasi, `getAnnotation` mengembalikan `null`: cetak `tanpa @Kolom`."
+        },
+        {
+          "arahan": "Cetak apakah `Tugas` dan `String` punya anotasi `@Tabel`, dipisah spasi.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Tabel t = Tugas.class.getAnnotation(Tabel.class);\n        System.out.println(\"Tabel: \" + t.value());\n\n        for (Field f : Tugas.class.getDeclaredFields()) {\n            Kolom k = f.getAnnotation(Kolom.class);\n            if (k == null) {\n                System.out.println(f.getName() + \": tanpa @Kolom\");\n            } else {\n                String nama = k.nama().isEmpty() ? f.getName() : k.nama();\n                System.out.println(f.getName() + \" -> \" + nama + (k.wajib() ? \" (wajib)\" : \"\"));\n            }\n        }\n\n        System.out.println(Tugas.class.isAnnotationPresent(Tabel.class) + \" \" + String.class.isAnnotationPresent(Tabel.class));\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.TYPE)\n@interface Tabel {\n    String value();\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Kolom {\n    String nama() default \"\";\n\n    boolean wajib() default false;\n}\n\n@Tabel(\"tugas\")\nclass Tugas {\n    @Kolom(nama = \"id_tugas\", wajib = true)\n    int id;\n\n    @Kolom(wajib = true)\n    String judul;\n\n    boolean selesai;\n}\n",
+          "keluaran": "Tabel: tugas\nid -> id_tugas (wajib)\njudul -> judul (wajib)\nselesai: tanpa @Kolom\ntrue false",
+          "wajib": [
+            {
+              "pola": "isAnnotationPresent\\s*\\(\\s*Tabel\\.class\\s*\\)",
+              "pesan": "pakai `isAnnotationPresent(Tabel.class)`."
+            }
+          ],
+          "benar": "Cara cepat memeriksa tanpa mengambil anotasinya.",
+          "petunjuk": "Pakai `isAnnotationPresent(Tabel.class)`."
+        },
+        {
+          "arahan": "Tantangan: buat `static String buatSql(Class<?> kelas)` yang menghasilkan `SELECT id_tugas, judul, selesai FROM tugas` dari anotasi, lalu cetak untuk `Tugas`.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    static String buatSql(Class<?> kelas) {\n        String tabel = kelas.getAnnotation(Tabel.class).value();\n        List<String> kolom = new ArrayList<>();\n        for (Field f : kelas.getDeclaredFields()) {\n            Kolom k = f.getAnnotation(Kolom.class);\n            kolom.add(k == null || k.nama().isEmpty() ? f.getName() : k.nama());\n        }\n        return \"SELECT \" + String.join(\", \", kolom) + \" FROM \" + tabel;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Tabel t = Tugas.class.getAnnotation(Tabel.class);\n        System.out.println(\"Tabel: \" + t.value());\n\n        for (Field f : Tugas.class.getDeclaredFields()) {\n            Kolom k = f.getAnnotation(Kolom.class);\n            if (k == null) {\n                System.out.println(f.getName() + \": tanpa @Kolom\");\n            } else {\n                String nama = k.nama().isEmpty() ? f.getName() : k.nama();\n                System.out.println(f.getName() + \" -> \" + nama + (k.wajib() ? \" (wajib)\" : \"\"));\n            }\n        }\n\n        System.out.println(Tugas.class.isAnnotationPresent(Tabel.class) + \" \" + String.class.isAnnotationPresent(Tabel.class));\n        System.out.println(buatSql(Tugas.class));\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.TYPE)\n@interface Tabel {\n    String value();\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Kolom {\n    String nama() default \"\";\n\n    boolean wajib() default false;\n}\n\n@Tabel(\"tugas\")\nclass Tugas {\n    @Kolom(nama = \"id_tugas\", wajib = true)\n    int id;\n\n    @Kolom(wajib = true)\n    String judul;\n\n    boolean selesai;\n}\n",
+          "keluaran": "Tabel: tugas\nid -> id_tugas (wajib)\njudul -> judul (wajib)\nselesai: tanpa @Kolom\ntrue false\nSELECT id_tugas, judul, selesai FROM tugas",
+          "wajib": [
+            {
+              "pola": "static\\s+String\\s+buatSql\\s*\\(\\s*Class<\\?>\\s+\\w+\\s*\\)",
+              "pesan": "buat `static String buatSql(Class<?> kelas)`."
+            },
+            {
+              "pola": "String\\.join",
+              "pesan": "gabungkan dengan `String.join`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Hibernate menyusun SQL dengan cara yang sama, tentu jauh lebih lengkap.",
+          "petunjuk": "Nama tabel dari `@Tabel`, nama kolom dari `@Kolom` atau nama field. Gabungkan dengan `String.join(\", \", kolom)`."
+        }
+      ],
+      "penutup": "Anotasi dan reflection bisa bekerja sama. Berikutnya: validator buatan sendiri."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Supaya anotasi bisa dibaca dengan reflection saat program berjalan, retention-nya harus...",
+          "options": [
+            "RetentionPolicy.SOURCE",
+            "RetentionPolicy.RUNTIME",
+            "RetentionPolicy.CLASS",
+            "Tidak perlu ditulis"
+          ],
+          "answer": 1,
+          "explanation": "Bawaannya CLASS.",
+          "remedial": "Tanpa `@Retention`, retention bawaannya `CLASS`: tersimpan di file class tetapi tidak tersedia untuk reflection. Hanya `RUNTIME` yang terbaca saat program berjalan."
+        },
+        {
+          "question": "Elemen anotasi bernama value boleh ditulis...",
+          "options": [
+            "Hanya dengan nama value = ...",
+            "Tanpa tanda kutip",
+            "Tanpa nama, misalnya @Tabel(\"tugas\")",
+            "Hanya sebagai default"
+          ],
+          "answer": 2,
+          "explanation": "Nama khusus.",
+          "remedial": "Kalau hanya elemen `value` yang diisi, namanya boleh dihilangkan. Elemen lain selalu ditulis dengan namanya."
+        },
+        {
+          "question": "field.getAnnotation(Kolom.class) untuk field tanpa @Kolom mengembalikan...",
+          "options": [
+            "Anotasi Kolom dengan nilai default",
+            "Exception",
+            "Anotasi kosong",
+            "null"
+          ],
+          "answer": 3,
+          "explanation": "Tidak ada anotasi.",
+          "remedial": "`getAnnotation` mengembalikan `null` kalau anotasi itu tidak terpasang. Selalu periksa sebelum membaca elemennya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "@Target(ElementType.METHOD) berarti anotasi itu...",
+      "options": [
+        "Hanya boleh dipasang di method",
+        "Hanya terbaca di method main",
+        "Menjalankan method otomatis",
+        "Wajib dipasang di semua method"
+      ],
+      "answer": 0,
+      "explanation": "Tempat pemasangan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca nama method perintah per baris, lalu mencetak nama: deskripsi dari anotasi @Deskripsi pada method itu, atau nama: tanpa deskripsi kalau tidak ada. Method tambah dan selesai sudah diberi @Deskripsi, tetapi program selalu mencetak tanpa deskripsi. Temukan dan perbaiki kesalahannya di definisi anotasi, tanpa mengubah main.",
+      "starterCode": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String nama = in.nextLine();\n            Method m = Perintah.class.getMethod(nama);\n            Deskripsi d = m.getAnnotation(Deskripsi.class);\n            System.out.println(nama + \": \" + (d == null ? \"tanpa deskripsi\" : d.value()));\n        }\n    }\n}\n\nclass Perintah {\n    @Deskripsi(\"menambah todo baru\")\n    public void tambah() {\n    }\n\n    @Deskripsi(\"menandai todo selesai\")\n    public void selesai() {\n    }\n\n    public void bersihkan() {\n    }\n}\n\n@Target(ElementType.METHOD)\n@interface Deskripsi {\n    String value();\n}",
+      "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String nama = in.nextLine();\n            Method m = Perintah.class.getMethod(nama);\n            Deskripsi d = m.getAnnotation(Deskripsi.class);\n            System.out.println(nama + \": \" + (d == null ? \"tanpa deskripsi\" : d.value()));\n        }\n    }\n}\n\nclass Perintah {\n    @Deskripsi(\"menambah todo baru\")\n    public void tambah() {\n    }\n\n    @Deskripsi(\"menandai todo selesai\")\n    public void selesai() {\n    }\n\n    public void bersihkan() {\n    }\n}\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Deskripsi {\n    String value();\n}",
+      "tests": [
+        {
+          "input": "tambah\nbersihkan\nselesai\n",
+          "expectedOutput": "tambah: menambah todo baru\nbersihkan: tanpa deskripsi\nselesai: menandai todo selesai\n"
+        }
+      ],
+      "hints": [
+        "Anotasi yang tidak bisa dibaca saat program berjalan selalu menghasilkan null.",
+        "Tambahkan @Retention(RetentionPolicy.RUNTIME) di atas @interface Deskripsi."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Anotasi didefinisikan dengan @interface; elemennya bisa punya default; elemen value boleh tanpa nama.",
+        "@Retention(RUNTIME) wajib supaya terbaca reflection; @Target menentukan tempat pasang.",
+        "getAnnotation mengembalikan null kalau tidak ada; isAnnotationPresent memeriksa keberadaan.",
+        "Anotasi hanya label; kode yang membacanya yang bekerja."
+      ]
+    }
+  ]
+}

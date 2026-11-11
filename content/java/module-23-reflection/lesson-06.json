@@ -1,0 +1,207 @@
+{
+  "id": "java-reflection-06",
+  "moduleId": "reflection",
+  "order": 6,
+  "title": "Dynamic Proxy: Membungkus Object",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di Spring, method yang diberi `@Transactional` otomatis berjalan di dalam transaksi database, padahal kita tidak menulis `begin` dan `commit`. Di modul Unit Test, Mockito membuat object tiruan dari interface tanpa kita menulis class-nya. Keduanya memakai **proxy**: object perantara yang berdiri di depan object asli dan ikut campur setiap kali method dipanggil.\n\nJava menyediakan **Dynamic Proxy**: membuat object perantara untuk sebuah interface saat program berjalan, tanpa menulis class-nya.\n\nIbarat resepsionis kantor: tamu tidak bertemu direktur langsung. Resepsionis mencatat setiap tamu, mengecek janji temu, lalu meneruskan ke direktur. Direktur tidak perlu tahu semua itu."
+    },
+    {
+      "type": "theory",
+      "content": "```java\nLayananTodo layanan = (LayananTodo) Proxy.newProxyInstance(\n        LayananTodo.class.getClassLoader(),      // class loader\n        new Class<?>[] {LayananTodo.class},      // interface yang diimplementasikan proxy\n        new Pencatat(asli));                     // InvocationHandler\n```\n\nSetiap pemanggilan method di proxy masuk ke **`InvocationHandler`**:\n\n```java\npublic Object invoke(Object proxy, Method method, Object[] args) throws Throwable {\n    // sebelum\n    Object hasil = method.invoke(asli, args);    // teruskan ke object asli\n    // sesudah\n    return hasil;\n}\n```\n\n| Parameter | Isi |\n|---|---|\n| `proxy` | object proxy itu sendiri (jarang dipakai) |\n| `method` | method yang dipanggil |\n| `args` | argumennya, `null` kalau tidak ada |\n\nHandler bebas melakukan apa saja: mencatat, mengukur waktu, memeriksa izin, membuka transaksi, menyimpan hasil (*cache*), atau bahkan tidak memanggil object asli sama sekali (seperti Mockito).\n\nBatasan: Dynamic Proxy bawaan Java hanya bisa untuk **interface**. Untuk class biasa, framework memakai library pembuat bytecode seperti **ByteBuddy** atau CGLIB."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nclass Pencatat implements InvocationHandler {\n    private final Object asli;\n    ...\n    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {\n        System.out.println(\"[log] memanggil \" + method.getName());\n        Object hasil = method.invoke(asli, args);\n        System.out.println(\"[log] selesai \" + method.getName() + \" -> \" + hasil);\n        return hasil;\n    }\n}\n```\n\nSatu handler ini bisa membungkus interface apa pun: `LayananTodo`, `LayananPembayaran`, atau yang lain. Pencatatan ditulis sekali, tidak disebar ke setiap method.\n\nPenting: kalau method asli melempar exception, `method.invoke` membungkusnya dengan `InvocationTargetException`. Handler yang baik membuka bungkusnya dengan `throw e.getCause()`, supaya pemanggil menerima exception aslinya.\n\nPola ini disebut **AOP** (*Aspect-Oriented Programming*): urusan yang melintang di banyak tempat (log, transaksi, keamanan) dipisahkan dari logika bisnis."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Sapa asli = nama -> \"Halo \" + nama;\n        Sapa keras = (Sapa) Proxy.newProxyInstance(Sapa.class.getClassLoader(), new Class<?>[] {Sapa.class},\n                (proxy, method, arg) -> ((String) method.invoke(asli, arg)).toUpperCase());\n        System.out.println(asli.sapa(\"Sari\"));\n        System.out.println(keras.sapa(\"Sari\"));\n    }\n}\n\ninterface Sapa {\n    String sapa(String nama);\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak di baris kedua?",
+        "options": [
+          "halo sari",
+          "Halo SARI",
+          "HALO SARI",
+          "HALO Sari"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Object asli, dari lambda."
+        },
+        {
+          "line": 8,
+          "note": "Handler meneruskan, lalu mengubah hasilnya."
+        }
+      ],
+      "explanation": "Pemanggilan sapa di proxy masuk ke handler. Handler meneruskan ke object asli, menerima Halo Sari, lalu mengubahnya menjadi huruf besar sebelum dikembalikan. Pemanggil tidak tahu ada perantara.\n\nHandler juga ditulis sebagai lambda karena InvocationHandler adalah functional interface.",
+      "tryThis": [
+        {
+          "task": "Ubah handler supaya menambahkan tanda seru di akhir hasil.",
+          "hint": null
+        },
+        {
+          "task": "Ubah handler supaya tidak memanggil asli sama sekali dan selalu mengembalikan \"tiruan\".",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tidak membuka `InvocationTargetException`**\n\nPemanggil menerima `UndeclaredThrowableException` aneh, bukan `IllegalArgumentException` yang diharapkan.\n\n**2. Memanggil method di `proxy` dari dalam handler**\n\n`method.invoke(proxy, args)` memanggil handler lagi tanpa akhir sampai `StackOverflowError`. Selalu teruskan ke object asli.\n\n**3. Mengira proxy berlaku untuk pemanggilan dari dalam object asli**\n\nKalau method `tambah` di object asli memanggil `this.jumlah()`, pemanggilan itu tidak lewat proxy. Inilah penyebab terkenal `@Transactional` \"tidak jalan\" di Spring saat method memanggil method lain di class yang sama.\n\n**4. Membuat proxy untuk class biasa**\n\n`Proxy.newProxyInstance` dengan class (bukan interface) melempar `IllegalArgumentException`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- **Spring AOP** membungkus bean dengan proxy untuk `@Transactional`, `@Cacheable`, `@Async`, dan `@PreAuthorize`. Proxy JDK dipakai untuk interface; untuk class, Spring memakai CGLIB.\n- **Mockito** (modul Unit Test) membuat object tiruan dengan proxy. Di editor website ini Mockito memakai proxy JDK, itulah sebabnya hanya interface yang bisa di-mock di sini.\n- **Spring Data JPA** membuat implementasi repository dari interface saja: method `findByJudul` di interface diwujudkan oleh proxy yang menyusun query dari nama method.\n- **Retrofit** dan **OpenFeign** membuat klien HTTP dari interface dengan anotasi, juga lewat proxy.\n- Saat debugging, nama class seperti `$Proxy12` atau `TodoService$$SpringCGLIB$$0` di stack trace menandakan object itu proxy."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Mini Framework 6: Pencatat Otomatis",
+      "pembuka": "Kita bungkus `LayananTodo` dengan proxy yang mencatat setiap pemanggilan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Proxy meneruskan `tambah` ke object asli dan mencatat sebelum serta sesudahnya.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        LayananTodo asli = new LayananTodoAsli();\n        LayananTodo layanan = (LayananTodo) Proxy.newProxyInstance(\n                LayananTodo.class.getClassLoader(),\n                new Class<?>[] {LayananTodo.class},\n                new Pencatat(asli));\n        System.out.println(layanan.tambah(\"Belajar proxy\"));\n    }\n}\n\ninterface LayananTodo {\n    String tambah(String judul);\n\n    int jumlah();\n}\n\nclass LayananTodoAsli implements LayananTodo {\n    private final List<String> data = new ArrayList<>();\n\n    public String tambah(String judul) {\n        data.add(judul);\n        return \"Tersimpan: \" + judul;\n    }\n\n    public int jumlah() {\n        return data.size();\n    }\n}\n\nclass Pencatat implements InvocationHandler {\n    private final Object asli;\n\n    Pencatat(Object asli) {\n        this.asli = asli;\n    }\n\n    @Override\n    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {\n        System.out.println(\"[log] memanggil \" + method.getName() + (args == null ? \"\" : Arrays.toString(args)));\n        Object hasil = method.invoke(asli, args);\n        System.out.println(\"[log] selesai \" + method.getName() + \" -> \" + hasil);\n        return hasil;\n    }\n}\n",
+          "keluaran": "[log] memanggil tambah[Belajar proxy]\n[log] selesai tambah -> Tersimpan: Belajar proxy\nTersimpan: Belajar proxy",
+          "otomatis": true,
+          "benar": "Kode `LayananTodoAsli` tidak tahu ada pencatatan.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Panggil juga `layanan.jumlah()` lewat proxy dan cetak `Jumlah: ` diikuti hasilnya.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        LayananTodo asli = new LayananTodoAsli();\n        LayananTodo layanan = (LayananTodo) Proxy.newProxyInstance(\n                LayananTodo.class.getClassLoader(),\n                new Class<?>[] {LayananTodo.class},\n                new Pencatat(asli));\n        System.out.println(layanan.tambah(\"Belajar proxy\"));\n        System.out.println(\"Jumlah: \" + layanan.jumlah());\n    }\n}\n\ninterface LayananTodo {\n    String tambah(String judul);\n\n    int jumlah();\n}\n\nclass LayananTodoAsli implements LayananTodo {\n    private final List<String> data = new ArrayList<>();\n\n    public String tambah(String judul) {\n        data.add(judul);\n        return \"Tersimpan: \" + judul;\n    }\n\n    public int jumlah() {\n        return data.size();\n    }\n}\n\nclass Pencatat implements InvocationHandler {\n    private final Object asli;\n\n    Pencatat(Object asli) {\n        this.asli = asli;\n    }\n\n    @Override\n    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {\n        System.out.println(\"[log] memanggil \" + method.getName() + (args == null ? \"\" : Arrays.toString(args)));\n        Object hasil = method.invoke(asli, args);\n        System.out.println(\"[log] selesai \" + method.getName() + \" -> \" + hasil);\n        return hasil;\n    }\n}\n",
+          "keluaran": "[log] memanggil tambah[Belajar proxy]\n[log] selesai tambah -> Tersimpan: Belajar proxy\nTersimpan: Belajar proxy\n[log] memanggil jumlah\n[log] selesai jumlah -> 1\nJumlah: 1",
+          "wajib": [
+            {
+              "pola": "layanan\\.jumlah\\(\\)",
+              "pesan": "panggil `layanan.jumlah()`."
+            }
+          ],
+          "benar": "Satu handler mencatat semua method, termasuk yang tanpa argumen.",
+          "petunjuk": "`System.out.println(\"Jumlah: \" + layanan.jumlah());`"
+        },
+        {
+          "arahan": "`tambah` sekarang menolak judul kosong dengan `IllegalArgumentException`. Ubah handler supaya menangkap `InvocationTargetException`, mencetak `[log] gagal tambah: judul kosong`, lalu melempar `e.getCause()`. Di main, panggil `layanan.tambah(\" \")` dalam try-catch dan cetak `Ditangkap pemanggil: ` diikuti pesannya.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        LayananTodo asli = new LayananTodoAsli();\n        LayananTodo layanan = (LayananTodo) Proxy.newProxyInstance(\n                LayananTodo.class.getClassLoader(),\n                new Class<?>[] {LayananTodo.class},\n                new Pencatat(asli));\n        System.out.println(layanan.tambah(\"Belajar proxy\"));\n        System.out.println(\"Jumlah: \" + layanan.jumlah());\n        try {\n            layanan.tambah(\" \");\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"Ditangkap pemanggil: \" + e.getMessage());\n        }\n    }\n}\n\ninterface LayananTodo {\n    String tambah(String judul);\n\n    int jumlah();\n}\n\nclass LayananTodoAsli implements LayananTodo {\n    private final List<String> data = new ArrayList<>();\n\n    public String tambah(String judul) {\n        if (judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"judul kosong\");\n        }\n        data.add(judul);\n        return \"Tersimpan: \" + judul;\n    }\n\n    public int jumlah() {\n        return data.size();\n    }\n}\n\nclass Pencatat implements InvocationHandler {\n    private final Object asli;\n\n    Pencatat(Object asli) {\n        this.asli = asli;\n    }\n\n    @Override\n    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {\n        System.out.println(\"[log] memanggil \" + method.getName() + (args == null ? \"\" : Arrays.toString(args)));\n        Object hasil;\n        try {\n            hasil = method.invoke(asli, args);\n        } catch (InvocationTargetException e) {\n            System.out.println(\"[log] gagal \" + method.getName() + \": \" + e.getCause().getMessage());\n            throw e.getCause();\n        }\n        System.out.println(\"[log] selesai \" + method.getName() + \" -> \" + hasil);\n        return hasil;\n    }\n}\n",
+          "keluaran": "[log] memanggil tambah[Belajar proxy]\n[log] selesai tambah -> Tersimpan: Belajar proxy\nTersimpan: Belajar proxy\n[log] memanggil jumlah\n[log] selesai jumlah -> 1\nJumlah: 1\n[log] memanggil tambah[ ]\n[log] gagal tambah: judul kosong\nDitangkap pemanggil: judul kosong",
+          "wajib": [
+            {
+              "pola": "catch\\s*\\(\\s*InvocationTargetException\\s+e\\s*\\)",
+              "pesan": "tangkap `InvocationTargetException` di handler."
+            },
+            {
+              "pola": "throw\\s+e\\.getCause\\(\\)",
+              "pesan": "lempar `e.getCause()`."
+            },
+            {
+              "pola": "catch\\s*\\(\\s*IllegalArgumentException\\s+e\\s*\\)",
+              "pesan": "tangkap `IllegalArgumentException` di main."
+            }
+          ],
+          "benar": "Pemanggil menerima exception aslinya, seolah tidak ada proxy.",
+          "petunjuk": "Bungkus `method.invoke(asli, args)` dengan try-catch `InvocationTargetException`, lalu `throw e.getCause();`."
+        },
+        {
+          "arahan": "Tantangan: cetak `Proxy? true, asli? false` dengan `Proxy.isProxyClass` untuk class `layanan` dan `asli`.",
+          "jawaban": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        LayananTodo asli = new LayananTodoAsli();\n        LayananTodo layanan = (LayananTodo) Proxy.newProxyInstance(\n                LayananTodo.class.getClassLoader(),\n                new Class<?>[] {LayananTodo.class},\n                new Pencatat(asli));\n        System.out.println(layanan.tambah(\"Belajar proxy\"));\n        System.out.println(\"Jumlah: \" + layanan.jumlah());\n        try {\n            layanan.tambah(\" \");\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"Ditangkap pemanggil: \" + e.getMessage());\n        }\n        System.out.println(\"Proxy? \" + Proxy.isProxyClass(layanan.getClass()) + \", asli? \" + Proxy.isProxyClass(asli.getClass()));\n    }\n}\n\ninterface LayananTodo {\n    String tambah(String judul);\n\n    int jumlah();\n}\n\nclass LayananTodoAsli implements LayananTodo {\n    private final List<String> data = new ArrayList<>();\n\n    public String tambah(String judul) {\n        if (judul.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"judul kosong\");\n        }\n        data.add(judul);\n        return \"Tersimpan: \" + judul;\n    }\n\n    public int jumlah() {\n        return data.size();\n    }\n}\n\nclass Pencatat implements InvocationHandler {\n    private final Object asli;\n\n    Pencatat(Object asli) {\n        this.asli = asli;\n    }\n\n    @Override\n    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {\n        System.out.println(\"[log] memanggil \" + method.getName() + (args == null ? \"\" : Arrays.toString(args)));\n        Object hasil;\n        try {\n            hasil = method.invoke(asli, args);\n        } catch (InvocationTargetException e) {\n            System.out.println(\"[log] gagal \" + method.getName() + \": \" + e.getCause().getMessage());\n            throw e.getCause();\n        }\n        System.out.println(\"[log] selesai \" + method.getName() + \" -> \" + hasil);\n        return hasil;\n    }\n}\n",
+          "keluaran": "[log] memanggil tambah[Belajar proxy]\n[log] selesai tambah -> Tersimpan: Belajar proxy\nTersimpan: Belajar proxy\n[log] memanggil jumlah\n[log] selesai jumlah -> 1\nJumlah: 1\n[log] memanggil tambah[ ]\n[log] gagal tambah: judul kosong\nDitangkap pemanggil: judul kosong\nProxy? true, asli? false",
+          "wajib": [
+            {
+              "pola": "Proxy\\.isProxyClass",
+              "pesan": "pakai `Proxy.isProxyClass`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Framework memakai cara seperti ini untuk mengenali object yang sudah dibungkus.",
+          "petunjuk": "`Proxy.isProxyClass(layanan.getClass())`."
+        }
+      ],
+      "penutup": "Proxy menyelesaikan urusan yang melintang. Materi terakhir: menggabungkan semuanya menjadi mini JUnit."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Setiap pemanggilan method pada object proxy diteruskan ke...",
+          "options": [
+            "Constructor object asli",
+            "Method toString proxy",
+            "Class Proxy secara statis",
+            "Method invoke milik InvocationHandler"
+          ],
+          "answer": 3,
+          "explanation": "Satu pintu masuk.",
+          "remedial": "Semua pemanggilan method interface pada proxy masuk ke `invoke` di handler, lengkap dengan `Method` dan argumennya."
+        },
+        {
+          "question": "Dynamic Proxy bawaan Java bisa dibuat untuk...",
+          "options": [
+            "Interface saja",
+            "Class apa saja",
+            "Hanya class final",
+            "Hanya class abstract"
+          ],
+          "answer": 0,
+          "explanation": "Batasan Proxy JDK.",
+          "remedial": "`Proxy.newProxyInstance` membuat class baru yang mengimplementasikan interface yang diberikan. Untuk class biasa dibutuhkan pembuat bytecode seperti ByteBuddy."
+        },
+        {
+          "question": "Kenapa @Transactional di Spring tidak berlaku saat method memanggil method lain di class yang sama?",
+          "options": [
+            "Karena transaksi hanya untuk method public",
+            "Karena pemanggilan lewat this tidak melewati proxy",
+            "Karena Spring melarang pemanggilan internal",
+            "Karena method kedua tidak punya anotasi"
+          ],
+          "answer": 1,
+          "explanation": "Proxy berdiri di luar object.",
+          "remedial": "Proxy hanya mencegat pemanggilan yang datang dari luar lewat referensi proxy. Pemanggilan `this.method()` dari dalam object asli langsung ke object asli."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pola memisahkan urusan seperti log dan transaksi dari logika bisnis disebut...",
+      "options": [
+        "Test-Driven Development",
+        "Model-View-Controller",
+        "Aspect-Oriented Programming (AOP)",
+        "Data Transfer Object"
+      ],
+      "answer": 2,
+      "explanation": "Aspek yang melintang."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membuat proxy untuk LayananTodo dengan handler PenghitungPanggilan, lalu membaca perintah per baris: jumlah memanggil layanan.jumlah(), selain itu memanggil layanan.tambah(baris). Di akhir program mencetak Map jumlah pemanggilan per nama method. Saat ini Map selalu kosong. Lengkapi handler supaya mencatat setiap pemanggilan.",
+      "starterCode": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        PenghitungPanggilan penghitung = new PenghitungPanggilan(new LayananTodoAsli());\n        LayananTodo layanan = (LayananTodo) Proxy.newProxyInstance(\n                LayananTodo.class.getClassLoader(), new Class<?>[] {LayananTodo.class}, penghitung);\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String baris = in.nextLine();\n            if (baris.equals(\"jumlah\")) {\n                layanan.jumlah();\n            } else {\n                layanan.tambah(baris);\n            }\n        }\n        System.out.println(penghitung.jumlah);\n    }\n}\n\ninterface LayananTodo {\n    String tambah(String judul);\n\n    int jumlah();\n}\n\nclass LayananTodoAsli implements LayananTodo {\n    private final List<String> data = new ArrayList<>();\n\n    public String tambah(String judul) {\n        data.add(judul);\n        return \"Tersimpan: \" + judul;\n    }\n\n    public int jumlah() {\n        return data.size();\n    }\n}\n\nclass PenghitungPanggilan implements InvocationHandler {\n    final Object asli;\n    final Map<String, Integer> jumlah = new TreeMap<>();\n\n    PenghitungPanggilan(Object asli) {\n        this.asli = asli;\n    }\n\n    @Override\n    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {\n        return method.invoke(asli, args);\n    }\n}",
+      "solution": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        PenghitungPanggilan penghitung = new PenghitungPanggilan(new LayananTodoAsli());\n        LayananTodo layanan = (LayananTodo) Proxy.newProxyInstance(\n                LayananTodo.class.getClassLoader(), new Class<?>[] {LayananTodo.class}, penghitung);\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String baris = in.nextLine();\n            if (baris.equals(\"jumlah\")) {\n                layanan.jumlah();\n            } else {\n                layanan.tambah(baris);\n            }\n        }\n        System.out.println(penghitung.jumlah);\n    }\n}\n\ninterface LayananTodo {\n    String tambah(String judul);\n\n    int jumlah();\n}\n\nclass LayananTodoAsli implements LayananTodo {\n    private final List<String> data = new ArrayList<>();\n\n    public String tambah(String judul) {\n        data.add(judul);\n        return \"Tersimpan: \" + judul;\n    }\n\n    public int jumlah() {\n        return data.size();\n    }\n}\n\nclass PenghitungPanggilan implements InvocationHandler {\n    final Object asli;\n    final Map<String, Integer> jumlah = new TreeMap<>();\n\n    PenghitungPanggilan(Object asli) {\n        this.asli = asli;\n    }\n\n    @Override\n    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {\n        jumlah.merge(method.getName(), 1, Integer::sum);\n        return method.invoke(asli, args);\n    }\n}",
+      "tests": [
+        {
+          "input": "Belajar\njumlah\nRapat\nKirim laporan\njumlah\n",
+          "expectedOutput": "{jumlah=2, tambah=3}\n"
+        }
+      ],
+      "hints": [
+        "Di invoke, tambah hitungan untuk method.getName() sebelum meneruskan ke object asli.",
+        "jumlah.merge(method.getName(), 1, Integer::sum);"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Proxy.newProxyInstance membuat object perantara untuk interface saat program berjalan.",
+        "Setiap pemanggilan masuk ke InvocationHandler.invoke; teruskan ke object asli dengan method.invoke.",
+        "Buka InvocationTargetException dengan throw e.getCause().",
+        "Spring AOP, Mockito, dan Spring Data memakai proxy; pemanggilan lewat this tidak tercegat."
+      ]
+    }
+  ]
+}

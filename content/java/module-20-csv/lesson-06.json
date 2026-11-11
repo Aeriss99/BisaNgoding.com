@@ -1,0 +1,203 @@
+{
+  "id": "java-csv-06",
+  "moduleId": "csv",
+  "order": 6,
+  "title": "Jackson CSV: CSV ke Object Otomatis",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di modul JSON, Jackson mengubah object menjadi JSON dan sebaliknya tanpa kita menulis kode pemetaan. Jackson punya modul **jackson-dataformat-csv** yang melakukan hal yang sama untuk CSV: List object menjadi file CSV, dan file CSV menjadi List object.\n\nCocok untuk ekspor dan impor yang bentuknya mengikuti class, dan untuk proyek yang sudah memakai Jackson.\n\nIbarat mesin pengisi formulir: kita cukup menyerahkan data pegawai, mesin menuliskannya ke kolom-kolom yang sesuai."
+    },
+    {
+      "type": "theory",
+      "content": "Tiga bagian Jackson CSV:\n\n| Bagian | Gunanya |\n|---|---|\n| `CsvMapper` | turunan `ObjectMapper` khusus CSV |\n| `CsvSchema` | daftar kolom, urutan, header, pemisah |\n| `MappingIterator` | membaca baris satu per satu menjadi object |\n\n```java\nCsvMapper mapper = new CsvMapper();\nCsvSchema schema = mapper.schemaFor(Todo.class).withHeader();\n\nString csv = mapper.writer(schema).writeValueAsString(daftar);\n\ntry (MappingIterator<Todo> it = mapper.readerFor(Todo.class).with(schema).readValues(csv)) {\n    List<Todo> dibaca = it.readAll();\n}\n```\n\nPenting: `schemaFor` menyusun kolom **urut abjad** secara bawaan. Supaya urutan kolom sesuai keinginan, pasang `@JsonPropertyOrder` di class:\n\n```java\n@JsonPropertyOrder({\"id\", \"judul\", \"selesai\"})\nclass Todo { ... }\n```\n\nKalau CSV yang dibaca punya header dengan urutan sendiri, pakai `CsvSchema.emptySchema().withHeader()`: kolom dipetakan berdasarkan nama di header file.\n\nAturan class sama seperti di modul JSON: constructor kosong, plus setter atau field public. Anotasi `@JsonProperty` dan `@JsonIgnore` juga berlaku."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@JsonPropertyOrder({\"id\", \"judul\", \"selesai\"})\nclass Todo {\n    public int id;\n    public String judul;\n    public boolean selesai;\n}\n```\n\n```text\nid,judul,selesai\n1,\"Belajar CSV\",false\n2,\"Beli kopi, gula\",true\n```\n\nJackson CSV membungkus semua teks dengan kutip secara bawaan, dan memakai akhir baris `\\n`. Keduanya tetap CSV yang sah.\n\nMembaca CSV bebas tanpa class:\n\n```java\nmapper.readerFor(Map.class).with(CsvSchema.emptySchema().withHeader()).readValues(csv)\n```\n\n| Pilih Commons CSV kalau | Pilih Jackson CSV kalau |\n|---|---|\n| butuh kendali penuh per baris dan per kolom | bentuk CSV mengikuti class |\n| validasi dan laporan per baris rumit | proyek sudah memakai Jackson untuk JSON |"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.dataformat.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CsvMapper mapper = new CsvMapper();\n        CsvSchema schema = mapper.schemaFor(Produk.class).withHeader();\n        System.out.print(mapper.writer(schema).writeValueAsString(Arrays.asList(new Produk(\"Kopi\", 18000, 5))));\n    }\n}\n\nclass Produk {\n    public String nama;\n    public int harga;\n    public int stok;\n\n    Produk(String nama, int harga, int stok) {\n        this.nama = nama;\n        this.harga = harga;\n        this.stok = stok;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: class tidak memakai @JsonPropertyOrder. Apa baris header yang tercetak?",
+        "options": [
+          "nama,harga,stok",
+          "stok,harga,nama",
+          "harga,nama,stok",
+          "Produk"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 11,
+          "note": "Kolom disusun dari properti class."
+        },
+        {
+          "line": 17,
+          "note": "Urutan field tidak dipakai."
+        }
+      ],
+      "explanation": "Tanpa @JsonPropertyOrder, schemaFor mengurutkan kolom berdasarkan abjad: harga, nama, stok. Urutan field di class tidak dipakai. Untuk ekspor yang dibaca manusia atau sistem lain, urutan kolom sebaiknya selalu ditentukan.",
+      "tryThis": [
+        {
+          "task": "Pasang @JsonPropertyOrder({\"nama\", \"harga\", \"stok\"}) di class Produk.",
+          "hint": null
+        },
+        {
+          "task": "Hapus .withHeader() lalu jalankan lagi.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `@JsonPropertyOrder`**\n\nKolom tersusun abjad. File ekspor berubah urutan begitu ada properti baru, dan sistem penerima yang membaca berdasarkan posisi jadi salah baca.\n\n**2. Lupa `withHeader()`**\n\nSaat menulis, header tidak ikut. Saat membaca, baris header dianggap data lalu gagal diubah menjadi angka.\n\n**3. Membaca dengan schema class untuk file yang urutannya berbeda**\n\nSchema dari `schemaFor` membaca berdasarkan posisi. Untuk file dari luar dengan urutan kolom sendiri, pakai `CsvSchema.emptySchema().withHeader()`.\n\n**4. Lupa menutup `MappingIterator`**\n\nKalau sumbernya file, file tetap terbuka. Pakai try-with-resources."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Dependency Maven:\n\n```xml\n<dependency>\n  <groupId>com.fasterxml.jackson.dataformat</groupId>\n  <artifactId>jackson-dataformat-csv</artifactId>\n  <version>2.17.2</version>\n</dependency>\n```\n\n- Pola yang sama dipakai Jackson untuk format lain: **YAML** (`jackson-dataformat-yaml`, dipakai untuk file konfigurasi) dan **XML** (`jackson-dataformat-xml`).\n- Di Spring, endpoint ekspor sering memakai `CsvMapper` untuk menulis langsung ke `HttpServletResponse.getOutputStream()`.\n- Untuk impor dengan validasi per baris, `MappingIterator` bisa dibaca satu per satu dengan `hasNextValue()` dan `nextValue()`, sehingga baris yang gagal bisa ditangkap tanpa menghentikan seluruh impor."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Impor Ekspor Todo 6: Ekspor Otomatis",
+      "pembuka": "Ekspor dan impor todo kita coba dengan Jackson CSV.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. List todo menjadi CSV dengan satu baris kode.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.dataformat.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CsvMapper mapper = new CsvMapper();\n        CsvSchema schema = mapper.schemaFor(Todo.class).withHeader();\n        List<Todo> daftar = Arrays.asList(new Todo(1, \"Belajar CSV\", false), new Todo(2, \"Beli kopi, gula\", true));\n        String csv = mapper.writer(schema).writeValueAsString(daftar);\n        System.out.print(csv);\n    }\n}\n\n@JsonPropertyOrder({\"id\", \"judul\", \"selesai\"})\nclass Todo {\n    public int id;\n    public String judul;\n    public boolean selesai;\n\n    public Todo() {\n    }\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "id,judul,selesai\n1,\"Belajar CSV\",false\n2,\"Beli kopi, gula\",true",
+          "otomatis": true,
+          "benar": "Urutan kolom mengikuti `@JsonPropertyOrder`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Baca kembali `csv` menjadi List todo dengan `MappingIterator`, lalu cetak `id judul selesai` untuk setiap todo.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.dataformat.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CsvMapper mapper = new CsvMapper();\n        CsvSchema schema = mapper.schemaFor(Todo.class).withHeader();\n        List<Todo> daftar = Arrays.asList(new Todo(1, \"Belajar CSV\", false), new Todo(2, \"Beli kopi, gula\", true));\n        String csv = mapper.writer(schema).writeValueAsString(daftar);\n        System.out.print(csv);\n\n        List<Todo> dibaca;\n        try (MappingIterator<Todo> it = mapper.readerFor(Todo.class).with(schema).readValues(csv)) {\n            dibaca = it.readAll();\n        }\n        for (Todo t : dibaca) {\n            System.out.println(t.id + \" \" + t.judul + \" \" + t.selesai);\n        }\n    }\n}\n\n@JsonPropertyOrder({\"id\", \"judul\", \"selesai\"})\nclass Todo {\n    public int id;\n    public String judul;\n    public boolean selesai;\n\n    public Todo() {\n    }\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "id,judul,selesai\n1,\"Belajar CSV\",false\n2,\"Beli kopi, gula\",true\n1 Belajar CSV false\n2 Beli kopi, gula true",
+          "wajib": [
+            {
+              "pola": "MappingIterator\\s*<\\s*Todo\\s*>",
+              "pesan": "pakai `MappingIterator<Todo>`."
+            },
+            {
+              "pola": "readAll\\(\\)",
+              "pesan": "ambil semua dengan `readAll()`."
+            }
+          ],
+          "benar": "Bolak-balik tanpa kode pemetaan.",
+          "petunjuk": "`mapper.readerFor(Todo.class).with(schema).readValues(csv)` di dalam try-with-resources, lalu `it.readAll()`."
+        },
+        {
+          "arahan": "File dari luar punya urutan kolom `selesai,judul,id`. Baca `acak` dengan `CsvSchema.emptySchema().withHeader()` lalu cetak todo pertamanya.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.dataformat.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CsvMapper mapper = new CsvMapper();\n        CsvSchema schema = mapper.schemaFor(Todo.class).withHeader();\n        List<Todo> daftar = Arrays.asList(new Todo(1, \"Belajar CSV\", false), new Todo(2, \"Beli kopi, gula\", true));\n        String csv = mapper.writer(schema).writeValueAsString(daftar);\n        System.out.print(csv);\n\n        List<Todo> dibaca;\n        try (MappingIterator<Todo> it = mapper.readerFor(Todo.class).with(schema).readValues(csv)) {\n            dibaca = it.readAll();\n        }\n        for (Todo t : dibaca) {\n            System.out.println(t.id + \" \" + t.judul + \" \" + t.selesai);\n        }\n\n        String acak = \"selesai,judul,id\\ntrue,Rapat tim,3\\n\";\n        try (MappingIterator<Todo> it = mapper.readerFor(Todo.class).with(CsvSchema.emptySchema().withHeader()).readValues(acak)) {\n            Todo t = it.next();\n            System.out.println(t.id + \" \" + t.judul + \" \" + t.selesai);\n        }\n    }\n}\n\n@JsonPropertyOrder({\"id\", \"judul\", \"selesai\"})\nclass Todo {\n    public int id;\n    public String judul;\n    public boolean selesai;\n\n    public Todo() {\n    }\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "id,judul,selesai\n1,\"Belajar CSV\",false\n2,\"Beli kopi, gula\",true\n1 Belajar CSV false\n2 Beli kopi, gula true\n3 Rapat tim true",
+          "wajib": [
+            {
+              "pola": "CsvSchema\\.emptySchema\\(\\)\\.withHeader\\(\\)",
+              "pesan": "pakai `CsvSchema.emptySchema().withHeader()`."
+            }
+          ],
+          "benar": "Kolom dipetakan berdasarkan nama di header, bukan posisi.",
+          "petunjuk": "Ganti schema saat membaca: `.with(CsvSchema.emptySchema().withHeader())`."
+        },
+        {
+          "arahan": "Tantangan: baca `acak` sebagai `Map` (tanpa class) dan cetak baris pertamanya.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.dataformat.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CsvMapper mapper = new CsvMapper();\n        CsvSchema schema = mapper.schemaFor(Todo.class).withHeader();\n        List<Todo> daftar = Arrays.asList(new Todo(1, \"Belajar CSV\", false), new Todo(2, \"Beli kopi, gula\", true));\n        String csv = mapper.writer(schema).writeValueAsString(daftar);\n        System.out.print(csv);\n\n        List<Todo> dibaca;\n        try (MappingIterator<Todo> it = mapper.readerFor(Todo.class).with(schema).readValues(csv)) {\n            dibaca = it.readAll();\n        }\n        for (Todo t : dibaca) {\n            System.out.println(t.id + \" \" + t.judul + \" \" + t.selesai);\n        }\n\n        String acak = \"selesai,judul,id\\ntrue,Rapat tim,3\\n\";\n        try (MappingIterator<Todo> it = mapper.readerFor(Todo.class).with(CsvSchema.emptySchema().withHeader()).readValues(acak)) {\n            Todo t = it.next();\n            System.out.println(t.id + \" \" + t.judul + \" \" + t.selesai);\n        }\n\n        try (MappingIterator<Map<String, String>> it = mapper.readerFor(Map.class).with(CsvSchema.emptySchema().withHeader()).readValues(acak)) {\n            System.out.println(it.next());\n        }\n    }\n}\n\n@JsonPropertyOrder({\"id\", \"judul\", \"selesai\"})\nclass Todo {\n    public int id;\n    public String judul;\n    public boolean selesai;\n\n    public Todo() {\n    }\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n}\n",
+          "keluaran": "id,judul,selesai\n1,\"Belajar CSV\",false\n2,\"Beli kopi, gula\",true\n1 Belajar CSV false\n2 Beli kopi, gula true\n3 Rapat tim true\n{selesai=true, judul=Rapat tim, id=3}",
+          "wajib": [
+            {
+              "pola": "readerFor\\s*\\(\\s*Map\\.class\\s*\\)",
+              "pesan": "pakai `readerFor(Map.class)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Semua nilai menjadi String, karena CSV tidak menyimpan tipe.",
+          "petunjuk": "`mapper.readerFor(Map.class).with(CsvSchema.emptySchema().withHeader())`."
+        }
+      ],
+      "penutup": "Dua cara sudah dikuasai: Commons CSV dan Jackson CSV. Materi terakhir: fitur impor ekspor lengkap."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Tanpa @JsonPropertyOrder, urutan kolom dari schemaFor adalah...",
+          "options": [
+            "Urutan field di class",
+            "Acak setiap kali dijalankan",
+            "Urutan constructor",
+            "Urut abjad nama properti"
+          ],
+          "answer": 3,
+          "explanation": "Bawaan Jackson CSV.",
+          "remedial": "`CsvMapper` mengurutkan properti berdasarkan abjad saat membuat schema. `@JsonPropertyOrder` menentukan urutan yang diinginkan."
+        },
+        {
+          "question": "Untuk membaca CSV dengan urutan kolom yang tidak diketahui, schema yang tepat adalah...",
+          "options": [
+            "CsvSchema.emptySchema().withHeader()",
+            "mapper.schemaFor(Todo.class)",
+            "CsvSchema.emptySchema()",
+            "mapper.schemaFor(Map.class)"
+          ],
+          "answer": 0,
+          "explanation": "Ikuti header file.",
+          "remedial": "Schema kosong dengan header membaca nama kolom dari baris pertama file, lalu memetakan berdasarkan nama, bukan posisi."
+        },
+        {
+          "question": "Class yang dipakai Jackson untuk membaca CSV baris demi baris adalah...",
+          "options": [
+            "CSVParser",
+            "MappingIterator",
+            "CsvSchema",
+            "JsonNode"
+          ],
+          "answer": 1,
+          "explanation": "Iterator hasil readValues.",
+          "remedial": "`readValues` mengembalikan `MappingIterator<T>`, yang bisa diulang satu per satu atau diambil semuanya dengan `readAll()`."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Anotasi untuk menentukan urutan kolom CSV dari class adalah...",
+      "options": [
+        "@JsonProperty",
+        "@CsvOrder",
+        "@JsonPropertyOrder",
+        "@JsonInclude"
+      ],
+      "answer": 2,
+      "explanation": "Urutan properti."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca menu dari input dengan format nama|harga|kategori lalu mencetaknya sebagai CSV dengan Jackson. Urutan kolom yang diminta tim kafe adalah nama, kategori, harga, tetapi CSV yang keluar tersusun abjad. Perbaiki class Menu tanpa mengubah main.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.dataformat.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CsvMapper mapper = new CsvMapper();\n        List<Menu> daftar = new ArrayList<>();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\"\\\\|\");\n            daftar.add(new Menu(d[0], Integer.parseInt(d[1]), d[2]));\n        }\n        System.out.print(mapper.writer(mapper.schemaFor(Menu.class).withHeader()).writeValueAsString(daftar));\n    }\n}\n\nclass Menu {\n    public String nama;\n    public int harga;\n    public String kategori;\n\n    Menu(String nama, int harga, String kategori) {\n        this.nama = nama;\n        this.harga = harga;\n        this.kategori = kategori;\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.dataformat.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CsvMapper mapper = new CsvMapper();\n        List<Menu> daftar = new ArrayList<>();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\"\\\\|\");\n            daftar.add(new Menu(d[0], Integer.parseInt(d[1]), d[2]));\n        }\n        System.out.print(mapper.writer(mapper.schemaFor(Menu.class).withHeader()).writeValueAsString(daftar));\n    }\n}\n\n@JsonPropertyOrder({\"nama\", \"kategori\", \"harga\"})\nclass Menu {\n    public String nama;\n    public int harga;\n    public String kategori;\n\n    Menu(String nama, int harga, String kategori) {\n        this.nama = nama;\n        this.harga = harga;\n        this.kategori = kategori;\n    }\n}",
+      "tests": [
+        {
+          "input": "Kopi Susu|18000|Minuman\nCroissant|25000|Roti\n",
+          "expectedOutput": "nama,kategori,harga\n\"Kopi Susu\",Minuman,18000\nCroissant,Roti,25000\n"
+        }
+      ],
+      "hints": [
+        "schemaFor menyusun kolom urut abjad kalau urutan tidak ditentukan.",
+        "Pasang @JsonPropertyOrder({\"nama\", \"kategori\", \"harga\"}) di atas class Menu."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "CsvMapper dan CsvSchema memetakan List object ke CSV dan sebaliknya.",
+        "schemaFor(Kelas.class).withHeader() membuat schema dengan header.",
+        "Tanpa @JsonPropertyOrder kolom tersusun abjad.",
+        "CsvSchema.emptySchema().withHeader() membaca berdasarkan nama kolom di file."
+      ]
+    }
+  ]
+}

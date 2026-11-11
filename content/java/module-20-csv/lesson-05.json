@@ -1,0 +1,211 @@
+{
+  "id": "java-csv-05",
+  "moduleId": "csv",
+  "order": 5,
+  "title": "Impor dengan Validasi per Baris",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "File CSV dari pengguna hampir selalu punya kesalahan: angka diketik huruf, kolom kosong, atau baris yang kolomnya kurang. Kalau program berhenti di kesalahan pertama, pengguna harus memperbaiki file satu baris per percobaan. Kalau kesalahan diabaikan diam-diam, data yang masuk tidak lengkap tanpa ada yang tahu.\n\nImpor yang baik **memeriksa setiap baris**, menyimpan baris yang benar, lalu melaporkan semua baris yang salah beserta **nomor baris** dan alasannya.\n\nIbarat petugas yang memeriksa tumpukan formulir pendaftaran: formulir yang lengkap diproses, yang salah disisihkan dengan catatan \"halaman 7: tanggal lahir kosong\", bukan menolak seluruh tumpukan."
+    },
+    {
+      "type": "theory",
+      "content": "Pola umumnya: satu method mengubah `CSVRecord` menjadi object dan **melempar exception** kalau barisnya salah. Perulangan menangkap exception itu dan mencatatnya.\n\n```java\nfor (CSVRecord r : parser) {\n    try {\n        hasil.add(keTodo(r));\n    } catch (IllegalArgumentException e) {\n        salah.add(\"Baris \" + (r.getRecordNumber() + 1) + \": \" + e.getMessage());\n    }\n}\n```\n\nAlat pemeriksa dari `CSVRecord`:\n\n| Method | Gunanya |\n|---|---|\n| `isConsistent()` | jumlah kolom sama dengan jumlah kolom di header |\n| `isSet(\"nama\")` | kolom itu ada isinya di baris ini |\n| `isMapped(\"nama\")` | nama kolom itu ada di header |\n| `getRecordNumber()` | nomor baris data (header tidak dihitung) |\n\nNomor yang ditunjukkan ke pengguna sebaiknya nomor baris di file, yaitu `getRecordNumber() + 1` kalau ada baris header. Itu yang terlihat saat file dibuka di Excel.\n\n`NumberFormatException` turunan dari `IllegalArgumentException`, tetapi pesannya teknis (`For input string: \"tiga\"`). Tangkap dan ganti dengan pesan yang dimengerti pengguna."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nstatic Todo keTodo(CSVRecord r) {\n    if (!r.isConsistent()) {\n        throw new IllegalArgumentException(\"jumlah kolom \" + r.size() + \", seharusnya 3\");\n    }\n    int id;\n    try {\n        id = Integer.parseInt(r.get(\"id\"));\n    } catch (NumberFormatException e) {\n        throw new IllegalArgumentException(\"id bukan angka: \" + r.get(\"id\"));\n    }\n    String judul = r.get(\"judul\").trim();\n    if (judul.isEmpty()) {\n        throw new IllegalArgumentException(\"judul kosong\");\n    }\n    return new Todo(id, judul, Boolean.parseBoolean(r.get(\"selesai\")));\n}\n```\n\nLaporan untuk pengguna:\n\n```text\nBaris 4: id bukan angka: tiga\nBaris 5: judul kosong\nBaris 6: jumlah kolom 2, seharusnya 3\n```\n\nUntuk aturan yang lebih banyak, baris bisa diubah dulu menjadi DTO lalu diperiksa dengan Bean Validation seperti di modul Validation."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        String data = \"id,judul,selesai\\n1,Belajar,false\\n2,Rapat\\n\";\n        CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();\n        for (CSVRecord r : CSVParser.parse(data, format)) {\n            System.out.println(r.getRecordNumber() + \": konsisten \" + r.isConsistent() + \", ada selesai \" + r.isSet(\"selesai\"));\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: baris kedua hanya punya dua kolom. Apa yang tercetak untuk baris itu?",
+        "options": [
+          "2: konsisten true, ada selesai false",
+          "2: konsisten false, ada selesai false",
+          "2: konsisten false, ada selesai true",
+          "2: konsisten true, ada selesai true"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 11,
+          "note": "Dua pemeriksaan sebelum membaca kolom."
+        }
+      ],
+      "explanation": "Header punya tiga kolom, tetapi baris kedua hanya dua. isConsistent memberi tahu jumlah kolomnya tidak cocok, dan isSet memberi tahu kolom selesai tidak ada di baris itu.\n\nMemanggil get(\"selesai\") pada baris itu akan melempar exception, jadi periksa dulu.",
+      "tryThis": [
+        {
+          "task": "Tambahkan kolom ketiga ke baris kedua lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Cetak juga r.isMapped(\"catatan\").",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Berhenti di kesalahan pertama**\n\nFile 5.000 baris dengan 30 kesalahan perlu 30 kali unggah ulang. Kumpulkan semua kesalahan lalu laporkan sekaligus.\n\n**2. Menelan kesalahan diam-diam**\n\n`catch (Exception e) { }` membuat baris hilang tanpa laporan. Pengguna mengira semua data masuk.\n\n**3. Nomor baris yang membingungkan**\n\nMelaporkan `getRecordNumber()` apa adanya membuat pengguna mencari di baris yang salah, karena header tidak dihitung.\n\n**4. Menyimpan sebagian lalu gagal**\n\nKalau aturan bisnis meminta \"semua atau tidak sama sekali\", periksa dulu seluruh file, baru simpan dalam satu transaksi database."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Hasil impor biasanya berupa ringkasan (`1.250 berhasil, 3 gagal`) dan **file laporan kesalahan** yang bisa diunduh, berisi baris asli ditambah kolom alasan.\n- Ada dua kebijakan yang umum, dan pilihannya keputusan bisnis: *sebagian boleh masuk* (baris salah dilewati) atau *semua atau tidak sama sekali*.\n- Batch framework seperti **Spring Batch** menyediakan pola ini secara lengkap: membaca baris, mengubah, memvalidasi, melewati baris salah dengan batas tertentu, dan menulis ke database per kelompok.\n- Data yang sudah ada sering ditangani dengan *upsert*: kalau id sudah ada, perbarui; kalau belum, tambahkan."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Impor Ekspor Todo 5: Impor yang Teliti",
+      "pembuka": "Impor todo sekarang harus tahan terhadap baris yang salah.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Method `keTodo` mengubah setiap baris menjadi `Todo`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    static Todo keTodo(CSVRecord r) {\n        int id = Integer.parseInt(r.get(\"id\"));\n        String judul = r.get(\"judul\").trim();\n        boolean selesai = Boolean.parseBoolean(r.get(\"selesai\"));\n        return new Todo(id, judul, selesai);\n    }\n\n    public static void main(String[] args) throws IOException {\n        String data = \"id,judul,selesai\\n1,Belajar CSV,false\\n2,Rapat tim,true\\n\";\n        CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();\n        List<Todo> hasil = new ArrayList<>();\n        for (CSVRecord r : CSVParser.parse(data, format)) {\n            hasil.add(keTodo(r));\n        }\n        for (Todo t : hasil) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final boolean selesai;\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n",
+          "keluaran": "1. [ ] Belajar CSV\n2. [x] Rapat tim",
+          "otomatis": true,
+          "benar": "Data rapi, semuanya masuk.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Data baru berisi baris yang salah. Ganti `keTodo` dengan versi yang memeriksa `isConsistent()`, id angka, dan judul kosong, lalu tangkap `IllegalArgumentException` per baris dan simpan pesannya ke List `salah` dengan bentuk `Baris n: alasan`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    static Todo keTodo(CSVRecord r) {\n        if (!r.isConsistent()) {\n            throw new IllegalArgumentException(\"jumlah kolom \" + r.size() + \", seharusnya 3\");\n        }\n        int id;\n        try {\n            id = Integer.parseInt(r.get(\"id\"));\n        } catch (NumberFormatException e) {\n            throw new IllegalArgumentException(\"id bukan angka: \" + r.get(\"id\"));\n        }\n        String judul = r.get(\"judul\").trim();\n        if (judul.isEmpty()) {\n            throw new IllegalArgumentException(\"judul kosong\");\n        }\n        boolean selesai = Boolean.parseBoolean(r.get(\"selesai\"));\n        return new Todo(id, judul, selesai);\n    }\n\n    public static void main(String[] args) throws IOException {\n        String data = \"id,judul,selesai\\n1,Belajar CSV,false\\n2,Rapat tim,true\\ntiga,Kirim laporan,false\\n4,,true\\n5,Rapikan kode\\n6,Beli kopi,false\\n\";\n        CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();\n        List<Todo> hasil = new ArrayList<>();\n        List<String> salah = new ArrayList<>();\n        for (CSVRecord r : CSVParser.parse(data, format)) {\n            try {\n                hasil.add(keTodo(r));\n            } catch (IllegalArgumentException e) {\n                salah.add(\"Baris \" + (r.getRecordNumber() + 1) + \": \" + e.getMessage());\n            }\n        }\n        for (Todo t : hasil) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final boolean selesai;\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n",
+          "keluaran": "1. [ ] Belajar CSV\n2. [x] Rapat tim\n6. [ ] Beli kopi",
+          "wajib": [
+            {
+              "pola": "r\\.isConsistent\\(\\)",
+              "pesan": "periksa `r.isConsistent()` di `keTodo`."
+            },
+            {
+              "pola": "catch\\s*\\(\\s*IllegalArgumentException\\s+e\\s*\\)",
+              "pesan": "tangkap `IllegalArgumentException`."
+            },
+            {
+              "pola": "getRecordNumber\\(\\)\\s*\\+\\s*1",
+              "pesan": "pakai nomor baris file `getRecordNumber() + 1`."
+            }
+          ],
+          "benar": "Baris yang benar tetap masuk. Laporan kesalahannya kita cetak di langkah berikutnya.",
+          "petunjuk": "Di perulangan: `try { hasil.add(keTodo(r)); } catch (IllegalArgumentException e) { salah.add(\"Baris \" + (r.getRecordNumber() + 1) + \": \" + e.getMessage()); }`."
+        },
+        {
+          "arahan": "Cetak semua pesan di List `salah` setelah daftar todo.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    static Todo keTodo(CSVRecord r) {\n        if (!r.isConsistent()) {\n            throw new IllegalArgumentException(\"jumlah kolom \" + r.size() + \", seharusnya 3\");\n        }\n        int id;\n        try {\n            id = Integer.parseInt(r.get(\"id\"));\n        } catch (NumberFormatException e) {\n            throw new IllegalArgumentException(\"id bukan angka: \" + r.get(\"id\"));\n        }\n        String judul = r.get(\"judul\").trim();\n        if (judul.isEmpty()) {\n            throw new IllegalArgumentException(\"judul kosong\");\n        }\n        boolean selesai = Boolean.parseBoolean(r.get(\"selesai\"));\n        return new Todo(id, judul, selesai);\n    }\n\n    public static void main(String[] args) throws IOException {\n        String data = \"id,judul,selesai\\n1,Belajar CSV,false\\n2,Rapat tim,true\\ntiga,Kirim laporan,false\\n4,,true\\n5,Rapikan kode\\n6,Beli kopi,false\\n\";\n        CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();\n        List<Todo> hasil = new ArrayList<>();\n        List<String> salah = new ArrayList<>();\n        for (CSVRecord r : CSVParser.parse(data, format)) {\n            try {\n                hasil.add(keTodo(r));\n            } catch (IllegalArgumentException e) {\n                salah.add(\"Baris \" + (r.getRecordNumber() + 1) + \": \" + e.getMessage());\n            }\n        }\n        for (Todo t : hasil) {\n            System.out.println(t);\n        }\n        for (String s : salah) {\n            System.out.println(s);\n        }\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final boolean selesai;\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n",
+          "keluaran": "1. [ ] Belajar CSV\n2. [x] Rapat tim\n6. [ ] Beli kopi\nBaris 4: id bukan angka: tiga\nBaris 5: judul kosong\nBaris 6: jumlah kolom 2, seharusnya 3",
+          "wajib": [
+            {
+              "pola": "for\\s*\\(\\s*String\\s+\\w+\\s*:\\s*salah\\s*\\)",
+              "pesan": "ulangi `salah`."
+            }
+          ],
+          "benar": "Pengguna tahu persis baris mana yang harus diperbaiki.",
+          "petunjuk": "Perulangan for-each biasa."
+        },
+        {
+          "arahan": "Tantangan: di akhir cetak ringkasan `Berhasil 3, gagal 3`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    static Todo keTodo(CSVRecord r) {\n        if (!r.isConsistent()) {\n            throw new IllegalArgumentException(\"jumlah kolom \" + r.size() + \", seharusnya 3\");\n        }\n        int id;\n        try {\n            id = Integer.parseInt(r.get(\"id\"));\n        } catch (NumberFormatException e) {\n            throw new IllegalArgumentException(\"id bukan angka: \" + r.get(\"id\"));\n        }\n        String judul = r.get(\"judul\").trim();\n        if (judul.isEmpty()) {\n            throw new IllegalArgumentException(\"judul kosong\");\n        }\n        boolean selesai = Boolean.parseBoolean(r.get(\"selesai\"));\n        return new Todo(id, judul, selesai);\n    }\n\n    public static void main(String[] args) throws IOException {\n        String data = \"id,judul,selesai\\n1,Belajar CSV,false\\n2,Rapat tim,true\\ntiga,Kirim laporan,false\\n4,,true\\n5,Rapikan kode\\n6,Beli kopi,false\\n\";\n        CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();\n        List<Todo> hasil = new ArrayList<>();\n        List<String> salah = new ArrayList<>();\n        for (CSVRecord r : CSVParser.parse(data, format)) {\n            try {\n                hasil.add(keTodo(r));\n            } catch (IllegalArgumentException e) {\n                salah.add(\"Baris \" + (r.getRecordNumber() + 1) + \": \" + e.getMessage());\n            }\n        }\n        for (Todo t : hasil) {\n            System.out.println(t);\n        }\n        for (String s : salah) {\n            System.out.println(s);\n        }\n        System.out.println(\"Berhasil \" + hasil.size() + \", gagal \" + salah.size());\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final boolean selesai;\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". [\" + (selesai ? \"x\" : \" \") + \"] \" + judul;\n    }\n}\n",
+          "keluaran": "1. [ ] Belajar CSV\n2. [x] Rapat tim\n6. [ ] Beli kopi\nBaris 4: id bukan angka: tiga\nBaris 5: judul kosong\nBaris 6: jumlah kolom 2, seharusnya 3\nBerhasil 3, gagal 3",
+          "wajib": [
+            {
+              "pola": "hasil\\.size\\(\\)",
+              "pesan": "pakai `hasil.size()`."
+            },
+            {
+              "pola": "salah\\.size\\(\\)",
+              "pesan": "pakai `salah.size()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Ringkasan ini yang biasanya ditampilkan pertama kali ke pengguna.",
+          "petunjuk": "Pakai `hasil.size()` dan `salah.size()`."
+        }
+      ],
+      "penutup": "Impor sudah teliti. Berikutnya: memetakan CSV ke object otomatis dengan Jackson."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Baris data pertama setelah header punya getRecordNumber() 1. Nomor baris di file yang dilaporkan ke pengguna adalah...",
+          "options": [
+            "1",
+            "0",
+            "2",
+            "3"
+          ],
+          "answer": 2,
+          "explanation": "Header ada di baris 1.",
+          "remedial": "`getRecordNumber()` menghitung baris data saja. Baris header ada di baris 1 file, jadi baris data pertama berada di baris 2."
+        },
+        {
+          "question": "Kenapa NumberFormatException ditangkap lalu dilempar ulang dengan pesan baru?",
+          "options": [
+            "Supaya program lebih cepat",
+            "Karena NumberFormatException tidak bisa ditangkap",
+            "Supaya baris itu tersimpan",
+            "Supaya pesannya bisa dimengerti pengguna"
+          ],
+          "answer": 3,
+          "explanation": "Pesan teknis kurang jelas.",
+          "remedial": "Pesan bawaan seperti `For input string: \"tiga\"` tidak menjelaskan kolom mana yang salah. Pesan `id bukan angka: tiga` langsung bisa ditindaklanjuti."
+        },
+        {
+          "question": "Method CSVRecord untuk memeriksa jumlah kolom sesuai header adalah...",
+          "options": [
+            "isConsistent()",
+            "isSet()",
+            "isMapped()",
+            "size() == 0"
+          ],
+          "answer": 0,
+          "explanation": "Konsisten dengan header.",
+          "remedial": "`isConsistent()` mengembalikan `true` kalau jumlah kolom baris itu sama dengan jumlah nama kolom di header."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Impor 1.000 baris menemukan 4 baris salah. Laporan yang baik adalah...",
+      "options": [
+        "Berhenti di baris salah pertama",
+        "Ringkasan jumlah berhasil dan gagal, plus nomor baris dan alasan setiap kesalahan",
+        "Melewati baris salah tanpa pesan",
+        "Menolak file tanpa alasan"
+      ],
+      "answer": 1,
+      "explanation": "Pengguna bisa memperbaiki sekaligus."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program mengimpor produk dari input (CSV dengan header nama,harga). Saat ini program berhenti dengan exception di baris pertama yang salah. Ubah supaya baris yang salah dilewati dan dilaporkan dengan bentuk Baris n: nama kosong (kalau nama kosong setelah di-trim) atau Baris n: harga bukan angka, dengan n nomor baris di file. Di akhir cetak Berhasil: jumlah produk yang masuk.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();\n        List<Produk> masuk = new ArrayList<>();\n        for (CSVRecord r : format.parse(new InputStreamReader(System.in))) {\n            masuk.add(new Produk(r.get(\"nama\"), Integer.parseInt(r.get(\"harga\"))));\n        }\n        System.out.println(\"Berhasil: \" + masuk.size());\n    }\n}\n\nclass Produk {\n    final String nama;\n    final int harga;\n\n    Produk(String nama, int harga) {\n        this.nama = nama;\n        this.harga = harga;\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport org.apache.commons.csv.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build();\n        List<Produk> masuk = new ArrayList<>();\n        for (CSVRecord r : format.parse(new InputStreamReader(System.in))) {\n            long baris = r.getRecordNumber() + 1;\n            String nama = r.get(\"nama\").trim();\n            if (nama.isEmpty()) {\n                System.out.println(\"Baris \" + baris + \": nama kosong\");\n                continue;\n            }\n            try {\n                masuk.add(new Produk(nama, Integer.parseInt(r.get(\"harga\"))));\n            } catch (NumberFormatException e) {\n                System.out.println(\"Baris \" + baris + \": harga bukan angka\");\n            }\n        }\n        System.out.println(\"Berhasil: \" + masuk.size());\n    }\n}\n\nclass Produk {\n    final String nama;\n    final int harga;\n\n    Produk(String nama, int harga) {\n        this.nama = nama;\n        this.harga = harga;\n    }\n}",
+      "tests": [
+        {
+          "input": "nama,harga\nKopi,18000\n,9000\nTeh,delapan ribu\nRoti,12000\n",
+          "expectedOutput": "Baris 3: nama kosong\nBaris 4: harga bukan angka\nBerhasil: 2\n"
+        },
+        {
+          "input": "nama,harga\nGula,15000\n",
+          "expectedOutput": "Berhasil: 1\n"
+        }
+      ],
+      "hints": [
+        "Nomor baris di file: r.getRecordNumber() + 1.",
+        "Periksa nama lebih dulu (continue kalau kosong), lalu bungkus Integer.parseInt dengan try-catch NumberFormatException."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Ubah setiap baris dengan method yang melempar exception kalau barisnya salah.",
+        "Tangkap per baris, simpan yang benar, kumpulkan pesan kesalahan.",
+        "Laporkan nomor baris di file (getRecordNumber() + 1) dan alasan yang jelas.",
+        "isConsistent, isSet, isMapped memeriksa baris sebelum dibaca."
+      ]
+    }
+  ]
+}

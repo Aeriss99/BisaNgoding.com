@@ -1,0 +1,211 @@
+{
+  "id": "java-resilience4j-03",
+  "moduleId": "resilience4j",
+  "order": 3,
+  "title": "Circuit Breaker: Berhenti Memanggil yang Mati",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Retry membantu gangguan sesaat. Tetapi bagaimana kalau layanan gudang benar-benar mati selama 10 menit? Setiap pesanan akan mencoba 3 kali, menunggu timeout setiap kali, dan thread aplikasi kita habis untuk menunggu. Aplikasi kita ikut lumpuh karena layanan lain mati. Ini disebut **kegagalan beruntun** (*cascading failure*).\n\n**Circuit Breaker** mengamati hasil panggilan. Kalau terlalu banyak yang gagal, ia **berhenti memanggil** untuk sementara dan langsung menolak, sehingga aplikasi tetap cepat menjawab. Setelah beberapa waktu, ia mencoba lagi dengan hati-hati.\n\nIbarat sekering listrik di rumah: kalau ada korsleting, sekering memutus aliran supaya kabel tidak terbakar. Setelah diperbaiki, aliran dinyalakan lagi."
+    },
+    {
+      "type": "theory",
+      "content": "Circuit Breaker punya tiga keadaan:\n\n| Keadaan | Perilaku |\n|---|---|\n| **CLOSED** (tertutup) | normal: semua panggilan diteruskan, hasil dicatat |\n| **OPEN** (terbuka) | semua panggilan **langsung ditolak** dengan `CallNotPermittedException`, tanpa memanggil layanan |\n| **HALF_OPEN** (setengah terbuka) | beberapa panggilan uji coba diizinkan; kalau berhasil kembali CLOSED, kalau gagal kembali OPEN |\n\n```mermaid\nstateDiagram-v2\n  CLOSED --> OPEN: tingkat gagal melewati batas\n  OPEN --> HALF_OPEN: setelah waktu tunggu\n  HALF_OPEN --> CLOSED: uji coba berhasil\n  HALF_OPEN --> OPEN: uji coba gagal\n```\n\nPengaturan utama:\n\n| Pengaturan | Artinya | Bawaan |\n|---|---|---|\n| `slidingWindowSize` | jumlah panggilan terakhir yang dihitung | 100 |\n| `minimumNumberOfCalls` | minimal panggilan sebelum tingkat gagal dihitung | 100 |\n| `failureRateThreshold` | persen gagal yang membuka sirkuit | 50 |\n| `waitDurationInOpenState` | lama OPEN sebelum mencoba HALF_OPEN | 60 detik |\n| `permittedNumberOfCallsInHalfOpenState` | jumlah panggilan uji coba | 10 |\n\nAda juga `slowCallRateThreshold` dan `slowCallDurationThreshold`: panggilan yang **terlalu lambat** ikut dihitung sebagai masalah."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nCircuitBreaker cb = CircuitBreaker.of(\"gudang\", config);\nSupplier<Integer> cek = CircuitBreaker.decorateSupplier(cb, () -> gudang.cekStok(\"kopi\"));\ntry {\n    cek.get();\n} catch (CallNotPermittedException e) {\n    // sirkuit OPEN: layanan tidak dipanggil sama sekali\n}\n```\n\nDengan `slidingWindowSize(4)`, `minimumNumberOfCalls(4)`, dan `failureRateThreshold(50)`: setelah 4 panggilan, kalau 2 atau lebih gagal (50 persen), sirkuit terbuka.\n\nPenolakan saat OPEN terjadi dalam hitungan mikrodetik. Pengguna mendapat jawaban cepat (misalnya \"stok sedang tidak bisa dicek\"), dan layanan gudang mendapat waktu untuk pulih tanpa dibanjiri panggilan.\n\nKeadaan sirkuit bisa diubah manual, misalnya saat perawatan: `cb.transitionToOpenState()`, `cb.transitionToClosedState()`."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        CircuitBreaker cb = CircuitBreaker.ofDefaults(\"pembayaran\");\n        System.out.println(\"Awal: \" + cb.getState());\n        cb.transitionToOpenState();\n        System.out.println(\"Setelah dibuka: \" + cb.getState());\n        try {\n            cb.executeSupplier(() -> \"bayar\");\n        } catch (CallNotPermittedException e) {\n            System.out.println(\"Ditolak tanpa memanggil layanan\");\n        }\n        cb.transitionToHalfOpenState();\n        System.out.println(\"Uji coba: \" + cb.executeSupplier(() -> \"bayar\") + \", sirkuit \" + cb.getState());\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak di baris terakhir?",
+        "options": [
+          "Uji coba: bayar, sirkuit CLOSED",
+          "Uji coba: ditolak, sirkuit OPEN",
+          "Uji coba: bayar, sirkuit OPEN",
+          "Uji coba: bayar, sirkuit HALF_OPEN"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 11,
+          "note": "Dibuka manual."
+        },
+        {
+          "line": 14,
+          "note": "Saat OPEN langsung ditolak."
+        },
+        {
+          "line": 19,
+          "note": "Satu uji coba di HALF_OPEN."
+        }
+      ],
+      "explanation": "Konfigurasi bawaan mengizinkan 10 panggilan uji coba di HALF_OPEN, dan keputusan baru diambil setelah semuanya selesai. Satu panggilan berhasil belum cukup, jadi sirkuit masih HALF_OPEN.\n\nexecuteSupplier adalah cara singkat untuk membungkus dan langsung memanggil.",
+      "tryThis": [
+        {
+          "task": "Buat config dengan permittedNumberOfCallsInHalfOpenState(1), lalu jalankan lagi.",
+          "hint": null
+        },
+        {
+          "task": "Panggil cb.transitionToClosedState() di akhir dan cetak keadaannya.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Satu circuit breaker untuk banyak layanan**\n\nGudang mati membuat pembayaran ikut ditolak. Buat satu circuit breaker per layanan tujuan.\n\n**2. Menghitung kesalahan pengguna sebagai kegagalan**\n\n`400 Bad Request` karena data pengguna salah bukan tanda layanan rusak. Pakai `ignoreExceptions` supaya tidak membuka sirkuit.\n\n**3. Angka bawaan untuk layanan sepi**\n\nBawaan butuh 100 panggilan sebelum menilai. Layanan dengan 10 panggilan per menit tidak akan pernah membuka sirkuit. Sesuaikan dengan lalu lintas sebenarnya.\n\n**4. Tidak menangani `CallNotPermittedException`**\n\nPengguna melihat error mentah. Siapkan *fallback* (materi berikutnya)."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola ini dipopulerkan buku *Release It!* (Michael Nygard) dan Netflix. Hampir semua sistem microservices memakainya untuk setiap panggilan ke layanan lain.\n- Status circuit breaker dipantau di dashboard (Prometheus + Grafana lewat Micrometer). Sirkuit yang terbuka biasanya memicu alarm ke tim yang sedang jaga (*on-call*).\n- Di Spring Boot:\n\n```java\n@CircuitBreaker(name = \"gudang\", fallbackMethod = \"stokCadangan\")\npublic int cekStok(String barang) { ... }\n```\n\n```yaml\nresilience4j.circuitbreaker.instances.gudang:\n  sliding-window-size: 20\n  failure-rate-threshold: 50\n  wait-duration-in-open-state: 30s\n```\n- *Service mesh* seperti Istio juga menyediakan circuit breaker di tingkat jaringan, tanpa mengubah kode aplikasi."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Klien Gudang Tangguh 3: Sekering untuk Gudang",
+      "pembuka": "Gudang sedang sering gagal. Kita pasang Circuit Breaker.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Setelah 4 panggilan dengan 3 gagal, sirkuit terbuka dan panggilan berikutnya ditolak.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        GudangPalsu gudang = new GudangPalsu(\"timeout\", \"timeout\", \"ok\", \"timeout\");\n        CircuitBreakerConfig config = CircuitBreakerConfig.custom()\n                .slidingWindowSize(4)\n                .minimumNumberOfCalls(4)\n                .failureRateThreshold(50)\n                .waitDurationInOpenState(Duration.ofMillis(300))\n                .permittedNumberOfCallsInHalfOpenState(1)\n                .build();\n        CircuitBreaker cb = CircuitBreaker.of(\"gudang\", config);\n        Supplier<Integer> cek = CircuitBreaker.decorateSupplier(cb, () -> gudang.cekStok(\"kopi\"));\n        for (int i = 1; i <= 6; i++) {\n            try {\n                System.out.println(i + \". stok \" + cek.get());\n            } catch (CallNotPermittedException e) {\n                System.out.println(i + \". ditolak, sirkuit \" + cb.getState());\n            } catch (IllegalStateException e) {\n                System.out.println(i + \". gagal: \" + e.getMessage());\n            }\n        }\n        System.out.println(\"Panggilan ke gudang: \" + gudang.panggilan);\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n",
+          "keluaran": "1. gagal: timeout ke gudang\n2. gagal: timeout ke gudang\n3. stok 7\n4. gagal: timeout ke gudang\n5. ditolak, sirkuit OPEN\n6. ditolak, sirkuit OPEN\nPanggilan ke gudang: 4",
+          "otomatis": true,
+          "benar": "Gudang hanya dipanggil 4 kali, bukan 6.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Pasang pemantau perubahan keadaan: cetak `[sirkuit] State transition from CLOSED to OPEN` setiap kali keadaan berubah.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        GudangPalsu gudang = new GudangPalsu(\"timeout\", \"timeout\", \"ok\", \"timeout\");\n        CircuitBreakerConfig config = CircuitBreakerConfig.custom()\n                .slidingWindowSize(4)\n                .minimumNumberOfCalls(4)\n                .failureRateThreshold(50)\n                .waitDurationInOpenState(Duration.ofMillis(300))\n                .permittedNumberOfCallsInHalfOpenState(1)\n                .build();\n        CircuitBreaker cb = CircuitBreaker.of(\"gudang\", config);\n        cb.getEventPublisher().onStateTransition(e -> System.out.println(\"[sirkuit] \" + e.getStateTransition()));\n        Supplier<Integer> cek = CircuitBreaker.decorateSupplier(cb, () -> gudang.cekStok(\"kopi\"));\n        for (int i = 1; i <= 6; i++) {\n            try {\n                System.out.println(i + \". stok \" + cek.get());\n            } catch (CallNotPermittedException e) {\n                System.out.println(i + \". ditolak, sirkuit \" + cb.getState());\n            } catch (IllegalStateException e) {\n                System.out.println(i + \". gagal: \" + e.getMessage());\n            }\n        }\n        System.out.println(\"Panggilan ke gudang: \" + gudang.panggilan);\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n",
+          "keluaran": "1. gagal: timeout ke gudang\n2. gagal: timeout ke gudang\n3. stok 7\n[sirkuit] State transition from CLOSED to OPEN\n4. gagal: timeout ke gudang\n5. ditolak, sirkuit OPEN\n6. ditolak, sirkuit OPEN\nPanggilan ke gudang: 4",
+          "wajib": [
+            {
+              "pola": "onStateTransition\\s*\\(",
+              "pesan": "pakai `onStateTransition`."
+            }
+          ],
+          "benar": "Event ini yang biasanya memicu alarm ke tim.",
+          "petunjuk": "`cb.getEventPublisher().onStateTransition(e -> System.out.println(\"[sirkuit] \" + e.getStateTransition()));`"
+        },
+        {
+          "arahan": "Cetak tingkat kegagalan dengan bentuk `Tingkat gagal: 75.0%`.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        GudangPalsu gudang = new GudangPalsu(\"timeout\", \"timeout\", \"ok\", \"timeout\");\n        CircuitBreakerConfig config = CircuitBreakerConfig.custom()\n                .slidingWindowSize(4)\n                .minimumNumberOfCalls(4)\n                .failureRateThreshold(50)\n                .waitDurationInOpenState(Duration.ofMillis(300))\n                .permittedNumberOfCallsInHalfOpenState(1)\n                .build();\n        CircuitBreaker cb = CircuitBreaker.of(\"gudang\", config);\n        cb.getEventPublisher().onStateTransition(e -> System.out.println(\"[sirkuit] \" + e.getStateTransition()));\n        Supplier<Integer> cek = CircuitBreaker.decorateSupplier(cb, () -> gudang.cekStok(\"kopi\"));\n        for (int i = 1; i <= 6; i++) {\n            try {\n                System.out.println(i + \". stok \" + cek.get());\n            } catch (CallNotPermittedException e) {\n                System.out.println(i + \". ditolak, sirkuit \" + cb.getState());\n            } catch (IllegalStateException e) {\n                System.out.println(i + \". gagal: \" + e.getMessage());\n            }\n        }\n        System.out.println(\"Panggilan ke gudang: \" + gudang.panggilan);\n        System.out.println(\"Tingkat gagal: \" + cb.getMetrics().getFailureRate() + \"%\");\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n",
+          "keluaran": "1. gagal: timeout ke gudang\n2. gagal: timeout ke gudang\n3. stok 7\n[sirkuit] State transition from CLOSED to OPEN\n4. gagal: timeout ke gudang\n5. ditolak, sirkuit OPEN\n6. ditolak, sirkuit OPEN\nPanggilan ke gudang: 4\nTingkat gagal: 75.0%",
+          "wajib": [
+            {
+              "pola": "getMetrics\\(\\)\\.getFailureRate\\(\\)",
+              "pesan": "pakai `cb.getMetrics().getFailureRate()`."
+            }
+          ],
+          "benar": "3 dari 4 panggilan gagal.",
+          "petunjuk": "`cb.getMetrics().getFailureRate()`."
+        },
+        {
+          "arahan": "Tantangan: tunggu 400 ms dengan `Thread.sleep(400)` (lebih lama dari waktu OPEN), lalu panggil `cek.get()` sekali lagi dan cetak hasil serta keadaan sirkuit. Tambahkan `throws Exception` pada main.",
+          "jawaban": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        GudangPalsu gudang = new GudangPalsu(\"timeout\", \"timeout\", \"ok\", \"timeout\");\n        CircuitBreakerConfig config = CircuitBreakerConfig.custom()\n                .slidingWindowSize(4)\n                .minimumNumberOfCalls(4)\n                .failureRateThreshold(50)\n                .waitDurationInOpenState(Duration.ofMillis(300))\n                .permittedNumberOfCallsInHalfOpenState(1)\n                .build();\n        CircuitBreaker cb = CircuitBreaker.of(\"gudang\", config);\n        cb.getEventPublisher().onStateTransition(e -> System.out.println(\"[sirkuit] \" + e.getStateTransition()));\n        Supplier<Integer> cek = CircuitBreaker.decorateSupplier(cb, () -> gudang.cekStok(\"kopi\"));\n        for (int i = 1; i <= 6; i++) {\n            try {\n                System.out.println(i + \". stok \" + cek.get());\n            } catch (CallNotPermittedException e) {\n                System.out.println(i + \". ditolak, sirkuit \" + cb.getState());\n            } catch (IllegalStateException e) {\n                System.out.println(i + \". gagal: \" + e.getMessage());\n            }\n        }\n        System.out.println(\"Panggilan ke gudang: \" + gudang.panggilan);\n        System.out.println(\"Tingkat gagal: \" + cb.getMetrics().getFailureRate() + \"%\");\n\n        Thread.sleep(400);\n        System.out.println(\"Setelah menunggu: stok \" + cek.get());\n        System.out.println(\"Sirkuit: \" + cb.getState());\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}\n",
+          "keluaran": "1. gagal: timeout ke gudang\n2. gagal: timeout ke gudang\n3. stok 7\n[sirkuit] State transition from CLOSED to OPEN\n4. gagal: timeout ke gudang\n5. ditolak, sirkuit OPEN\n6. ditolak, sirkuit OPEN\nPanggilan ke gudang: 4\nTingkat gagal: 75.0%\n[sirkuit] State transition from OPEN to HALF_OPEN\n[sirkuit] State transition from HALF_OPEN to CLOSED\nSetelah menunggu: stok 7\nSirkuit: CLOSED",
+          "wajib": [
+            {
+              "pola": "Thread\\.sleep\\s*\\(\\s*400\\s*\\)",
+              "pesan": "tunggu dengan `Thread.sleep(400)`."
+            },
+            {
+              "pola": "cb\\.getState\\(\\)",
+              "pesan": "cetak `cb.getState()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Gudang pulih, sirkuit tertutup lagi tanpa campur tangan manusia.",
+          "petunjuk": "Satu uji coba di HALF_OPEN berhasil, jadi sirkuit kembali CLOSED."
+        }
+      ],
+      "penutup": "Gudang yang mati tidak lagi melumpuhkan toko. Berikutnya: memberi jawaban cadangan dan menggabungkan pola."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Saat sirkuit OPEN, panggilan ke layanan...",
+          "options": [
+            "Langsung ditolak dengan CallNotPermittedException tanpa memanggil layanan",
+            "Diulang terus sampai berhasil",
+            "Diteruskan seperti biasa",
+            "Menunggu sampai layanan pulih"
+          ],
+          "answer": 0,
+          "explanation": "Putus aliran.",
+          "remedial": "OPEN berarti circuit breaker tidak meneruskan panggilan sama sekali. Penolakan cepat ini melindungi aplikasi kita dan memberi waktu layanan lain untuk pulih."
+        },
+        {
+          "question": "Dari OPEN, sirkuit pindah ke HALF_OPEN ketika...",
+          "options": [
+            "Ada satu panggilan berhasil",
+            "Waktu waitDurationInOpenState sudah lewat",
+            "Pengguna menekan tombol ulang",
+            "Aplikasi dijalankan ulang"
+          ],
+          "answer": 1,
+          "explanation": "Menunggu dulu.",
+          "remedial": "Setelah waktu tunggu, circuit breaker mengizinkan beberapa panggilan uji coba di HALF_OPEN untuk melihat apakah layanan sudah pulih."
+        },
+        {
+          "question": "Kenapa setiap layanan tujuan sebaiknya punya circuit breaker sendiri?",
+          "options": [
+            "Karena satu circuit breaker hanya bisa dipakai sekali",
+            "Supaya lebih banyak exception",
+            "Supaya layanan yang mati tidak membuat panggilan ke layanan lain ikut ditolak",
+            "Karena Resilience4j melarang berbagi"
+          ],
+          "answer": 2,
+          "explanation": "Isolasi masalah.",
+          "remedial": "Circuit breaker menilai kesehatan satu tujuan. Kalau digabung, kegagalan gudang akan membuka sirkuit untuk pembayaran yang sebenarnya sehat."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Masalah yang dicegah Circuit Breaker adalah...",
+      "options": [
+        "Data yang salah format",
+        "Password yang lemah",
+        "Query database yang lambat karena tanpa index",
+        "Kegagalan beruntun karena terus menunggu layanan yang mati"
+      ],
+      "answer": 3,
+      "explanation": "Cascading failure."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca jadwal jawaban gudang (dipisah koma) di baris pertama dan jumlah panggilan di baris kedua, lalu memanggil cekStok sebanyak itu. Pasang Circuit Breaker supaya gudang berhenti dipanggil saat sedang bermasalah: slidingWindowSize 3, minimumNumberOfCalls 3, failureRateThreshold 50. Panggilan yang ditolak sirkuit dicetak dengan bentuk nomor. ditolak, sedangkan bentuk keluaran lain tetap sama.",
+      "starterCode": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        GudangPalsu gudang = new GudangPalsu(in.nextLine().split(\",\"));\n        int jumlah = Integer.parseInt(in.nextLine());\n        for (int i = 1; i <= jumlah; i++) {\n            try {\n                System.out.println(i + \". stok \" + gudang.cekStok(\"kopi\"));\n            } catch (IllegalStateException e) {\n                System.out.println(i + \". gagal: \" + e.getMessage());\n            }\n        }\n        System.out.println(\"Panggilan: \" + gudang.panggilan);\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}",
+      "solution": "import java.time.Duration;\nimport java.util.*;\nimport java.util.function.*;\n\nimport io.github.resilience4j.circuitbreaker.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        GudangPalsu gudang = new GudangPalsu(in.nextLine().split(\",\"));\n        int jumlah = Integer.parseInt(in.nextLine());\n        CircuitBreaker cb = CircuitBreaker.of(\"gudang\", CircuitBreakerConfig.custom()\n                .slidingWindowSize(3)\n                .minimumNumberOfCalls(3)\n                .failureRateThreshold(50)\n                .build());\n        Supplier<Integer> cek = CircuitBreaker.decorateSupplier(cb, () -> gudang.cekStok(\"kopi\"));\n        for (int i = 1; i <= jumlah; i++) {\n            try {\n                System.out.println(i + \". stok \" + cek.get());\n            } catch (CallNotPermittedException e) {\n                System.out.println(i + \". ditolak\");\n            } catch (IllegalStateException e) {\n                System.out.println(i + \". gagal: \" + e.getMessage());\n            }\n        }\n        System.out.println(\"Panggilan: \" + gudang.panggilan);\n    }\n}\n\nclass GudangPalsu {\n    private final Deque<String> jadwal;\n    int panggilan;\n\n    GudangPalsu(String... jadwal) {\n        this.jadwal = new ArrayDeque<>(Arrays.asList(jadwal));\n    }\n\n    int cekStok(String barang) {\n        panggilan++;\n        String hasil = jadwal.isEmpty() ? \"ok\" : jadwal.poll();\n        if (hasil.equals(\"timeout\")) {\n            throw new IllegalStateException(\"timeout ke gudang\");\n        }\n        if (hasil.equals(\"400\")) {\n            throw new IllegalArgumentException(\"barang tidak dikenal: \" + barang);\n        }\n        return 7;\n    }\n}",
+      "tests": [
+        {
+          "input": "timeout,timeout,ok,ok,ok,ok\n6\n",
+          "expectedOutput": "1. gagal: timeout ke gudang\n2. gagal: timeout ke gudang\n3. stok 7\n4. ditolak\n5. ditolak\n6. ditolak\nPanggilan: 3\n"
+        },
+        {
+          "input": "ok,timeout,ok,ok\n4\n",
+          "expectedOutput": "1. stok 7\n2. gagal: timeout ke gudang\n3. stok 7\n4. stok 7\nPanggilan: 4\n"
+        }
+      ],
+      "hints": [
+        "Bungkus gudang.cekStok dengan CircuitBreaker.decorateSupplier lalu panggil get().",
+        "Tangkap CallNotPermittedException sebelum IllegalStateException dan cetak nomor. ditolak."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Circuit Breaker: CLOSED (normal), OPEN (tolak langsung), HALF_OPEN (uji coba).",
+        "Tingkat gagal di atas failureRateThreshold dalam sliding window membuka sirkuit.",
+        "OPEN menolak dengan CallNotPermittedException tanpa memanggil layanan.",
+        "Satu circuit breaker per layanan; jangan hitung kesalahan pengguna sebagai kegagalan."
+      ]
+    }
+  ]
+}

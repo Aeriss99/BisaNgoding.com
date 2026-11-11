@@ -1,0 +1,207 @@
+{
+  "id": "java-persistence-api-05",
+  "moduleId": "persistence-api",
+  "order": 5,
+  "title": "Relasi Antar Entity",
+  "estimatedMinutes": 19,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Data jarang berdiri sendiri: satu kategori punya banyak tugas, satu pesanan punya banyak barang, satu penulis menulis banyak buku. Di database, hubungan ini disimpan dengan **foreign key**. Di Java, hubungan disimpan sebagai **referensi object**: `tugas.getKategori()` dan `kategori.getDaftar()`.\n\nJPA memetakan keduanya dengan anotasi relasi.\n\nIbarat lemari arsip: setiap map (tugas) diberi label nama lemarinya (kategori). Dari map, kita tahu lemarinya; dari lemari, kita bisa melihat semua mapnya."
+    },
+    {
+      "type": "theory",
+      "content": "| Anotasi | Hubungan | Contoh |\n|---|---|---|\n| `@ManyToOne` | banyak ke satu | banyak tugas, satu kategori |\n| `@OneToMany(mappedBy = \"kategori\")` | satu ke banyak, kebalikan dari `@ManyToOne` | satu kategori, banyak tugas |\n| `@OneToOne` | satu ke satu | pengguna dan profil |\n| `@ManyToMany` | banyak ke banyak, lewat tabel penghubung | siswa dan kelas |\n\n**Pemilik relasi** (*owning side*) adalah sisi yang punya foreign key, yaitu `@ManyToOne`. `mappedBy` di sisi `@OneToMany` berarti \"relasi ini diatur oleh field `kategori` di class lain\". Yang disimpan ke database adalah isi sisi pemilik, jadi kedua sisi harus diisi bersama: buat method bantu seperti `tambah(Tugas t)` yang mengisi keduanya.\n\n| Pengaturan | Gunanya |\n|---|---|\n| `cascade = CascadeType.ALL` | operasi pada kategori (persist, remove) ikut ke tugas-tugasnya |\n| `orphanRemoval = true` | tugas yang dibuang dari daftar ikut dihapus dari database |\n| `fetch = FetchType.LAZY` | data relasi baru dibaca saat dipakai |\n| `fetch = FetchType.EAGER` | data relasi langsung dibaca bersama |\n\nBawaan JPA: `@ManyToOne` **EAGER**, `@OneToMany` **LAZY**. Praktik yang dianjurkan: buat `@ManyToOne(fetch = FetchType.LAZY)` juga, lalu muat data yang dibutuhkan dengan query (materi berikutnya)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nKategori kantor = new Kategori(\"Kantor\");\nkantor.tambah(new Tugas(\"Kirim laporan\"));\nkantor.tambah(new Tugas(\"Rapat tim\"));\nem.persist(kantor);        // cascade: kedua tugas ikut disimpan\n```\n\nAkses relasi LAZY menjalankan query saat itu juga:\n\n```java\nKategori k = em.find(Kategori.class, 1L);   // select dari tabel Kategori saja\nk.getDaftar().size();                       // baru sekarang select dari tabel Tugas\n```\n\nAkses LAZY setelah `EntityManager` ditutup gagal dengan **`LazyInitializationException`**, karena object sudah detached dan tidak ada koneksi untuk membaca datanya."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Kategori k = new Kategori(\"Rumah\");\n        k.tambah(new Tugas(\"Cuci piring\"));\n        em.persist(k);\n        em.getTransaction().commit();\n        em.clear();\n        Tugas t = em.find(Tugas.class, 1L);\n        em.close();\n        try {\n            System.out.println(t.getKategori().getNama());\n        } catch (RuntimeException e) {\n            System.out.println(e.getClass().getSimpleName());\n        }\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: kategori dibaca LAZY, lalu dipakai setelah EntityManager ditutup. Apa yang tercetak?",
+        "options": [
+          "Rumah",
+          "LazyInitializationException",
+          "NullPointerException",
+          "null"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 76,
+          "note": "Kategori belum dibaca saat tugas dibaca."
+        },
+        {
+          "line": 17,
+          "note": "Tidak ada lagi koneksi untuk membaca kategori."
+        },
+        {
+          "line": 19,
+          "note": "Baru sekarang data kategori dibutuhkan."
+        }
+      ],
+      "explanation": "Dengan LAZY, t.getKategori() berisi object pengganti (proxy) yang hanya tahu id-nya. Saat getNama dipanggil, proxy mencoba membaca database, tetapi EntityManager sudah ditutup. Ini error yang paling sering ditemui pemakai Hibernate.",
+      "tryThis": [
+        {
+          "task": "Pindahkan em.close() ke setelah println.",
+          "hint": null
+        },
+        {
+          "task": "Ubah fetch menjadi FetchType.EAGER dan bandingkan.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Hanya mengisi sisi `@OneToMany`**\n\n`kategori.getDaftar().add(tugas)` tanpa `tugas.setKategori(kategori)` membuat foreign key kosong, karena sisi pemiliknya tidak diisi. Pakai method bantu yang mengisi keduanya.\n\n**2. `CascadeType.REMOVE` di `@ManyToOne`**\n\nMenghapus satu tugas ikut menghapus kategorinya beserta tugas lain. Cascade hanya dari induk ke anak.\n\n**3. `LazyInitializationException`**\n\nData LAZY diakses setelah transaksi selesai. Muat data yang dibutuhkan di dalam transaksi, misalnya dengan `join fetch`.\n\n**4. `EAGER` di mana-mana**\n\nMembaca satu tugas ikut membaca kategori, yang ikut membaca hal lain lagi. Query kecil berubah menjadi belasan join.\n\n**5. `@ManyToMany` untuk hubungan yang punya data sendiri**\n\nKalau hubungan siswa dan kelas punya nilai atau tanggal daftar, buat entity penghubung sendiri (`Pendaftaran`) dengan dua `@ManyToOne`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Spring Boot mengaktifkan *open session in view* secara bawaan, yang menyembunyikan `LazyInitializationException` dengan menjaga koneksi terbuka sampai halaman selesai dibuat. Banyak tim mematikannya (`spring.jpa.open-in-view=false`) supaya akses data terjadi di lapisan service dengan sengaja.\n- Kode review sering memeriksa: apakah relasi LAZY, apakah cascade masuk akal, dan apakah ada method bantu untuk relasi dua arah.\n- Relasi dua arah (`@OneToMany` + `@ManyToOne`) tidak selalu perlu. Kalau tidak pernah membaca \"semua tugas dari kategori\", cukup `@ManyToOne` saja, lalu cari dengan query.\n- `toString`, `equals`, dan `hashCode` di entity tidak boleh memakai field relasi: bisa memicu query tak terduga atau perulangan tanpa akhir. Lombok `@Data` di entity adalah sumber masalah yang terkenal."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JPA 5: Kategori dan Tugas",
+      "pembuka": "Tugas sekarang dikelompokkan dalam kategori.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Kategori disimpan, dan cascade ikut menyimpan kedua tugasnya.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Kategori kantor = new Kategori(\"Kantor\");\n        kantor.tambah(new Tugas(\"Kirim laporan\"));\n        kantor.tambah(new Tugas(\"Rapat tim\"));\n        em.persist(kantor);\n        em.getTransaction().commit();\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Hibernate: drop table if exists Kategori CASCADE\nHibernate: drop table if exists Tugas CASCADE\nHibernate: create table Kategori (id bigint generated by default as identity, nama varchar(255), primary key (id))\nHibernate: create table Tugas (id bigint generated by default as identity, judul varchar(255), kategori_id bigint, primary key (id))\nHibernate: alter table Tugas add constraint FKffob8ex3h6a16j32gqgttcdoa foreign key (kategori_id) references Kategori\nHibernate: insert into Kategori (id, nama) values (default, ?)\nHibernate: insert into Tugas (id, judul, kategori_id) values (default, ?, ?)\nHibernate: insert into Tugas (id, judul, kategori_id) values (default, ?, ?)",
+          "otomatis": true,
+          "benar": "Satu `persist`, tiga `insert`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Setelah commit, `em.clear()`, lalu baca kategori dengan `find` dan cetak setiap tugasnya dengan bentuk `Kantor: judul`. Cetak `--- baca kategori` dan `--- akses daftar` untuk melihat kapan SQL dijalankan.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Kategori kantor = new Kategori(\"Kantor\");\n        kantor.tambah(new Tugas(\"Kirim laporan\"));\n        kantor.tambah(new Tugas(\"Rapat tim\"));\n        em.persist(kantor);\n        em.getTransaction().commit();\n        em.clear();\n        System.out.println(\"--- baca kategori\");\n        Kategori dibaca = em.find(Kategori.class, kantor.getId());\n        System.out.println(\"--- akses daftar\");\n        for (Tugas t : dibaca.getDaftar()) {\n            System.out.println(dibaca.getNama() + \": \" + t.getJudul());\n        }\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Hibernate: drop table if exists Kategori CASCADE\nHibernate: drop table if exists Tugas CASCADE\nHibernate: create table Kategori (id bigint generated by default as identity, nama varchar(255), primary key (id))\nHibernate: create table Tugas (id bigint generated by default as identity, judul varchar(255), kategori_id bigint, primary key (id))\nHibernate: alter table Tugas add constraint FKffob8ex3h6a16j32gqgttcdoa foreign key (kategori_id) references Kategori\nHibernate: insert into Kategori (id, nama) values (default, ?)\nHibernate: insert into Tugas (id, judul, kategori_id) values (default, ?, ?)\nHibernate: insert into Tugas (id, judul, kategori_id) values (default, ?, ?)\n--- baca kategori\nHibernate: select kategori0_.id as id1_0_0_, kategori0_.nama as nama2_0_0_ from Kategori kategori0_ where kategori0_.id=?\n--- akses daftar\nHibernate: select daftar0_.kategori_id as kategori3_1_0_, daftar0_.id as id1_1_0_, daftar0_.id as id1_1_1_, daftar0_.judul as judul2_1_1_, daftar0_.kategori_id as kategori3_1_1_ from Tugas daftar0_ where daftar0_.kategori_id=?\nKantor: Kirim laporan\nKantor: Rapat tim",
+          "wajib": [
+            {
+              "pola": "em\\.find\\s*\\(\\s*Kategori\\.class",
+              "pesan": "baca dengan `em.find(Kategori.class, ...)`."
+            },
+            {
+              "pola": "getDaftar\\(\\)",
+              "pesan": "ulangi `getDaftar()`."
+            }
+          ],
+          "benar": "Daftar tugas baru dibaca saat diakses: itulah LAZY.",
+          "petunjuk": "Ulangi `dibaca.getDaftar()`."
+        },
+        {
+          "arahan": "Buang tugas pertama dari kategori dengan `dibaca.buang(...)` di dalam transaksi.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Kategori kantor = new Kategori(\"Kantor\");\n        kantor.tambah(new Tugas(\"Kirim laporan\"));\n        kantor.tambah(new Tugas(\"Rapat tim\"));\n        em.persist(kantor);\n        em.getTransaction().commit();\n        em.clear();\n        System.out.println(\"--- baca kategori\");\n        Kategori dibaca = em.find(Kategori.class, kantor.getId());\n        System.out.println(\"--- akses daftar\");\n        for (Tugas t : dibaca.getDaftar()) {\n            System.out.println(dibaca.getNama() + \": \" + t.getJudul());\n        }\n        System.out.println(\"--- buang satu tugas\");\n        em.getTransaction().begin();\n        dibaca.buang(dibaca.getDaftar().get(0));\n        em.getTransaction().commit();\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Hibernate: drop table if exists Kategori CASCADE\nHibernate: drop table if exists Tugas CASCADE\nHibernate: create table Kategori (id bigint generated by default as identity, nama varchar(255), primary key (id))\nHibernate: create table Tugas (id bigint generated by default as identity, judul varchar(255), kategori_id bigint, primary key (id))\nHibernate: alter table Tugas add constraint FKffob8ex3h6a16j32gqgttcdoa foreign key (kategori_id) references Kategori\nHibernate: insert into Kategori (id, nama) values (default, ?)\nHibernate: insert into Tugas (id, judul, kategori_id) values (default, ?, ?)\nHibernate: insert into Tugas (id, judul, kategori_id) values (default, ?, ?)\n--- baca kategori\nHibernate: select kategori0_.id as id1_0_0_, kategori0_.nama as nama2_0_0_ from Kategori kategori0_ where kategori0_.id=?\n--- akses daftar\nHibernate: select daftar0_.kategori_id as kategori3_1_0_, daftar0_.id as id1_1_0_, daftar0_.id as id1_1_1_, daftar0_.judul as judul2_1_1_, daftar0_.kategori_id as kategori3_1_1_ from Tugas daftar0_ where daftar0_.kategori_id=?\nKantor: Kirim laporan\nKantor: Rapat tim\n--- buang satu tugas\nHibernate: delete from Tugas where id=?",
+          "wajib": [
+            {
+              "pola": "dibaca\\.buang\\s*\\(",
+              "pesan": "pakai `dibaca.buang(...)`."
+            }
+          ],
+          "benar": "`orphanRemoval` menjalankan `delete` untuk tugas yang dibuang.",
+          "petunjuk": "`dibaca.buang(dibaca.getDaftar().get(0));`"
+        },
+        {
+          "arahan": "Tantangan: hitung sisa tugas di database dengan JPQL `count` dan cetak `Sisa tugas: 1`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(true, Kategori.class, Tugas.class);\n        EntityManager em = emf.createEntityManager();\n        em.getTransaction().begin();\n        Kategori kantor = new Kategori(\"Kantor\");\n        kantor.tambah(new Tugas(\"Kirim laporan\"));\n        kantor.tambah(new Tugas(\"Rapat tim\"));\n        em.persist(kantor);\n        em.getTransaction().commit();\n        em.clear();\n        System.out.println(\"--- baca kategori\");\n        Kategori dibaca = em.find(Kategori.class, kantor.getId());\n        System.out.println(\"--- akses daftar\");\n        for (Tugas t : dibaca.getDaftar()) {\n            System.out.println(dibaca.getNama() + \": \" + t.getJudul());\n        }\n        System.out.println(\"--- buang satu tugas\");\n        em.getTransaction().begin();\n        dibaca.buang(dibaca.getDaftar().get(0));\n        em.getTransaction().commit();\n        System.out.println(\"Sisa tugas: \" + em.createQuery(\"select count(t) from Tugas t\", Long.class).getSingleResult());\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Kategori {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String nama;\n\n    @OneToMany(mappedBy = \"kategori\", cascade = CascadeType.ALL, orphanRemoval = true)\n    private List<Tugas> daftar = new ArrayList<>();\n\n    protected Kategori() {\n    }\n\n    Kategori(String nama) {\n        this.nama = nama;\n    }\n\n    void tambah(Tugas t) {\n        daftar.add(t);\n        t.setKategori(this);\n    }\n\n    void buang(Tugas t) {\n        daftar.remove(t);\n        t.setKategori(null);\n    }\n\n    Long getId() {\n        return id;\n    }\n\n    String getNama() {\n        return nama;\n    }\n\n    List<Tugas> getDaftar() {\n        return daftar;\n    }\n}\n\n@Entity\nclass Tugas {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    private String judul;\n\n    @ManyToOne(fetch = FetchType.LAZY)\n    private Kategori kategori;\n\n    protected Tugas() {\n    }\n\n    Tugas(String judul) {\n        this.judul = judul;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    Kategori getKategori() {\n        return kategori;\n    }\n\n    void setKategori(Kategori k) {\n        kategori = k;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}\n",
+          "keluaran": "Hibernate: drop table if exists Kategori CASCADE\nHibernate: drop table if exists Tugas CASCADE\nHibernate: create table Kategori (id bigint generated by default as identity, nama varchar(255), primary key (id))\nHibernate: create table Tugas (id bigint generated by default as identity, judul varchar(255), kategori_id bigint, primary key (id))\nHibernate: alter table Tugas add constraint FKffob8ex3h6a16j32gqgttcdoa foreign key (kategori_id) references Kategori\nHibernate: insert into Kategori (id, nama) values (default, ?)\nHibernate: insert into Tugas (id, judul, kategori_id) values (default, ?, ?)\nHibernate: insert into Tugas (id, judul, kategori_id) values (default, ?, ?)\n--- baca kategori\nHibernate: select kategori0_.id as id1_0_0_, kategori0_.nama as nama2_0_0_ from Kategori kategori0_ where kategori0_.id=?\n--- akses daftar\nHibernate: select daftar0_.kategori_id as kategori3_1_0_, daftar0_.id as id1_1_0_, daftar0_.id as id1_1_1_, daftar0_.judul as judul2_1_1_, daftar0_.kategori_id as kategori3_1_1_ from Tugas daftar0_ where daftar0_.kategori_id=?\nKantor: Kirim laporan\nKantor: Rapat tim\n--- buang satu tugas\nHibernate: delete from Tugas where id=?\nHibernate: select count(tugas0_.id) as col_0_0_ from Tugas tugas0_\nSisa tugas: 1",
+          "wajib": [
+            {
+              "pola": "select\\s+count\\s*\\(\\s*t\\s*\\)\\s+from\\s+Tugas\\s+t",
+              "pesan": "hitung dengan `select count(t) from Tugas t`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Tugas yang dibuang benar-benar terhapus.",
+          "petunjuk": "`select count(t) from Tugas t`."
+        }
+      ],
+      "penutup": "Relasi sudah terpetakan. Berikutnya: masalah N+1 dan cara memuat data dengan efisien."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Sisi pemilik (owning side) relasi kategori-tugas adalah...",
+          "options": [
+            "Field @OneToMany daftar di Kategori",
+            "Keduanya sama-sama pemilik",
+            "Field @ManyToOne kategori di Tugas, yang menyimpan foreign key",
+            "Tabel penghubung"
+          ],
+          "answer": 2,
+          "explanation": "Yang punya foreign key.",
+          "remedial": "Foreign key `kategori_id` ada di tabel tugas, jadi sisi `@ManyToOne` yang menentukan isi database. `mappedBy` menandai sisi yang hanya cermin."
+        },
+        {
+          "question": "orphanRemoval = true membuat tugas yang dibuang dari daftar kategori...",
+          "options": [
+            "Tetap ada tanpa kategori",
+            "Pindah ke kategori lain",
+            "Menjadi transient tanpa SQL apa pun",
+            "Ikut dihapus dari database"
+          ],
+          "answer": 3,
+          "explanation": "Yatim dihapus.",
+          "remedial": "Tugas yang tidak lagi punya induk dianggap yatim. Dengan `orphanRemoval`, Hibernate menjalankan `DELETE` untuknya saat commit."
+        },
+        {
+          "question": "LazyInitializationException terjadi ketika...",
+          "options": [
+            "Data relasi LAZY diakses setelah EntityManager ditutup",
+            "Relasi diberi EAGER",
+            "Entity tidak punya id",
+            "Query JPQL salah tulis"
+          ],
+          "answer": 0,
+          "explanation": "Tidak ada koneksi lagi.",
+          "remedial": "Relasi LAZY dibaca saat pertama dipakai. Kalau object sudah detached, tidak ada EntityManager yang bisa membacanya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Anotasi untuk sisi satu ke banyak yang memakai mappedBy adalah...",
+      "options": [
+        "@ManyToOne",
+        "@OneToMany",
+        "@JoinColumn",
+        "@Embedded"
+      ],
+      "answer": 1,
+      "explanation": "Satu kategori banyak tugas."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca nama penulis di baris pertama dan judul buku per baris, menambahkan bukunya ke penulis, lalu menyimpan penulis dengan persist dan mencetak semua buku. Program gagal karena buku-buku tidak ikut tersimpan (Hibernate melaporkan object transient). Perbaiki relasi di class Penulis supaya persist pada penulis ikut menyimpan bukunya.",
+      "starterCode": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Penulis.class, Buku.class);\n        EntityManager em = emf.createEntityManager();\n        Scanner in = new Scanner(System.in);\n        Penulis p = new Penulis(in.nextLine());\n        while (in.hasNextLine()) {\n            p.buku.add(new Buku(in.nextLine(), p));\n        }\n        em.getTransaction().begin();\n        em.persist(p);\n        em.getTransaction().commit();\n        em.clear();\n        for (Buku b : em.createQuery(\"select b from Buku b order by b.judul\", Buku.class).getResultList()) {\n            System.out.println(b.judul + \" oleh \" + b.penulis.nama);\n        }\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Penulis {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    Long id;\n\n    String nama;\n\n    @OneToMany(mappedBy = \"penulis\")\n    List<Buku> buku = new ArrayList<>();\n\n    protected Penulis() {\n    }\n\n    Penulis(String nama) {\n        this.nama = nama;\n    }\n}\n\n@Entity\nclass Buku {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    Long id;\n\n    String judul;\n\n    @ManyToOne\n    Penulis penulis;\n\n    protected Buku() {\n    }\n\n    Buku(String judul, Penulis penulis) {\n        this.judul = judul;\n        this.penulis = penulis;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "solution": "import java.util.*;\n\nimport jakarta.persistence.*;\nimport org.hibernate.cfg.Configuration;\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManagerFactory emf = Jpa.buat(false, Penulis.class, Buku.class);\n        EntityManager em = emf.createEntityManager();\n        Scanner in = new Scanner(System.in);\n        Penulis p = new Penulis(in.nextLine());\n        while (in.hasNextLine()) {\n            p.buku.add(new Buku(in.nextLine(), p));\n        }\n        em.getTransaction().begin();\n        em.persist(p);\n        em.getTransaction().commit();\n        em.clear();\n        for (Buku b : em.createQuery(\"select b from Buku b order by b.judul\", Buku.class).getResultList()) {\n            System.out.println(b.judul + \" oleh \" + b.penulis.nama);\n        }\n        em.close();\n        emf.close();\n    }\n}\n\n@Entity\nclass Penulis {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    Long id;\n\n    String nama;\n\n    @OneToMany(mappedBy = \"penulis\", cascade = CascadeType.PERSIST)\n    List<Buku> buku = new ArrayList<>();\n\n    protected Penulis() {\n    }\n\n    Penulis(String nama) {\n        this.nama = nama;\n    }\n}\n\n@Entity\nclass Buku {\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    Long id;\n\n    String judul;\n\n    @ManyToOne\n    Penulis penulis;\n\n    protected Buku() {\n    }\n\n    Buku(String judul, Penulis penulis) {\n        this.judul = judul;\n        this.penulis = penulis;\n    }\n}\n\nclass Jpa {\n    static EntityManagerFactory buat(boolean tampilkanSql, Class<?>... entity) {\n        Configuration cfg = new Configuration()\n                .setProperty(\"hibernate.connection.url\", \"jdbc:h2:mem:toko;DB_CLOSE_DELAY=-1\")\n                .setProperty(\"hibernate.connection.username\", \"sa\")\n                .setProperty(\"hibernate.hbm2ddl.auto\", \"create\")\n                .setProperty(\"hibernate.show_sql\", String.valueOf(tampilkanSql));\n        for (Class<?> k : entity) {\n            cfg.addAnnotatedClass(k);\n        }\n        return cfg.buildSessionFactory();\n    }\n}",
+      "tests": [
+        {
+          "input": "Andrea Hirata\nLaskar Pelangi\nSang Pemimpi\n",
+          "expectedOutput": "Laskar Pelangi oleh Andrea Hirata\nSang Pemimpi oleh Andrea Hirata\n"
+        }
+      ],
+      "hints": [
+        "Operasi persist pada induk tidak menurun ke anak tanpa pengaturan khusus.",
+        "Tambahkan cascade = CascadeType.PERSIST (atau ALL) di @OneToMany."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@ManyToOne di sisi pemilik (foreign key); @OneToMany(mappedBy) di sisi cermin.",
+        "Isi kedua sisi relasi lewat method bantu.",
+        "cascade meneruskan operasi dari induk ke anak; orphanRemoval menghapus anak yang dibuang.",
+        "Pakai LAZY; akses setelah EntityManager ditutup memicu LazyInitializationException."
+      ]
+    }
+  ]
+}
