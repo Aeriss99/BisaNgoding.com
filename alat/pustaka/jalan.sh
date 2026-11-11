@@ -9,4 +9,4 @@ cp index.html www/
 node server.mjs "$PWD/www" 8080 &
 sleep 2
 cp bisangoding.jar www/lib/
-node probe4.mjs
+node probe5.mjs
