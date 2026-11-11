@@ -1,0 +1,210 @@
+{
+  "id": "java-validation-05",
+  "moduleId": "validation",
+  "order": 5,
+  "title": "Constraint Buatan Sendiri",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Constraint bawaan menangani aturan umum. Tetapi setiap aplikasi punya aturan khusus: tanggal rapat harus hari kerja, nomor HP harus format Indonesia, judul harus diawali huruf besar.\n\nAturan khusus seperti itu bisa dijadikan **constraint buatan sendiri**: anotasi baru yang dipakai sama persis seperti `@NotBlank`.\n\nIbarat stempel kantor: stempel \"LUNAS\" dan \"DITERIMA\" sudah dijual di toko. Untuk stempel \"DISETUJUI KEPALA GUDANG\", kantor memesan stempel sendiri, tetapi cara memakainya tetap sama."
+    },
+    {
+      "type": "theory",
+      "content": "Constraint buatan sendiri terdiri dari dua bagian.\n\n**1. Anotasinya**\n\n```java\n@Target(ElementType.FIELD)\n@Retention(RetentionPolicy.RUNTIME)\n@Constraint(validatedBy = HariKerjaValidator.class)\n@interface HariKerja {\n    String message() default \"harus hari kerja (Senin sampai Jumat)\";\n    Class<?>[] groups() default {};\n    Class<? extends Payload>[] payload() default {};\n}\n```\n\n| Bagian | Gunanya |\n|---|---|\n| `@Target(ElementType.FIELD)` | anotasi dipasang di field |\n| `@Retention(RetentionPolicy.RUNTIME)` | anotasi masih ada saat program berjalan, sehingga validator bisa membacanya |\n| `@Constraint(validatedBy = ...)` | class yang memeriksa |\n| `message`, `groups`, `payload` | tiga atribut wajib untuk setiap constraint |\n\n**2. Validatornya**\n\n```java\npublic class HariKerjaValidator implements ConstraintValidator<HariKerja, LocalDate> {\n    @Override\n    public boolean isValid(LocalDate tanggal, ConstraintValidatorContext ctx) {\n        if (tanggal == null) {\n            return true;\n        }\n        DayOfWeek hari = tanggal.getDayOfWeek();\n        return hari != DayOfWeek.SATURDAY && hari != DayOfWeek.SUNDAY;\n    }\n}\n```\n\n`ConstraintValidator<HariKerja, LocalDate>` berarti: memeriksa anotasi `@HariKerja` untuk nilai bertipe `LocalDate`. `isValid` mengembalikan `true` kalau nilainya lolos.\n\nSeperti constraint bawaan, null dianggap valid. Urusan wajib diisi diserahkan ke `@NotNull`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nHibernate Validator membuat object validator sendiri, jadi class validator harus **public** dan punya constructor tanpa parameter.\n\nDi proyek sungguhan, validator ditulis di file sendiri sebagai `public class`. Di editor website ini semua kode ada di satu file, jadi validator ditaruh di dalam class `Main` sebagai `public static class`, dan anotasinya menunjuk `Main.HariKerjaValidator.class`:\n\n```java\npublic class Main {\n    public static class HariKerjaValidator implements ConstraintValidator<HariKerja, LocalDate> {\n        ...\n    }\n}\n\n@Constraint(validatedBy = Main.HariKerjaValidator.class)\n@interface HariKerja { ... }\n```\n\nPemakaiannya sama dengan constraint bawaan, termasuk atribut `message`:\n\n```java\n@HariKerja(message = \"Rapat hanya Senin sampai Jumat\")\nLocalDate tanggal;\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.lang.annotation.*;\nimport java.time.*;\nimport java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    public static class HariKerjaValidator implements ConstraintValidator<HariKerja, LocalDate> {\n        @Override\n        public boolean isValid(LocalDate tanggal, ConstraintValidatorContext ctx) {\n            if (tanggal == null) {\n                return true;\n            }\n            DayOfWeek hari = tanggal.getDayOfWeek();\n            return hari != DayOfWeek.SATURDAY && hari != DayOfWeek.SUNDAY;\n        }\n    }\n\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new Rapat(\"Evaluasi bulanan\", LocalDate.of(2026, 11, 14)));\n    }\n}\n\nclass Rapat {\n    @NotBlank\n    String topik;\n\n    @HariKerja\n    LocalDate tanggal;\n\n    Rapat(String topik, LocalDate tanggal) {\n        this.topik = topik;\n        this.tanggal = tanggal;\n    }\n}\n\n@Target(ElementType.FIELD)\n@Retention(RetentionPolicy.RUNTIME)\n@Constraint(validatedBy = Main.HariKerjaValidator.class)\n@interface HariKerja {\n    String message() default \"harus hari kerja (Senin sampai Jumat)\";\n    Class<?>[] groups() default {};\n    Class<? extends Payload>[] payload() default {};\n}",
+      "predict": {
+        "question": "Tebak dulu: 14 November 2026 jatuh pada hari Sabtu. Pesan apa yang muncul?",
+        "options": [
+          "Valid",
+          "tanggal: harus hari kerja (Senin sampai Jumat)",
+          "topik: must not be blank",
+          "tanggal: must be a future date"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "Pemeriksa untuk @HariKerja bertipe LocalDate."
+        },
+        {
+          "line": 16,
+          "note": "Lolos kalau bukan Sabtu atau Minggu."
+        },
+        {
+          "line": 56,
+          "note": "Anotasi menunjuk validatornya."
+        },
+        {
+          "line": 45,
+          "note": "Dipakai seperti constraint bawaan."
+        }
+      ],
+      "explanation": "Validator menemukan HariKerja di field tanggal, membuat object HariKerjaValidator, lalu memanggil isValid. Sabtu bukan hari kerja, jadi isValid mengembalikan false dan pesan bawaan anotasi dipakai.",
+      "tryThis": [
+        {
+          "task": "Ganti tanggalnya menjadi 16 November 2026 (Senin).",
+          "hint": null
+        },
+        {
+          "task": "Pasang @HariKerja(message = \"Rapat hanya Senin sampai Jumat\") lalu jalankan dengan tanggal Sabtu.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `@Retention(RetentionPolicy.RUNTIME)`**\n\nTanpa itu, anotasi hilang setelah compile. Validator tidak melihatnya, dan semua data dianggap valid tanpa pesan error apa pun.\n\n**2. Lupa `message`, `groups`, atau `payload`**\n\nValidasi gagal dengan `ConstraintDefinitionException` yang menyebut atribut yang hilang.\n\n**3. Validator tidak public**\n\nHibernate Validator tidak bisa membuat object dari class yang tidak public dan gagal dengan `ValidationException: HV000064: Unable to instantiate ConstraintValidator`.\n\n**4. Melempar NullPointerException untuk null**\n\n`nilai.charAt(0)` saat nilainya null membuat validasi berhenti dengan exception. Selalu periksa null lebih dulu dan kembalikan `true`.\n\n**5. Tipe validator tidak cocok dengan field**\n\n`ConstraintValidator<HariKerja, LocalDate>` dipasang di field `String` menghasilkan `UnexpectedTypeException`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Constraint buatan sendiri yang umum: `@NomorHp`, `@Nik`, `@KodePos`, `@SandiKuat`. Tim biasanya mengumpulkannya di satu paket, misalnya `com.toko.validation`.\n- Di Spring, validator bisa menerima bean lewat constructor, misalnya repository untuk `@EmailBelumDipakai` yang memeriksa database. Spring yang membuat object validatornya.\n- Aturan yang melibatkan dua field (tanggal selesai setelah tanggal mulai) dipasang di **class** dengan `@Target(ElementType.TYPE)`, dan validatornya menerima object utuh:\n\n```java\n@RentangTanggal\nclass Cuti {\n    LocalDate mulai;\n    LocalDate selesai;\n}\n```\n\n- Sebelum membuat constraint baru, cek dulu apakah `@Pattern` atau gabungan constraint bawaan sudah cukup. Kode yang tidak ditulis tidak perlu dirawat."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Formulir Todo 5: Huruf Awal Besar",
+      "pembuka": "Judul todo harus diawali huruf besar. Aturan ini tidak ada di constraint bawaan, jadi kita buat sendiri.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Anotasi `@HurufAwalBesar` dan validatornya, lalu dipasang di judul.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    public static class HurufBesarValidator implements ConstraintValidator<HurufAwalBesar, String> {\n        @Override\n        public boolean isValid(String nilai, ConstraintValidatorContext ctx) {\n            return nilai == null || nilai.isEmpty() || Character.isUpperCase(nilai.charAt(0));\n        }\n    }\n\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"belajar validasi\", \"Kantor\"));\n        periksa(new TodoBaru(\"Belajar validasi\", \"Kantor\"));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @HurufAwalBesar\n    String judul;\n\n    String kategori;\n\n    TodoBaru(String judul, String kategori) {\n        this.judul = judul;\n        this.kategori = kategori;\n    }\n}\n\n@Target(ElementType.FIELD)\n@Retention(RetentionPolicy.RUNTIME)\n@Constraint(validatedBy = Main.HurufBesarValidator.class)\n@interface HurufAwalBesar {\n    String message() default \"harus diawali huruf besar\";\n    Class<?>[] groups() default {};\n    Class<? extends Payload>[] payload() default {};\n}\n",
+          "keluaran": "judul: harus diawali huruf besar\nValid",
+          "otomatis": true,
+          "benar": "`belajar validasi` ditolak, `Belajar validasi` lolos.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Pasang `@HurufAwalBesar(message = \"Kategori harus diawali huruf besar\")` di field `kategori`. Lalu periksa kategori `\"rumah\"`, dan todo dengan judul `\"\"` dan kategori `null`.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    public static class HurufBesarValidator implements ConstraintValidator<HurufAwalBesar, String> {\n        @Override\n        public boolean isValid(String nilai, ConstraintValidatorContext ctx) {\n            return nilai == null || nilai.isEmpty() || Character.isUpperCase(nilai.charAt(0));\n        }\n    }\n\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"belajar validasi\", \"Kantor\"));\n        periksa(new TodoBaru(\"Belajar validasi\", \"Kantor\"));\n        periksa(new TodoBaru(\"Belajar validasi\", \"rumah\"));\n        periksa(new TodoBaru(\"\", null));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @HurufAwalBesar\n    String judul;\n\n    @HurufAwalBesar(message = \"Kategori harus diawali huruf besar\")\n    String kategori;\n\n    TodoBaru(String judul, String kategori) {\n        this.judul = judul;\n        this.kategori = kategori;\n    }\n}\n\n@Target(ElementType.FIELD)\n@Retention(RetentionPolicy.RUNTIME)\n@Constraint(validatedBy = Main.HurufBesarValidator.class)\n@interface HurufAwalBesar {\n    String message() default \"harus diawali huruf besar\";\n    Class<?>[] groups() default {};\n    Class<? extends Payload>[] payload() default {};\n}\n",
+          "keluaran": "judul: harus diawali huruf besar\nValid\nkategori: Kategori harus diawali huruf besar\njudul: Judul wajib diisi",
+          "wajib": [
+            {
+              "pola": "@HurufAwalBesar\\s*\\(\\s*message\\s*=\\s*\"Kategori harus diawali huruf besar\"\\s*\\)\\s*String\\s+kategori",
+              "pesan": "pasang anotasi dengan pesan itu di field `kategori`."
+            },
+            {
+              "pola": "new\\s+TodoBaru\\s*\\(\\s*\"\"\\s*,\\s*null\\s*\\)",
+              "pesan": "periksa `new TodoBaru(\"\", null)`."
+            }
+          ],
+          "benar": "Judul kosong hanya ditolak `@NotBlank`, dan kategori null lolos, karena validator kita menganggap kosong dan null valid.",
+          "petunjuk": "Dua baris `periksa(...)` lagi setelah memasang anotasi."
+        },
+        {
+          "arahan": "Tantangan: buat constraint `@TanpaAngka` (pesan bawaan `\"tidak boleh berisi angka\"`) dengan validator `TanpaAngkaValidator`. Pasang di kategori dengan pesan `\"Kategori tidak boleh berisi angka\"`, lalu periksa kategori `\"Kantor2\"`.",
+          "jawaban": "import java.lang.annotation.*;\nimport java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    public static class HurufBesarValidator implements ConstraintValidator<HurufAwalBesar, String> {\n        @Override\n        public boolean isValid(String nilai, ConstraintValidatorContext ctx) {\n            return nilai == null || nilai.isEmpty() || Character.isUpperCase(nilai.charAt(0));\n        }\n    }\n\n    public static class TanpaAngkaValidator implements ConstraintValidator<TanpaAngka, String> {\n        @Override\n        public boolean isValid(String nilai, ConstraintValidatorContext ctx) {\n            if (nilai == null) {\n                return true;\n            }\n            for (char c : nilai.toCharArray()) {\n                if (Character.isDigit(c)) {\n                    return false;\n                }\n            }\n            return true;\n        }\n    }\n\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"belajar validasi\", \"Kantor\"));\n        periksa(new TodoBaru(\"Belajar validasi\", \"Kantor\"));\n        periksa(new TodoBaru(\"Belajar validasi\", \"rumah\"));\n        periksa(new TodoBaru(\"\", null));\n        periksa(new TodoBaru(\"Belajar validasi\", \"Kantor2\"));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @HurufAwalBesar\n    String judul;\n\n    @HurufAwalBesar(message = \"Kategori harus diawali huruf besar\")\n    @TanpaAngka(message = \"Kategori tidak boleh berisi angka\")\n    String kategori;\n\n    TodoBaru(String judul, String kategori) {\n        this.judul = judul;\n        this.kategori = kategori;\n    }\n}\n\n@Target(ElementType.FIELD)\n@Retention(RetentionPolicy.RUNTIME)\n@Constraint(validatedBy = Main.HurufBesarValidator.class)\n@interface HurufAwalBesar {\n    String message() default \"harus diawali huruf besar\";\n    Class<?>[] groups() default {};\n    Class<? extends Payload>[] payload() default {};\n}\n\n@Target(ElementType.FIELD)\n@Retention(RetentionPolicy.RUNTIME)\n@Constraint(validatedBy = Main.TanpaAngkaValidator.class)\n@interface TanpaAngka {\n    String message() default \"tidak boleh berisi angka\";\n    Class<?>[] groups() default {};\n    Class<? extends Payload>[] payload() default {};\n}\n",
+          "keluaran": "judul: harus diawali huruf besar\nValid\nkategori: Kategori harus diawali huruf besar\njudul: Judul wajib diisi\nkategori: Kategori tidak boleh berisi angka",
+          "wajib": [
+            {
+              "pola": "@interface\\s+TanpaAngka",
+              "pesan": "buat anotasi `@interface TanpaAngka`."
+            },
+            {
+              "pola": "class\\s+TanpaAngkaValidator\\s+implements\\s+ConstraintValidator<\\s*TanpaAngka\\s*,\\s*String\\s*>",
+              "pesan": "buat `TanpaAngkaValidator implements ConstraintValidator<TanpaAngka, String>`."
+            },
+            {
+              "pola": "new\\s+TodoBaru\\s*\\(\\s*\"Belajar validasi\"\\s*,\\s*\"Kantor2\"\\s*\\)",
+              "pesan": "periksa kategori `\"Kantor2\"`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Dua constraint buatan sendiri di satu field, bekerja bersama seperti constraint bawaan.",
+          "petunjuk": "Salin pola `@HurufAwalBesar` dan validatornya. Di `isValid`, kembalikan `false` kalau ada karakter dengan `Character.isDigit(c)`."
+        }
+      ],
+      "penutup": "Formulir Todo punya aturan khusus. Materi terakhir: memasang validasi di TodoService."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa @Retention(RetentionPolicy.RUNTIME) wajib di anotasi constraint?",
+          "options": [
+            "Supaya program lebih cepat",
+            "Supaya anotasi hanya ada saat compile",
+            "Supaya anotasi masih bisa dibaca validator saat program berjalan",
+            "Supaya pesan bisa diubah"
+          ],
+          "answer": 2,
+          "explanation": "Validator bekerja saat program berjalan.",
+          "remedial": "Validator membaca anotasi lewat reflection ketika program berjalan. Tanpa `RUNTIME`, anotasi dibuang setelah compile dan constraint diam-diam tidak pernah diperiksa."
+        },
+        {
+          "question": "isValid menerima nilai null. Sebaiknya mengembalikan...",
+          "options": [
+            "false, karena null pasti salah",
+            "Melempar NullPointerException",
+            "Nilai acak",
+            "true, dan urusan wajib diisi diserahkan ke @NotNull"
+          ],
+          "answer": 3,
+          "explanation": "Ikuti kebiasaan constraint bawaan.",
+          "remedial": "Constraint bawaan menganggap null valid supaya setiap anotasi punya satu tugas. Mengikuti kebiasaan ini membuat `@HariKerja` bisa dipakai untuk field yang boleh kosong."
+        },
+        {
+          "question": "Di ConstraintValidator<NomorHp, String>, String adalah...",
+          "options": [
+            "Tipe nilai yang diperiksa",
+            "Tipe pesan error",
+            "Nama anotasi",
+            "Tipe hasil isValid"
+          ],
+          "answer": 0,
+          "explanation": "Parameter kedua.",
+          "remedial": "Parameter pertama adalah anotasinya, parameter kedua adalah tipe field yang boleh diberi anotasi itu. `isValid` menerima nilai bertipe String."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Tiga atribut yang wajib ada di setiap anotasi constraint adalah...",
+      "options": [
+        "message, value, dan max",
+        "message, groups, dan payload",
+        "min, max, dan message",
+        "target, retention, dan message"
+      ],
+      "answer": 1,
+      "explanation": "Tanpa itu muncul ConstraintDefinitionException."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca nomor HP per baris lalu mencetak nomor diikuti titik dua dan hasil periksa. Anotasi NomorHp sudah lengkap, tetapi NomorHpValidator selalu mengembalikan true. Lengkapi isValid: null dianggap valid; selain itu nomor harus diawali 08, panjangnya 10 sampai 13, dan semuanya angka.",
+      "starterCode": "import java.lang.annotation.*;\nimport java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    public static class NomorHpValidator implements ConstraintValidator<NomorHp, String> {\n        @Override\n        public boolean isValid(String nilai, ConstraintValidatorContext ctx) {\n            return true;\n        }\n    }\n\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String hp = in.nextLine();\n            System.out.println(hp + \":\");\n            periksa(new Kontak(hp));\n        }\n    }\n}\n\nclass Kontak {\n    @NomorHp\n    String hp;\n\n    Kontak(String hp) {\n        this.hp = hp;\n    }\n}\n\n@Target(ElementType.FIELD)\n@Retention(RetentionPolicy.RUNTIME)\n@Constraint(validatedBy = Main.NomorHpValidator.class)\n@interface NomorHp {\n    String message() default \"Nomor HP diawali 08, 10 sampai 13 angka\";\n    Class<?>[] groups() default {};\n    Class<? extends Payload>[] payload() default {};\n}",
+      "solution": "import java.lang.annotation.*;\nimport java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    public static class NomorHpValidator implements ConstraintValidator<NomorHp, String> {\n        @Override\n        public boolean isValid(String nilai, ConstraintValidatorContext ctx) {\n            if (nilai == null) {\n                return true;\n            }\n            if (!nilai.startsWith(\"08\") || nilai.length() < 10 || nilai.length() > 13) {\n                return false;\n            }\n            for (char c : nilai.toCharArray()) {\n                if (!Character.isDigit(c)) {\n                    return false;\n                }\n            }\n            return true;\n        }\n    }\n\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String hp = in.nextLine();\n            System.out.println(hp + \":\");\n            periksa(new Kontak(hp));\n        }\n    }\n}\n\nclass Kontak {\n    @NomorHp\n    String hp;\n\n    Kontak(String hp) {\n        this.hp = hp;\n    }\n}\n\n@Target(ElementType.FIELD)\n@Retention(RetentionPolicy.RUNTIME)\n@Constraint(validatedBy = Main.NomorHpValidator.class)\n@interface NomorHp {\n    String message() default \"Nomor HP diawali 08, 10 sampai 13 angka\";\n    Class<?>[] groups() default {};\n    Class<? extends Payload>[] payload() default {};\n}",
+      "tests": [
+        {
+          "input": "081234567890\n0812\n628123456789\n08123abc901\n",
+          "expectedOutput": "081234567890:\nValid\n0812:\nhp: Nomor HP diawali 08, 10 sampai 13 angka\n628123456789:\nhp: Nomor HP diawali 08, 10 sampai 13 angka\n08123abc901:\nhp: Nomor HP diawali 08, 10 sampai 13 angka\n"
+        },
+        {
+          "input": "0812345678\n08123456789012\n",
+          "expectedOutput": "0812345678:\nValid\n08123456789012:\nhp: Nomor HP diawali 08, 10 sampai 13 angka\n"
+        }
+      ],
+      "hints": [
+        "Periksa startsWith(\"08\") dan length() lebih dulu.",
+        "Lalu cek setiap karakter dengan Character.isDigit."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Constraint sendiri = anotasi (@Constraint, RUNTIME, message, groups, payload) + ConstraintValidator.",
+        "isValid mengembalikan true kalau lolos; null dianggap valid.",
+        "Class validator harus public dengan constructor tanpa parameter.",
+        "Aturan dua field dipasang di level class."
+      ]
+    }
+  ]
+}

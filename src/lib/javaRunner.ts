@@ -56,6 +56,8 @@ function buildRunnerSource(): string {
     '    System.setOut(new PrintStream(ob, true, "UTF-8"));',
     '    System.setErr(new PrintStream(eb, true, "UTF-8"));',
     '    System.setIn(new FileInputStream(new File("/str/stdin.txt")));',
+    // Keluaran materi direkam dengan locale en_US; samakan supaya pesan library (mis. Hibernate Validator) dan format angka sama di semua browser.
+    '    java.util.Locale.setDefault(java.util.Locale.US);',
     '    int code = 0;',
     '    try {',
     '      Main.main(new String[0]);',
