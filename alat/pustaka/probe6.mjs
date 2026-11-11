@@ -22,7 +22,6 @@ async function jalan(html, berkas) {
   }
   await page.close();
 }
-const t = fs.readdirSync('p8').sort().map((f) => 'p8/' + f);
-for (const f of t.filter((x) => !x.includes('o_virtual'))) { await jalan('index.html', [f]); }
+const t = fs.readdirSync('p9').sort().map((f) => 'p9/' + f);
 for (const f of t) { await jalan('index21.html', [f]); }
 await browser.close();
