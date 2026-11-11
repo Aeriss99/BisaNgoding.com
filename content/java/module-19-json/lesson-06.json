@@ -1,0 +1,203 @@
+{
+  "id": "java-json-06",
+  "moduleId": "json",
+  "order": 6,
+  "title": "Tanggal dan Waktu",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Todo punya tenggat, pesanan punya waktu bayar, dan acara punya tanggal. JSON sendiri tidak punya tipe tanggal, jadi tanggal harus ditulis sebagai teks atau angka, dan kedua pihak harus sepakat bentuknya.\n\nJackson 2 tidak mengenal `LocalDate` dan teman-temannya secara bawaan. Ada modul tambahan: **JavaTimeModule**.\n\nIbarat menulis tanggal di surat untuk teman di luar negeri: 11/12 bisa berarti 11 Desember atau 12 November. Bentuk internasional 2026-12-11 tidak bisa disalahpahami."
+    },
+    {
+      "type": "theory",
+      "content": "Tanpa modul, menulis object berisi `LocalDate` gagal:\n\n```text\nJava 8 date/time type `java.time.LocalDate` not supported by default\n```\n\nDaftarkan modulnya, lalu matikan penulisan tanggal sebagai angka:\n\n```java\nObjectMapper mapper = new ObjectMapper()\n        .registerModule(new JavaTimeModule())\n        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);\n```\n\n| Pengaturan | `LocalDate.of(2026, 11, 16)` ditulis sebagai |\n|---|---|\n| modul saja | `[2026,11,16]` |\n| modul + `disable(WRITE_DATES_AS_TIMESTAMPS)` | `\"2026-11-16\"` |\n| `@JsonFormat(pattern = \"dd-MM-yyyy\")` | `\"16-11-2026\"` |\n\nBentuk `\"2026-11-16\"` dan `\"2026-11-16T09:30:00\"` adalah standar **ISO 8601**, bentuk yang paling aman untuk API karena dimengerti semua bahasa pemrograman.\n\nSaat membaca, teks ISO seperti `\"2026-11-16\"` langsung menjadi `LocalDate` selama modulnya terdaftar.\n\n`JavaTimeModule` ada di library `jackson-datatype-jsr310`, paket `com.fasterxml.jackson.datatype.jsr310`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nclass Todo {\n    private LocalDate tenggat;\n\n    @JsonFormat(pattern = \"dd-MM-yyyy HH:mm\")\n    private LocalDateTime dibuat;\n    ...\n}\n```\n\n```text\n{\"judul\":\"Kirim laporan\",\"tenggat\":\"2026-11-20\",\"dibuat\":\"11-11-2026 09:30\"}\n```\n\n`@JsonFormat` dipakai untuk menulis **dan** membaca, jadi JSON yang dibaca juga harus berbentuk `dd-MM-yyyy HH:mm`.\n\nUntuk waktu yang melibatkan zona (jadwal penerbangan, transaksi antar negara), pakai `Instant` atau `OffsetDateTime`, yang ditulis dengan zona: `\"2026-11-11T02:30:00Z\"`."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());\n        Acara a = new Acara(\"Rapat\", LocalDate.of(2026, 11, 16));\n        System.out.println(mapper.writeValueAsString(a));\n    }\n}\n\nclass Acara {\n    private final String nama;\n    private final LocalDate tanggal;\n\n    Acara(String nama, LocalDate tanggal) {\n        this.nama = nama;\n        this.tanggal = tanggal;\n    }\n\n    public String getNama() {\n        return nama;\n    }\n\n    public LocalDate getTanggal() {\n        return tanggal;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: modul sudah didaftarkan, tetapi WRITE_DATES_AS_TIMESTAMPS belum dimatikan. JSON apa yang tercetak?",
+        "options": [
+          "{\"nama\":\"Rapat\",\"tanggal\":\"2026-11-16\"}",
+          "{\"nama\":\"Rapat\",\"tanggal\":\"16-11-2026\"}",
+          "{\"nama\":\"Rapat\",\"tanggal\":[2026,11,16]}",
+          "{\"nama\":\"Rapat\",\"tanggal\":\"MONDAY\"}"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 12,
+          "note": "Modul untuk java.time."
+        },
+        {
+          "line": 13,
+          "note": "Tanggal sebagai LocalDate."
+        }
+      ],
+      "explanation": "Secara bawaan, Jackson 2 menulis tanggal sebagai angka (timestamp). Untuk LocalDate, bentuknya array tahun, bulan, tanggal. Bentuk ini sulit dibaca dan jarang diharapkan pihak lain.\n\nMematikan WRITE_DATES_AS_TIMESTAMPS membuat tanggal ditulis sebagai teks ISO.",
+      "tryThis": [
+        {
+          "task": "Tambahkan .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS) lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Hapus registerModule. Error apa yang muncul?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa mendaftarkan JavaTimeModule**\n\nMenulis atau membaca `LocalDate` gagal dengan `InvalidDefinitionException`. Daftarkan modulnya di satu tempat saat membuat mapper.\n\n**2. Tanggal tertulis sebagai array**\n\n`[2026,11,16]` muncul karena `WRITE_DATES_AS_TIMESTAMPS` masih aktif. Matikan untuk API.\n\n**3. Bentuk tanggal lokal di API**\n\n`\"16/11/2026\"` membingungkan penerima di negara lain. Untuk API pakai ISO 8601; bentuk lokal hanya untuk tampilan.\n\n**4. `LocalDateTime` untuk waktu kejadian lintas zona**\n\n`LocalDateTime` tidak punya zona. Jam 09.30 di Jakarta dan di London berbeda. Simpan dengan `Instant` atau `OffsetDateTime`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Spring Boot sudah mendaftarkan JavaTimeModule dan mematikan `WRITE_DATES_AS_TIMESTAMPS` secara bawaan, sehingga tanggal langsung tertulis dalam ISO 8601.\n- Di Jackson 3, dukungan `java.time` sudah menjadi bagian inti, tanpa modul terpisah.\n- Dependency Maven untuk Jackson 2:\n\n```xml\n<dependency>\n  <groupId>com.fasterxml.jackson.datatype</groupId>\n  <artifactId>jackson-datatype-jsr310</artifactId>\n  <version>2.17.2</version>\n</dependency>\n```\n\n- Kebiasaan umum: server menyimpan dan mengirim waktu dalam UTC (`Instant`), lalu aplikasi di HP mengubahnya ke zona pengguna saat menampilkan."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JSON 6: Tenggat Todo",
+      "pembuka": "Todo sekarang punya tenggat bertipe `LocalDate`.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Mapper didaftarkan `JavaTimeModule` dan menulis tanggal sebagai teks.",
+          "jawaban": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper()\n                .registerModule(new JavaTimeModule())\n                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);\n        Todo t = new Todo(\"Kirim laporan\", LocalDate.of(2026, 11, 20));\n        System.out.println(mapper.writeValueAsString(t));\n    }\n}\n\nclass Todo {\n    private String judul;\n    private LocalDate tenggat;\n\n    public Todo() {\n    }\n\n    public Todo(String judul, LocalDate tenggat) {\n        this.judul = judul;\n        this.tenggat = tenggat;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public LocalDate getTenggat() {\n        return tenggat;\n    }\n\n    public void setTenggat(LocalDate tenggat) {\n        this.tenggat = tenggat;\n    }\n}\n",
+          "keluaran": "{\"judul\":\"Kirim laporan\",\"tenggat\":\"2026-11-20\"}",
+          "otomatis": true,
+          "benar": "Tenggat tertulis `\"2026-11-20\"`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Baca `{\"judul\":\"Rapat\",\"tenggat\":\"2026-11-16\"}` menjadi `Todo`, lalu cetak judul dan hari dari tenggatnya (`getDayOfWeek()`).",
+          "jawaban": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper()\n                .registerModule(new JavaTimeModule())\n                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);\n        Todo t = new Todo(\"Kirim laporan\", LocalDate.of(2026, 11, 20));\n        System.out.println(mapper.writeValueAsString(t));\n\n        Todo b = mapper.readValue(\"{\\\"judul\\\":\\\"Rapat\\\",\\\"tenggat\\\":\\\"2026-11-16\\\"}\", Todo.class);\n        System.out.println(b.getJudul() + \" \" + b.getTenggat().getDayOfWeek());\n    }\n}\n\nclass Todo {\n    private String judul;\n    private LocalDate tenggat;\n\n    public Todo() {\n    }\n\n    public Todo(String judul, LocalDate tenggat) {\n        this.judul = judul;\n        this.tenggat = tenggat;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public LocalDate getTenggat() {\n        return tenggat;\n    }\n\n    public void setTenggat(LocalDate tenggat) {\n        this.tenggat = tenggat;\n    }\n}\n",
+          "keluaran": "{\"judul\":\"Kirim laporan\",\"tenggat\":\"2026-11-20\"}\nRapat MONDAY",
+          "wajib": [
+            {
+              "pola": "getTenggat\\(\\)\\.getDayOfWeek\\(\\)",
+              "pesan": "cetak `getTenggat().getDayOfWeek()`."
+            }
+          ],
+          "benar": "Teks ISO langsung menjadi `LocalDate`.",
+          "petunjuk": "Di String Java: `\"{\\\"judul\\\":\\\"Rapat\\\",\\\"tenggat\\\":\\\"2026-11-16\\\"}\"`."
+        },
+        {
+          "arahan": "Tambahkan field `LocalDateTime dibuat` dengan `@JsonFormat(pattern = \"dd-MM-yyyy HH:mm\")`, getter, dan setter. Isi `t.setDibuat(LocalDateTime.of(2026, 11, 11, 9, 30));` lalu cetak JSON `t`.",
+          "jawaban": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper()\n                .registerModule(new JavaTimeModule())\n                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);\n        Todo t = new Todo(\"Kirim laporan\", LocalDate.of(2026, 11, 20));\n        System.out.println(mapper.writeValueAsString(t));\n\n        Todo b = mapper.readValue(\"{\\\"judul\\\":\\\"Rapat\\\",\\\"tenggat\\\":\\\"2026-11-16\\\"}\", Todo.class);\n        System.out.println(b.getJudul() + \" \" + b.getTenggat().getDayOfWeek());\n\n        t.setDibuat(LocalDateTime.of(2026, 11, 11, 9, 30));\n        System.out.println(mapper.writeValueAsString(t));\n    }\n}\n\nclass Todo {\n    private String judul;\n    private LocalDate tenggat;\n\n    @JsonFormat(pattern = \"dd-MM-yyyy HH:mm\")\n    private LocalDateTime dibuat;\n\n    public Todo() {\n    }\n\n    public Todo(String judul, LocalDate tenggat) {\n        this.judul = judul;\n        this.tenggat = tenggat;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public LocalDate getTenggat() {\n        return tenggat;\n    }\n\n    public void setTenggat(LocalDate tenggat) {\n        this.tenggat = tenggat;\n    }\n\n    public LocalDateTime getDibuat() {\n        return dibuat;\n    }\n\n    public void setDibuat(LocalDateTime dibuat) {\n        this.dibuat = dibuat;\n    }\n}\n",
+          "keluaran": "{\"judul\":\"Kirim laporan\",\"tenggat\":\"2026-11-20\",\"dibuat\":null}\nRapat MONDAY\n{\"judul\":\"Kirim laporan\",\"tenggat\":\"2026-11-20\",\"dibuat\":\"11-11-2026 09:30\"}",
+          "wajib": [
+            {
+              "pola": "@JsonFormat\\s*\\(\\s*pattern\\s*=\\s*\"dd-MM-yyyy HH:mm\"\\s*\\)",
+              "pesan": "pasang `@JsonFormat(pattern = \"dd-MM-yyyy HH:mm\")`."
+            },
+            {
+              "pola": "t\\.setDibuat\\s*\\(",
+              "pesan": "isi `t.setDibuat(...)`."
+            }
+          ],
+          "benar": "Tenggat tetap ISO, `dibuat` memakai bentuk sendiri.",
+          "petunjuk": "Anotasi di atas field `private LocalDateTime dibuat;`."
+        },
+        {
+          "arahan": "Tantangan: hitung sisa hari dari 11 November 2026 sampai tenggat `t`, lalu cetak `Sisa 9 hari`.",
+          "jawaban": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper()\n                .registerModule(new JavaTimeModule())\n                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);\n        Todo t = new Todo(\"Kirim laporan\", LocalDate.of(2026, 11, 20));\n        System.out.println(mapper.writeValueAsString(t));\n\n        Todo b = mapper.readValue(\"{\\\"judul\\\":\\\"Rapat\\\",\\\"tenggat\\\":\\\"2026-11-16\\\"}\", Todo.class);\n        System.out.println(b.getJudul() + \" \" + b.getTenggat().getDayOfWeek());\n\n        t.setDibuat(LocalDateTime.of(2026, 11, 11, 9, 30));\n        System.out.println(mapper.writeValueAsString(t));\n\n        long sisa = ChronoUnit.DAYS.between(LocalDate.of(2026, 11, 11), t.getTenggat());\n        System.out.println(\"Sisa \" + sisa + \" hari\");\n    }\n}\n\nclass Todo {\n    private String judul;\n    private LocalDate tenggat;\n\n    @JsonFormat(pattern = \"dd-MM-yyyy HH:mm\")\n    private LocalDateTime dibuat;\n\n    public Todo() {\n    }\n\n    public Todo(String judul, LocalDate tenggat) {\n        this.judul = judul;\n        this.tenggat = tenggat;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public void setJudul(String judul) {\n        this.judul = judul;\n    }\n\n    public LocalDate getTenggat() {\n        return tenggat;\n    }\n\n    public void setTenggat(LocalDate tenggat) {\n        this.tenggat = tenggat;\n    }\n\n    public LocalDateTime getDibuat() {\n        return dibuat;\n    }\n\n    public void setDibuat(LocalDateTime dibuat) {\n        this.dibuat = dibuat;\n    }\n}\n",
+          "keluaran": "{\"judul\":\"Kirim laporan\",\"tenggat\":\"2026-11-20\",\"dibuat\":null}\nRapat MONDAY\n{\"judul\":\"Kirim laporan\",\"tenggat\":\"2026-11-20\",\"dibuat\":\"11-11-2026 09:30\"}\nSisa 9 hari",
+          "wajib": [
+            {
+              "pola": "ChronoUnit\\.DAYS\\.between\\s*\\(",
+              "pesan": "pakai `ChronoUnit.DAYS.between`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Data dari JSON langsung bisa dihitung sebagai tanggal sungguhan.",
+          "petunjuk": "`ChronoUnit.DAYS.between(LocalDate.of(2026, 11, 11), t.getTenggat())`."
+        }
+      ],
+      "penutup": "Tanggal aman bolak-balik. Materi terakhir: menyimpan Todolist ke file JSON."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Tanpa JavaTimeModule, menulis object yang berisi LocalDate menghasilkan...",
+          "options": [
+            "Tanggal ditulis sebagai teks ISO",
+            "Tanggal dilewati tanpa error",
+            "Tanggal ditulis sebagai null",
+            "InvalidDefinitionException"
+          ],
+          "answer": 3,
+          "explanation": "Jackson 2 tidak mengenal java.time.",
+          "remedial": "Jackson 2 tidak tahu cara menulis tipe `java.time` tanpa modul, dan berhenti dengan pesan yang menyarankan `jackson-datatype-jsr310`."
+        },
+        {
+          "question": "Pengaturan supaya LocalDate tertulis \"2026-11-16\" dan bukan array adalah...",
+          "options": [
+            "disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)",
+            "enable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)",
+            "registerModule saja",
+            "setDateFormat(null)"
+          ],
+          "answer": 0,
+          "explanation": "Matikan timestamp.",
+          "remedial": "Dengan modul saja, tanggal ditulis sebagai angka (array). Mematikan `WRITE_DATES_AS_TIMESTAMPS` membuat tanggal ditulis sebagai teks ISO 8601."
+        },
+        {
+          "question": "Bentuk tanggal yang paling aman untuk API adalah...",
+          "options": [
+            "16/11/2026",
+            "ISO 8601, misalnya 2026-11-16",
+            "11/16/2026",
+            "Senin, 16 November 2026"
+          ],
+          "answer": 1,
+          "explanation": "Standar internasional.",
+          "remedial": "ISO 8601 tidak ambigu dan dimengerti semua bahasa pemrograman. Bentuk lokal bisa dibaca berbeda di negara lain."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Anotasi untuk menulis LocalDateTime dengan bentuk dd-MM-yyyy HH:mm adalah...",
+      "options": [
+        "@JsonProperty(\"dd-MM-yyyy HH:mm\")",
+        "@JsonInclude(\"dd-MM-yyyy HH:mm\")",
+        "@JsonFormat(pattern = \"dd-MM-yyyy HH:mm\")",
+        "@DateTimeFormat(\"dd-MM-yyyy\")"
+      ],
+      "answer": 2,
+      "explanation": "Mengatur format."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca hari libur dalam bentuk JSON, satu per baris, misalnya {\"nama\":\"Natal\",\"tanggal\":\"2026-12-25\"}, lalu mencetak nama: hari dalam seminggu (misalnya Natal: FRIDAY). Program gagal dengan InvalidDefinitionException. Perbaiki pembuatan ObjectMapper.",
+      "starterCode": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            Libur l = mapper.readValue(in.nextLine(), Libur.class);\n            System.out.println(l.getNama() + \": \" + l.getTanggal().getDayOfWeek());\n        }\n    }\n}\n\nclass Libur {\n    private String nama;\n    private LocalDate tanggal;\n\n    public Libur() {\n    }\n\n    public String getNama() {\n        return nama;\n    }\n\n    public void setNama(String nama) {\n        this.nama = nama;\n    }\n\n    public LocalDate getTanggal() {\n        return tanggal;\n    }\n\n    public void setTanggal(LocalDate tanggal) {\n        this.tanggal = tanggal;\n    }\n}",
+      "solution": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\nimport com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            Libur l = mapper.readValue(in.nextLine(), Libur.class);\n            System.out.println(l.getNama() + \": \" + l.getTanggal().getDayOfWeek());\n        }\n    }\n}\n\nclass Libur {\n    private String nama;\n    private LocalDate tanggal;\n\n    public Libur() {\n    }\n\n    public String getNama() {\n        return nama;\n    }\n\n    public void setNama(String nama) {\n        this.nama = nama;\n    }\n\n    public LocalDate getTanggal() {\n        return tanggal;\n    }\n\n    public void setTanggal(LocalDate tanggal) {\n        this.tanggal = tanggal;\n    }\n}",
+      "tests": [
+        {
+          "input": "{\"nama\":\"Natal\",\"tanggal\":\"2026-12-25\"}\n{\"nama\":\"Tahun Baru\",\"tanggal\":\"2027-01-01\"}\n",
+          "expectedOutput": "Natal: FRIDAY\nTahun Baru: FRIDAY\n"
+        }
+      ],
+      "hints": [
+        "Jackson 2 butuh modul untuk LocalDate.",
+        "new ObjectMapper().registerModule(new JavaTimeModule())"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Jackson 2 butuh JavaTimeModule untuk LocalDate, LocalDateTime, dan Instant.",
+        "Matikan WRITE_DATES_AS_TIMESTAMPS supaya tanggal tertulis \"2026-11-16\".",
+        "@JsonFormat(pattern = ...) mengatur bentuk saat menulis dan membaca.",
+        "Pakai ISO 8601 untuk API; Instant untuk kejadian lintas zona."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,211 @@
+{
+  "id": "java-json-05",
+  "moduleId": "json",
+  "order": 5,
+  "title": "Anotasi Jackson",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Bentuk JSON sering sudah ditentukan pihak lain. API pembayaran meminta `nama_lengkap`, bukan `nama`. Sandi tidak boleh ikut terkirim. Properti kosong sebaiknya tidak ditulis sama sekali.\n\nAnotasi Jackson mengatur bentuk JSON tanpa mengubah nama field dan method di Java.\n\nIbarat stiker di koper: koper tetap sama, tetapi stiker \"JANGAN DIBUKA\" atau \"NAMA: SARI\" memberi tahu petugas cara memperlakukannya."
+    },
+    {
+      "type": "theory",
+      "content": "| Anotasi | Dipasang di | Gunanya |\n|---|---|---|\n| `@JsonProperty(\"nama_lengkap\")` | getter, field, atau parameter | ganti nama properti JSON |\n| `@JsonIgnore` | getter atau field | jangan tulis dan jangan baca properti ini |\n| `@JsonInclude(JsonInclude.Include.NON_NULL)` | class atau field | jangan tulis properti yang null |\n| `@JsonPropertyOrder({\"id\", \"judul\"})` | class | atur urutan properti |\n| `@JsonIgnoreProperties(ignoreUnknown = true)` | class | abaikan properti asing saat membaca |\n| `@JsonCreator` | constructor | pakai constructor ini saat membaca |\n\nSemuanya ada di paket `com.fasterxml.jackson.annotation`.\n\n**Class immutable** (semua field `final`, tanpa setter) tidak bisa dibaca dengan cara bawaan, karena Jackson tidak bisa membuat object kosong lalu mengisinya. `@JsonCreator` memberi tahu Jackson constructor mana yang dipakai, dan `@JsonProperty` di setiap parameter memetakan properti JSON ke parameter:\n\n```java\n@JsonCreator\nTodo(@JsonProperty(\"id\") int id,\n     @JsonProperty(\"judul\") String judul,\n     @JsonProperty(\"selesai\") boolean selesai) { ... }\n```\n\nNama di `@JsonProperty` wajib ditulis, karena Java 8 tidak menyimpan nama parameter setelah compile."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@JsonInclude(JsonInclude.Include.NON_NULL)\nclass Akun {\n    @JsonProperty(\"nama_lengkap\")\n    public String getNama() { ... }\n\n    @JsonIgnore\n    public String getSandi() { ... }\n\n    public String getKota() { ... }\n}\n```\n\n`new Akun(\"Sari\", \"rahasia123\", null)` menjadi:\n\n```text\n{\"nama_lengkap\":\"Sari\"}\n```\n\nSandi diabaikan, dan kota tidak ditulis karena null.\n\nGetter yang tidak berhubungan dengan field pun ikut menjadi properti. `getLabel()` yang menggabungkan id dan judul akan muncul sebagai `\"label\"` di JSON, kecuali diberi `@JsonIgnore`.\n\nUntuk mengganti gaya nama semua properti sekaligus menjadi `snake_case`:\n\n```java\nmapper.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        Akun a = new Akun(\"Sari\", \"rahasia123\", null);\n        System.out.println(mapper.writeValueAsString(a));\n    }\n}\n\n@JsonInclude(JsonInclude.Include.NON_NULL)\nclass Akun {\n    private final String nama;\n    private final String sandi;\n    private final String kota;\n\n    Akun(String nama, String sandi, String kota) {\n        this.nama = nama;\n        this.sandi = sandi;\n        this.kota = kota;\n    }\n\n    @JsonProperty(\"nama_lengkap\")\n    public String getNama() {\n        return nama;\n    }\n\n    @JsonIgnore\n    public String getSandi() {\n        return sandi;\n    }\n\n    public String getKota() {\n        return kota;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: JSON apa yang tercetak?",
+        "options": [
+          "{\"nama\":\"Sari\",\"sandi\":\"rahasia123\",\"kota\":null}",
+          "{\"nama_lengkap\":\"Sari\"}",
+          "{\"nama_lengkap\":\"Sari\",\"kota\":null}",
+          "{\"nama_lengkap\":\"Sari\",\"sandi\":\"rahasia123\"}"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 15,
+          "note": "Properti null tidak ditulis."
+        },
+        {
+          "line": 27,
+          "note": "Nama properti diganti."
+        },
+        {
+          "line": 32,
+          "note": "Sandi tidak pernah ditulis."
+        }
+      ],
+      "explanation": "Tiga anotasi bekerja bersama. Nama berganti menjadi nama_lengkap, sandi dilewati karena JsonIgnore, dan kota tidak ditulis karena nilainya null dan class memakai NON_NULL.",
+      "tryThis": [
+        {
+          "task": "Isi kota dengan \"Bandung\" lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Hapus @JsonIgnore dari getSandi. Kenapa ini berbahaya di aplikasi sungguhan?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengirim data rahasia**\n\nGetter `getSandi()` atau `getToken()` tanpa `@JsonIgnore` ikut terkirim ke klien. Lebih aman lagi: kirim DTO khusus yang memang tidak punya field rahasia.\n\n**2. `@JsonCreator` tanpa nama di `@JsonProperty`**\n\n`@JsonProperty int id` tanpa nama gagal di Java 8, karena nama parameter tidak tersimpan. Tulis `@JsonProperty(\"id\")`.\n\n**3. Nama di `@JsonProperty` constructor berbeda dengan nama getter**\n\nGetter menulis `\"judul\"` tetapi constructor membaca `\"title\"`. JSON hasil tulis tidak bisa dibaca kembali. Samakan keduanya.\n\n**4. Getter hitungan ikut terkirim**\n\n`getLabel()` atau `getTotal()` menjadi properti. Kalau penerima tidak mengenalnya, mereka bisa gagal dengan `UnrecognizedPropertyException`. Beri `@JsonIgnore` kalau tidak dimaksudkan."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Spring Boot bisa mengatur gaya nama untuk seluruh API lewat `application.properties`:\n\n```properties\nspring.jackson.property-naming-strategy=SNAKE_CASE\nspring.jackson.default-property-inclusion=non_null\n```\n\n- Dengan `record` (Java 16 ke atas), Jackson 2.12 ke atas otomatis memakai constructor record, sehingga `@JsonCreator` tidak perlu ditulis.\n- Dengan Lombok, `@Value` atau `@AllArgsConstructor` bisa digabung dengan `@Jacksonized` dan `@Builder` untuk class immutable.\n- Kebiasaan aman di tim: entity database tidak pernah dikembalikan langsung sebagai JSON. Selalu lewat DTO, supaya field seperti sandi tidak bocor."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist JSON 5: Todo yang Rapi",
+      "pembuka": "`Todo` sekarang immutable dan punya getter `getLabel()` untuk tampilan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Getter `getLabel()` ikut menjadi properti JSON.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        Todo t = new Todo(1, \"Belajar JSON\", false);\n        System.out.println(mapper.writeValueAsString(t));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final boolean selesai;\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public String getLabel() {\n        return id + \". \" + judul;\n    }\n}\n",
+          "keluaran": "{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false,\"label\":\"1. Belajar JSON\"}",
+          "otomatis": true,
+          "benar": "Ada properti `label` yang sebenarnya hanya untuk tampilan.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Beri `@JsonIgnore` di atas `getLabel()` supaya tidak ikut ke JSON.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        Todo t = new Todo(1, \"Belajar JSON\", false);\n        System.out.println(mapper.writeValueAsString(t));\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final boolean selesai;\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    @JsonIgnore\n    public String getLabel() {\n        return id + \". \" + judul;\n    }\n}\n",
+          "keluaran": "{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false}",
+          "wajib": [
+            {
+              "pola": "@JsonIgnore\\s+public\\s+String\\s+getLabel",
+              "pesan": "pasang `@JsonIgnore` di atas `getLabel()`."
+            }
+          ],
+          "benar": "Hanya data asli yang ikut.",
+          "petunjuk": "Tulis `@JsonIgnore` tepat di atas method itu."
+        },
+        {
+          "arahan": "Tambahkan field `private String catatan;` dengan getter dan setter, lalu pasang `@JsonInclude(JsonInclude.Include.NON_NULL)` di atas class. Cetak JSON setelah `t.setCatatan(\"bab 1 sampai 3\");`.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        Todo t = new Todo(1, \"Belajar JSON\", false);\n        System.out.println(mapper.writeValueAsString(t));\n\n        t.setCatatan(\"bab 1 sampai 3\");\n        System.out.println(mapper.writeValueAsString(t));\n    }\n}\n\n@JsonInclude(JsonInclude.Include.NON_NULL)\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final boolean selesai;\n    private String catatan;\n\n    Todo(int id, String judul, boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public String getCatatan() {\n        return catatan;\n    }\n\n    public void setCatatan(String catatan) {\n        this.catatan = catatan;\n    }\n\n    @JsonIgnore\n    public String getLabel() {\n        return id + \". \" + judul;\n    }\n}\n",
+          "keluaran": "{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false}\n{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false,\"catatan\":\"bab 1 sampai 3\"}",
+          "wajib": [
+            {
+              "pola": "@JsonInclude\\s*\\(\\s*JsonInclude\\.Include\\.NON_NULL\\s*\\)\\s*class\\s+Todo",
+              "pesan": "pasang `@JsonInclude(JsonInclude.Include.NON_NULL)` di atas `class Todo`."
+            },
+            {
+              "pola": "t\\.setCatatan\\s*\\(\\s*\"bab 1 sampai 3\"\\s*\\)",
+              "pesan": "isi `t.setCatatan(\"bab 1 sampai 3\")`."
+            }
+          ],
+          "benar": "`catatan` hanya muncul kalau ada isinya.",
+          "petunjuk": "JSON pertama (catatan null) tidak berubah, JSON kedua berisi catatan."
+        },
+        {
+          "arahan": "Tantangan: baca `{\"id\":2,\"judul\":\"Beli kopi\",\"selesai\":true}` menjadi `Todo`, lalu cetak `getLabel()` dan `isSelesai()`. Pasang `@JsonCreator` dan `@JsonProperty` di constructor.",
+          "jawaban": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        Todo t = new Todo(1, \"Belajar JSON\", false);\n        System.out.println(mapper.writeValueAsString(t));\n\n        t.setCatatan(\"bab 1 sampai 3\");\n        System.out.println(mapper.writeValueAsString(t));\n\n        Todo dibaca = mapper.readValue(\"{\\\"id\\\":2,\\\"judul\\\":\\\"Beli kopi\\\",\\\"selesai\\\":true}\", Todo.class);\n        System.out.println(dibaca.getLabel() + \" \" + dibaca.isSelesai());\n    }\n}\n\n@JsonInclude(JsonInclude.Include.NON_NULL)\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final boolean selesai;\n    private String catatan;\n\n    @JsonCreator\n    Todo(@JsonProperty(\"id\") int id, @JsonProperty(\"judul\") String judul, @JsonProperty(\"selesai\") boolean selesai) {\n        this.id = id;\n        this.judul = judul;\n        this.selesai = selesai;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getJudul() {\n        return judul;\n    }\n\n    public boolean isSelesai() {\n        return selesai;\n    }\n\n    public String getCatatan() {\n        return catatan;\n    }\n\n    public void setCatatan(String catatan) {\n        this.catatan = catatan;\n    }\n\n    @JsonIgnore\n    public String getLabel() {\n        return id + \". \" + judul;\n    }\n}\n",
+          "keluaran": "{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false}\n{\"id\":1,\"judul\":\"Belajar JSON\",\"selesai\":false,\"catatan\":\"bab 1 sampai 3\"}\n2. Beli kopi true",
+          "wajib": [
+            {
+              "pola": "@JsonCreator",
+              "pesan": "pasang `@JsonCreator`."
+            },
+            {
+              "pola": "@JsonProperty\\s*\\(\\s*\"judul\"\\s*\\)\\s*String\\s+judul",
+              "pesan": "beri `@JsonProperty(\"judul\")` di parameter judul."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Class immutable tetap bisa dibaca dari JSON.",
+          "petunjuk": "`@JsonCreator` di atas constructor, dan `@JsonProperty(\"id\")`, `@JsonProperty(\"judul\")`, `@JsonProperty(\"selesai\")` di parameternya."
+        }
+      ],
+      "penutup": "Bentuk JSON Todo sudah rapi. Berikutnya: tanggal dan waktu."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Anotasi supaya getSandi tidak pernah muncul di JSON adalah...",
+          "options": [
+            "@JsonInclude",
+            "@JsonProperty(\"sandi\")",
+            "@JsonIgnore",
+            "@JsonCreator"
+          ],
+          "answer": 2,
+          "explanation": "Abaikan properti.",
+          "remedial": "`@JsonIgnore` membuat Jackson melewati properti itu saat menulis dan membaca. `@JsonInclude` hanya mengatur kapan properti ditulis berdasarkan nilainya."
+        },
+        {
+          "question": "Kenapa class dengan semua field final butuh @JsonCreator untuk dibaca?",
+          "options": [
+            "Karena field final tidak bisa ditulis ke JSON",
+            "Karena Jackson melarang final",
+            "Supaya JSON lebih pendek",
+            "Karena tidak ada constructor kosong dan setter untuk mengisinya"
+          ],
+          "answer": 3,
+          "explanation": "Cara bawaan butuh setter.",
+          "remedial": "Cara bawaan membuat object kosong lalu memanggil setter. Class immutable tidak punya keduanya, jadi Jackson harus diberi tahu constructor yang dipakai."
+        },
+        {
+          "question": "@JsonInclude(JsonInclude.Include.NON_NULL) membuat...",
+          "options": [
+            "Properti bernilai null tidak ditulis",
+            "Properti null ditulis sebagai string kosong",
+            "Semua properti wajib terisi",
+            "Properti null menyebabkan error"
+          ],
+          "answer": 0,
+          "explanation": "NON_NULL.",
+          "remedial": "Properti dengan nilai `null` dilewati saat menulis JSON. Properti lain tetap ditulis seperti biasa."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Untuk mengganti nama properti JSON dari nama menjadi nama_lengkap, dipakai...",
+      "options": [
+        "@JsonIgnore(\"nama\")",
+        "@JsonProperty(\"nama_lengkap\")",
+        "@JsonInclude(\"nama_lengkap\")",
+        "@JsonCreator(\"nama_lengkap\")"
+      ],
+      "answer": 1,
+      "explanation": "Ganti nama properti."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca pengguna dengan format id;nama;sandi;email per baris (email boleh kosong) lalu mencetaknya sebagai JSON. Bentuk JSON yang diminta: id ditulis sebagai user_id, sandi tidak pernah muncul, dan email tidak ditulis kalau kosong (null). Contoh: {\"user_id\":7,\"nama\":\"Sari\"}. Tambahkan anotasi yang tepat di class Pengguna.",
+      "starterCode": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            String email = d[3].isEmpty() ? null : d[3];\n            System.out.println(mapper.writeValueAsString(new Pengguna(Integer.parseInt(d[0]), d[1], d[2], email)));\n        }\n    }\n}\n\nclass Pengguna {\n    private final int id;\n    private final String nama;\n    private final String sandi;\n    private final String email;\n\n    Pengguna(int id, String nama, String sandi, String email) {\n        this.id = id;\n        this.nama = nama;\n        this.sandi = sandi;\n        this.email = email;\n    }\n\n    public int getId() {\n        return id;\n    }\n\n    public String getNama() {\n        return nama;\n    }\n\n    public String getSandi() {\n        return sandi;\n    }\n\n    public String getEmail() {\n        return email;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport com.fasterxml.jackson.annotation.*;\nimport com.fasterxml.jackson.core.JsonProcessingException;\nimport com.fasterxml.jackson.databind.*;\n\npublic class Main {\n    public static void main(String[] args) throws JsonProcessingException {\n        ObjectMapper mapper = new ObjectMapper();\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            String email = d[3].isEmpty() ? null : d[3];\n            System.out.println(mapper.writeValueAsString(new Pengguna(Integer.parseInt(d[0]), d[1], d[2], email)));\n        }\n    }\n}\n\n@JsonInclude(JsonInclude.Include.NON_NULL)\nclass Pengguna {\n    private final int id;\n    private final String nama;\n    private final String sandi;\n    private final String email;\n\n    Pengguna(int id, String nama, String sandi, String email) {\n        this.id = id;\n        this.nama = nama;\n        this.sandi = sandi;\n        this.email = email;\n    }\n\n    @JsonProperty(\"user_id\")\n    public int getId() {\n        return id;\n    }\n\n    public String getNama() {\n        return nama;\n    }\n\n    @JsonIgnore\n    public String getSandi() {\n        return sandi;\n    }\n\n    public String getEmail() {\n        return email;\n    }\n}",
+      "tests": [
+        {
+          "input": "7;Sari;rahasia;\n8;Budi;12345;budi@mail.com\n",
+          "expectedOutput": "{\"nama\":\"Sari\",\"user_id\":7}\n{\"nama\":\"Budi\",\"email\":\"budi@mail.com\",\"user_id\":8}\n"
+        }
+      ],
+      "hints": [
+        "Tiga anotasi: @JsonProperty(\"user_id\"), @JsonIgnore, dan @JsonInclude(JsonInclude.Include.NON_NULL).",
+        "NON_NULL dipasang di atas class Pengguna."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@JsonProperty mengganti nama; @JsonIgnore melewati properti; @JsonInclude(NON_NULL) melewati null.",
+        "@JsonCreator dengan @JsonProperty(\"nama\") di parameter untuk class immutable.",
+        "Getter hitungan ikut menjadi properti kecuali diberi @JsonIgnore.",
+        "Jangan kirim data rahasia; pakai DTO."
+      ]
+    }
+  ]
+}
