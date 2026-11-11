@@ -1,0 +1,204 @@
+{
+  "id": "java-java-21-06",
+  "moduleId": "java-21",
+  "order": 6,
+  "title": "Virtual Thread",
+  "estimatedMinutes": 19,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Server web yang melayani setiap request dengan satu thread platform terbatas sekitar beberapa ratus sampai ribuan request bersamaan, karena setiap thread platform adalah thread sistem operasi yang mahal. Padahal hampir sepanjang waktunya, thread itu hanya **menunggu**: menunggu database, menunggu layanan pembayaran, menunggu API lain.\n\n**Virtual thread** (Java 21) adalah thread yang sangat ringan dan dikelola JVM. Kita bisa membuat ratusan ribu, bahkan jutaan. Saat virtual thread menunggu I/O, JVM melepasnya dari thread sistem operasi, sehingga thread itu bisa dipakai virtual thread lain.\n\nIbarat ojek online dengan pengemudi yang tidak ikut menunggu: pengemudi (thread sistem operasi) mengantar pesanan, dan saat restoran masih memasak, ia mengambil pesanan lain, bukan duduk menunggu di depan restoran."
+    },
+    {
+      "type": "theory",
+      "content": "| | Thread platform | Virtual thread |\n|---|---|---|\n| dikelola | sistem operasi | JVM |\n| biaya | sekitar 1 MB stack, mahal dibuat | beberapa KB, murah |\n| jumlah wajar | ratusan sampai ribuan | ratusan ribu atau lebih |\n| cocok untuk | pekerjaan berat CPU | pekerjaan yang banyak menunggu I/O |\n| perlu pool | ya | **tidak**, buat satu per tugas |\n\nMembuat virtual thread:\n\n```java\nThread.startVirtualThread(() -> kerja());\nThread.ofVirtual().name(\"kurir-1\").start(() -> kerja());\n\ntry (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {\n    ex.submit(() -> panggilApi());             // satu virtual thread per tugas\n}                                              // close() menunggu semua selesai\n```\n\nKode di dalam virtual thread ditulis biasa, berurutan, dengan `Thread.sleep`, JDBC, atau klien HTTP yang memblokir. Tidak perlu gaya *reactive* atau rantai callback.\n\n**Yang perlu diketahui di Java 21:**\n\n- Virtual thread **tidak membuat kode lebih cepat**; ia membuat aplikasi bisa **menunggu lebih banyak hal sekaligus**.\n- Di Java 21, blok `synchronized` yang menunggu I/O membuat virtual thread **tertambat** (*pinned*) ke thread sistem operasinya. Untuk kode baru, pakai `ReentrantLock`. Masalah ini diperbaiki di Java 24.\n- Jangan menyimpan object besar di `ThreadLocal`, karena jumlah thread bisa sangat banyak.\n- Untuk membatasi beban ke layanan lain, pakai `Semaphore` atau bulkhead, bukan pool kecil."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nMemeriksa stok di 50 cabang, setiap pemeriksaan butuh 100 ms (meniru panggilan HTTP):\n\n```java\ntry (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {\n    List<Future<Integer>> hasil = new ArrayList<>();\n    for (int c = 1; c <= 50; c++) {\n        int cabang = c;\n        hasil.add(ex.submit(() -> cekStok(cabang)));\n    }\n    for (Future<Integer> f : hasil) {\n        total += f.get();\n    }\n}\n```\n\nBerurutan butuh 5 detik. Dengan virtual thread, ke-50 pemeriksaan menunggu bersamaan, sehingga selesai sekitar 100 ms di JVM biasa.\n\nDi editor website ini, Java berjalan di dalam browser dan semua thread berbagi satu inti, sehingga waktunya lebih lama dari JVM biasa. Karena itu contoh di sini memakai paling banyak puluhan tugas."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.time.*;\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<String> jenis = new ArrayList<>();\n        Thread p = Thread.ofPlatform().start(() -> jenis.add(\"platform \" + Thread.currentThread().isVirtual()));\n        p.join();\n        Thread v = Thread.startVirtualThread(() -> jenis.add(\"virtual \" + Thread.currentThread().isVirtual()));\n        v.join();\n        System.out.println(jenis);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak?",
+        "options": [
+          "[platform true, virtual true]",
+          "[platform false, virtual false]",
+          "[platform false, virtual true]",
+          "[virtual true, platform false]"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "Thread biasa."
+        },
+        {
+          "line": 11,
+          "note": "Virtual thread."
+        }
+      ],
+      "explanation": "Thread.ofPlatform membuat thread biasa yang dipetakan ke thread sistem operasi, jadi isVirtual bernilai false. startVirtualThread membuat virtual thread. Keduanya sama-sama object Thread dan dipakai dengan cara yang sama: start, join, nama, dan interrupt. Urutannya pasti karena setiap thread di-join sebelum thread berikutnya dibuat.",
+      "tryThis": [
+        {
+          "task": "Beri nama virtual thread dengan Thread.ofVirtual().name(\"v-1\").start(...).",
+          "hint": null
+        },
+        {
+          "task": "Cetak juga Thread.currentThread().isVirtual() dari main.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Memasukkan virtual thread ke pool**\n\nVirtual thread murah dan sekali pakai. `newFixedThreadPool` dengan virtual thread factory menghilangkan manfaatnya. Pakai `newVirtualThreadPerTaskExecutor`.\n\n**2. Mengharapkan pekerjaan CPU lebih cepat**\n\nMenghitung atau memproses gambar tidak menunggu apa pun; jumlah inti CPU tetap batasnya. Untuk itu tetap pakai pool seukuran jumlah inti atau parallel stream.\n\n**3. `synchronized` di sekitar I/O (Java 21)**\n\nVirtual thread tertambat dan keuntungan skalabilitasnya hilang. Ganti dengan `ReentrantLock`, atau upgrade ke Java 24+.\n\n**4. Membanjiri layanan lain**\n\nSepuluh ribu virtual thread bisa membuka sepuluh ribu koneksi ke database yang hanya sanggup seratus. Batasi dengan pool koneksi (HikariCP) atau `Semaphore`.\n\n**5. `ThreadLocal` sebagai cache**\n\nSatu juta thread berarti satu juta salinan. Java 21 menyediakan `ScopedValue` (preview) sebagai pengganti di masa depan."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Spring Boot 3.2+ cukup satu baris di `application.properties`: `spring.threads.virtual.enabled=true`. Tomcat, `@Async`, dan scheduler lalu memakai virtual thread.\n- Dengan virtual thread, banyak tim kembali ke gaya kode biasa yang mudah dibaca dan di-debug, alih-alih gaya *reactive* (WebFlux, Reactor) yang dulu dipilih demi skalabilitas.\n- Untuk menjalankan beberapa subtugas lalu menggabungkan hasil atau membatalkan semuanya saat satu gagal, Java menyiapkan **Structured Concurrency** (`StructuredTaskScope`, preview di Java 21).\n- Virtual thread terlihat di thread dump dengan `jcmd <pid> Thread.dump_to_file -format=json`, dan dipantau lewat JFR (Java Flight Recorder)."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Kasir Modern 6: Cek Stok Semua Cabang",
+      "pembuka": "Kasir Modern memeriksa stok ke banyak cabang sekaligus.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Satu virtual thread bernama dibuat dan dijalankan.",
+          "jawaban": "import java.time.*;\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Thread t = Thread.ofVirtual().name(\"kurir-1\").start(() ->\n                System.out.println(Thread.currentThread().getName() + \" virtual? \" + Thread.currentThread().isVirtual()));\n        t.join();\n    }\n}\n",
+          "keluaran": "kurir-1 virtual? true",
+          "otomatis": true,
+          "benar": "Cara memakainya sama dengan thread biasa.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Periksa stok kopi di 50 cabang dengan `newVirtualThreadPerTaskExecutor`, satu tugas per cabang, lalu jumlahkan hasilnya.",
+          "jawaban": "import java.time.*;\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static int cekStok(int cabang) throws InterruptedException {\n        Thread.sleep(Duration.ofMillis(100));      // meniru panggilan HTTP ke server cabang\n        return cabang % 7;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Thread t = Thread.ofVirtual().name(\"kurir-1\").start(() ->\n                System.out.println(Thread.currentThread().getName() + \" virtual? \" + Thread.currentThread().isVirtual()));\n        t.join();\n        int total = 0;\n        try (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {\n            List<Future<Integer>> hasil = new ArrayList<>();\n            for (int c = 1; c <= 50; c++) {\n                int cabang = c;\n                hasil.add(ex.submit(() -> cekStok(cabang)));\n            }\n            for (Future<Integer> f : hasil) {\n                total += f.get();\n            }\n        }\n        System.out.println(\"Stok kopi di 50 cabang: \" + total);\n    }\n}\n",
+          "keluaran": "kurir-1 virtual? true\nStok kopi di 50 cabang: 148",
+          "wajib": [
+            {
+              "pola": "newVirtualThreadPerTaskExecutor\\(\\)",
+              "pesan": "pakai `Executors.newVirtualThreadPerTaskExecutor()`."
+            }
+          ],
+          "benar": "50 panggilan menunggu bersamaan, bukan berurutan.",
+          "petunjuk": "Simpan `int cabang = c;` sebelum lambda, kumpulkan `Future`, lalu `get()` di perulangan berikutnya."
+        },
+        {
+          "arahan": "Hitung berapa cabang yang dicek dengan `AtomicInteger dicek`, lalu cetak `Cabang dicek: `.",
+          "jawaban": "import java.time.*;\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static int cekStok(int cabang) throws InterruptedException {\n        Thread.sleep(Duration.ofMillis(100));      // meniru panggilan HTTP ke server cabang\n        return cabang % 7;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Thread t = Thread.ofVirtual().name(\"kurir-1\").start(() ->\n                System.out.println(Thread.currentThread().getName() + \" virtual? \" + Thread.currentThread().isVirtual()));\n        t.join();\n        int total = 0;\n        AtomicInteger dicek = new AtomicInteger();\n        try (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {\n            List<Future<Integer>> hasil = new ArrayList<>();\n            for (int c = 1; c <= 50; c++) {\n                int cabang = c;\n                hasil.add(ex.submit(() -> {\n                    dicek.incrementAndGet();\n                    return cekStok(cabang);\n                }));\n            }\n            for (Future<Integer> f : hasil) {\n                total += f.get();\n            }\n        }\n        System.out.println(\"Stok kopi di 50 cabang: \" + total);\n        System.out.println(\"Cabang dicek: \" + dicek.get());\n    }\n}\n",
+          "keluaran": "kurir-1 virtual? true\nStok kopi di 50 cabang: 148\nCabang dicek: 50",
+          "wajib": [
+            {
+              "pola": "AtomicInteger\\s+dicek",
+              "pesan": "buat `AtomicInteger dicek`."
+            }
+          ],
+          "benar": "Virtual thread tetap thread: data bersama tetap butuh atomic atau kunci.",
+          "petunjuk": "Tambahkan `dicek.incrementAndGet()` di awal tugas."
+        },
+        {
+          "arahan": "Tantangan: buktikan bahwa thread dari `Thread.ofPlatform().unstarted(...)` bukan virtual dengan mencetak `Thread platform: ` diikuti `isVirtual()`-nya.",
+          "jawaban": "import java.time.*;\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static int cekStok(int cabang) throws InterruptedException {\n        Thread.sleep(Duration.ofMillis(100));      // meniru panggilan HTTP ke server cabang\n        return cabang % 7;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Thread t = Thread.ofVirtual().name(\"kurir-1\").start(() ->\n                System.out.println(Thread.currentThread().getName() + \" virtual? \" + Thread.currentThread().isVirtual()));\n        t.join();\n        int total = 0;\n        AtomicInteger dicek = new AtomicInteger();\n        try (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {\n            List<Future<Integer>> hasil = new ArrayList<>();\n            for (int c = 1; c <= 50; c++) {\n                int cabang = c;\n                hasil.add(ex.submit(() -> {\n                    dicek.incrementAndGet();\n                    return cekStok(cabang);\n                }));\n            }\n            for (Future<Integer> f : hasil) {\n                total += f.get();\n            }\n        }\n        System.out.println(\"Stok kopi di 50 cabang: \" + total);\n        System.out.println(\"Thread platform: \" + Thread.ofPlatform().unstarted(() -> {}).isVirtual());\n        System.out.println(\"Cabang dicek: \" + dicek.get());\n    }\n}\n",
+          "keluaran": "kurir-1 virtual? true\nStok kopi di 50 cabang: 148\nThread platform: false\nCabang dicek: 50",
+          "wajib": [
+            {
+              "pola": "Thread\\.ofPlatform\\(\\)",
+              "pesan": "pakai `Thread.ofPlatform()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "`Thread.ofPlatform()` dan `Thread.ofVirtual()` adalah dua builder dengan cara pakai yang sama.",
+          "petunjuk": "`Thread.ofPlatform().unstarted(() -> {}).isVirtual()`."
+        }
+      ],
+      "penutup": "Virtual thread sudah dicoba. Berikutnya: API kecil Java 11 sampai 21 yang membuat kode lebih ringkas."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Virtual thread paling bermanfaat untuk pekerjaan yang...",
+          "options": [
+            "Menghitung angka berat tanpa henti",
+            "Hanya berjalan sekali saat aplikasi mulai",
+            "Mengubah gambar besar di memori",
+            "Banyak menunggu I/O, seperti memanggil API atau database"
+          ],
+          "answer": 3,
+          "explanation": "Menunggu.",
+          "remedial": "Saat menunggu I/O, virtual thread dilepas dari thread sistem operasi sehingga thread itu bisa melayani virtual thread lain. Pekerjaan CPU tidak menunggu, jadi tidak diuntungkan."
+        },
+        {
+          "question": "Executor yang tepat untuk virtual thread adalah...",
+          "options": [
+            "Executors.newVirtualThreadPerTaskExecutor()",
+            "Executors.newFixedThreadPool(10)",
+            "Executors.newSingleThreadExecutor()",
+            "Executors.newCachedThreadPool()"
+          ],
+          "answer": 0,
+          "explanation": "Satu per tugas.",
+          "remedial": "Virtual thread tidak perlu di-pool. Executor ini membuat satu virtual thread baru untuk setiap tugas."
+        },
+        {
+          "question": "Di Java 21, apa yang terjadi kalau virtual thread menunggu I/O di dalam blok synchronized?",
+          "options": [
+            "Program gagal di-compile",
+            "Thread tertambat (pinned) ke thread sistem operasinya",
+            "Virtual thread berubah menjadi platform thread selamanya",
+            "Blok synchronized dilewati"
+          ],
+          "answer": 1,
+          "explanation": "Pinning.",
+          "remedial": "Selama tertambat, thread sistem operasi tidak bisa dipakai virtual thread lain. Gunakan `ReentrantLock` untuk kode yang menunggu I/O sambil memegang kunci."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pengaturan Spring Boot 3.2+ untuk memakai virtual thread adalah...",
+      "options": [
+        "server.tomcat.threads.max=1000000",
+        "spring.virtual=on",
+        "spring.threads.virtual.enabled=true",
+        "java.threads.light=true"
+      ],
+      "answer": 2,
+      "explanation": "Satu baris."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca nama kota per baris dan mengambil cuaca setiap kota dari layanan yang butuh 200 ms per panggilan. Saat ini panggilan dilakukan berurutan. Ubah supaya setiap kota diperiksa di virtual thread sendiri lewat newVirtualThreadPerTaskExecutor, hasilnya tetap dicetak sesuai urutan input, lalu cetak Memakai virtual thread: diikuti nilai VirtualCek.dipakai. Method cuaca sudah mencatat kalau dipanggil dari virtual thread.",
+      "starterCode": "import java.time.*;\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String cuaca(String kota) throws InterruptedException {\n        if (Thread.currentThread().isVirtual()) {\n            VirtualCek.dipakai = true;\n        }\n        Thread.sleep(Duration.ofMillis(200));\n        return kota.length() % 2 == 0 ? \"cerah\" : \"hujan\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        List<String> kota = new ArrayList<>();\n        while (in.hasNextLine()) {\n            kota.add(in.nextLine().trim());\n        }\n        StringBuilder sb = new StringBuilder();\n        for (String k : kota) {\n            sb.append(k).append(\"=\").append(cuaca(k)).append(\" \");\n        }\n        System.out.println(sb.toString().trim());\n        System.out.println(\"Memakai virtual thread: \" + VirtualCek.dipakai);\n    }\n}\n\nclass VirtualCek {\n    static volatile boolean dipakai;\n}",
+      "solution": "import java.time.*;\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String cuaca(String kota) throws InterruptedException {\n        if (Thread.currentThread().isVirtual()) {\n            VirtualCek.dipakai = true;\n        }\n        Thread.sleep(Duration.ofMillis(200));\n        return kota.length() % 2 == 0 ? \"cerah\" : \"hujan\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        List<String> kota = new ArrayList<>();\n        while (in.hasNextLine()) {\n            kota.add(in.nextLine().trim());\n        }\n        List<Future<String>> hasil = new ArrayList<>();\n        try (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {\n            for (String k : kota) {\n                hasil.add(ex.submit(() -> k + \"=\" + cuaca(k)));\n            }\n        }\n        StringBuilder sb = new StringBuilder();\n        for (Future<String> f : hasil) {\n            sb.append(f.get()).append(\" \");\n        }\n        System.out.println(sb.toString().trim());\n        System.out.println(\"Memakai virtual thread: \" + VirtualCek.dipakai);\n    }\n}\n\nclass VirtualCek {\n    static volatile boolean dipakai;\n}",
+      "tests": [
+        {
+          "input": "Jakarta\nBandung\nMedan\n",
+          "expectedOutput": "Jakarta=hujan Bandung=hujan Medan=hujan\nMemakai virtual thread: true\n"
+        },
+        {
+          "input": "Palu\n",
+          "expectedOutput": "Palu=cerah\nMemakai virtual thread: true\n"
+        }
+      ],
+      "hints": [
+        "Simpan Future dari ex.submit(() -> k + \"=\" + cuaca(k)) ke list, di dalam try-with-resources.",
+        "Setelah try selesai, ambil hasilnya dengan f.get() sesuai urutan list."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Virtual thread: thread ringan yang dikelola JVM; jutaan bisa dibuat.",
+        "Cocok untuk pekerjaan yang menunggu I/O; tidak mempercepat pekerjaan CPU.",
+        "Pakai newVirtualThreadPerTaskExecutor atau Thread.ofVirtual(); jangan di-pool.",
+        "Java 21: hindari synchronized di sekitar I/O; batasi beban ke layanan lain."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

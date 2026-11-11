@@ -1,0 +1,208 @@
+{
+  "id": "java-thread-03",
+  "moduleId": "thread",
+  "order": 3,
+  "title": "Atomic dan Concurrent Collection",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Menulis `synchronized` di mana-mana melelahkan dan mudah salah. Paket **`java.util.concurrent`** menyediakan alat siap pakai yang sudah aman untuk banyak thread dan biasanya lebih cepat dari kunci buatan sendiri.\n\nDua kelompok yang paling sering dipakai: **variabel atomic** untuk penghitung dan nilai tunggal, dan **concurrent collection** untuk Map, List, dan Set yang dipakai bersama.\n\nIbarat mesin nomor antrean di bank: setiap orang yang menekan tombol pasti mendapat nomor berbeda, walau dua orang menekan pada detik yang sama. Mesin itu sudah dirancang untuk dipakai bersamaan."
+    },
+    {
+      "type": "theory",
+      "content": "**Variabel atomic** (`java.util.concurrent.atomic`)\n\n| Method `AtomicInteger` | Gunanya |\n|---|---|\n| `incrementAndGet()` / `getAndIncrement()` | tambah 1 secara atomic |\n| `addAndGet(5)` | tambah n |\n| `updateAndGet(x -> x * 2)` | ubah dengan fungsi |\n| `compareAndSet(lama, baru)` | ubah hanya kalau nilainya masih `lama` |\n\nAda juga `AtomicLong`, `AtomicBoolean`, `AtomicReference<T>`, dan **`LongAdder`** yang lebih cepat untuk penghitung yang sangat sering ditambah banyak thread (misalnya metrik).\n\n**Concurrent collection**\n\n| Jangan dipakai bersama | Pakai |\n|---|---|\n| `HashMap` | **`ConcurrentHashMap`** |\n| `ArrayList` yang jarang ditulis, sering dibaca | `CopyOnWriteArrayList` |\n| `HashSet` | `ConcurrentHashMap.newKeySet()` |\n| antrean antar thread | `BlockingQueue` (materi Koordinasi) |\n\nMethod atomic di `ConcurrentHashMap` yang penting:\n\n```java\njumlah.merge(\"kopi\", 1, Integer::sum);           // tambah 1, atau isi 1 kalau belum ada\ncache.computeIfAbsent(id, k -> muatDariDb(k));   // muat sekali saja\nstok.compute(\"kopi\", (k, v) -> v - 1);           // ubah berdasarkan nilai lama\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nMap<String, Integer> jumlah = new ConcurrentHashMap<>();\n// banyak thread:\njumlah.merge(produk, 1, Integer::sum);\n```\n\n**Jebakan penting:** variabel atomic hanya membuat **satu operasinya** atomic. Gabungan beberapa operasi tetap tidak aman:\n\n```java\nif (!peta.containsKey(k)) {     // dua operasi terpisah\n    peta.put(k, v);\n}\npeta.putIfAbsent(k, v);         // satu operasi atomic\n```\n\n```java\nint lama = n.get();\nn.set(lama + 1);                // tetap race condition\nn.incrementAndGet();            // aman\n```\n\n`Collections.synchronizedList(new ArrayList<>())` juga aman per operasi, tetapi perulangan di atasnya tetap harus dikunci manual. Concurrent collection lebih praktis.\n\n**Catatan tentang editor ini:** Java di website ini berjalan di dalam browser. Thread tetap bergantian sungguhan, tetapi tidak berjalan di beberapa inti CPU sekaligus. Karena itu contoh di modul ini memakai `Thread.sleep` untuk membuat urutan kejadian jelas dan hasilnya selalu sama. Di laptop atau server, masalah yang sama muncul lebih acak, dan justru itu yang membuatnya berbahaya."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        AtomicInteger n = new AtomicInteger();\n        Thread a = new Thread(() -> {\n            int lama = n.get();\n            Jeda.ms(100);\n            n.set(lama + 1);\n        });\n        Thread b = new Thread(() -> {\n            int lama = n.get();\n            Jeda.ms(100);\n            n.set(lama + 1);\n        });\n        a.start();\n        b.start();\n        a.join();\n        b.join();\n        System.out.println(\"Hasil: \" + n.get());\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: dua thread menambah AtomicInteger dengan get lalu set. Berapa hasilnya?",
+        "options": [
+          "Hasil: 2",
+          "Hasil: 0",
+          "Hasil: 3",
+          "Hasil: 1"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "Operasi atomic pertama."
+        },
+        {
+          "line": 11,
+          "note": "Operasi atomic kedua, terpisah."
+        }
+      ],
+      "explanation": "get dan set masing-masing atomic, tetapi di antara keduanya thread lain bisa menyela. Kedua thread membaca 0 lalu menulis 1. Ganti kedua baris itu dengan n.incrementAndGet() supaya baca, tambah, dan tulis terjadi sebagai satu operasi.",
+      "tryThis": [
+        {
+          "task": "Ganti isi kedua thread dengan Jeda.ms(100); n.incrementAndGet();",
+          "hint": null
+        },
+        {
+          "task": "Pakai n.updateAndGet(x -> x + 10) di kedua thread.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `HashMap` biasa dipakai banyak thread**\n\nSelain data hilang, `HashMap` yang diubah bersamaan bisa rusak struktur internalnya.\n\n**2. Menggabungkan beberapa operasi atomic**\n\n`containsKey` lalu `put`, atau `get` lalu `set`, tetap race condition. Pakai `putIfAbsent`, `merge`, `compute`, `incrementAndGet`.\n\n**3. Pekerjaan berat di dalam `compute`**\n\nFungsi di `compute` dan `computeIfAbsent` berjalan sambil memegang kunci bagian map itu. Jangan memanggil layanan lambat atau mengubah map yang sama di dalamnya.\n\n**4. `CopyOnWriteArrayList` untuk data yang sering ditulis**\n\nSetiap penulisan menyalin seluruh array. Cocok untuk daftar listener yang jarang berubah, bukan untuk log ribuan baris.\n\n**5. Mengira urutan `ConcurrentHashMap` tetap**\n\nSeperti `HashMap`, urutannya tidak dijamin. Salin ke `TreeMap` kalau perlu urut."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- `ConcurrentHashMap` dipakai untuk cache sederhana di memori, misalnya `computeIfAbsent` untuk memuat data sekali. Untuk cache serius dipakai **Caffeine** (dengan batas ukuran dan kedaluwarsa), yang juga dipakai Spring Cache.\n- Penghitung metrik di Micrometer (yang dipakai Spring Boot Actuator) memakai `LongAdder` dan atomic di baliknya.\n- Bean Spring adalah *singleton* yang dipakai semua request bersamaan. Field yang berubah di bean harus memakai concurrent collection atau atomic, atau lebih baik dihindari.\n- Saat *code review*, `HashMap` atau `ArrayList` sebagai field di class yang dipakai banyak thread adalah tanda bahaya."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Pemroses Pesanan 3: Rekap Penjualan",
+      "pembuka": "Tiga kasir mencatat penjualan ke rekap yang sama.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Setiap kasir mencatat 6 pesanan ke `ConcurrentHashMap` dengan `merge`.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final String[] PESANAN = {\"kopi\", \"teh\", \"kopi\", \"roti\", \"kopi\", \"teh\"};\n\n    public static void main(String[] args) throws Exception {\n        Map<String, Integer> jumlah = new ConcurrentHashMap<>();\n        List<Thread> kasir = new ArrayList<>();\n        for (int k = 0; k < 3; k++) {\n            kasir.add(new Thread(() -> {\n                for (String p : PESANAN) {\n                    jumlah.merge(p, 1, Integer::sum);\n                }\n            }));\n        }\n        for (Thread t : kasir) {\n            t.start();\n        }\n        for (Thread t : kasir) {\n            t.join();\n        }\n        System.out.println(new TreeMap<>(jumlah));\n    }\n}\n",
+          "keluaran": "{kopi=9, roti=3, teh=6}",
+          "otomatis": true,
+          "benar": "Hasilnya pas: kopi 3 x 3 = 9. Disalin ke `TreeMap` supaya urut saat dicetak.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan `AtomicInteger total` yang dinaikkan setiap pesanan, lalu cetak `Total pesanan: `.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final String[] PESANAN = {\"kopi\", \"teh\", \"kopi\", \"roti\", \"kopi\", \"teh\"};\n\n    public static void main(String[] args) throws Exception {\n        Map<String, Integer> jumlah = new ConcurrentHashMap<>();\n        AtomicInteger total = new AtomicInteger();\n        List<Thread> kasir = new ArrayList<>();\n        for (int k = 0; k < 3; k++) {\n            kasir.add(new Thread(() -> {\n                for (String p : PESANAN) {\n                    jumlah.merge(p, 1, Integer::sum);\n                    total.incrementAndGet();\n                }\n            }));\n        }\n        for (Thread t : kasir) {\n            t.start();\n        }\n        for (Thread t : kasir) {\n            t.join();\n        }\n        System.out.println(new TreeMap<>(jumlah));\n        System.out.println(\"Total pesanan: \" + total.get());\n    }\n}\n",
+          "keluaran": "{kopi=9, roti=3, teh=6}\nTotal pesanan: 18",
+          "wajib": [
+            {
+              "pola": "AtomicInteger\\s+total",
+              "pesan": "buat `AtomicInteger total`."
+            },
+            {
+              "pola": "total\\.incrementAndGet\\(\\)",
+              "pesan": "pakai `incrementAndGet()`."
+            }
+          ],
+          "benar": "18 pesanan dari 3 kasir, tanpa ada yang hilang.",
+          "petunjuk": "`total.incrementAndGet()` di dalam perulangan."
+        },
+        {
+          "arahan": "Tambahkan `List<String> log = new CopyOnWriteArrayList<>()`. Setiap kasir menambahkan `kasir-n mulai` saat mulai. Cetak `Log: ` diikuti jumlah barisnya.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final String[] PESANAN = {\"kopi\", \"teh\", \"kopi\", \"roti\", \"kopi\", \"teh\"};\n\n    public static void main(String[] args) throws Exception {\n        Map<String, Integer> jumlah = new ConcurrentHashMap<>();\n        AtomicInteger total = new AtomicInteger();\n        List<String> log = new CopyOnWriteArrayList<>();\n        List<Thread> kasir = new ArrayList<>();\n        for (int k = 0; k < 3; k++) {\n            String nama = \"kasir-\" + (k + 1);\n            kasir.add(new Thread(() -> {\n                log.add(nama + \" mulai\");\n                for (String p : PESANAN) {\n                    jumlah.merge(p, 1, Integer::sum);\n                    total.incrementAndGet();\n                }\n            }));\n        }\n        for (Thread t : kasir) {\n            t.start();\n        }\n        for (Thread t : kasir) {\n            t.join();\n        }\n        System.out.println(new TreeMap<>(jumlah));\n        System.out.println(\"Total pesanan: \" + total.get());\n        System.out.println(\"Log: \" + log.size() + \" baris\");\n    }\n}\n",
+          "keluaran": "{kopi=9, roti=3, teh=6}\nTotal pesanan: 18\nLog: 3 baris",
+          "wajib": [
+            {
+              "pola": "new\\s+CopyOnWriteArrayList",
+              "pesan": "pakai `CopyOnWriteArrayList`."
+            }
+          ],
+          "benar": "Urutan isi log bisa berbeda setiap kali, jadi yang dicetak cukup jumlahnya.",
+          "petunjuk": "Siapkan nama kasir di variabel sebelum lambda: `String nama = \"kasir-\" + (k + 1);`."
+        },
+        {
+          "arahan": "Tantangan: cetak juga produk terlaris dengan `Collections.max` dan `Map.Entry.comparingByValue()`.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final String[] PESANAN = {\"kopi\", \"teh\", \"kopi\", \"roti\", \"kopi\", \"teh\"};\n\n    public static void main(String[] args) throws Exception {\n        Map<String, Integer> jumlah = new ConcurrentHashMap<>();\n        AtomicInteger total = new AtomicInteger();\n        List<String> log = new CopyOnWriteArrayList<>();\n        List<Thread> kasir = new ArrayList<>();\n        for (int k = 0; k < 3; k++) {\n            String nama = \"kasir-\" + (k + 1);\n            kasir.add(new Thread(() -> {\n                log.add(nama + \" mulai\");\n                for (String p : PESANAN) {\n                    jumlah.merge(p, 1, Integer::sum);\n                    total.incrementAndGet();\n                }\n            }));\n        }\n        for (Thread t : kasir) {\n            t.start();\n        }\n        for (Thread t : kasir) {\n            t.join();\n        }\n        System.out.println(new TreeMap<>(jumlah));\n        String terlaris = Collections.max(jumlah.entrySet(), Map.Entry.comparingByValue()).getKey();\n        System.out.println(\"Terlaris: \" + terlaris);\n        System.out.println(\"Total pesanan: \" + total.get());\n        System.out.println(\"Log: \" + log.size() + \" baris\");\n    }\n}\n",
+          "keluaran": "{kopi=9, roti=3, teh=6}\nTerlaris: kopi\nTotal pesanan: 18\nLog: 3 baris",
+          "wajib": [
+            {
+              "pola": "Map\\.Entry\\.comparingByValue\\(\\)",
+              "pesan": "bandingkan dengan `Map.Entry.comparingByValue()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Rekap yang dibuat banyak thread bisa diolah seperti map biasa setelah semua selesai.",
+          "petunjuk": "Hasil `Collections.max(...)` adalah entry; ambil `getKey()`."
+        }
+      ],
+      "penutup": "Alat siap pakai sudah dikuasai. Berikutnya: berhenti membuat thread sendiri, pakai thread pool."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Collection yang tepat sebagai pengganti HashMap yang dipakai banyak thread adalah...",
+          "options": [
+            "ConcurrentHashMap",
+            "TreeMap",
+            "LinkedHashMap",
+            "Hashtable versi baru"
+          ],
+          "answer": 0,
+          "explanation": "Concurrent.",
+          "remedial": "`ConcurrentHashMap` aman untuk banyak thread dan tetap cepat karena tidak mengunci seluruh map sekaligus."
+        },
+        {
+          "question": "Cara aman menambah 1 ke AtomicInteger dari banyak thread adalah...",
+          "options": [
+            "n.set(n.get() + 1)",
+            "n.incrementAndGet()",
+            "n = n + 1",
+            "n.get() lalu n.set() di baris berikutnya"
+          ],
+          "answer": 1,
+          "explanation": "Satu operasi.",
+          "remedial": "`incrementAndGet` membaca, menambah, dan menulis sebagai satu operasi atomic. Gabungan `get` dan `set` bisa diselingi thread lain."
+        },
+        {
+          "question": "Method ConcurrentHashMap untuk menambah hitungan atau mengisi 1 kalau belum ada adalah...",
+          "options": [
+            "put(k, get(k) + 1)",
+            "putAll(k, 1)",
+            "merge(k, 1, Integer::sum)",
+            "replace(k, 1)"
+          ],
+          "answer": 2,
+          "explanation": "Gabungkan.",
+          "remedial": "`merge` melakukan pemeriksaan dan perubahan secara atomic untuk satu kunci."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Penghitung yang paling cepat untuk banyak thread yang sering menambah adalah...",
+      "options": [
+        "Integer",
+        "volatile long",
+        "ArrayList<Long>",
+        "LongAdder"
+      ],
+      "answer": 3,
+      "explanation": "Untuk metrik."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca jumlah pengunjung n, lalu setiap pengunjung mengambil nomor antrean di thread sendiri. Nomor seharusnya berbeda semua dari 1 sampai n, tetapi saat ini banyak pengunjung mendapat nomor yang sama. Perbaiki class Antrean dengan AtomicInteger.",
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Antrean antrean = new Antrean();\n        int n = Integer.parseInt(new Scanner(System.in).nextLine().trim());\n        Set<Integer> nomor = ConcurrentHashMap.newKeySet();\n        List<Thread> pengunjung = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            pengunjung.add(new Thread(() -> nomor.add(antrean.ambilNomor())));\n        }\n        for (Thread t : pengunjung) {\n            t.start();\n        }\n        for (Thread t : pengunjung) {\n            t.join();\n        }\n        System.out.println(\"Nomor berbeda: \" + nomor.size() + \" dari \" + n + \" pengunjung\");\n        System.out.println(new TreeSet<>(nomor));\n    }\n}\n\nclass Antrean {\n    private int terakhir;\n\n    int ambilNomor() {\n        int n = terakhir + 1;\n        Jeda.ms(50);\n        terakhir = n;\n        return n;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "solution": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Antrean antrean = new Antrean();\n        int n = Integer.parseInt(new Scanner(System.in).nextLine().trim());\n        Set<Integer> nomor = ConcurrentHashMap.newKeySet();\n        List<Thread> pengunjung = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            pengunjung.add(new Thread(() -> nomor.add(antrean.ambilNomor())));\n        }\n        for (Thread t : pengunjung) {\n            t.start();\n        }\n        for (Thread t : pengunjung) {\n            t.join();\n        }\n        System.out.println(\"Nomor berbeda: \" + nomor.size() + \" dari \" + n + \" pengunjung\");\n        System.out.println(new TreeSet<>(nomor));\n    }\n}\n\nclass Antrean {\n    private final AtomicInteger terakhir = new AtomicInteger();\n\n    int ambilNomor() {\n        Jeda.ms(50);\n        return terakhir.incrementAndGet();\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "3\n",
+          "expectedOutput": "Nomor berbeda: 3 dari 3 pengunjung\n[1, 2, 3]\n"
+        },
+        {
+          "input": "6\n",
+          "expectedOutput": "Nomor berbeda: 6 dari 6 pengunjung\n[1, 2, 3, 4, 5, 6]\n"
+        }
+      ],
+      "hints": [
+        "Ganti field int dengan AtomicInteger.",
+        "Kembalikan terakhir.incrementAndGet() supaya mengambil dan menaikkan nomor terjadi sekaligus."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Atomic (AtomicInteger, LongAdder) untuk nilai tunggal; satu operasinya atomic.",
+        "ConcurrentHashMap, CopyOnWriteArrayList, newKeySet untuk collection bersama.",
+        "merge, compute, putIfAbsent menggabungkan periksa dan ubah menjadi satu operasi.",
+        "Gabungan get lalu set atau containsKey lalu put tetap race condition."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

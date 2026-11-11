@@ -1,0 +1,209 @@
+{
+  "id": "java-internationalization-01",
+  "moduleId": "internationalization",
+  "order": 1,
+  "title": "Locale: Bahasa dan Wilayah",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi yang dipakai orang dari banyak negara harus menampilkan teks dalam bahasa mereka, dan angka, uang, serta tanggal dalam format yang mereka kenal. Pekerjaan menyiapkan aplikasi untuk itu disebut **internationalization** (sering disingkat **i18n**: huruf i, 18 huruf di tengah, lalu n). Mengisi terjemahan dan format untuk satu wilayah tertentu disebut **localization** (**l10n**).\n\nContoh perbedaannya: satu juta dua ratus ribu rupiah ditulis `Rp1.200.000,00` di Indonesia, sedangkan orang Amerika menulis angka `1,200,000.00`. Titik dan koma justru terbalik.\n\nIbarat kemasan mi instan untuk ekspor: isinya sama, tetapi tulisan di bungkus, satuan, dan harga disesuaikan dengan negara tujuan. Pabrik menyiapkan cetakan bungkus untuk banyak negara sejak awal."
+    },
+    {
+      "type": "theory",
+      "content": "Di Java, bahasa dan wilayah diwakili class **`Locale`**.\n\n```java\nLocale id = Locale.of(\"id\", \"ID\");              // Java 19+: bahasa, negara\nLocale jp = Locale.forLanguageTag(\"ja-JP\");     // dari tag standar BCP 47\nLocale us = Locale.US;                          // konstanta siap pakai\n```\n\n| Bagian | Contoh | Standar |\n|---|---|---|\n| bahasa | `id`, `en`, `ja` | ISO 639 (huruf kecil) |\n| negara/wilayah | `ID`, `US`, `JP` | ISO 3166 (huruf besar) |\n| tag lengkap | `id-ID`, `en-US`, `zh-Hant-TW` | BCP 47, dipakai di HTTP dan HTML |\n\n| Method | Hasil untuk `id-ID` |\n|---|---|\n| `toLanguageTag()` | `id-ID` |\n| `getDisplayLanguage(id)` | `Indonesia` |\n| `getDisplayCountry(id)` | `Indonesia` |\n| `getDisplayName(Locale.US)` | `Indonesian (Indonesia)` |\n\n`Locale.getDefault()` adalah locale bawaan JVM, yang diambil dari pengaturan sistem operasi. Di server, nilainya sering tidak sesuai harapan (misalnya `en_US` di server cloud), jadi aplikasi yang baik **menyebut locale secara eksplisit**.\n\nConstructor lama `new Locale(\"id\", \"ID\")` sudah *deprecated* sejak Java 19. Gunakan `Locale.of` atau `Locale.forLanguageTag`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nLocale id = Locale.of(\"id\", \"ID\");\nLocale jp = Locale.forLanguageTag(\"ja-JP\");\nSystem.out.println(jp.getDisplayName(id));      // Jepang (Jepang)\n```\n\nLocale yang sama memengaruhi banyak class:\n\n```java\nNumberFormat.getInstance(Locale.US).format(1234567.5);   // 1,234,567.5\nNumberFormat.getInstance(id).format(1234567.5);          // 1.234.567,5\n```\n\nDi modul ini, materi berjalan di **Java 21**. Editor mengatur locale bawaan menjadi `en-US` supaya hasil selalu sama, mirip server di cloud."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Locale a = Locale.forLanguageTag(\"id-ID\");\n        Locale b = Locale.of(\"id\", \"ID\");\n        System.out.println(a.equals(b) + \" \" + a.toLanguageTag() + \" \" + a);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa yang tercetak?",
+        "options": [
+          "false id-ID id_ID",
+          "true id-ID id_ID",
+          "true id_ID id-ID",
+          "true id-ID id-ID"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 6,
+          "note": "Tag BCP 47 memakai tanda hubung."
+        },
+        {
+          "line": 8,
+          "note": "toString memakai garis bawah."
+        }
+      ],
+      "explanation": "Kedua cara menghasilkan locale yang sama, jadi equals bernilai true. toLanguageTag memakai format standar dengan tanda hubung (id-ID), sedangkan toString memakai format lama Java dengan garis bawah (id_ID). Nama file terjemahan memakai format garis bawah, sedangkan header HTTP memakai tanda hubung.",
+      "tryThis": [
+        {
+          "task": "Ganti \"id-ID\" dengan \"en-GB\".",
+          "hint": null
+        },
+        {
+          "task": "Cetak a.getDisplayName().",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Bergantung pada locale bawaan**\n\n`String.format(\"%,.2f\", x)` atau `NumberFormat.getInstance()` tanpa locale memberi hasil berbeda di laptop dan di server.\n\n**2. Tag dengan garis bawah**\n\n`Locale.forLanguageTag(\"id_ID\")` tidak dikenali (hasilnya locale kosong). Tag memakai tanda hubung: `id-ID`.\n\n**3. Memakai negara untuk menentukan bahasa**\n\nSwiss punya empat bahasa resmi, dan banyak orang Indonesia memakai aplikasi dalam bahasa Inggris. Simpan pilihan bahasa pengguna, jangan menebak dari negara.\n\n**4. Kode bahasa lama**\n\nBahasa Indonesia dulu berkode `in`. Java modern memakai `id`, tetapi data lama atau library tua kadang masih memakai `in`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Browser mengirim header `Accept-Language: id-ID,id;q=0.9,en;q=0.8`. Di Spring, `LocaleResolver` membacanya (atau membaca pilihan pengguna dari cookie atau profil), dan `LocaleContextHolder.getLocale()` memberi locale request yang sedang berjalan.\n- Locale pengguna biasanya disimpan di profil (`id-ID`), dan dipakai juga untuk email dan notifikasi yang dikirim di luar request.\n- Data locale Java berasal dari **CLDR** (Unicode Common Locale Data Repository), sumber yang sama dengan Android, iOS, dan browser, sehingga format di backend dan frontend konsisten.\n- Aplikasi internasional juga memikirkan arah tulisan kanan-ke-kiri (Arab, Ibrani), panjang terjemahan yang berbeda, dan zona waktu (materi Tanggal dan Waktu)."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Toko Global 1: Kenalan dengan Locale",
+      "pembuka": "Mulai materi ini kita bangun **Toko Global**: toko online yang melayani pembeli dari beberapa negara.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Locale Indonesia dan nama bahasanya dalam bahasa Indonesia.",
+          "jawaban": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Locale id = Locale.of(\"id\", \"ID\");\n        System.out.println(\"Kode: \" + id.toLanguageTag());\n        System.out.println(\"Nama bahasa: \" + id.getDisplayLanguage(id));\n        System.out.println(\"Nama negara: \" + id.getDisplayCountry(id));\n    }\n}\n",
+          "keluaran": "Kode: id-ID\nNama bahasa: Indonesia\nNama negara: Indonesia",
+          "otomatis": true,
+          "benar": "`toLanguageTag` memberi kode standar, `getDisplayLanguage(id)` memberi nama yang bisa dibaca pengguna.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Buat locale Jepang dari tag `ja-JP` dan cetak namanya dalam bahasa Indonesia dengan awalan `Jepang dalam bahasa Indonesia: `.",
+          "jawaban": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Locale id = Locale.of(\"id\", \"ID\");\n        System.out.println(\"Kode: \" + id.toLanguageTag());\n        System.out.println(\"Nama bahasa: \" + id.getDisplayLanguage(id));\n        System.out.println(\"Nama negara: \" + id.getDisplayCountry(id));\n        Locale jp = Locale.forLanguageTag(\"ja-JP\");\n        System.out.println(\"Jepang dalam bahasa Indonesia: \" + jp.getDisplayName(id));\n    }\n}\n",
+          "keluaran": "Kode: id-ID\nNama bahasa: Indonesia\nNama negara: Indonesia\nJepang dalam bahasa Indonesia: Jepang (Jepang)",
+          "wajib": [
+            {
+              "pola": "forLanguageTag\\s*\\(\\s*\"ja-JP\"\\s*\\)",
+              "pesan": "pakai `Locale.forLanguageTag(\"ja-JP\")`."
+            },
+            {
+              "pola": "getDisplayName\\s*\\(\\s*id\\s*\\)",
+              "pesan": "tampilkan dengan `getDisplayName(id)`."
+            }
+          ],
+          "benar": "Nama locale bisa ditampilkan dalam bahasa pengguna.",
+          "petunjuk": "`Locale.forLanguageTag(\"ja-JP\").getDisplayName(id)`."
+        },
+        {
+          "arahan": "Cetak angka `1234567.5` dengan `NumberFormat.getInstance` untuk `id`, `jp`, dan `Locale.US`.",
+          "jawaban": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Locale id = Locale.of(\"id\", \"ID\");\n        System.out.println(\"Kode: \" + id.toLanguageTag());\n        System.out.println(\"Nama bahasa: \" + id.getDisplayLanguage(id));\n        System.out.println(\"Nama negara: \" + id.getDisplayCountry(id));\n        Locale jp = Locale.forLanguageTag(\"ja-JP\");\n        System.out.println(\"Jepang dalam bahasa Indonesia: \" + jp.getDisplayName(id));\n        for (Locale l : List.of(id, jp, Locale.US)) {\n            System.out.println(l.toLanguageTag() + \" -> \" + NumberFormat.getInstance(l).format(1234567.5));\n        }\n    }\n}\n",
+          "keluaran": "Kode: id-ID\nNama bahasa: Indonesia\nNama negara: Indonesia\nJepang dalam bahasa Indonesia: Jepang (Jepang)\nid-ID -> 1.234.567,5\nja-JP -> 1,234,567.5\nen-US -> 1,234,567.5",
+          "wajib": [
+            {
+              "pola": "NumberFormat\\.getInstance\\s*\\(\\s*l\\s*\\)",
+              "pesan": "pakai `NumberFormat.getInstance(l)`."
+            }
+          ],
+          "benar": "Angka yang sama ditulis dengan pemisah yang berbeda.",
+          "petunjuk": "Pakai perulangan `for (Locale l : List.of(id, jp, Locale.US))`."
+        },
+        {
+          "arahan": "Tantangan: ubah menjadi program yang membaca tag dari input. Untuk setiap tag cetak `tag: nama dalam bahasa Indonesia | angka`. Input: `id-ID`, `de-DE`, `hi-IN`.",
+          "jawaban": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Locale id = Locale.of(\"id\", \"ID\");\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            Locale l = Locale.forLanguageTag(in.nextLine().trim());\n            System.out.println(l.toLanguageTag() + \": \" + l.getDisplayName(id) + \" | \" + NumberFormat.getInstance(l).format(1234567.5));\n        }\n    }\n}\n",
+          "keluaran": "id-ID: Indonesia (Indonesia) | 1.234.567,5\nde-DE: Jerman (Jerman) | 1.234.567,5\nhi-IN: Hindi (India) | 1,234,567.5",
+          "input": "id-ID\nde-DE\nhi-IN\n",
+          "wajib": [
+            {
+              "pola": "new\\s+Scanner\\s*\\(\\s*System\\.in\\s*\\)",
+              "pesan": "baca input dengan `Scanner`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Jerman menulis angka seperti Indonesia, sedangkan India seperti Amerika. Format ditentukan locale, bukan ditebak.",
+          "petunjuk": "Baca dengan `Scanner`, lalu `Locale.forLanguageTag`."
+        }
+      ],
+      "penutup": "Locale sudah dikenali. Berikutnya: menyimpan terjemahan di luar kode dengan ResourceBundle."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Cara modern membuat Locale untuk bahasa Indonesia di Indonesia adalah...",
+          "options": [
+            "new Locale(\"Indonesia\")",
+            "Locale.forLanguageTag(\"id_ID\")",
+            "Locale.of(\"id\", \"ID\")",
+            "Locale.INDONESIA"
+          ],
+          "answer": 2,
+          "explanation": "Java 19+.",
+          "remedial": "`Locale.of` (Java 19+) dan `Locale.forLanguageTag(\"id-ID\")` adalah cara yang dianjurkan. Tidak ada konstanta `Locale.INDONESIA`."
+        },
+        {
+          "question": "Kenapa aplikasi server sebaiknya tidak bergantung pada Locale.getDefault()?",
+          "options": [
+            "Karena selalu null",
+            "Karena lambat",
+            "Karena hanya ada di Java 8",
+            "Karena nilainya mengikuti pengaturan mesin, bukan pengguna"
+          ],
+          "answer": 3,
+          "explanation": "Bawaan mesin.",
+          "remedial": "Locale bawaan diambil dari sistem operasi tempat JVM berjalan. Satu server melayani pengguna dari banyak negara, jadi locale harus diambil dari pengguna."
+        },
+        {
+          "question": "Singkatan i18n berarti...",
+          "options": [
+            "Internationalization: i, 18 huruf, lalu n",
+            "Versi 18 dari standar internasional",
+            "Internet 18 negara",
+            "Format ISO nomor 18"
+          ],
+          "answer": 0,
+          "explanation": "Hitung hurufnya.",
+          "remedial": "Ada 18 huruf antara i dan n pada kata internationalization. Dengan cara yang sama, localization disingkat l10n."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Format tag bahasa yang dipakai header HTTP Accept-Language adalah...",
+      "options": [
+        "Garis bawah, misalnya id_ID",
+        "BCP 47, misalnya id-ID",
+        "Nama lengkap, misalnya Indonesian",
+        "Kode telepon, misalnya +62"
+      ],
+      "answer": 1,
+      "explanation": "Tanda hubung."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca tag bahasa dari input (satu per baris). Untuk setiap tag, cetak tag dalam format standar, titik dua, lalu nama bahasa dan nama negaranya dalam bahasa itu sendiri, dengan negara di dalam kurung. Contoh untuk id-ID: id-ID: Indonesia (Indonesia).",
+      "starterCode": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String tag = in.nextLine().trim();\n            System.out.println(tag + \": \" + tag);\n        }\n    }\n}",
+      "solution": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            Locale l = Locale.forLanguageTag(in.nextLine().trim());\n            System.out.println(l.toLanguageTag() + \": \" + l.getDisplayLanguage(l) + \" (\" + l.getDisplayCountry(l) + \")\");\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "id-ID\nja-JP\nen-US\n",
+          "expectedOutput": "id-ID: Indonesia (Indonesia)\nja-JP: 日本語 (日本)\nen-US: English (United States)\n"
+        },
+        {
+          "input": "de-DE\nms-MY\n",
+          "expectedOutput": "de-DE: Deutsch (Deutschland)\nms-MY: Melayu (Malaysia)\n"
+        }
+      ],
+      "hints": [
+        "Locale.forLanguageTag(tag) lalu l.toLanguageTag().",
+        "getDisplayLanguage(l) dan getDisplayCountry(l) dengan locale itu sendiri sebagai argumen."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "i18n menyiapkan aplikasi untuk banyak bahasa dan wilayah; l10n mengisinya per wilayah.",
+        "Locale.of(\"id\", \"ID\") atau Locale.forLanguageTag(\"id-ID\"); tag memakai tanda hubung.",
+        "Locale memengaruhi format angka, uang, tanggal, dan nama bahasa.",
+        "Sebut locale secara eksplisit; jangan bergantung pada locale bawaan server."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

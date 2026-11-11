@@ -1,0 +1,204 @@
+{
+  "id": "java-thread-07",
+  "moduleId": "thread",
+  "order": 7,
+  "title": "Menghentikan dan Menjadwalkan",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pekerjaan di thread lain kadang harus dihentikan: pengguna menekan \"Batal\", batas waktu terlewati, atau aplikasi sedang dimatikan. Java **tidak** punya cara aman untuk mematikan thread secara paksa (`Thread.stop` sudah dihapus). Yang ada adalah **interrupt**: permintaan sopan agar thread berhenti sendiri.\n\nAda juga pekerjaan yang harus berjalan nanti atau berulang: pengingat, laporan tiap malam, membersihkan data kedaluwarsa. Untuk itu ada **`ScheduledExecutorService`**.\n\nIbarat menyuruh pegawai berhenti: atasan tidak mencabut kursinya di tengah pekerjaan, tetapi mengetuk pintu. Pegawai yang baik menyelesaikan langkah yang sedang dikerjakan, merapikan, lalu berhenti."
+    },
+    {
+      "type": "theory",
+      "content": "**Interrupt**\n\n| Bagian | Arti |\n|---|---|\n| `t.interrupt()` | menandai thread `t` diminta berhenti |\n| `Thread.currentThread().isInterrupted()` | memeriksa tanda itu |\n| `sleep`, `wait`, `join`, `take` | langsung melempar `InterruptedException` kalau di-interrupt |\n| `future.cancel(true)` | membatalkan tugas dan meng-interrupt thread-nya |\n| `pool.shutdownNow()` | meng-interrupt semua tugas yang berjalan |\n\nPola yang benar di dalam tugas:\n\n```java\nwhile (!Thread.currentThread().isInterrupted()) {\n    try {\n        kerjakanSatuLangkah();\n    } catch (InterruptedException e) {\n        Thread.currentThread().interrupt();   // pulihkan tanda, lalu keluar\n        break;\n    }\n}\n```\n\nSaat `InterruptedException` dilempar, tanda interrupt **dihapus**. Karena itu kalau tidak langsung berhenti, pulihkan dengan `interrupt()` supaya kode di atasnya tahu.\n\n**Penjadwalan**\n\n```java\nScheduledExecutorService jadwal = Executors.newScheduledThreadPool(1);\njadwal.schedule(tugas, 5, TimeUnit.SECONDS);                     // sekali, nanti\njadwal.scheduleAtFixedRate(tugas, 0, 1, TimeUnit.MINUTES);       // berulang, irama tetap\njadwal.scheduleWithFixedDelay(tugas, 0, 1, TimeUnit.MINUTES);    // berulang, jeda setelah selesai\n```\n\n**Data per thread**: `ThreadLocal<T>` menyimpan nilai terpisah untuk setiap thread, misalnya pengguna yang sedang login di request itu. Selalu `remove()` di `finally`, karena thread di pool dipakai ulang."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nFuture<String> kirim = pool.submit(() -> kirimSemua(pesanan));\nThread.sleep(350);\nkirim.cancel(true);           // interrupt thread yang menjalankan kirimSemua\n```\n\nDi dalam `kirimSemua`, `Thread.sleep` melempar `InterruptedException`, tugas mencatat sampai di mana, lalu berhenti dengan rapi.\n\n**Exception yang tidak tertangkap** di thread biasa hanya dicetak ke konsol, lalu thread mati diam-diam. Untuk mencatatnya ke log, pasang `setUncaughtExceptionHandler`. Untuk tugas di `ExecutorService`, exception disimpan di `Future` (materi ExecutorService).\n\n**Catatan tentang editor ini:** Java di website ini berjalan di dalam browser. Thread tetap bergantian sungguhan, tetapi tidak berjalan di beberapa inti CPU sekaligus. Karena itu contoh di modul ini memakai `Thread.sleep` untuk membuat urutan kejadian jelas dan hasilnya selalu sama. Di laptop atau server, masalah yang sama muncul lebih acak, dan justru itu yang membuatnya berbahaya."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Thread t = new Thread(() -> {\n            try {\n                Thread.sleep(5000);\n                System.out.println(\"bangun sendiri\");\n            } catch (InterruptedException e) {\n                System.out.println(\"dibangunkan lebih awal\");\n            }\n        });\n        t.start();\n        Thread.sleep(100);\n        t.interrupt();\n        t.join();\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: thread tidur 5 detik, tetapi di-interrupt setelah 0,1 detik. Apa yang tercetak?",
+        "options": [
+          "bangun sendiri",
+          "InterruptedException",
+          "Tidak ada, program menunggu 5 detik",
+          "dibangunkan lebih awal"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 9,
+          "note": "Tidur lama."
+        },
+        {
+          "line": 17,
+          "note": "Permintaan berhenti."
+        },
+        {
+          "line": 11,
+          "note": "sleep langsung dibangunkan."
+        }
+      ],
+      "explanation": "interrupt tidak menghentikan thread secara paksa, tetapi membangunkan sleep dengan InterruptedException. Thread lalu memutuskan sendiri apa yang dilakukan, di sini mencetak pesan dan selesai. Program tidak perlu menunggu 5 detik.",
+      "tryThis": [
+        {
+          "task": "Hapus baris t.interrupt() lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Di dalam catch, cetak Thread.currentThread().isInterrupted().",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menelan `InterruptedException`**\n\n`catch (InterruptedException e) {}` membuat permintaan berhenti hilang. Pool tidak bisa dimatikan, dan aplikasi lama sekali saat *shutdown*.\n\n**2. Perulangan yang tidak pernah memeriksa interrupt**\n\nTugas yang menghitung tanpa henti tanpa `isInterrupted()` tidak bisa dibatalkan.\n\n**3. `ThreadLocal` tanpa `remove()`**\n\nThread di pool dipakai ulang. Data pengguna sebelumnya bisa terbaca oleh request pengguna lain, sebuah celah keamanan serius.\n\n**4. Exception di tugas terjadwal**\n\nTugas `scheduleAtFixedRate` yang melempar exception **berhenti dijadwalkan selamanya** tanpa pesan. Tangkap semua exception di dalam tugas berulang.\n\n**5. Memakai `Timer`**\n\n`java.util.Timer` lama berjalan di satu thread dan mati total kalau satu tugas gagal. Pakai `ScheduledExecutorService`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Spring menyediakan `@Scheduled(cron = \"0 0 1 * * *\")` untuk tugas terjadwal, dan Spring Security menyimpan pengguna yang login di `SecurityContextHolder`, yang di baliknya adalah `ThreadLocal`.\n- Begitu juga MDC di logging (modul Logging): `requestId` per request disimpan di `ThreadLocal`, dan wajib dibersihkan di akhir request.\n- Untuk tugas terjadwal di aplikasi yang berjalan di banyak server, dipakai **ShedLock** atau scheduler eksternal (Quartz, Kubernetes CronJob) supaya tugas tidak berjalan dua kali.\n- *Graceful shutdown* di Spring Boot (`server.shutdown=graceful`) memberi waktu tugas yang sedang berjalan untuk selesai, lalu meng-interrupt sisanya."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Pemroses Pesanan 7: Batal dan Pengingat",
+      "pembuka": "Pemroses Pesanan bisa membatalkan pengiriman dan menjadwalkan pengingat.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Sepuluh pesanan dikirim di thread pool, masing-masing butuh 100 ms.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String kirimSemua(List<String> pesanan) {\n        int terkirim = 0;\n        for (String p : pesanan) {\n            if (Thread.currentThread().isInterrupted()) {\n                return \"dihentikan setelah \" + terkirim + \" pesanan\";\n            }\n            try {\n                Thread.sleep(100);\n            } catch (InterruptedException e) {\n                Thread.currentThread().interrupt();\n                return \"dihentikan setelah \" + terkirim + \" pesanan\";\n            }\n            terkirim++;\n        }\n        return \"semua \" + terkirim + \" pesanan terkirim\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<String> pesanan = List.of(\"PSN-1\", \"PSN-2\", \"PSN-3\", \"PSN-4\", \"PSN-5\", \"PSN-6\", \"PSN-7\", \"PSN-8\", \"PSN-9\", \"PSN-10\");\n        ExecutorService pool = Executors.newSingleThreadExecutor();\n        Future<String> kirim = pool.submit(() -> kirimSemua(pesanan));\n        System.out.println(kirim.get());\n        pool.shutdown();\n    }\n}\n",
+          "keluaran": "semua 10 pesanan terkirim",
+          "otomatis": true,
+          "benar": "`kirimSemua` memeriksa interrupt di setiap langkah.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Setelah 350 ms, batalkan pengiriman dengan `cancel(true)`, cetak hasil `cancel` dan `isCancelled()`, lalu matikan pool dan tunggu.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String kirimSemua(List<String> pesanan) {\n        int terkirim = 0;\n        for (String p : pesanan) {\n            if (Thread.currentThread().isInterrupted()) {\n                return \"dihentikan setelah \" + terkirim + \" pesanan\";\n            }\n            try {\n                Thread.sleep(100);\n            } catch (InterruptedException e) {\n                Thread.currentThread().interrupt();\n                return \"dihentikan setelah \" + terkirim + \" pesanan\";\n            }\n            terkirim++;\n        }\n        return \"semua \" + terkirim + \" pesanan terkirim\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<String> pesanan = List.of(\"PSN-1\", \"PSN-2\", \"PSN-3\", \"PSN-4\", \"PSN-5\", \"PSN-6\", \"PSN-7\", \"PSN-8\", \"PSN-9\", \"PSN-10\");\n        ExecutorService pool = Executors.newSingleThreadExecutor();\n        Future<String> kirim = pool.submit(() -> kirimSemua(pesanan));\n        Thread.sleep(350);\n        System.out.println(\"Dibatalkan: \" + kirim.cancel(true));\n        System.out.println(\"Status batal: \" + kirim.isCancelled());\n        pool.shutdown();\n        System.out.println(\"Pool berhenti: \" + pool.awaitTermination(2, TimeUnit.SECONDS));\n    }\n}\n",
+          "keluaran": "Dibatalkan: true\nStatus batal: true\nPool berhenti: true",
+          "wajib": [
+            {
+              "pola": "kirim\\.cancel\\s*\\(\\s*true\\s*\\)",
+              "pesan": "batalkan dengan `cancel(true)`."
+            }
+          ],
+          "benar": "Tugas berhenti dengan rapi di tengah jalan, dan pool bisa dimatikan.",
+          "petunjuk": "`kirim.cancel(true)` meng-interrupt thread yang sedang menjalankan tugas."
+        },
+        {
+          "arahan": "Jadwalkan pengingat `Pengingat: cek pesanan tertunda` 200 ms kemudian dengan `ScheduledExecutorService`, lalu cetak hasilnya.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String kirimSemua(List<String> pesanan) {\n        int terkirim = 0;\n        for (String p : pesanan) {\n            if (Thread.currentThread().isInterrupted()) {\n                return \"dihentikan setelah \" + terkirim + \" pesanan\";\n            }\n            try {\n                Thread.sleep(100);\n            } catch (InterruptedException e) {\n                Thread.currentThread().interrupt();\n                return \"dihentikan setelah \" + terkirim + \" pesanan\";\n            }\n            terkirim++;\n        }\n        return \"semua \" + terkirim + \" pesanan terkirim\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<String> pesanan = List.of(\"PSN-1\", \"PSN-2\", \"PSN-3\", \"PSN-4\", \"PSN-5\", \"PSN-6\", \"PSN-7\", \"PSN-8\", \"PSN-9\", \"PSN-10\");\n        ExecutorService pool = Executors.newSingleThreadExecutor();\n        Future<String> kirim = pool.submit(() -> kirimSemua(pesanan));\n        Thread.sleep(350);\n        System.out.println(\"Dibatalkan: \" + kirim.cancel(true));\n        System.out.println(\"Status batal: \" + kirim.isCancelled());\n        pool.shutdown();\n        System.out.println(\"Pool berhenti: \" + pool.awaitTermination(2, TimeUnit.SECONDS));\n        ScheduledExecutorService jadwal = Executors.newSingleThreadScheduledExecutor();\n        ScheduledFuture<String> pengingat = jadwal.schedule(() -> \"Pengingat: cek pesanan tertunda\", 200, TimeUnit.MILLISECONDS);\n        System.out.println(pengingat.get());\n        jadwal.shutdown();\n    }\n}\n",
+          "keluaran": "Dibatalkan: true\nStatus batal: true\nPool berhenti: true\nPengingat: cek pesanan tertunda",
+          "wajib": [
+            {
+              "pola": "\\.schedule\\s*\\(",
+              "pesan": "jadwalkan dengan `schedule`."
+            }
+          ],
+          "benar": "Jangan lupa `shutdown` scheduler juga.",
+          "petunjuk": "`jadwal.schedule(() -> \"...\", 200, TimeUnit.MILLISECONDS)` mengembalikan `ScheduledFuture`."
+        },
+        {
+          "arahan": "Tantangan: buat thread `printer` yang melempar `IllegalStateException(\"printer struk macet\")`, pasang `setUncaughtExceptionHandler` yang mencetak `[nama] gagal: pesan`.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String kirimSemua(List<String> pesanan) {\n        int terkirim = 0;\n        for (String p : pesanan) {\n            if (Thread.currentThread().isInterrupted()) {\n                return \"dihentikan setelah \" + terkirim + \" pesanan\";\n            }\n            try {\n                Thread.sleep(100);\n            } catch (InterruptedException e) {\n                Thread.currentThread().interrupt();\n                return \"dihentikan setelah \" + terkirim + \" pesanan\";\n            }\n            terkirim++;\n        }\n        return \"semua \" + terkirim + \" pesanan terkirim\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<String> pesanan = List.of(\"PSN-1\", \"PSN-2\", \"PSN-3\", \"PSN-4\", \"PSN-5\", \"PSN-6\", \"PSN-7\", \"PSN-8\", \"PSN-9\", \"PSN-10\");\n        ExecutorService pool = Executors.newSingleThreadExecutor();\n        Future<String> kirim = pool.submit(() -> kirimSemua(pesanan));\n        Thread.sleep(350);\n        System.out.println(\"Dibatalkan: \" + kirim.cancel(true));\n        System.out.println(\"Status batal: \" + kirim.isCancelled());\n        pool.shutdown();\n        System.out.println(\"Pool berhenti: \" + pool.awaitTermination(2, TimeUnit.SECONDS));\n        ScheduledExecutorService jadwal = Executors.newSingleThreadScheduledExecutor();\n        ScheduledFuture<String> pengingat = jadwal.schedule(() -> \"Pengingat: cek pesanan tertunda\", 200, TimeUnit.MILLISECONDS);\n        System.out.println(pengingat.get());\n        jadwal.shutdown();\n        Thread pekerja = new Thread(() -> {\n            throw new IllegalStateException(\"printer struk macet\");\n        }, \"printer\");\n        pekerja.setUncaughtExceptionHandler((t, e) -> System.out.println(\"[\" + t.getName() + \"] gagal: \" + e.getMessage()));\n        pekerja.start();\n        pekerja.join();\n    }\n}\n",
+          "keluaran": "Dibatalkan: true\nStatus batal: true\nPool berhenti: true\nPengingat: cek pesanan tertunda\n[printer] gagal: printer struk macet",
+          "wajib": [
+            {
+              "pola": "setUncaughtExceptionHandler",
+              "pesan": "pasang `setUncaughtExceptionHandler`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Kegagalan di thread lain tidak hilang tanpa jejak.",
+          "petunjuk": "`pekerja.setUncaughtExceptionHandler((t, e) -> ...)` sebelum `start()`."
+        }
+      ],
+      "penutup": "Pekerjaan bisa dihentikan dan dijadwalkan. Materi terakhir: merakit Pemroses Pesanan utuh."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa yang dilakukan t.interrupt()?",
+          "options": [
+            "Memberi tanda permintaan berhenti dan membangunkan sleep atau wait",
+            "Mematikan thread saat itu juga",
+            "Menunda thread 1 detik",
+            "Menghapus thread dari memori"
+          ],
+          "answer": 0,
+          "explanation": "Permintaan sopan.",
+          "remedial": "Interrupt hanya menandai. Thread yang sedang tidur atau menunggu dibangunkan dengan `InterruptedException`, dan thread itu sendiri yang memutuskan untuk berhenti."
+        },
+        {
+          "question": "Setelah menangkap InterruptedException tetapi belum bisa langsung berhenti, sebaiknya...",
+          "options": [
+            "Mengabaikannya",
+            "Memanggil Thread.currentThread().interrupt() untuk memulihkan tanda",
+            "Melempar Error",
+            "Memanggil System.exit"
+          ],
+          "answer": 1,
+          "explanation": "Pulihkan.",
+          "remedial": "Tanda interrupt dihapus saat exception dilempar. Memulihkannya membuat kode pemanggil tetap tahu ada permintaan berhenti."
+        },
+        {
+          "question": "Kenapa ThreadLocal harus di-remove di finally saat memakai thread pool?",
+          "options": [
+            "Karena ThreadLocal hanya bisa dipakai sekali",
+            "Supaya lebih cepat",
+            "Karena thread dipakai ulang dan nilai lama bisa terbaca tugas berikutnya",
+            "Karena Java mewajibkannya saat compile"
+          ],
+          "answer": 2,
+          "explanation": "Thread dipakai ulang.",
+          "remedial": "Nilai ThreadLocal menempel pada thread. Di pool, thread yang sama melayani request berikutnya dan bisa membaca data pengguna sebelumnya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pengganti java.util.Timer yang dianjurkan adalah...",
+      "options": [
+        "Thread.sleep di perulangan",
+        "CountDownLatch",
+        "Runtime.exec",
+        "ScheduledExecutorService"
+      ],
+      "answer": 3,
+      "explanation": "Penjadwalan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca nama pengguna per baris. Setiap nama adalah satu request yang berjalan di thread sendiri: request menyimpan penggunanya di Konteks, bekerja sebentar, lalu mencatat request itu milik siapa. Karena Konteks memakai field static biasa, semua request tertukar dan tercatat milik pengguna yang sama. Ubah Konteks.pengguna menjadi ThreadLocal, lalu di setiap request pakai set, get, dan remove di finally.",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        List<String> nama = new ArrayList<>();\n        while (in.hasNextLine()) {\n            nama.add(in.nextLine().trim());\n        }\n        String[] hasil = new String[nama.size()];\n        List<Thread> request = new ArrayList<>();\n        for (int i = 0; i < nama.size(); i++) {\n            int ke = i;\n            request.add(new Thread(() -> {\n                Konteks.pengguna = nama.get(ke);\n                Jeda.ms(100);\n                hasil[ke] = \"request \" + (ke + 1) + \" milik \" + Konteks.pengguna;\n            }));\n        }\n        for (Thread t : request) {\n            t.start();\n        }\n        for (Thread t : request) {\n            t.join();\n        }\n        for (String h : hasil) {\n            System.out.println(h);\n        }\n    }\n}\n\nclass Konteks {\n    static String pengguna;\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        List<String> nama = new ArrayList<>();\n        while (in.hasNextLine()) {\n            nama.add(in.nextLine().trim());\n        }\n        String[] hasil = new String[nama.size()];\n        List<Thread> request = new ArrayList<>();\n        for (int i = 0; i < nama.size(); i++) {\n            int ke = i;\n            request.add(new Thread(() -> {\n                Konteks.pengguna.set(nama.get(ke));\n                try {\n                    Jeda.ms(100);\n                    hasil[ke] = \"request \" + (ke + 1) + \" milik \" + Konteks.pengguna.get();\n                } finally {\n                    Konteks.pengguna.remove();\n                }\n            }));\n        }\n        for (Thread t : request) {\n            t.start();\n        }\n        for (Thread t : request) {\n            t.join();\n        }\n        for (String h : hasil) {\n            System.out.println(h);\n        }\n    }\n}\n\nclass Konteks {\n    static final ThreadLocal<String> pengguna = new ThreadLocal<>();\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "Sari\nBudi\nAni\n",
+          "expectedOutput": "request 1 milik Sari\nrequest 2 milik Budi\nrequest 3 milik Ani\n"
+        }
+      ],
+      "hints": [
+        "static final ThreadLocal<String> pengguna = new ThreadLocal<>();",
+        "Konteks.pengguna.set(...), lalu .get(), dan .remove() di blok finally."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "interrupt adalah permintaan berhenti; tugas memeriksa isInterrupted dan menangkap InterruptedException.",
+        "Jangan menelan InterruptedException; pulihkan dengan interrupt() kalau tidak langsung berhenti.",
+        "ScheduledExecutorService untuk tugas nanti dan berulang; tangkap semua exception di tugas berulang.",
+        "ThreadLocal untuk data per thread; selalu remove di finally."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

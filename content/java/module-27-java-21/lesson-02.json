@@ -1,0 +1,212 @@
+{
+  "id": "java-java-21-02",
+  "moduleId": "java-21",
+  "order": 2,
+  "title": "Record dan Sealed dalam Praktik",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Modul Record dan Sealed sudah membahas konsepnya. Karena editor modul itu memakai Java 8, contohnya belum bisa dijalankan. Di modul ini kita **menjalankannya** dan melihat pola yang dipakai di proyek sungguhan.\n\n**Record** adalah class data immutable yang ringkas: Java membuatkan constructor, getter, `equals`, `hashCode`, dan `toString`. **Sealed** membatasi siapa saja yang boleh menjadi turunan sebuah interface atau class.\n\nIbarat formulir resmi yang dicetak: kolomnya sudah tetap, isinya diperiksa saat diisi, dan setelah ditandatangani tidak bisa dicoret lagi. Kalau ada perubahan, buat formulir baru."
+    },
+    {
+      "type": "theory",
+      "content": "Pola record yang paling sering dipakai:\n\n```java\nrecord Produk(String nama, int harga) {\n    Produk {                                   // compact constructor: validasi\n        if (harga < 0) throw new IllegalArgumentException(\"harga tidak boleh negatif\");\n    }\n\n    Produk denganHarga(int hargaBaru) {        // \"with-er\": salinan dengan satu nilai berubah\n        return new Produk(nama, hargaBaru);\n    }\n}\n```\n\n| Pola | Gunanya |\n|---|---|\n| compact constructor | validasi dan normalisasi sebelum field diisi |\n| `List.copyOf(isi)` di constructor | menjamin list di dalam record tidak bisa diubah dari luar |\n| method `denganX(...)` | \"mengubah\" record dengan membuat salinan |\n| method biasa (`total()`) | logika yang dihitung dari data record |\n\n**Sealed interface + record** membentuk model data yang lengkap dan tertutup:\n\n```java\nsealed interface Pembayaran permits Tunai, Kartu, Qris {}\nrecord Tunai(int dibayar) implements Pembayaran {}\nrecord Kartu(String nomor) implements Pembayaran {}\nrecord Qris(String kodeTransaksi) implements Pembayaran {}\n```\n\nCompiler tahu hanya ada tiga jenis pembayaran. Di materi berikutnya, ini membuat `switch` bisa diperiksa kelengkapannya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nProduk kopi = new Produk(\"Kopi\", 18000);\nSystem.out.println(kopi);                            // Produk[nama=Kopi, harga=18000]\nkopi.equals(new Produk(\"Kopi\", 18000));              // true: dibandingkan isinya\nProduk promo = kopi.denganHarga(15000);              // kopi tetap 18000\n```\n\nRecord **dangkal** immutable-nya: field `List` tetap bisa diubah kalau list aslinya diubah. Karena itu record yang berisi koleksi menyalin dengan `List.copyOf`:\n\n```java\nrecord Pesanan(String id, List<Produk> isi) {\n    Pesanan {\n        isi = List.copyOf(isi);\n    }\n}\n```"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        List<String> sumber = new ArrayList<>(List.of(\"Kopi\"));\n        Menu m = new Menu(sumber);\n        sumber.add(\"Teh\");\n        System.out.println(m.isi());\n        try {\n            m.isi().add(\"Roti\");\n        } catch (UnsupportedOperationException e) {\n            System.out.println(\"Tidak bisa diubah\");\n        }\n    }\n}\n\nrecord Menu(List<String> isi) {\n    Menu {\n        isi = List.copyOf(isi);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: sumber ditambah Teh setelah Menu dibuat. Apa baris pertama?",
+        "options": [
+          "[Kopi, Teh]",
+          "[]",
+          "[Kopi]",
+          "[Kopi, Teh, Roti]"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 19,
+          "note": "Salinan yang tidak bisa diubah."
+        },
+        {
+          "line": 7,
+          "note": "Mengubah list asli."
+        },
+        {
+          "line": 10,
+          "note": "Mencoba mengubah isi record."
+        }
+      ],
+      "explanation": "List.copyOf membuat salinan baru yang immutable, jadi perubahan pada list sumber tidak ikut masuk ke record. Menambah ke m.isi() juga ditolak dengan UnsupportedOperationException. Tanpa copyOf, record akan berbagi list yang sama dengan pemanggil.",
+      "tryThis": [
+        {
+          "task": "Hapus compact constructor lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Cetak m.equals(new Menu(List.of(\"Kopi\"))).",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Record dengan koleksi yang bisa diubah**\n\nTanpa `List.copyOf`, isi record berubah diam-diam saat list aslinya diubah.\n\n**2. Record untuk entity JPA**\n\nEntity butuh constructor tanpa parameter dan field yang bisa diubah. Record cocok untuk DTO dan hasil query, bukan entity.\n\n**3. Validasi di luar record**\n\nKalau aturan ditulis di setiap tempat yang membuat object, satu tempat pasti lupa. Taruh di compact constructor.\n\n**4. Sealed tanpa alasan**\n\nSealed cocok untuk himpunan jenis yang memang tetap (jenis pembayaran, hasil operasi). Untuk hal yang akan terus bertambah dari luar (plugin), interface biasa lebih tepat."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Record dipakai untuk **DTO** di REST API (Spring dan Jackson mendukungnya sejak Jackson 2.12), hasil query (`select new ...`), event, dan *value object* seperti `Uang` atau `Email`.\n- Konfigurasi Spring Boot bisa dibaca ke record dengan `@ConfigurationProperties`.\n- Sealed interface + record dipakai untuk memodelkan hasil yang jelas jenisnya, misalnya `sealed interface HasilBayar permits Berhasil, Ditolak, PerluVerifikasi`, menggantikan kode status berupa angka atau string.\n- Lombok `@Value` dan `@Builder` masih dipakai di proyek lama, tetapi di Java 17+ record sering cukup."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Kasir Modern 2: Model Data Kasir",
+      "pembuka": "Kasir Modern memakai record untuk produk dan pesanan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `Produk` adalah record dengan validasi di compact constructor.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Produk kopi = new Produk(\"Kopi\", 18000);\n        System.out.println(kopi);\n        System.out.println(kopi.equals(new Produk(\"Kopi\", 18000)));\n        try {\n            new Produk(\"Teh\", -1);\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"Ditolak: \" + e.getMessage());\n        }\n    }\n}\n\nrecord Produk(String nama, int harga) {\n    Produk {\n        if (nama == null || nama.isBlank()) {\n            throw new IllegalArgumentException(\"nama wajib diisi\");\n        }\n        if (harga < 0) {\n            throw new IllegalArgumentException(\"harga tidak boleh negatif\");\n        }\n    }\n}\n",
+          "keluaran": "Produk[nama=Kopi, harga=18000]\ntrue\nDitolak: harga tidak boleh negatif",
+          "otomatis": true,
+          "benar": "`toString` dan `equals` dibuatkan otomatis berdasarkan isinya.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan method `denganHarga(int hargaBaru)` yang mengembalikan produk baru, lalu buat `promo` seharga 15000 dari `kopi`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Produk kopi = new Produk(\"Kopi\", 18000);\n        System.out.println(kopi);\n        System.out.println(kopi.equals(new Produk(\"Kopi\", 18000)));\n        try {\n            new Produk(\"Teh\", -1);\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"Ditolak: \" + e.getMessage());\n        }\n        Produk promo = kopi.denganHarga(15000);\n        System.out.println(kopi.harga() + \" -> \" + promo.harga());\n    }\n}\n\nrecord Produk(String nama, int harga) {\n    Produk {\n        if (nama == null || nama.isBlank()) {\n            throw new IllegalArgumentException(\"nama wajib diisi\");\n        }\n        if (harga < 0) {\n            throw new IllegalArgumentException(\"harga tidak boleh negatif\");\n        }\n    }\n\n    Produk denganHarga(int hargaBaru) {\n        return new Produk(nama, hargaBaru);\n    }\n}\n",
+          "keluaran": "Produk[nama=Kopi, harga=18000]\ntrue\nDitolak: harga tidak boleh negatif\n18000 -> 15000",
+          "wajib": [
+            {
+              "pola": "Produk\\s+denganHarga\\s*\\(\\s*int\\s+hargaBaru\\s*\\)",
+              "pesan": "buat method `denganHarga(int hargaBaru)`."
+            }
+          ],
+          "benar": "`kopi` tidak berubah; `promo` adalah object baru.",
+          "petunjuk": "`return new Produk(nama, hargaBaru);`"
+        },
+        {
+          "arahan": "Buat `record Pesanan(String id, List<Produk> isi)` yang menyalin isi dengan `List.copyOf` dan punya method `total()`. Tambahkan produk ke list asli setelah pesanan dibuat, lalu cetak jumlah dan total.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Produk kopi = new Produk(\"Kopi\", 18000);\n        System.out.println(kopi);\n        System.out.println(kopi.equals(new Produk(\"Kopi\", 18000)));\n        try {\n            new Produk(\"Teh\", -1);\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"Ditolak: \" + e.getMessage());\n        }\n        Produk promo = kopi.denganHarga(15000);\n        System.out.println(kopi.harga() + \" -> \" + promo.harga());\n        List<Produk> keranjang = new ArrayList<>(List.of(kopi, promo));\n        Pesanan p = new Pesanan(\"PSN-1\", keranjang);\n        keranjang.add(new Produk(\"Roti\", 12000));\n        System.out.println(p.id() + \" berisi \" + p.isi().size() + \" produk, total \" + p.total());\n    }\n}\n\nrecord Produk(String nama, int harga) {\n    Produk {\n        if (nama == null || nama.isBlank()) {\n            throw new IllegalArgumentException(\"nama wajib diisi\");\n        }\n        if (harga < 0) {\n            throw new IllegalArgumentException(\"harga tidak boleh negatif\");\n        }\n    }\n\n    Produk denganHarga(int hargaBaru) {\n        return new Produk(nama, hargaBaru);\n    }\n}\n\nrecord Pesanan(String id, List<Produk> isi) {\n    Pesanan {\n        isi = List.copyOf(isi);\n    }\n\n    int total() {\n        int t = 0;\n        for (Produk p : isi) {\n            t += p.harga();\n        }\n        return t;\n    }\n}\n",
+          "keluaran": "Produk[nama=Kopi, harga=18000]\ntrue\nDitolak: harga tidak boleh negatif\n18000 -> 15000\nPSN-1 berisi 2 produk, total 33000",
+          "wajib": [
+            {
+              "pola": "record\\s+Pesanan",
+              "pesan": "buat `record Pesanan`."
+            },
+            {
+              "pola": "List\\.copyOf\\s*\\(\\s*isi\\s*\\)",
+              "pesan": "salin dengan `List.copyOf(isi)`."
+            }
+          ],
+          "benar": "Roti yang ditambahkan belakangan tidak ikut masuk pesanan.",
+          "petunjuk": "Di compact constructor: `isi = List.copyOf(isi);`"
+        },
+        {
+          "arahan": "Tantangan: buat `sealed interface Pembayaran` yang hanya mengizinkan record `Tunai(int dibayar)`, `Kartu(String nomor)`, dan `Qris(String kodeTransaksi)`. Cetak satu contoh masing-masing.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Produk kopi = new Produk(\"Kopi\", 18000);\n        System.out.println(kopi);\n        System.out.println(kopi.equals(new Produk(\"Kopi\", 18000)));\n        try {\n            new Produk(\"Teh\", -1);\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"Ditolak: \" + e.getMessage());\n        }\n        Produk promo = kopi.denganHarga(15000);\n        System.out.println(kopi.harga() + \" -> \" + promo.harga());\n        List<Produk> keranjang = new ArrayList<>(List.of(kopi, promo));\n        Pesanan p = new Pesanan(\"PSN-1\", keranjang);\n        keranjang.add(new Produk(\"Roti\", 12000));\n        System.out.println(p.id() + \" berisi \" + p.isi().size() + \" produk, total \" + p.total());\n        List<Pembayaran> bayar = List.of(new Tunai(50000), new Kartu(\"4111-xxxx\"), new Qris(\"QR-77\"));\n        for (Pembayaran b : bayar) {\n            System.out.println(b);\n        }\n    }\n}\n\nrecord Produk(String nama, int harga) {\n    Produk {\n        if (nama == null || nama.isBlank()) {\n            throw new IllegalArgumentException(\"nama wajib diisi\");\n        }\n        if (harga < 0) {\n            throw new IllegalArgumentException(\"harga tidak boleh negatif\");\n        }\n    }\n\n    Produk denganHarga(int hargaBaru) {\n        return new Produk(nama, hargaBaru);\n    }\n}\n\nrecord Pesanan(String id, List<Produk> isi) {\n    Pesanan {\n        isi = List.copyOf(isi);\n    }\n\n    int total() {\n        int t = 0;\n        for (Produk p : isi) {\n            t += p.harga();\n        }\n        return t;\n    }\n}\n\nsealed interface Pembayaran permits Tunai, Kartu, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Kartu(String nomor) implements Pembayaran {}\n\nrecord Qris(String kodeTransaksi) implements Pembayaran {}\n",
+          "keluaran": "Produk[nama=Kopi, harga=18000]\ntrue\nDitolak: harga tidak boleh negatif\n18000 -> 15000\nPSN-1 berisi 2 produk, total 33000\nTunai[dibayar=50000]\nKartu[nomor=4111-xxxx]\nQris[kodeTransaksi=QR-77]",
+          "wajib": [
+            {
+              "pola": "sealed\\s+interface\\s+Pembayaran\\s+permits",
+              "pesan": "buat `sealed interface Pembayaran permits ...`."
+            },
+            {
+              "pola": "record\\s+Qris",
+              "pesan": "buat `record Qris`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Hanya tiga jenis pembayaran yang mungkin, dan compiler mengetahuinya.",
+          "petunjuk": "`sealed interface Pembayaran permits Tunai, Kartu, Qris {}` lalu `record Tunai(int dibayar) implements Pembayaran {}`."
+        }
+      ],
+      "penutup": "Model data sudah rapi. Berikutnya: memeriksa model itu dengan pattern matching switch."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Tempat yang tepat untuk validasi data record adalah...",
+          "options": [
+            "Getter",
+            "toString",
+            "Di setiap tempat yang membuat record",
+            "Compact constructor"
+          ],
+          "answer": 3,
+          "explanation": "Saat dibuat.",
+          "remedial": "Compact constructor berjalan setiap kali record dibuat, sehingga tidak ada object yang lolos tanpa diperiksa."
+        },
+        {
+          "question": "Cara \"mengubah\" harga sebuah record Produk adalah...",
+          "options": [
+            "Membuat record baru dengan harga baru",
+            "Memanggil setHarga",
+            "Mengubah field harga langsung",
+            "Record tidak bisa dibuat ulang"
+          ],
+          "answer": 0,
+          "explanation": "Immutable.",
+          "remedial": "Field record bersifat final. Pola yang dipakai adalah method seperti `denganHarga` yang mengembalikan salinan."
+        },
+        {
+          "question": "Kenapa record Pesanan memanggil List.copyOf(isi)?",
+          "options": [
+            "Supaya lebih cepat",
+            "Supaya isi record tidak berubah saat list asli diubah",
+            "Karena record tidak bisa menyimpan List",
+            "Supaya urutan list dibalik"
+          ],
+          "answer": 1,
+          "explanation": "Salinan immutable.",
+          "remedial": "Record hanya membuat field-nya final. Object yang ditunjuk field itu tetap bisa diubah kalau tidak disalin menjadi immutable."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kata kunci untuk menyebut daftar turunan yang diizinkan pada sealed interface adalah...",
+      "options": [
+        "extends",
+        "allows",
+        "permits",
+        "implements"
+      ],
+      "answer": 2,
+      "explanation": "Mengizinkan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca ukuran kotak dengan format panjangxlebar per baris, lalu menyimpan ukuran yang unik dan mencetaknya. Class Ukuran ditulis panjang tanpa equals dan hashCode, sehingga ukuran yang sama tetap dianggap berbeda, dan ukuran nol atau negatif tidak ditolak. Ganti dengan record Ukuran yang menolak ukuran tidak positif lewat IllegalArgumentException berpesan ukuran harus positif.",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Set<Ukuran> unik = new LinkedHashSet<>();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\"x\");\n            try {\n                unik.add(new Ukuran(Integer.parseInt(d[0]), Integer.parseInt(d[1])));\n            } catch (IllegalArgumentException e) {\n                System.out.println(\"Ditolak: \" + e.getMessage());\n            }\n        }\n        System.out.println(unik);\n    }\n}\n\nclass Ukuran {\n    private final int panjang;\n    private final int lebar;\n\n    Ukuran(int panjang, int lebar) {\n        this.panjang = panjang;\n        this.lebar = lebar;\n    }\n\n    int panjang() {\n        return panjang;\n    }\n\n    int lebar() {\n        return lebar;\n    }\n}",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Set<Ukuran> unik = new LinkedHashSet<>();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\"x\");\n            try {\n                unik.add(new Ukuran(Integer.parseInt(d[0]), Integer.parseInt(d[1])));\n            } catch (IllegalArgumentException e) {\n                System.out.println(\"Ditolak: \" + e.getMessage());\n            }\n        }\n        System.out.println(unik);\n    }\n}\n\nrecord Ukuran(int panjang, int lebar) {\n    Ukuran {\n        if (panjang <= 0 || lebar <= 0) {\n            throw new IllegalArgumentException(\"ukuran harus positif\");\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "3x4\n3x4\n5x2\n0x9\n",
+          "expectedOutput": "Ditolak: ukuran harus positif\n[Ukuran[panjang=3, lebar=4], Ukuran[panjang=5, lebar=2]]\n"
+        }
+      ],
+      "hints": [
+        "record Ukuran(int panjang, int lebar) { ... }",
+        "Compact constructor: Ukuran { if (panjang <= 0 || lebar <= 0) throw ...; }"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Record: data immutable dengan constructor, getter, equals, hashCode, dan toString otomatis.",
+        "Compact constructor untuk validasi; List.copyOf untuk koleksi di dalam record.",
+        "Method denganX membuat salinan untuk \"mengubah\" nilai.",
+        "Sealed interface + record memodelkan himpunan jenis yang tetap."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

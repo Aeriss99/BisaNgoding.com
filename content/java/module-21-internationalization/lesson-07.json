@@ -1,0 +1,208 @@
+{
+  "id": "java-internationalization-07",
+  "moduleId": "internationalization",
+  "order": 7,
+  "title": "Proyek: Struk Toko Global",
+  "estimatedMinutes": 19,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya menyatukan semuanya. Toko Global mengirim struk pesanan ke pembeli dari beberapa negara. Setiap struk harus memakai bahasa, format angka, mata uang, dan zona waktu pembeli, tanpa satu pun `if (bahasa.equals(...))` di kode bisnis.\n\nKuncinya adalah satu class **`Pelokal`** yang dibuat sekali per pembeli dan memegang semua alat i18n: `ResourceBundle`, `MessageFormat`, `NumberFormat`, dan `DateTimeFormatter`. Kode lain cukup meminta \"teks ini\", \"uang ini\", \"waktu ini\".\n\nIbarat penerjemah pribadi yang mendampingi setiap tamu: resepsionis hotel cukup bicara biasa, dan penerjemah yang menyesuaikan bahasa, mata uang, dan jam untuk tamunya."
+    },
+    {
+      "type": "theory",
+      "content": "Keputusan desain:\n\n| Keputusan | Alasan |\n|---|---|\n| data pesanan memakai `Instant`, `BigDecimal`, dan kode mata uang | data tidak bergantung pada pembeli |\n| locale, zona, dan mata uang adalah data pembeli | diambil dari profil, bukan dari server |\n| semua teks dari file terjemahan dengan kunci | kode tidak berisi kalimat |\n| `Pelokal` dibuat per pembeli | `NumberFormat` tidak thread-safe, jadi tidak dibagi antar thread |\n| mata uang mengikuti transaksi, format mengikuti locale | pembeli Amerika melihat `IDR170,000.00` |\n\n```java\nclass Pelokal {\n    private final Locale locale;\n    private final ZoneId zona;\n    private final ResourceBundle teks;\n    private final NumberFormat uang;\n    private final DateTimeFormatter waktu;\n\n    String teks(String kunci, Object... isian) { ... }\n    String uang(BigDecimal nilai) { ... }\n    String waktu(Instant saat) { ... }\n}\n```\n\n`record Baris(String nama, int jumlah, BigDecimal harga)` memakai record (Java 16+), yang bisa dijalankan karena modul ini memakai Java 21."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nPelokal p = new Pelokal(\"id-ID\", \"Asia/Jakarta\", \"IDR\");\ncetakStruk(p, 1001, saat, isi);\n```\n\n```text\nStruk #1001\nKopi Gayo x2: Rp170.000,00\nTeh Tubruk x1.500: Rp18.000,00\nTotal: Rp188.000,00\nDipesan 17 Nov 2026 14.05 WIB\n```\n\nNomor struk dikirim sebagai teks (`String.valueOf(nomor)`), karena `{0}` dengan angka akan diformat menjadi `1.001`. Nomor adalah identitas, bukan jumlah.\n\nDi Spring Boot, peran `Pelokal` dibagi ke `MessageSource`, `LocaleResolver`, dan formatter di template, tetapi idenya sama."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.IOException;\nimport java.math.BigDecimal;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    static void cetakStruk(Pelokal p, int nomor, Instant saat, List<Baris> isi) {\n        System.out.println(p.teks(\"judul\", String.valueOf(nomor)));\n        BigDecimal total = BigDecimal.ZERO;\n        for (Baris b : isi) {\n            System.out.println(p.teks(\"baris\", b.nama(), b.jumlah(), p.uang(b.subtotal())));\n            total = total.add(b.subtotal());\n        }\n        System.out.println(p.teks(\"total\", p.uang(total)));\n        System.out.println(p.teks(\"waktu\", p.waktu(saat)));\n    }\n\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"struk\",\n                \"\", \"judul=Receipt #{0}\\nbaris={0} x{1,number,integer}: {2}\\ntotal=Total: {0}\\nwaktu=Ordered {0}\\n\",\n                \"_id\", \"judul=Struk #{0}\\nbaris={0} x{1,number,integer}: {2}\\ntotal=Total: {0}\\nwaktu=Dipesan {0}\\n\");\n        Instant saat = Instant.parse(\"2026-11-17T07:05:00Z\");\n        List<Baris> isi = List.of(new Baris(\"Kopi Gayo\", 2, new BigDecimal(\"85000\")), new Baris(\"Teh Tubruk\", 1500, new BigDecimal(\"12\")));\n        Pelokal p = new Pelokal(\"id-ID\", \"Asia/Jakarta\", \"IDR\");\n        Pelokal q = new Pelokal(\"id-ID\", \"Asia/Jakarta\", \"USD\");\n        System.out.println(p.uang(new BigDecimal(\"12\")) + \" | \" + q.uang(new BigDecimal(\"12\")));\n    }\n}\n\nclass Pelokal {\n    private final Locale locale;\n    private final ZoneId zona;\n    private final ResourceBundle teks;\n    private final NumberFormat uang;\n    private final DateTimeFormatter waktu;\n\n    Pelokal(String tag, String zona, String mataUang) {\n        this.locale = Locale.forLanguageTag(tag);\n        this.zona = ZoneId.of(zona);\n        this.teks = ResourceBundle.getBundle(\"struk\", locale);\n        this.uang = NumberFormat.getCurrencyInstance(locale);\n        this.uang.setCurrency(Currency.getInstance(mataUang));\n        this.waktu = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale);\n    }\n\n    String teks(String kunci, Object... isian) {\n        return new MessageFormat(teks.getString(kunci), locale).format(isian);\n    }\n\n    String uang(BigDecimal nilai) {\n        return uang.format(nilai);\n    }\n\n    String waktu(Instant saat) {\n        ZonedDateTime z = saat.atZone(zona);\n        return z.format(waktu) + \" \" + z.format(DateTimeFormatter.ofPattern(\"zzz\", locale));\n    }\n}\n\nrecord Baris(String nama, int jumlah, BigDecimal harga) {\n    BigDecimal subtotal() {\n        return harga.multiply(BigDecimal.valueOf(jumlah));\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: format Indonesia, mata uang berbeda. Apa yang tercetak?",
+        "options": [
+          "Rp12,00 | $12.00",
+          "Rp12 | US$12",
+          "Rp12,00 | Rp12,00",
+          "Rp12,00 | US$12,00"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 28,
+          "note": "Locale Indonesia, mata uang dolar."
+        },
+        {
+          "line": 45,
+          "note": "Mata uang dari data transaksi."
+        }
+      ],
+      "explanation": "Kedua Pelokal memakai locale Indonesia, jadi keduanya menulis koma desimal. Mata uangnya berbeda: Rp untuk IDR, US$ untuk USD. Huruf US ditambahkan karena di Indonesia simbol dolar saja bisa membingungkan; aturan ini berasal dari data locale CLDR.",
+      "tryThis": [
+        {
+          "task": "Ganti mata uang q menjadi \"JPY\".",
+          "hint": null
+        },
+        {
+          "task": "Buat Pelokal ketiga dengan locale \"en-US\" dan mata uang \"IDR\".",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Locale disimpan di variabel `static`**\n\nSatu server melayani banyak pembeli. Locale adalah data per request atau per pengguna.\n\n**2. Format terjadi terlalu awal**\n\nMenyimpan `\"Rp188.000,00\"` di database membuat data tidak bisa dijumlahkan dan tidak bisa ditampilkan dalam bahasa lain. Format hanya di tahap tampilan.\n\n**3. Nomor identitas diformat sebagai angka**\n\n`{0}` dengan nomor pesanan 1001 menjadi `1.001`. Kirim sebagai teks, atau pakai `{0,number,#}`.\n\n**4. Membandingkan hasil format dengan teks yang diketik**\n\nSejak Java 20, format jam bahasa Inggris memakai spasi khusus (*narrow no-break space*, U+202F) sebelum `PM`. Test yang membandingkan dengan `\"4:05 PM\"` hasil ketikan tiba-tiba gagal setelah upgrade JDK. Bandingkan dengan hasil formatter yang sama, atau periksa nilai `Instant`-nya.\n\n**5. Diam-diam jatuh ke locale bawaan**\n\nPembeli dengan locale yang belum didukung mendapat bahasa locale bawaan server, bukan bahasa cadangan yang direncanakan. Matikan dengan `ResourceBundle.Control.getNoFallbackControl`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di Spring Boot: `spring.messages.basename=messages`, `spring.messages.fallback-to-system-locale=false`, `LocaleResolver` (dari header atau cookie), dan `LocaleChangeInterceptor` untuk parameter `?lang=id`.\n- Email transaksi (struk, reset sandi) dibuat dengan template (Thymeleaf, FreeMarker) yang membaca locale dan zona dari profil penerima, bukan dari request yang sedang berjalan.\n- Test i18n otomatis: memastikan semua file punya kunci yang sama, tidak ada teks yang tertulis langsung di template, dan tampilan tidak rusak dengan teks yang lebih panjang (*pseudo-localization*, misalnya `[!!Ŝţŕûķ #1001!!]`).\n- Bahasa baru ditambahkan dengan menambah satu file terjemahan, tanpa mengubah kode Java. Itulah tanda i18n yang berhasil."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Toko Global 7: Struk Tiga Negara",
+      "pembuka": "Kita rakit struk Toko Global untuk pembeli dari beberapa negara.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Struk untuk pembeli Indonesia di Jakarta.",
+          "jawaban": "import java.io.IOException;\nimport java.math.BigDecimal;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    static void cetakStruk(Pelokal p, int nomor, Instant saat, List<Baris> isi) {\n        System.out.println(p.teks(\"judul\", String.valueOf(nomor)));\n        BigDecimal total = BigDecimal.ZERO;\n        for (Baris b : isi) {\n            System.out.println(p.teks(\"baris\", b.nama(), b.jumlah(), p.uang(b.subtotal())));\n            total = total.add(b.subtotal());\n        }\n        System.out.println(p.teks(\"total\", p.uang(total)));\n        System.out.println(p.teks(\"waktu\", p.waktu(saat)));\n    }\n\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"struk\",\n                \"\", \"judul=Receipt #{0}\\nbaris={0} x{1,number,integer}: {2}\\ntotal=Total: {0}\\nwaktu=Ordered {0}\\n\",\n                \"_id\", \"judul=Struk #{0}\\nbaris={0} x{1,number,integer}: {2}\\ntotal=Total: {0}\\nwaktu=Dipesan {0}\\n\");\n        Instant saat = Instant.parse(\"2026-11-17T07:05:00Z\");\n        List<Baris> isi = List.of(new Baris(\"Kopi Gayo\", 2, new BigDecimal(\"85000\")), new Baris(\"Teh Tubruk\", 1500, new BigDecimal(\"12\")));\n        cetakStruk(new Pelokal(\"id-ID\", \"Asia/Jakarta\", \"IDR\"), 1001, saat, isi);\n    }\n}\n\nclass Pelokal {\n    private final Locale locale;\n    private final ZoneId zona;\n    private final ResourceBundle teks;\n    private final NumberFormat uang;\n    private final DateTimeFormatter waktu;\n\n    Pelokal(String tag, String zona, String mataUang) {\n        this.locale = Locale.forLanguageTag(tag);\n        this.zona = ZoneId.of(zona);\n        this.teks = ResourceBundle.getBundle(\"struk\", locale);\n        this.uang = NumberFormat.getCurrencyInstance(locale);\n        this.uang.setCurrency(Currency.getInstance(mataUang));\n        this.waktu = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale);\n    }\n\n    String teks(String kunci, Object... isian) {\n        return new MessageFormat(teks.getString(kunci), locale).format(isian);\n    }\n\n    String uang(BigDecimal nilai) {\n        return uang.format(nilai);\n    }\n\n    String waktu(Instant saat) {\n        ZonedDateTime z = saat.atZone(zona);\n        return z.format(waktu) + \" \" + z.format(DateTimeFormatter.ofPattern(\"zzz\", locale));\n    }\n}\n\nrecord Baris(String nama, int jumlah, BigDecimal harga) {\n    BigDecimal subtotal() {\n        return harga.multiply(BigDecimal.valueOf(jumlah));\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}\n",
+          "keluaran": "Struk #1001\nKopi Gayo x2: Rp170.000,00\nTeh Tubruk x1.500: Rp18.000,00\nTotal: Rp188.000,00\nDipesan 17 Nov 2026 14.05 WIB",
+          "otomatis": true,
+          "benar": "Semua teks dari file, angka dan uang dari `NumberFormat`, waktu dari zona pembeli.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Cetak baris kosong, lalu struk yang sama untuk pembeli `en-US` di `America/New_York` dengan mata uang tetap `IDR`.",
+          "jawaban": "import java.io.IOException;\nimport java.math.BigDecimal;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    static void cetakStruk(Pelokal p, int nomor, Instant saat, List<Baris> isi) {\n        System.out.println(p.teks(\"judul\", String.valueOf(nomor)));\n        BigDecimal total = BigDecimal.ZERO;\n        for (Baris b : isi) {\n            System.out.println(p.teks(\"baris\", b.nama(), b.jumlah(), p.uang(b.subtotal())));\n            total = total.add(b.subtotal());\n        }\n        System.out.println(p.teks(\"total\", p.uang(total)));\n        System.out.println(p.teks(\"waktu\", p.waktu(saat)));\n    }\n\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"struk\",\n                \"\", \"judul=Receipt #{0}\\nbaris={0} x{1,number,integer}: {2}\\ntotal=Total: {0}\\nwaktu=Ordered {0}\\n\",\n                \"_id\", \"judul=Struk #{0}\\nbaris={0} x{1,number,integer}: {2}\\ntotal=Total: {0}\\nwaktu=Dipesan {0}\\n\");\n        Instant saat = Instant.parse(\"2026-11-17T07:05:00Z\");\n        List<Baris> isi = List.of(new Baris(\"Kopi Gayo\", 2, new BigDecimal(\"85000\")), new Baris(\"Teh Tubruk\", 1500, new BigDecimal(\"12\")));\n        cetakStruk(new Pelokal(\"id-ID\", \"Asia/Jakarta\", \"IDR\"), 1001, saat, isi);\n        System.out.println();\n        cetakStruk(new Pelokal(\"en-US\", \"America/New_York\", \"IDR\"), 1001, saat, isi);\n    }\n}\n\nclass Pelokal {\n    private final Locale locale;\n    private final ZoneId zona;\n    private final ResourceBundle teks;\n    private final NumberFormat uang;\n    private final DateTimeFormatter waktu;\n\n    Pelokal(String tag, String zona, String mataUang) {\n        this.locale = Locale.forLanguageTag(tag);\n        this.zona = ZoneId.of(zona);\n        this.teks = ResourceBundle.getBundle(\"struk\", locale);\n        this.uang = NumberFormat.getCurrencyInstance(locale);\n        this.uang.setCurrency(Currency.getInstance(mataUang));\n        this.waktu = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale);\n    }\n\n    String teks(String kunci, Object... isian) {\n        return new MessageFormat(teks.getString(kunci), locale).format(isian);\n    }\n\n    String uang(BigDecimal nilai) {\n        return uang.format(nilai);\n    }\n\n    String waktu(Instant saat) {\n        ZonedDateTime z = saat.atZone(zona);\n        return z.format(waktu) + \" \" + z.format(DateTimeFormatter.ofPattern(\"zzz\", locale));\n    }\n}\n\nrecord Baris(String nama, int jumlah, BigDecimal harga) {\n    BigDecimal subtotal() {\n        return harga.multiply(BigDecimal.valueOf(jumlah));\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}\n",
+          "keluaran": "Struk #1001\nKopi Gayo x2: Rp170.000,00\nTeh Tubruk x1.500: Rp18.000,00\nTotal: Rp188.000,00\nDipesan 17 Nov 2026 14.05 WIB\n\nReceipt #1001\nKopi Gayo x2: IDR170,000.00\nTeh Tubruk x1,500: IDR18,000.00\nTotal: IDR188,000.00\nOrdered Nov 17, 2026, 2:05 AM EST",
+          "wajib": [
+            {
+              "pola": "new\\s+Pelokal\\s*\\(\\s*\"en-US\"\\s*,\\s*\"America/New_York\"",
+              "pesan": "buat `Pelokal` untuk `en-US` di `America/New_York`."
+            }
+          ],
+          "benar": "Tanpa satu pun if bahasa di kode: pembeli Amerika mendapat teks, angka, dan jam versinya.",
+          "petunjuk": "Cukup `cetakStruk(new Pelokal(\"en-US\", \"America/New_York\", \"IDR\"), 1001, saat, isi);`."
+        },
+        {
+          "arahan": "Tambahkan terjemahan Jepang `_ja` (judul `レシート #{0}`, baris `{0} ×{1,number,integer}: {2}`, total `合計: {0}`, waktu `注文日時 {0}`), lalu cetak struk untuk `ja-JP` di `Asia/Tokyo`.",
+          "jawaban": "import java.io.IOException;\nimport java.math.BigDecimal;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    static void cetakStruk(Pelokal p, int nomor, Instant saat, List<Baris> isi) {\n        System.out.println(p.teks(\"judul\", String.valueOf(nomor)));\n        BigDecimal total = BigDecimal.ZERO;\n        for (Baris b : isi) {\n            System.out.println(p.teks(\"baris\", b.nama(), b.jumlah(), p.uang(b.subtotal())));\n            total = total.add(b.subtotal());\n        }\n        System.out.println(p.teks(\"total\", p.uang(total)));\n        System.out.println(p.teks(\"waktu\", p.waktu(saat)));\n    }\n\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"struk\",\n                \"\", \"judul=Receipt #{0}\\nbaris={0} x{1,number,integer}: {2}\\ntotal=Total: {0}\\nwaktu=Ordered {0}\\n\",\n                \"_id\", \"judul=Struk #{0}\\nbaris={0} x{1,number,integer}: {2}\\ntotal=Total: {0}\\nwaktu=Dipesan {0}\\n\",\n                \"_ja\", \"judul=レシート #{0}\\nbaris={0} ×{1,number,integer}: {2}\\ntotal=合計: {0}\\nwaktu=注文日時 {0}\\n\");\n        Instant saat = Instant.parse(\"2026-11-17T07:05:00Z\");\n        List<Baris> isi = List.of(new Baris(\"Kopi Gayo\", 2, new BigDecimal(\"85000\")), new Baris(\"Teh Tubruk\", 1500, new BigDecimal(\"12\")));\n        cetakStruk(new Pelokal(\"id-ID\", \"Asia/Jakarta\", \"IDR\"), 1001, saat, isi);\n        System.out.println();\n        cetakStruk(new Pelokal(\"en-US\", \"America/New_York\", \"IDR\"), 1001, saat, isi);\n        System.out.println();\n        cetakStruk(new Pelokal(\"ja-JP\", \"Asia/Tokyo\", \"IDR\"), 1001, saat, isi);\n    }\n}\n\nclass Pelokal {\n    private final Locale locale;\n    private final ZoneId zona;\n    private final ResourceBundle teks;\n    private final NumberFormat uang;\n    private final DateTimeFormatter waktu;\n\n    Pelokal(String tag, String zona, String mataUang) {\n        this.locale = Locale.forLanguageTag(tag);\n        this.zona = ZoneId.of(zona);\n        this.teks = ResourceBundle.getBundle(\"struk\", locale);\n        this.uang = NumberFormat.getCurrencyInstance(locale);\n        this.uang.setCurrency(Currency.getInstance(mataUang));\n        this.waktu = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale);\n    }\n\n    String teks(String kunci, Object... isian) {\n        return new MessageFormat(teks.getString(kunci), locale).format(isian);\n    }\n\n    String uang(BigDecimal nilai) {\n        return uang.format(nilai);\n    }\n\n    String waktu(Instant saat) {\n        ZonedDateTime z = saat.atZone(zona);\n        return z.format(waktu) + \" \" + z.format(DateTimeFormatter.ofPattern(\"zzz\", locale));\n    }\n}\n\nrecord Baris(String nama, int jumlah, BigDecimal harga) {\n    BigDecimal subtotal() {\n        return harga.multiply(BigDecimal.valueOf(jumlah));\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}\n",
+          "keluaran": "Struk #1001\nKopi Gayo x2: Rp170.000,00\nTeh Tubruk x1.500: Rp18.000,00\nTotal: Rp188.000,00\nDipesan 17 Nov 2026 14.05 WIB\n\nReceipt #1001\nKopi Gayo x2: IDR170,000.00\nTeh Tubruk x1,500: IDR18,000.00\nTotal: IDR188,000.00\nOrdered Nov 17, 2026, 2:05 AM EST\n\nレシート #1001\nKopi Gayo ×2: IDR170,000\nTeh Tubruk ×1,500: IDR18,000\n合計: IDR188,000\n注文日時 2026/11/17 16:05 JST",
+          "wajib": [
+            {
+              "pola": "\"_ja\"",
+              "pesan": "tambahkan terjemahan `_ja`."
+            },
+            {
+              "pola": "new\\s+Pelokal\\s*\\(\\s*\"ja-JP\"\\s*,\\s*\"Asia/Tokyo\"",
+              "pesan": "buat `Pelokal` untuk `ja-JP`."
+            }
+          ],
+          "benar": "Bahasa ketiga hanya butuh satu file terjemahan baru.",
+          "petunjuk": "Tambahkan pasangan `\"_ja\", \"...\"` ke `Bundel.siapkan`."
+        },
+        {
+          "arahan": "Tantangan: pembeli Indonesia ternyata tinggal di Jayapura. Ubah zonanya menjadi `Asia/Jayapura`.",
+          "jawaban": "import java.io.IOException;\nimport java.math.BigDecimal;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    static void cetakStruk(Pelokal p, int nomor, Instant saat, List<Baris> isi) {\n        System.out.println(p.teks(\"judul\", String.valueOf(nomor)));\n        BigDecimal total = BigDecimal.ZERO;\n        for (Baris b : isi) {\n            System.out.println(p.teks(\"baris\", b.nama(), b.jumlah(), p.uang(b.subtotal())));\n            total = total.add(b.subtotal());\n        }\n        System.out.println(p.teks(\"total\", p.uang(total)));\n        System.out.println(p.teks(\"waktu\", p.waktu(saat)));\n    }\n\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"struk\",\n                \"\", \"judul=Receipt #{0}\\nbaris={0} x{1,number,integer}: {2}\\ntotal=Total: {0}\\nwaktu=Ordered {0}\\n\",\n                \"_id\", \"judul=Struk #{0}\\nbaris={0} x{1,number,integer}: {2}\\ntotal=Total: {0}\\nwaktu=Dipesan {0}\\n\",\n                \"_ja\", \"judul=レシート #{0}\\nbaris={0} ×{1,number,integer}: {2}\\ntotal=合計: {0}\\nwaktu=注文日時 {0}\\n\");\n        Instant saat = Instant.parse(\"2026-11-17T07:05:00Z\");\n        List<Baris> isi = List.of(new Baris(\"Kopi Gayo\", 2, new BigDecimal(\"85000\")), new Baris(\"Teh Tubruk\", 1500, new BigDecimal(\"12\")));\n        cetakStruk(new Pelokal(\"id-ID\", \"Asia/Jayapura\", \"IDR\"), 1001, saat, isi);\n        System.out.println();\n        cetakStruk(new Pelokal(\"en-US\", \"America/New_York\", \"IDR\"), 1001, saat, isi);\n        System.out.println();\n        cetakStruk(new Pelokal(\"ja-JP\", \"Asia/Tokyo\", \"IDR\"), 1001, saat, isi);\n    }\n}\n\nclass Pelokal {\n    private final Locale locale;\n    private final ZoneId zona;\n    private final ResourceBundle teks;\n    private final NumberFormat uang;\n    private final DateTimeFormatter waktu;\n\n    Pelokal(String tag, String zona, String mataUang) {\n        this.locale = Locale.forLanguageTag(tag);\n        this.zona = ZoneId.of(zona);\n        this.teks = ResourceBundle.getBundle(\"struk\", locale);\n        this.uang = NumberFormat.getCurrencyInstance(locale);\n        this.uang.setCurrency(Currency.getInstance(mataUang));\n        this.waktu = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale);\n    }\n\n    String teks(String kunci, Object... isian) {\n        return new MessageFormat(teks.getString(kunci), locale).format(isian);\n    }\n\n    String uang(BigDecimal nilai) {\n        return uang.format(nilai);\n    }\n\n    String waktu(Instant saat) {\n        ZonedDateTime z = saat.atZone(zona);\n        return z.format(waktu) + \" \" + z.format(DateTimeFormatter.ofPattern(\"zzz\", locale));\n    }\n}\n\nrecord Baris(String nama, int jumlah, BigDecimal harga) {\n    BigDecimal subtotal() {\n        return harga.multiply(BigDecimal.valueOf(jumlah));\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}\n",
+          "keluaran": "Struk #1001\nKopi Gayo x2: Rp170.000,00\nTeh Tubruk x1.500: Rp18.000,00\nTotal: Rp188.000,00\nDipesan 17 Nov 2026 16.05 WIT\n\nReceipt #1001\nKopi Gayo x2: IDR170,000.00\nTeh Tubruk x1,500: IDR18,000.00\nTotal: IDR188,000.00\nOrdered Nov 17, 2026, 2:05 AM EST\n\nレシート #1001\nKopi Gayo ×2: IDR170,000\nTeh Tubruk ×1,500: IDR18,000\n合計: IDR188,000\n注文日時 2026/11/17 16:05 JST",
+          "wajib": [
+            {
+              "pola": "\"Asia/Jayapura\"",
+              "pesan": "pakai zona `Asia/Jayapura`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Saat pesanan tidak berubah; hanya cara menampilkannya: 16:05 WIT.",
+          "petunjuk": "Zona adalah data pembeli, cukup ubah argumen `Pelokal`."
+        }
+      ],
+      "penutup": "Selamat, Toko Global sudah siap melayani pembeli dari banyak negara!"
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa nomor struk dikirim ke MessageFormat sebagai teks?",
+          "options": [
+            "Supaya tidak diformat menjadi 1.001 seperti jumlah",
+            "Karena MessageFormat tidak menerima angka",
+            "Supaya lebih cepat",
+            "Karena nomor bisa negatif"
+          ],
+          "answer": 0,
+          "explanation": "Identitas, bukan jumlah.",
+          "remedial": "Isian angka diformat dengan pemisah ribuan sesuai locale. Nomor pesanan adalah identitas, jadi harus tampil apa adanya."
+        },
+        {
+          "question": "Di mana data locale dan zona waktu pembeli sebaiknya disimpan?",
+          "options": [
+            "Di variabel static aplikasi",
+            "Di profil pembeli",
+            "Di pengaturan server",
+            "Di nama file struk"
+          ],
+          "answer": 1,
+          "explanation": "Milik pengguna.",
+          "remedial": "Locale dan zona waktu adalah pilihan pengguna. Server hanya membaca dan memakainya saat menampilkan atau mengirim pesan."
+        },
+        {
+          "question": "Kenapa setiap pembeli mendapat object Pelokal sendiri?",
+          "options": [
+            "Karena ResourceBundle hanya bisa dibaca sekali",
+            "Supaya struk lebih panjang",
+            "Karena NumberFormat di dalamnya tidak thread-safe dan locale berbeda per pembeli",
+            "Karena record tidak bisa dipakai bersama"
+          ],
+          "answer": 2,
+          "explanation": "Per pengguna.",
+          "remedial": "Pelokal memegang locale pembeli dan object format yang tidak aman dipakai bersamaan oleh banyak thread."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pengaturan Spring Boot supaya pengguna dengan bahasa yang tidak didukung tidak jatuh ke bahasa server adalah...",
+      "options": [
+        "spring.messages.encoding=UTF-8",
+        "server.locale=none",
+        "spring.i18n.enabled=false",
+        "spring.messages.fallback-to-system-locale=false"
+      ],
+      "answer": 3,
+      "explanation": "Jangan pakai locale sistem."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Aplikasi Toko Global memakai bahasa Indonesia sebagai bahasa cadangan: file sapa.properties berbahasa Indonesia, ditambah file _en dan _ja. Program mencetak sapaan untuk setiap tag bahasa dari input. Masalahnya, locale bawaan editor (seperti server) adalah en-US, sehingga pembeli dengan bahasa yang tidak didukung seperti de-DE mendapat bahasa Inggris, bukan bahasa cadangan. Ubah pemanggilan getBundle supaya memakai ResourceBundle.Control.getNoFallbackControl dengan format FORMAT_PROPERTIES, sehingga locale bawaan server tidak pernah ikut dicari.",
+      "starterCode": "import java.io.IOException;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"sapa\",\n                \"\", \"halo=Halo\\n\",\n                \"_en\", \"halo=Hello\\n\",\n                \"_ja\", \"halo=こんにちは\\n\");\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            Locale l = Locale.forLanguageTag(in.nextLine().trim());\n            ResourceBundle rb = ResourceBundle.getBundle(\"sapa\", l);\n            System.out.println(l.toLanguageTag() + \": \" + rb.getString(\"halo\"));\n        }\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}",
+      "solution": "import java.io.IOException;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"sapa\",\n                \"\", \"halo=Halo\\n\",\n                \"_en\", \"halo=Hello\\n\",\n                \"_ja\", \"halo=こんにちは\\n\");\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            Locale l = Locale.forLanguageTag(in.nextLine().trim());\n            ResourceBundle rb = ResourceBundle.getBundle(\"sapa\", l, ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_PROPERTIES));\n            System.out.println(l.toLanguageTag() + \": \" + rb.getString(\"halo\"));\n        }\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}",
+      "tests": [
+        {
+          "input": "id-ID\nja-JP\nde-DE\nen-GB\n",
+          "expectedOutput": "id-ID: Halo\nja-JP: こんにちは\nde-DE: Halo\nen-GB: Hello\n"
+        },
+        {
+          "input": "fr-FR\n",
+          "expectedOutput": "fr-FR: Halo\n"
+        }
+      ],
+      "hints": [
+        "ResourceBundle.getBundle(\"sapa\", l, ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_PROPERTIES)).",
+        "Control ini melewati langkah locale bawaan dan langsung ke file cadangan."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Satu class Pelokal per pembeli memegang locale, zona, teks, format uang, dan format waktu.",
+        "Data disimpan netral: Instant, BigDecimal, kode mata uang; format hanya saat tampil.",
+        "Nomor identitas dikirim sebagai teks ke MessageFormat.",
+        "Bahasa baru cukup menambah file terjemahan; matikan fallback ke locale server."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

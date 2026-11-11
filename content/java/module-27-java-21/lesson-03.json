@@ -1,0 +1,208 @@
+{
+  "id": "java-java-21-03",
+  "moduleId": "java-21",
+  "order": 3,
+  "title": "Pattern Matching untuk switch",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Kode yang memeriksa jenis object dengan deretan `if (x instanceof A) ... else if (x instanceof B) ...` mudah salah: jenis baru ditambahkan, tetapi satu `else if` lupa ditulis, dan program diam-diam mengambil jalan `else`.\n\nSejak **Java 21**, `switch` bisa mencocokkan **tipe** (*pattern matching*), lengkap dengan syarat tambahan dan penanganan `null`. Digabung dengan sealed interface, compiler **memeriksa bahwa semua jenis sudah ditangani**.\n\nIbarat mesin sortir paket di gudang: setiap paket dipindai, dan jalurnya dipilih sesuai jenisnya. Kalau ada jenis paket baru, mesin menolak bekerja sampai jalurnya disiapkan, bukan diam-diam membuangnya ke jalur sembarang."
+    },
+    {
+      "type": "theory",
+      "content": "```java\nreturn switch (b) {\n    case Tunai t when t.dibayar() < total -> \"Uang kurang\";   // pattern + syarat\n    case Tunai t -> \"Tunai, kembali \" + (t.dibayar() - total);\n    case Kartu k -> \"Kartu \" + k.nomor();\n    case Qris q -> \"QRIS \" + q.kodeTransaksi();\n};\n```\n\n| Bagian | Arti |\n|---|---|\n| `case Tunai t` | cocok kalau `b` adalah `Tunai`, lalu tersedia variabel `t` |\n| `when syarat` | *guard*: cabang hanya dipilih kalau syaratnya benar |\n| `case null` | menangani `null` (tanpa ini, `null` melempar `NullPointerException`) |\n| `default` | sisa yang tidak cocok |\n\n**Exhaustiveness (kelengkapan):** kalau tipe yang diperiksa adalah sealed interface, dan semua turunan sudah punya cabang, `default` **tidak perlu**. Lebih dari itu, kalau nanti ada turunan baru (misalnya `Voucher`), semua `switch` yang belum menanganinya **gagal di-compile**. Bug ditemukan saat compile, bukan oleh pengguna.\n\n**Urutan cabang penting:** cabang yang lebih khusus (`Tunai t when ...`) harus ditulis sebelum yang lebih umum (`Tunai t`). Kalau terbalik, compiler menolak karena cabang khusus tidak akan pernah tercapai (*dominated*)."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nsealed interface Pembayaran permits Tunai, Kartu, Qris {}\n\nstatic String keterangan(Pembayaran b) {\n    return switch (b) {\n        case Tunai t -> \"Tunai \" + t.dibayar();\n        case Kartu k -> \"Kartu \" + k.nomor();\n        case Qris q -> \"QRIS \" + q.kodeTransaksi();\n    };                                       // tanpa default: compiler tahu sudah lengkap\n}\n```\n\nPattern switch juga bekerja untuk `Object` biasa, tetapi karena jenisnya tidak terbatas, `default` wajib ada.\n\nGaya ini disebut *data-oriented programming*: data dimodelkan dengan record dan sealed, lalu perilakunya ditulis dengan pattern matching. Ia melengkapi gaya OOP dengan method yang ditimpa di setiap class."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        for (Object o : new Object[]{42, 7, \"halo\", 2.5}) {\n            String hasil = switch (o) {\n                case Integer i when i > 10 -> \"angka besar \" + i;\n                case Integer i -> \"angka \" + i;\n                case String s -> \"teks \" + s.length() + \" huruf\";\n                default -> \"lainnya \" + o.getClass().getSimpleName();\n            };\n            System.out.println(hasil);\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: apa baris kedua yang tercetak?",
+        "options": [
+          "angka besar 7",
+          "teks 1 huruf",
+          "lainnya Integer",
+          "angka 7"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Integer dengan syarat."
+        },
+        {
+          "line": 8,
+          "note": "Integer lainnya."
+        },
+        {
+          "line": 10,
+          "note": "Sisanya, wajib untuk Object."
+        }
+      ],
+      "explanation": "7 adalah Integer tetapi tidak lebih dari 10, jadi syarat when gagal dan cabang berikutnya, Integer i tanpa syarat, yang dipilih. Cabang diperiksa dari atas ke bawah. 2.5 adalah Double dan jatuh ke default.",
+      "tryThis": [
+        {
+          "task": "Tukar urutan kedua cabang Integer. Apa kata compiler?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan null ke dalam array tanpa case null.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menambahkan `default` pada switch sealed yang sudah lengkap**\n\n`default` membuat compiler tidak lagi memperingatkan saat ada jenis baru. Untuk sealed, biarkan tanpa `default`.\n\n**2. Urutan cabang terbalik**\n\nCabang umum di atas cabang khusus membuat cabang khusus tidak tercapai, dan compiler menolaknya.\n\n**3. Lupa `null`**\n\nSwitch lama dan baru sama-sama melempar `NullPointerException` untuk `null`, kecuali ada `case null`.\n\n**4. Logika berat di dalam `when`**\n\n`when` sebaiknya syarat sederhana. Pemanggilan database di dalam `when` sulit dibaca dan diuji.\n\n**5. Memakai pattern switch untuk hal yang lebih cocok dengan method biasa**\n\nKalau setiap jenis punya perilaku sendiri yang terus berkembang, method di interface (polimorfisme) bisa lebih tepat. Pattern switch paling cocok untuk himpunan jenis yang tetap."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pola sealed + record + pattern switch dipakai untuk hasil operasi (`Berhasil`, `Gagal`), event (`PesananDibuat`, `PesananDibayar`), perintah, dan pesan antar layanan.\n- Di Spring, *controller* bisa mengubah hasil sealed menjadi response HTTP dengan satu switch: `case Berhasil b -> ResponseEntity.ok(b)`, `case TidakDitemukan t -> ResponseEntity.notFound().build()`.\n- Fitur ini mirip `when` di Kotlin dan `match` di Scala dan Rust, sehingga developer yang pindah bahasa cepat mengenalinya.\n- Java 21 adalah versi pertama di mana fitur ini final (tidak lagi *preview*), sehingga aman dipakai di produksi."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Kasir Modern 3: Jalur Pembayaran",
+      "pembuka": "Kasir Modern memproses setiap jenis pembayaran dengan pattern switch.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Satu switch menangani ketiga jenis pembayaran, tanpa `default`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static String keterangan(Pembayaran b) {\n        return switch (b) {\n            case Tunai t -> \"Tunai \" + t.dibayar();\n            case Kartu k -> \"Kartu \" + k.nomor();\n            case Qris q -> \"QRIS \" + q.kodeTransaksi();\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<Pembayaran> daftar = List.of(new Tunai(50000), new Kartu(\"4111-xxxx\"), new Qris(\"QR-77\"));\n        for (Pembayaran b : daftar) {\n            System.out.println(keterangan(b));\n        }\n    }\n}\n\nsealed interface Pembayaran permits Tunai, Kartu, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Kartu(String nomor) implements Pembayaran {}\n\nrecord Qris(String kodeTransaksi) implements Pembayaran {}\n",
+          "keluaran": "Tunai 50000\nKartu 4111-xxxx\nQRIS QR-77",
+          "otomatis": true,
+          "benar": "Compiler tahu `Pembayaran` hanya punya tiga turunan.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan parameter `total` dan bedakan dua kasus tunai: kalau uang kurang, cetak `Uang kurang ` dan selisihnya; kalau cukup, cetak kembaliannya. Total belanja 36000.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static String keterangan(Pembayaran b, int total) {\n        return switch (b) {\n            case Tunai t when t.dibayar() < total -> \"Uang kurang \" + (total - t.dibayar());\n            case Tunai t -> \"Tunai, kembali \" + (t.dibayar() - total);\n            case Kartu k -> \"Kartu \" + k.nomor();\n            case Qris q -> \"QRIS \" + q.kodeTransaksi();\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<Pembayaran> daftar = List.of(new Tunai(50000), new Tunai(20000), new Kartu(\"4111-xxxx\"), new Qris(\"QR-77\"));\n        for (Pembayaran b : daftar) {\n            System.out.println(keterangan(b, 36000));\n        }\n    }\n}\n\nsealed interface Pembayaran permits Tunai, Kartu, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Kartu(String nomor) implements Pembayaran {}\n\nrecord Qris(String kodeTransaksi) implements Pembayaran {}\n",
+          "keluaran": "Tunai, kembali 14000\nUang kurang 16000\nKartu 4111-xxxx\nQRIS QR-77",
+          "wajib": [
+            {
+              "pola": "case\\s+Tunai\\s+t\\s+when",
+              "pesan": "pakai `case Tunai t when ...`."
+            }
+          ],
+          "benar": "Guard memisahkan kasus tanpa if di dalam cabang.",
+          "petunjuk": "Cabang `case Tunai t when t.dibayar() < total` ditulis sebelum `case Tunai t`."
+        },
+        {
+          "arahan": "Tambahkan `null` ke daftar dan tangani dengan `case null` yang mencetak `Belum memilih pembayaran`.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static String keterangan(Pembayaran b, int total) {\n        return switch (b) {\n            case null -> \"Belum memilih pembayaran\";\n            case Tunai t when t.dibayar() < total -> \"Uang kurang \" + (total - t.dibayar());\n            case Tunai t -> \"Tunai, kembali \" + (t.dibayar() - total);\n            case Kartu k -> \"Kartu \" + k.nomor();\n            case Qris q -> \"QRIS \" + q.kodeTransaksi();\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<Pembayaran> daftar = new ArrayList<>(List.of(new Tunai(50000), new Tunai(20000), new Kartu(\"4111-xxxx\"), new Qris(\"QR-77\")));\n        daftar.add(null);\n        for (Pembayaran b : daftar) {\n            System.out.println(keterangan(b, 36000));\n        }\n    }\n}\n\nsealed interface Pembayaran permits Tunai, Kartu, Qris {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Kartu(String nomor) implements Pembayaran {}\n\nrecord Qris(String kodeTransaksi) implements Pembayaran {}\n",
+          "keluaran": "Tunai, kembali 14000\nUang kurang 16000\nKartu 4111-xxxx\nQRIS QR-77\nBelum memilih pembayaran",
+          "wajib": [
+            {
+              "pola": "case\\s+null\\s*->",
+              "pesan": "tambahkan `case null`."
+            }
+          ],
+          "benar": "Tanpa `case null`, program akan berhenti dengan NullPointerException.",
+          "petunjuk": "Daftar perlu `ArrayList` karena `List.of` menolak `null`."
+        },
+        {
+          "arahan": "Tantangan: tambahkan record `Voucher(String kode, int nilai)` ke sealed interface. Compiler akan menolak switch yang belum lengkap; tambahkan dua cabang: voucher yang menutup semua total, dan voucher dengan sisa yang harus dibayar.",
+          "jawaban": "import java.util.*;\n\npublic class Main {\n    static String keterangan(Pembayaran b, int total) {\n        return switch (b) {\n            case null -> \"Belum memilih pembayaran\";\n            case Tunai t when t.dibayar() < total -> \"Uang kurang \" + (total - t.dibayar());\n            case Tunai t -> \"Tunai, kembali \" + (t.dibayar() - total);\n            case Kartu k -> \"Kartu \" + k.nomor();\n            case Qris q -> \"QRIS \" + q.kodeTransaksi();\n            case Voucher v when v.nilai() >= total -> \"Voucher \" + v.kode() + \" menutup semua\";\n            case Voucher v -> \"Voucher \" + v.kode() + \", sisa \" + (total - v.nilai());\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<Pembayaran> daftar = new ArrayList<>(List.of(new Tunai(50000), new Tunai(20000), new Kartu(\"4111-xxxx\"), new Qris(\"QR-77\")));\n        daftar.add(null);\n        daftar.add(new Voucher(\"HEMAT10\", 10000));\n        daftar.add(new Voucher(\"GRATIS\", 50000));\n        for (Pembayaran b : daftar) {\n            System.out.println(keterangan(b, 36000));\n        }\n    }\n}\n\nsealed interface Pembayaran permits Tunai, Kartu, Qris, Voucher {}\n\nrecord Tunai(int dibayar) implements Pembayaran {}\n\nrecord Kartu(String nomor) implements Pembayaran {}\n\nrecord Qris(String kodeTransaksi) implements Pembayaran {}\n\nrecord Voucher(String kode, int nilai) implements Pembayaran {}\n",
+          "keluaran": "Tunai, kembali 14000\nUang kurang 16000\nKartu 4111-xxxx\nQRIS QR-77\nBelum memilih pembayaran\nVoucher HEMAT10, sisa 26000\nVoucher GRATIS menutup semua",
+          "wajib": [
+            {
+              "pola": "permits\\s+Tunai\\s*,\\s*Kartu\\s*,\\s*Qris\\s*,\\s*Voucher",
+              "pesan": "tambahkan `Voucher` ke `permits`."
+            },
+            {
+              "pola": "case\\s+Voucher\\s+v\\s+when",
+              "pesan": "pakai `case Voucher v when ...`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Inilah keuntungan utamanya: jenis baru tidak bisa terlupa di switch mana pun.",
+          "petunjuk": "Tambahkan `Voucher` ke `permits`, lalu `case Voucher v when v.nilai() >= total` dan `case Voucher v`."
+        }
+      ],
+      "penutup": "Pattern switch sudah bekerja. Berikutnya: membongkar isi record langsung di pola."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kapan switch atas sealed interface tidak membutuhkan default?",
+          "options": [
+            "Saat semua turunan yang diizinkan sudah punya cabang",
+            "Tidak pernah, default selalu wajib",
+            "Saat ada case null",
+            "Saat switch berisi kurang dari tiga cabang"
+          ],
+          "answer": 0,
+          "explanation": "Kelengkapan.",
+          "remedial": "Compiler tahu daftar turunan dari `permits`. Kalau semuanya ditangani, switch sudah lengkap, dan turunan baru akan membuat compile gagal."
+        },
+        {
+          "question": "Fungsi when pada case Tunai t when t.dibayar() < total adalah...",
+          "options": [
+            "Menunggu pembayaran selesai",
+            "Syarat tambahan: cabang dipilih hanya kalau syaratnya benar",
+            "Mengulang switch",
+            "Menangkap exception"
+          ],
+          "answer": 1,
+          "explanation": "Guard.",
+          "remedial": "`when` disebut guard. Kalau syaratnya salah, switch lanjut memeriksa cabang berikutnya."
+        },
+        {
+          "question": "Pattern switch tanpa case null menerima nilai null akan...",
+          "options": [
+            "Memilih default",
+            "Mengembalikan null",
+            "Melempar NullPointerException",
+            "Memilih cabang pertama"
+          ],
+          "answer": 2,
+          "explanation": "Null tidak cocok tipe apa pun.",
+          "remedial": "`null` tidak cocok dengan pola tipe mana pun, termasuk `default`. Tangani dengan `case null` kalau memang mungkin terjadi."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Versi Java tempat pattern matching untuk switch menjadi fitur final adalah...",
+      "options": [
+        "Java 8",
+        "Java 11",
+        "Java 17",
+        "Java 21"
+      ],
+      "answer": 3,
+      "explanation": "Bukan preview lagi."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca bentuk dan ukurannya per baris (lingkaran r, persegi sisi, atau segitiga alas tinggi) lalu mencetak luasnya dengan dua angka desimal. Method luas memakai deretan if instanceof dan lupa menangani Segitiga, sehingga hasilnya 0. Ubah Bentuk menjadi sealed interface yang mengizinkan ketiga record, lalu tulis ulang luas dengan pattern switch tanpa default. Luas segitiga adalah alas kali tinggi dibagi 2.",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static double luas(Bentuk b) {\n        if (b instanceof Lingkaran l) {\n            return Math.PI * l.r() * l.r();\n        } else if (b instanceof Persegi p) {\n            return p.sisi() * p.sisi();\n        }\n        return 0;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            Bentuk b = switch (d[0]) {\n                case \"lingkaran\" -> new Lingkaran(Double.parseDouble(d[1]));\n                case \"persegi\" -> new Persegi(Double.parseDouble(d[1]));\n                default -> new Segitiga(Double.parseDouble(d[1]), Double.parseDouble(d[2]));\n            };\n            System.out.printf(\"%s %.2f%n\", d[0], luas(b));\n        }\n    }\n}\n\ninterface Bentuk {}\n\nrecord Lingkaran(double r) implements Bentuk {}\n\nrecord Persegi(double sisi) implements Bentuk {}\n\nrecord Segitiga(double alas, double tinggi) implements Bentuk {}",
+      "solution": "import java.util.*;\n\npublic class Main {\n    static double luas(Bentuk b) {\n        return switch (b) {\n            case Lingkaran l -> Math.PI * l.r() * l.r();\n            case Persegi p -> p.sisi() * p.sisi();\n            case Segitiga s -> s.alas() * s.tinggi() / 2;\n        };\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            Bentuk b = switch (d[0]) {\n                case \"lingkaran\" -> new Lingkaran(Double.parseDouble(d[1]));\n                case \"persegi\" -> new Persegi(Double.parseDouble(d[1]));\n                default -> new Segitiga(Double.parseDouble(d[1]), Double.parseDouble(d[2]));\n            };\n            System.out.printf(\"%s %.2f%n\", d[0], luas(b));\n        }\n    }\n}\n\nsealed interface Bentuk permits Lingkaran, Persegi, Segitiga {}\n\nrecord Lingkaran(double r) implements Bentuk {}\n\nrecord Persegi(double sisi) implements Bentuk {}\n\nrecord Segitiga(double alas, double tinggi) implements Bentuk {}",
+      "tests": [
+        {
+          "input": "lingkaran 1\npersegi 3\nsegitiga 4 5\n",
+          "expectedOutput": "lingkaran 3.14\npersegi 9.00\nsegitiga 10.00\n"
+        }
+      ],
+      "hints": [
+        "sealed interface Bentuk permits Lingkaran, Persegi, Segitiga {}",
+        "return switch (b) { case Lingkaran l -> ...; case Persegi p -> ...; case Segitiga s -> ...; };"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "switch bisa mencocokkan tipe: case Tunai t, lengkap dengan variabel t.",
+        "when menambah syarat; case null menangani null; cabang khusus ditulis sebelum yang umum.",
+        "Pada sealed interface, switch yang lengkap tidak butuh default, dan turunan baru memaksa semua switch diperbarui.",
+        "Sealed + record + pattern switch: gaya data-oriented programming di Java 21."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}

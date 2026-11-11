@@ -1,0 +1,208 @@
+{
+  "id": "java-thread-08",
+  "moduleId": "thread",
+  "order": 8,
+  "title": "Proyek: Pemroses Pesanan",
+  "estimatedMinutes": 19,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saatnya menyatukan semuanya. Pemroses Pesanan menerima banyak pesanan, memprosesnya **bersamaan**, mengurangi stok gudang **tanpa race condition**, menghitung ongkir, lalu melaporkan hasil sesuai urutan pesanan.\n\n- **ExecutorService** dengan try-with-resources sebagai thread pool.\n- **CompletableFuture** untuk setiap pesanan, digabung dengan `allOf`.\n- **ConcurrentHashMap.computeIfPresent** untuk memeriksa dan mengurangi stok dalam satu operasi atomic.\n- **AtomicInteger** untuk menghitung berhasil dan gagal.\n- **exceptionally** supaya satu pesanan gagal tidak menjatuhkan yang lain.\n\nIbarat gudang toko online saat promo: banyak petugas mengemas bersamaan, tetapi papan stok hanya boleh diubah satu per satu, dan laporan akhir disusun sesuai nomor pesanan."
+    },
+    {
+      "type": "theory",
+      "content": "Keputusan desain:\n\n| Keputusan | Alasan |\n|---|---|\n| `record Pesanan` | data immutable aman dibagi antar thread |\n| stok di `ConcurrentHashMap` dengan `computeIfPresent` | memeriksa dan mengurangi stok sekaligus, tanpa check-then-act |\n| pool diberikan dari luar ke `Pemroses` | pemanggil yang mengatur ukuran dan mematikan pool |\n| hasil diambil sesuai urutan daftar | laporan rapi walau urutan selesainya acak |\n| penghitung `AtomicInteger` | ditambah dari banyak thread |\n\n**Mengurangi stok secara atomic:**\n\n```java\nboolean ambil(String produk, int n) {\n    boolean[] berhasil = {false};\n    stok.computeIfPresent(produk, (k, ada) -> {\n        if (ada >= n) {\n            berhasil[0] = true;\n            return ada - n;\n        }\n        return ada;\n    });\n    return berhasil[0];\n}\n```\n\nFungsi di dalam `computeIfPresent` berjalan atomic untuk satu kunci: thread lain yang mengubah stok produk yang sama harus menunggu."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\ntry (ExecutorService pool = Executors.newFixedThreadPool(4)) {\n    Pemroses pemroses = new Pemroses(gudang, pool);\n    for (String s : pemroses.prosesSemua(daftar)) {\n        System.out.println(s);\n    }\n}\n```\n\nDi dalam `prosesSemua`, setiap pesanan menjadi satu `CompletableFuture`, lalu `allOf(...).join()` menunggu semuanya.\n\nPerhatikan cara memilih data uji: stok kopi 10 dengan pesanan 2, 3, dan 20. Pesanan 20 pasti gagal dan pesanan lain pasti berhasil, **apa pun urutan thread-nya**. Test untuk kode concurrent harus dirancang supaya hasilnya tidak bergantung pada keberuntungan urutan."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Gudang gudang = new Gudang(Map.of(\"kopi\", 10));\n        AtomicInteger berhasil = new AtomicInteger();\n        List<Thread> kasir = new ArrayList<>();\n        for (int i = 0; i < 3; i++) {\n            kasir.add(new Thread(() -> {\n                if (gudang.ambil(\"kopi\", 4)) {\n                    berhasil.incrementAndGet();\n                }\n            }));\n        }\n        for (Thread t : kasir) {\n            t.start();\n        }\n        for (Thread t : kasir) {\n            t.join();\n        }\n        System.out.println(\"Berhasil \" + berhasil.get() + \", sisa \" + gudang.sisa());\n    }\n}\n\nrecord Pesanan(String id, String produk, int jumlah, String kota) {}\n\nclass Gudang {\n    private final Map<String, Integer> stok = new ConcurrentHashMap<>();\n\n    Gudang(Map<String, Integer> awal) {\n        stok.putAll(awal);\n    }\n\n    boolean ambil(String produk, int n) {\n        boolean[] berhasil = {false};\n        stok.computeIfPresent(produk, (k, ada) -> {\n            if (ada >= n) {\n                berhasil[0] = true;\n                return ada - n;\n            }\n            return ada;\n        });\n        return berhasil[0];\n    }\n\n    Map<String, Integer> sisa() {\n        return new TreeMap<>(stok);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: tiga kasir masing-masing mengambil 4 kopi dari stok 10. Apa yang tercetak?",
+        "options": [
+          "Berhasil 2, sisa {kopi=2}",
+          "Berhasil 3, sisa {kopi=-2}",
+          "Berhasil 2, sisa {kopi=10}",
+          "Berhasil 1, sisa {kopi=6}"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 38,
+          "note": "Periksa dan ubah dalam satu operasi atomic."
+        },
+        {
+          "line": 12,
+          "note": "Tiga kasir bersamaan."
+        }
+      ],
+      "explanation": "computeIfPresent menjalankan pemeriksaan dan pengurangan sebagai satu operasi untuk kunci kopi. Dua kasir pertama yang mendapat giliran berhasil (10 menjadi 6, lalu 2), dan kasir ketiga melihat stok 2 sehingga gagal. Kasir mana yang gagal bisa berbeda setiap kali, tetapi jumlah berhasil dan sisa stok selalu sama.",
+      "tryThis": [
+        {
+          "task": "Ubah jumlah yang diambil menjadi 5.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan kasir keempat.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Pemeriksaan stok dan pengurangan terpisah**\n\n`if (stok.get(p) >= n) stok.put(p, stok.get(p) - n);` adalah check-then-act. Gabungkan dengan `compute`.\n\n**2. Mencetak dari dalam thread**\n\nUrutan baris menjadi acak dan sulit dibaca. Kumpulkan hasil, cetak dari satu thread sesuai urutan.\n\n**3. Pool dibuat di dalam setiap pemanggilan**\n\nMembuat dan mematikan pool untuk setiap batch pesanan boros. Pool biasanya dibuat sekali saat aplikasi mulai.\n\n**4. Test yang hasilnya bergantung urutan thread**\n\nTest seperti ini kadang lulus, kadang gagal (*flaky test*), dan merusak kepercayaan tim pada test."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di aplikasi sungguhan, stok ada di database, dan pengurangan atomic dilakukan dengan `UPDATE produk SET stok = stok - ? WHERE id = ? AND stok >= ?` lalu memeriksa jumlah baris yang berubah, atau dengan *optimistic locking* `@Version` di JPA.\n- Pemrosesan pesanan dalam jumlah besar biasanya dipisah lewat antrean pesan (Kafka, RabbitMQ): setiap pesanan menjadi pesan yang diproses beberapa *consumer* paralel.\n- Kode concurrent diuji dengan test beban (JMeter, Gatling, k6) dan alat seperti **jcstress** dari OpenJDK untuk mencari race condition.\n- Dengan Java 21, `Executors.newVirtualThreadPerTaskExecutor()` bisa menggantikan fixed pool untuk pekerjaan yang banyak menunggu I/O, tanpa mengubah sisa kode (modul Java 21)."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Pemroses Pesanan 8: Pemroses Utuh",
+      "pembuka": "Kita rakit Pemroses Pesanan dari semua yang sudah dipelajari.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Empat pesanan diproses bersamaan di pool berisi 4 thread.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Gudang gudang = new Gudang(Map.of(\"kopi\", 10, \"teh\", 4));\n        List<Pesanan> daftar = List.of(\n                new Pesanan(\"PSN-1\", \"kopi\", 2, \"Jakarta\"),\n                new Pesanan(\"PSN-2\", \"teh\", 3, \"Bandung\"),\n                new Pesanan(\"PSN-3\", \"kopi\", 20, \"Jakarta\"),\n                new Pesanan(\"PSN-4\", \"kopi\", 3, \"Surabaya\"));\n        try (ExecutorService pool = Executors.newFixedThreadPool(4)) {\n            Pemroses pemroses = new Pemroses(gudang, pool);\n            for (String s : pemroses.prosesSemua(daftar)) {\n                System.out.println(s);\n            }\n        }\n    }\n}\n\nrecord Pesanan(String id, String produk, int jumlah, String kota) {}\n\nclass Gudang {\n    private final Map<String, Integer> stok = new ConcurrentHashMap<>();\n\n    Gudang(Map<String, Integer> awal) {\n        stok.putAll(awal);\n    }\n\n    boolean ambil(String produk, int n) {\n        boolean[] berhasil = {false};\n        stok.computeIfPresent(produk, (k, ada) -> {\n            if (ada >= n) {\n                berhasil[0] = true;\n                return ada - n;\n            }\n            return ada;\n        });\n        return berhasil[0];\n    }\n\n    Map<String, Integer> sisa() {\n        return new TreeMap<>(stok);\n    }\n}\n\nclass Pemroses {\n    private final Gudang gudang;\n    private final ExecutorService pool;\n\n    Pemroses(Gudang gudang, ExecutorService pool) {\n        this.gudang = gudang;\n        this.pool = pool;\n    }\n\n    List<String> prosesSemua(List<Pesanan> daftar) {\n        List<CompletableFuture<String>> hasil = new ArrayList<>();\n        for (Pesanan p : daftar) {\n            hasil.add(CompletableFuture.supplyAsync(() -> proses(p), pool));\n        }\n        CompletableFuture.allOf(hasil.toArray(new CompletableFuture[0])).join();\n        List<String> teks = new ArrayList<>();\n        for (CompletableFuture<String> f : hasil) {\n            teks.add(f.join());\n        }\n        return teks;\n    }\n\n    private String proses(Pesanan p) {\n        Jeda.ms(100);\n        if (!gudang.ambil(p.produk(), p.jumlah())) {\n            return p.id() + \": stok \" + p.produk() + \" kurang\";\n        }\n        return p.id() + \": dikirim ke \" + p.kota() + \", ongkir \" + Ongkir.hitung(p.kota());\n    }\n}\n\nclass Ongkir {\n    static int hitung(String kota) {\n        Jeda.ms(100);\n        return kota.equals(\"Jakarta\") ? 10000 : 25000;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "PSN-1: dikirim ke Jakarta, ongkir 10000\nPSN-2: dikirim ke Bandung, ongkir 25000\nPSN-3: stok kopi kurang\nPSN-4: dikirim ke Surabaya, ongkir 25000",
+          "otomatis": true,
+          "benar": "Hasil dicetak sesuai urutan pesanan, apa pun urutan selesainya.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan dua `AtomicInteger` (`berhasil` dan `gagal`) di `Pemroses`, dan method `ringkasan()` yang mengembalikan `Berhasil n, gagal m`. Cetak setelah semua diproses.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Gudang gudang = new Gudang(Map.of(\"kopi\", 10, \"teh\", 4));\n        List<Pesanan> daftar = List.of(\n                new Pesanan(\"PSN-1\", \"kopi\", 2, \"Jakarta\"),\n                new Pesanan(\"PSN-2\", \"teh\", 3, \"Bandung\"),\n                new Pesanan(\"PSN-3\", \"kopi\", 20, \"Jakarta\"),\n                new Pesanan(\"PSN-4\", \"kopi\", 3, \"Surabaya\"));\n        try (ExecutorService pool = Executors.newFixedThreadPool(4)) {\n            Pemroses pemroses = new Pemroses(gudang, pool);\n            for (String s : pemroses.prosesSemua(daftar)) {\n                System.out.println(s);\n            }\n            System.out.println(pemroses.ringkasan());\n        }\n    }\n}\n\nrecord Pesanan(String id, String produk, int jumlah, String kota) {}\n\nclass Gudang {\n    private final Map<String, Integer> stok = new ConcurrentHashMap<>();\n\n    Gudang(Map<String, Integer> awal) {\n        stok.putAll(awal);\n    }\n\n    boolean ambil(String produk, int n) {\n        boolean[] berhasil = {false};\n        stok.computeIfPresent(produk, (k, ada) -> {\n            if (ada >= n) {\n                berhasil[0] = true;\n                return ada - n;\n            }\n            return ada;\n        });\n        return berhasil[0];\n    }\n\n    Map<String, Integer> sisa() {\n        return new TreeMap<>(stok);\n    }\n}\n\nclass Pemroses {\n    private final Gudang gudang;\n    private final ExecutorService pool;\n    private final AtomicInteger berhasil = new AtomicInteger();\n    private final AtomicInteger gagal = new AtomicInteger();\n\n    Pemroses(Gudang gudang, ExecutorService pool) {\n        this.gudang = gudang;\n        this.pool = pool;\n    }\n\n    List<String> prosesSemua(List<Pesanan> daftar) {\n        List<CompletableFuture<String>> hasil = new ArrayList<>();\n        for (Pesanan p : daftar) {\n            hasil.add(CompletableFuture.supplyAsync(() -> proses(p), pool));\n        }\n        CompletableFuture.allOf(hasil.toArray(new CompletableFuture[0])).join();\n        List<String> teks = new ArrayList<>();\n        for (CompletableFuture<String> f : hasil) {\n            teks.add(f.join());\n        }\n        return teks;\n    }\n\n    String ringkasan() {\n        return \"Berhasil \" + berhasil.get() + \", gagal \" + gagal.get();\n    }\n\n    private String proses(Pesanan p) {\n        Jeda.ms(100);\n        if (!gudang.ambil(p.produk(), p.jumlah())) {\n            gagal.incrementAndGet();\n            return p.id() + \": stok \" + p.produk() + \" kurang\";\n        }\n        String hasil = p.id() + \": dikirim ke \" + p.kota() + \", ongkir \" + Ongkir.hitung(p.kota());\n        berhasil.incrementAndGet();\n        return hasil;\n    }\n}\n\nclass Ongkir {\n    static int hitung(String kota) {\n        Jeda.ms(100);\n        return kota.equals(\"Jakarta\") ? 10000 : 25000;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "PSN-1: dikirim ke Jakarta, ongkir 10000\nPSN-2: dikirim ke Bandung, ongkir 25000\nPSN-3: stok kopi kurang\nPSN-4: dikirim ke Surabaya, ongkir 25000\nBerhasil 3, gagal 1",
+          "wajib": [
+            {
+              "pola": "AtomicInteger\\s+berhasil",
+              "pesan": "buat `AtomicInteger berhasil`."
+            },
+            {
+              "pola": "String\\s+ringkasan\\s*\\(\\s*\\)",
+              "pesan": "buat method `ringkasan()`."
+            }
+          ],
+          "benar": "Penghitung aman ditambah dari banyak thread.",
+          "petunjuk": "Naikkan penghitung di `proses` sesuai hasilnya."
+        },
+        {
+          "arahan": "Setelah pool selesai, cetak `Sisa stok: ` diikuti `gudang.sisa()`.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Gudang gudang = new Gudang(Map.of(\"kopi\", 10, \"teh\", 4));\n        List<Pesanan> daftar = List.of(\n                new Pesanan(\"PSN-1\", \"kopi\", 2, \"Jakarta\"),\n                new Pesanan(\"PSN-2\", \"teh\", 3, \"Bandung\"),\n                new Pesanan(\"PSN-3\", \"kopi\", 20, \"Jakarta\"),\n                new Pesanan(\"PSN-4\", \"kopi\", 3, \"Surabaya\"));\n        try (ExecutorService pool = Executors.newFixedThreadPool(4)) {\n            Pemroses pemroses = new Pemroses(gudang, pool);\n            for (String s : pemroses.prosesSemua(daftar)) {\n                System.out.println(s);\n            }\n            System.out.println(pemroses.ringkasan());\n        }\n        System.out.println(\"Sisa stok: \" + gudang.sisa());\n    }\n}\n\nrecord Pesanan(String id, String produk, int jumlah, String kota) {}\n\nclass Gudang {\n    private final Map<String, Integer> stok = new ConcurrentHashMap<>();\n\n    Gudang(Map<String, Integer> awal) {\n        stok.putAll(awal);\n    }\n\n    boolean ambil(String produk, int n) {\n        boolean[] berhasil = {false};\n        stok.computeIfPresent(produk, (k, ada) -> {\n            if (ada >= n) {\n                berhasil[0] = true;\n                return ada - n;\n            }\n            return ada;\n        });\n        return berhasil[0];\n    }\n\n    Map<String, Integer> sisa() {\n        return new TreeMap<>(stok);\n    }\n}\n\nclass Pemroses {\n    private final Gudang gudang;\n    private final ExecutorService pool;\n    private final AtomicInteger berhasil = new AtomicInteger();\n    private final AtomicInteger gagal = new AtomicInteger();\n\n    Pemroses(Gudang gudang, ExecutorService pool) {\n        this.gudang = gudang;\n        this.pool = pool;\n    }\n\n    List<String> prosesSemua(List<Pesanan> daftar) {\n        List<CompletableFuture<String>> hasil = new ArrayList<>();\n        for (Pesanan p : daftar) {\n            hasil.add(CompletableFuture.supplyAsync(() -> proses(p), pool));\n        }\n        CompletableFuture.allOf(hasil.toArray(new CompletableFuture[0])).join();\n        List<String> teks = new ArrayList<>();\n        for (CompletableFuture<String> f : hasil) {\n            teks.add(f.join());\n        }\n        return teks;\n    }\n\n    String ringkasan() {\n        return \"Berhasil \" + berhasil.get() + \", gagal \" + gagal.get();\n    }\n\n    private String proses(Pesanan p) {\n        Jeda.ms(100);\n        if (!gudang.ambil(p.produk(), p.jumlah())) {\n            gagal.incrementAndGet();\n            return p.id() + \": stok \" + p.produk() + \" kurang\";\n        }\n        String hasil = p.id() + \": dikirim ke \" + p.kota() + \", ongkir \" + Ongkir.hitung(p.kota());\n        berhasil.incrementAndGet();\n        return hasil;\n    }\n}\n\nclass Ongkir {\n    static int hitung(String kota) {\n        Jeda.ms(100);\n        return kota.equals(\"Jakarta\") ? 10000 : 25000;\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "PSN-1: dikirim ke Jakarta, ongkir 10000\nPSN-2: dikirim ke Bandung, ongkir 25000\nPSN-3: stok kopi kurang\nPSN-4: dikirim ke Surabaya, ongkir 25000\nBerhasil 3, gagal 1\nSisa stok: {kopi=5, teh=1}",
+          "wajib": [
+            {
+              "pola": "gudang\\.sisa\\(\\)",
+              "pesan": "cetak `gudang.sisa()`."
+            }
+          ],
+          "benar": "Kopi 10 - 2 - 3 = 5 dan teh 4 - 3 = 1, selalu sama.",
+          "petunjuk": "Satu baris setelah blok try."
+        },
+        {
+          "arahan": "Tantangan: buat `Ongkir.hitung` melempar `IllegalArgumentException(\"kota X belum dilayani\")` untuk kota selain Jakarta, Bandung, dan Surabaya. Tambahkan pesanan `PSN-5` teh 1 ke `Ternate`, lalu tangani kegagalan dengan `exceptionally` yang menaikkan `gagal` dan mengembalikan `PSN-5: gagal (pesan)`.",
+          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Gudang gudang = new Gudang(Map.of(\"kopi\", 10, \"teh\", 4));\n        List<Pesanan> daftar = List.of(\n                new Pesanan(\"PSN-1\", \"kopi\", 2, \"Jakarta\"),\n                new Pesanan(\"PSN-2\", \"teh\", 3, \"Bandung\"),\n                new Pesanan(\"PSN-3\", \"kopi\", 20, \"Jakarta\"),\n                new Pesanan(\"PSN-4\", \"kopi\", 3, \"Surabaya\"),\n                new Pesanan(\"PSN-5\", \"teh\", 1, \"Ternate\"));\n        try (ExecutorService pool = Executors.newFixedThreadPool(4)) {\n            Pemroses pemroses = new Pemroses(gudang, pool);\n            for (String s : pemroses.prosesSemua(daftar)) {\n                System.out.println(s);\n            }\n            System.out.println(pemroses.ringkasan());\n        }\n        System.out.println(\"Sisa stok: \" + gudang.sisa());\n    }\n}\n\nrecord Pesanan(String id, String produk, int jumlah, String kota) {}\n\nclass Gudang {\n    private final Map<String, Integer> stok = new ConcurrentHashMap<>();\n\n    Gudang(Map<String, Integer> awal) {\n        stok.putAll(awal);\n    }\n\n    boolean ambil(String produk, int n) {\n        boolean[] berhasil = {false};\n        stok.computeIfPresent(produk, (k, ada) -> {\n            if (ada >= n) {\n                berhasil[0] = true;\n                return ada - n;\n            }\n            return ada;\n        });\n        return berhasil[0];\n    }\n\n    Map<String, Integer> sisa() {\n        return new TreeMap<>(stok);\n    }\n}\n\nclass Pemroses {\n    private final Gudang gudang;\n    private final ExecutorService pool;\n    private final AtomicInteger berhasil = new AtomicInteger();\n    private final AtomicInteger gagal = new AtomicInteger();\n\n    Pemroses(Gudang gudang, ExecutorService pool) {\n        this.gudang = gudang;\n        this.pool = pool;\n    }\n\n    List<String> prosesSemua(List<Pesanan> daftar) {\n        List<CompletableFuture<String>> hasil = new ArrayList<>();\n        for (Pesanan p : daftar) {\n            hasil.add(CompletableFuture.supplyAsync(() -> proses(p), pool)\n                    .exceptionally(e -> {\n                        gagal.incrementAndGet();\n                        return p.id() + \": gagal (\" + e.getCause().getMessage() + \")\";\n                    }));\n        }\n        CompletableFuture.allOf(hasil.toArray(new CompletableFuture[0])).join();\n        List<String> teks = new ArrayList<>();\n        for (CompletableFuture<String> f : hasil) {\n            teks.add(f.join());\n        }\n        return teks;\n    }\n\n    String ringkasan() {\n        return \"Berhasil \" + berhasil.get() + \", gagal \" + gagal.get();\n    }\n\n    private String proses(Pesanan p) {\n        Jeda.ms(100);\n        if (!gudang.ambil(p.produk(), p.jumlah())) {\n            gagal.incrementAndGet();\n            return p.id() + \": stok \" + p.produk() + \" kurang\";\n        }\n        String hasil = p.id() + \": dikirim ke \" + p.kota() + \", ongkir \" + Ongkir.hitung(p.kota());\n        berhasil.incrementAndGet();\n        return hasil;\n    }\n}\n\nclass Ongkir {\n    static int hitung(String kota) {\n        Jeda.ms(100);\n        return switch (kota) {\n            case \"Jakarta\" -> 10000;\n            case \"Bandung\", \"Surabaya\" -> 25000;\n            default -> throw new IllegalArgumentException(\"kota \" + kota + \" belum dilayani\");\n        };\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
+          "keluaran": "PSN-1: dikirim ke Jakarta, ongkir 10000\nPSN-2: dikirim ke Bandung, ongkir 25000\nPSN-3: stok kopi kurang\nPSN-4: dikirim ke Surabaya, ongkir 25000\nPSN-5: gagal (kota Ternate belum dilayani)\nBerhasil 3, gagal 2\nSisa stok: {kopi=5, teh=0}",
+          "wajib": [
+            {
+              "pola": "\\.exceptionally\\s*\\(",
+              "pesan": "tangani dengan `exceptionally`."
+            },
+            {
+              "pola": "\"Ternate\"",
+              "pesan": "tambahkan pesanan ke `Ternate`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Stok teh untuk PSN-5 sudah diambil sebelum ongkir gagal. Di sistem sungguhan, langkah seperti ini dibungkus transaksi atau dikembalikan (kompensasi).",
+          "petunjuk": "Pesan asli ada di `e.getCause().getMessage()`, karena exception dibungkus `CompletionException`."
+        }
+      ],
+      "penutup": "Selamat, Pemroses Pesanan selesai! Kamu sudah memakai alat concurrency yang dipakai di aplikasi Java sungguhan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa stok dikurangi dengan computeIfPresent?",
+          "options": [
+            "Supaya stok tidak pernah habis",
+            "Supaya pemeriksaan dan pengurangan stok terjadi sebagai satu operasi atomic",
+            "Karena put tidak ada di ConcurrentHashMap",
+            "Supaya lebih mudah dibaca saja"
+          ],
+          "answer": 1,
+          "explanation": "Satu operasi.",
+          "remedial": "Fungsi di `computeIfPresent` berjalan atomic untuk kunci itu, sehingga dua thread tidak bisa sama-sama melihat stok cukup lalu sama-sama mengurangi."
+        },
+        {
+          "question": "Kenapa hasil pesanan dicetak sesuai urutan daftar, bukan saat tiap pesanan selesai?",
+          "options": [
+            "Karena thread tidak bisa mencetak",
+            "Supaya lebih cepat",
+            "Supaya laporan rapi dan tidak bergantung pada urutan thread",
+            "Karena allOf mengurutkan hasil"
+          ],
+          "answer": 2,
+          "explanation": "Urutan pasti.",
+          "remedial": "Urutan selesai bisa berbeda setiap kali. Mengambil hasil dari list Future sesuai urutan pesanan membuat keluaran selalu sama."
+        },
+        {
+          "question": "Data uji yang baik untuk kode concurrent adalah yang...",
+          "options": [
+            "Selalu memakai satu thread",
+            "Hasilnya berubah-ubah supaya realistis",
+            "Tidak memakai stok",
+            "Hasilnya sama apa pun urutan thread"
+          ],
+          "answer": 3,
+          "explanation": "Tidak flaky.",
+          "remedial": "Test yang hasilnya bergantung urutan thread menjadi flaky. Rancang data sehingga hasil yang diperiksa pasti."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Test yang kadang lulus kadang gagal tanpa perubahan kode disebut...",
+      "options": [
+        "Flaky test",
+        "Unit test",
+        "Smoke test",
+        "Regression test"
+      ],
+      "answer": 0,
+      "explanation": "Tidak stabil."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca baris berisi nama kasir dan nilai penjualan. Setiap baris dicatat oleh thread sendiri ke peta omzet per kasir, lalu omzet dicetak urut nama. Karena memakai HashMap dengan getOrDefault lalu put, penjualan kasir yang sama saling menimpa. Ganti dengan ConcurrentHashMap dan merge supaya semua penjualan terhitung.",
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Map<String, Integer> omzet = new HashMap<>();\n        List<Thread> kasir = new ArrayList<>();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            kasir.add(new Thread(() -> {\n                int lama = omzet.getOrDefault(d[0], 0);\n                Jeda.ms(50);\n                omzet.put(d[0], lama + Integer.parseInt(d[1]));\n            }));\n        }\n        for (Thread t : kasir) {\n            t.start();\n        }\n        for (Thread t : kasir) {\n            t.join();\n        }\n        System.out.println(new TreeMap<>(omzet));\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "solution": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Map<String, Integer> omzet = new ConcurrentHashMap<>();\n        List<Thread> kasir = new ArrayList<>();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            kasir.add(new Thread(() -> {\n                Jeda.ms(50);\n                omzet.merge(d[0], Integer.parseInt(d[1]), Integer::sum);\n            }));\n        }\n        for (Thread t : kasir) {\n            t.start();\n        }\n        for (Thread t : kasir) {\n            t.join();\n        }\n        System.out.println(new TreeMap<>(omzet));\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "sari 10000\nbudi 5000\nsari 7000\nsari 3000\n",
+          "expectedOutput": "{budi=5000, sari=20000}\n"
+        }
+      ],
+      "hints": [
+        "Map<String, Integer> omzet = new ConcurrentHashMap<>();",
+        "omzet.merge(d[0], Integer.parseInt(d[1]), Integer::sum) menggantikan getOrDefault lalu put."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Pool + CompletableFuture memproses banyak pesanan bersamaan; allOf menunggu semuanya.",
+        "computeIfPresent memeriksa dan mengubah stok secara atomic.",
+        "Hasil dikumpulkan dan dicetak sesuai urutan; penghitung memakai AtomicInteger.",
+        "Rancang data uji yang hasilnya tidak bergantung urutan thread."
+      ]
+    }
+  ],
+  "javaVersion": 21
+}
