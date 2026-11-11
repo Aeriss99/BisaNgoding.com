@@ -1,0 +1,223 @@
+{
+  "id": "java-lombok-05",
+  "moduleId": "lombok",
+  "order": 5,
+  "title": "Builder",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Constructor dengan banyak parameter sulit dibaca: `new Todo(1, \"Belajar\", false, 3, null, \"kerja\")`. Angka 3 itu apa? Parameter mana yang boleh `null`? Salah urutan sedikit, isinya tertukar tanpa error.\n\n**Builder** adalah pola membuat object langkah demi langkah dengan nama yang jelas untuk setiap nilai. `@Builder` dari Lombok membuatkan seluruh kode builder itu.\n\nIbarat memesan kopi di kedai: \"es kopi susu, gula sedikit, ukuran besar\". Setiap pilihan disebut namanya, urutannya bebas, dan yang tidak disebut memakai pilihan bawaan."
+    },
+    {
+      "type": "theory",
+      "content": "`@Builder` membuat method static `builder()`, satu method untuk setiap field, dan `build()` di akhir:\n\n```java\nTodo a = Todo.builder()\n        .id(1)\n        .judul(\"Belajar Lombok\")\n        .prioritas(2)\n        .build();\n```\n\nField yang tidak diisi bernilai bawaan Java: `0`, `false`, atau `null`. Nilai awal yang ditulis di field (`private int prioritas = 3;`) **diabaikan** oleh builder, kecuali diberi `@Builder.Default`.\n\n| Pilihan | Fungsinya |\n|---|---|\n| `@Builder.Default` | nilai awal field dipakai kalau tidak diisi lewat builder |\n| `@Builder(toBuilder = true)` | method `toBuilder()` untuk menyalin object lalu mengubah sebagian |\n| `@Singular(\"label\")` pada `List<String> label` | method `label(...)` yang menambah satu per satu |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@Builder(toBuilder = true)\n@ToString\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n    @Builder.Default\n    private int prioritas = 3;\n}\n\nTodo b = Todo.builder().id(2).judul(\"Bayar listrik\").prioritas(1).build();\nTodo bSelesai = b.toBuilder().selesai(true).build();   // salinan, hanya selesai yang berubah\n```\n\nHasil cetak:\n\n```text\nTodo(id=2, judul=Bayar listrik, selesai=false, prioritas=1)\nTodo(id=2, judul=Bayar listrik, selesai=true, prioritas=1)\n```\n\n`toBuilder` cocok dipadukan dengan object immutable (`@Value`): object asal tetap utuh, versi barunya dibuat lewat builder."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Email e = Email.builder()\n                .kepada(\"sari@contoh.id\")\n                .judul(\"Pesanan dikirim\")\n                .build();\n        System.out.println(e);\n    }\n}\n\n@Builder\n@ToString\nclass Email {\n    private String kepada;\n    private String judul;\n    private String isi;\n    @Builder.Default\n    private boolean penting = false;\n    @Builder.Default\n    private int percobaan = 3;\n}",
+      "predict": {
+        "question": "Tebak dulu: isi tidak diisi, penting dan percobaan memakai @Builder.Default. Apa yang tercetak?",
+        "options": [
+          "Email(kepada=sari@contoh.id, judul=Pesanan dikirim, isi=, penting=false, percobaan=0)",
+          "Email(kepada=sari@contoh.id, judul=Pesanan dikirim, isi=null, penting=false, percobaan=3)",
+          "Email(kepada=sari@contoh.id, judul=Pesanan dikirim)",
+          "Email(kepada=sari@contoh.id, judul=Pesanan dikirim, isi=null, penting=false, percobaan=0)"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Mulai membangun."
+        },
+        {
+          "line": 8,
+          "note": "Setiap nilai disebut namanya."
+        },
+        {
+          "line": 10,
+          "note": "Object jadi."
+        },
+        {
+          "line": 24,
+          "note": "Dipakai karena @Builder.Default."
+        }
+      ],
+      "explanation": "Field yang tidak disebut di builder memakai nilai bawaan. isi adalah String, jadi null. percobaan diberi @Builder.Default, jadi nilai awal 3 dipakai. Tanpa @Builder.Default, nilainya akan 0 walaupun di field tertulis = 3.",
+      "tryThis": [
+        {
+          "task": "Hapus @Builder.Default di atas percobaan. Berapa nilainya sekarang?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan .isi(\"Paket tiba besok\") sebelum build().",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Nilai awal field diabaikan**\n\n`private int prioritas = 3;` tanpa `@Builder.Default` menghasilkan 0 saat dibuat lewat builder. Lombok memberi peringatan saat compile, tapi peringatan mudah terlewat.\n\n**2. Lupa `build()`**\n\n`Todo.builder().id(1).judul(\"x\")` bertipe `TodoBuilder`, bukan `Todo`. Compile gagal dengan pesan `incompatible types`.\n\n**3. Field wajib tidak diisi**\n\nBuilder tidak memaksa field tertentu diisi. Kalau judul wajib, periksa di constructor atau pakai `@NonNull` (materi 6), sehingga `build()` gagal saat judul kosong.\n\n**4. `@Builder` bersama `@NoArgsConstructor` tanpa `@AllArgsConstructor`**\n\n`@Builder` butuh constructor semua field. Kalau class juga diberi `@NoArgsConstructor`, tambahkan `@AllArgsConstructor` supaya compile berhasil."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Builder paling sering dipakai di **test** untuk membuat data uji dengan jelas:\n\n```java\nPesanan pesanan = Pesanan.builder()\n        .kode(\"A-17\")\n        .pelanggan(\"sari\")\n        .status(Status.DIBAYAR)\n        .build();\n```\n\n- Banyak library Java memakai pola builder, misalnya `HttpRequest.newBuilder()` di Java 11 dan `ResponseEntity.ok()` di Spring. Mengenali polanya membuat dokumentasi library lebih mudah dibaca.\n- Kombinasi populer untuk DTO: `@Value` + `@Builder`, sehingga object immutable dan mudah dibuat.\n- Untuk Jackson (modul JSON), class dengan `@Builder` saja tidak bisa langsung dibaca dari JSON. Tim menambahkan `@Jacksonized` dari Lombok supaya Jackson memakai builder-nya."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Ringkas 5: Todo dengan Builder",
+      "pembuka": "Todo sekarang punya empat field. Kita buat dengan builder supaya tidak bingung urutan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Hanya id dan judul yang diisi; sisanya nilai bawaan.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = Todo.builder()\n                .id(1)\n                .judul(\"Belajar Lombok\")\n                .build();\n        System.out.println(a);\n    }\n}\n\n@Builder\n@ToString\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n    private int prioritas;\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=false, prioritas=0)",
+          "otomatis": true,
+          "benar": "Builder membuat setiap nilai jelas namanya.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Prioritas bawaan seharusnya 3, bukan 0. Ubah field menjadi `private int prioritas = 3;` dengan `@Builder.Default` di atasnya. Lalu buat todo kedua: id 2, judul `\"Bayar listrik\"`, prioritas 1, dan cetak.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = Todo.builder()\n                .id(1)\n                .judul(\"Belajar Lombok\")\n                .build();\n        System.out.println(a);\n        Todo b = Todo.builder().id(2).judul(\"Bayar listrik\").prioritas(1).build();\n        System.out.println(b);\n    }\n}\n\n@Builder\n@ToString\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n    @Builder.Default\n    private int prioritas = 3;\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=false, prioritas=3)\nTodo(id=2, judul=Bayar listrik, selesai=false, prioritas=1)",
+          "wajib": [
+            {
+              "pola": "@Builder\\.Default\\s+private\\s+int\\s+prioritas\\s*=\\s*3",
+              "pesan": "tulis `@Builder.Default private int prioritas = 3;`."
+            },
+            {
+              "pola": "\\.prioritas\\s*\\(\\s*1\\s*\\)",
+              "pesan": "isi prioritas 1 untuk todo kedua."
+            }
+          ],
+          "benar": "Todo pertama sekarang berprioritas 3, todo kedua 1.",
+          "petunjuk": "Anotasi `@Builder.Default` tepat di atas field prioritas."
+        },
+        {
+          "arahan": "Aktifkan `toBuilder` dengan `@Builder(toBuilder = true)`. Buat `Todo bSelesai = b.toBuilder().selesai(true).build();` dan cetak.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = Todo.builder()\n                .id(1)\n                .judul(\"Belajar Lombok\")\n                .build();\n        System.out.println(a);\n        Todo b = Todo.builder().id(2).judul(\"Bayar listrik\").prioritas(1).build();\n        System.out.println(b);\n        Todo bSelesai = b.toBuilder().selesai(true).build();\n        System.out.println(bSelesai);\n    }\n}\n\n@Builder(toBuilder = true)\n@ToString\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n    @Builder.Default\n    private int prioritas = 3;\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=false, prioritas=3)\nTodo(id=2, judul=Bayar listrik, selesai=false, prioritas=1)\nTodo(id=2, judul=Bayar listrik, selesai=true, prioritas=1)",
+          "wajib": [
+            {
+              "pola": "@Builder\\s*\\(\\s*toBuilder\\s*=\\s*true\\s*\\)",
+              "pesan": "tulis `@Builder(toBuilder = true)`."
+            },
+            {
+              "pola": "b\\.toBuilder\\(\\)\\s*\\.selesai\\s*\\(\\s*true\\s*\\)\\s*\\.build\\(\\)",
+              "pesan": "buat `b.toBuilder().selesai(true).build()`."
+            }
+          ],
+          "benar": "Salinan b dengan status selesai, semua nilai lain tetap.",
+          "petunjuk": "Ganti `@Builder` di atas class menjadi `@Builder(toBuilder = true)`."
+        },
+        {
+          "arahan": "Tantangan: tambahkan field `List<String> label` dengan `@Singular(\"label\")`, lalu buat todo ketiga (id 3, judul `\"Rapat tim\"`) dengan label `kerja` dan `penting` yang ditambahkan satu per satu.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = Todo.builder()\n                .id(1)\n                .judul(\"Belajar Lombok\")\n                .build();\n        System.out.println(a);\n        Todo b = Todo.builder().id(2).judul(\"Bayar listrik\").prioritas(1).build();\n        System.out.println(b);\n        Todo bSelesai = b.toBuilder().selesai(true).build();\n        System.out.println(bSelesai);\n        Todo c = Todo.builder().id(3).judul(\"Rapat tim\").label(\"kerja\").label(\"penting\").build();\n        System.out.println(c);\n    }\n}\n\n@Builder(toBuilder = true)\n@ToString\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n    @Builder.Default\n    private int prioritas = 3;\n    @Singular(\"label\")\n    private List<String> label;\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=false, prioritas=3, label=[])\nTodo(id=2, judul=Bayar listrik, selesai=false, prioritas=1, label=[])\nTodo(id=2, judul=Bayar listrik, selesai=true, prioritas=1, label=[])\nTodo(id=3, judul=Rapat tim, selesai=false, prioritas=3, label=[kerja, penting])",
+          "wajib": [
+            {
+              "pola": "@Singular\\s*\\(\\s*\"label\"\\s*\\)\\s*private\\s+List<String>\\s+label",
+              "pesan": "tulis `@Singular(\"label\") private List<String> label;`."
+            },
+            {
+              "pola": "\\.label\\s*\\(\\s*\"kerja\"\\s*\\)\\s*\\.label\\s*\\(\\s*\"penting\"\\s*\\)",
+              "pesan": "tambahkan `.label(\"kerja\").label(\"penting\")`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Todo tanpa label mendapat List kosong, bukan null. Itu salah satu kelebihan `@Singular`.",
+          "petunjuk": "Dengan `@Singular(\"label\")`, builder punya method `.label(\"...\")` yang bisa dipanggil berkali-kali."
+        }
+      ],
+      "penutup": "Builder membuat pembuatan object panjang tetap terbaca. Berikutnya: anotasi Lombok yang membantu logging dan menolak null."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Field private int prioritas = 3; tanpa @Builder.Default. Object dibuat lewat builder tanpa mengisi prioritas. Nilainya...",
+          "options": [
+            "3",
+            "null",
+            "0",
+            "Error saat build()"
+          ],
+          "answer": 2,
+          "explanation": "Nilai awal diabaikan tanpa @Builder.Default.",
+          "remedial": "Builder membuat object lewat constructor semua field, dan field yang tidak diisi memakai nilai bawaan Java. Nilai awal di deklarasi field hanya dipakai kalau diberi `@Builder.Default`."
+        },
+        {
+          "question": "Kegunaan @Builder(toBuilder = true) adalah...",
+          "options": [
+            "Membuat builder untuk semua class di file",
+            "Mengubah object asal secara langsung",
+            "Membuat setter untuk semua field",
+            "Menyalin object ke builder baru supaya bisa diubah sebagian"
+          ],
+          "answer": 3,
+          "explanation": "Salin lalu ubah.",
+          "remedial": "`toBuilder()` membuat builder yang sudah berisi semua nilai object asal. Setelah mengubah sebagian dan memanggil `build()`, didapat object baru. Object asal tidak berubah."
+        },
+        {
+          "question": "Apa yang salah dari Todo t = Todo.builder().id(1).judul(\"Belajar\");?",
+          "options": [
+            "Lupa memanggil build(), jadi hasilnya masih TodoBuilder",
+            "Urutan id dan judul terbalik",
+            "builder() harus ditulis new Builder()",
+            "Tidak ada yang salah"
+          ],
+          "answer": 0,
+          "explanation": "Akhiri dengan build().",
+          "remedial": "Setiap method builder mengembalikan builder itu sendiri supaya bisa dirangkai. Object `Todo` baru jadi saat `build()` dipanggil."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Anotasi untuk field List yang membuat method penambah satu per satu di builder adalah...",
+      "options": [
+        "@Builder.Default",
+        "@Singular",
+        "@With",
+        "@Plural"
+      ],
+      "answer": 1,
+      "explanation": "label(\"kerja\").label(\"penting\")."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca pesanan dari input dengan format kode;pelanggan;kurir per baris, di mana kurir boleh tidak ditulis. Kode main sudah memakai builder, tetapi class Pesanan belum punya builder. Tambahkan anotasi Lombok di class Pesanan sehingga program bisa di-compile, dan pesanan yang tidak menyebut kurir otomatis memakai kurir \"reguler\".",
+      "starterCode": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            Pesanan.PesananBuilder b = Pesanan.builder().kode(d[0]).pelanggan(d[1]);\n            if (d.length > 2) {\n                b.kurir(d[2]);\n            }\n            System.out.println(b.build());\n        }\n    }\n}\n\n@ToString\nclass Pesanan {\n    private String kode;\n    private String pelanggan;\n    private String kurir;\n}",
+      "solution": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            Pesanan.PesananBuilder b = Pesanan.builder().kode(d[0]).pelanggan(d[1]);\n            if (d.length > 2) {\n                b.kurir(d[2]);\n            }\n            System.out.println(b.build());\n        }\n    }\n}\n\n@Builder\n@ToString\nclass Pesanan {\n    private String kode;\n    private String pelanggan;\n    @Builder.Default\n    private String kurir = \"reguler\";\n}",
+      "tests": [
+        {
+          "input": "A-1;sari;kilat\nA-2;budi\n",
+          "expectedOutput": "Pesanan(kode=A-1, pelanggan=sari, kurir=kilat)\nPesanan(kode=A-2, pelanggan=budi, kurir=reguler)\n"
+        },
+        {
+          "input": "B-9;ani\n",
+          "expectedOutput": "Pesanan(kode=B-9, pelanggan=ani, kurir=reguler)\n"
+        }
+      ],
+      "hints": [
+        "Tambahkan @Builder di class Pesanan.",
+        "Beri nilai awal kurir = \"reguler\" dengan @Builder.Default supaya builder memakainya."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@Builder membuat Class.builder()...build() dengan method bernama untuk setiap field.",
+        "Field yang tidak diisi bernilai bawaan, kecuali diberi @Builder.Default.",
+        "toBuilder = true menyalin object untuk diubah sebagian.",
+        "@Singular membuat method penambah satu per satu untuk List."
+      ]
+    }
+  ]
+}

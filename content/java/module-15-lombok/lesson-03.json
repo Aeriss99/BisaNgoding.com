@@ -1,0 +1,220 @@
+{
+  "id": "java-lombok-03",
+  "moduleId": "lombok",
+  "order": 3,
+  "title": "Constructor Otomatis",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Constructor juga sering berisi kode berulang: menerima parameter satu per satu lalu menyalinnya ke field dengan `this.x = x`. Class dengan lima field berarti lima baris salin yang membosankan.\n\nLombok menyediakan tiga anotasi constructor, masing-masing untuk kebutuhan berbeda.\n\nIbarat formulir pendaftaran: ada formulir kosong (diisi belakangan), formulir lengkap (semua kolom diisi saat itu juga), dan formulir dengan kolom wajib bertanda bintang (hanya yang wajib yang harus diisi di awal)."
+    },
+    {
+      "type": "theory",
+      "content": "| Anotasi | Constructor yang dibuat | Mirip formulir |\n|---|---|---|\n| `@NoArgsConstructor` | tanpa parameter: `new Todo()` | kosong |\n| `@AllArgsConstructor` | parameter untuk **semua** field, berurutan sesuai penulisan field | lengkap |\n| `@RequiredArgsConstructor` | parameter hanya untuk field `final` (dan field `@NonNull`) | kolom wajib |\n\nSatu class boleh punya lebih dari satu, misalnya `@NoArgsConstructor` dan `@AllArgsConstructor` sekaligus.\n\n`@RequiredArgsConstructor` sangat cocok untuk class service yang dependency-nya disimpan di field `final`:\n\n```java\n@RequiredArgsConstructor\nclass TodoService {\n    private final TodoRepository repo;   // masuk constructor\n    private int dipanggil;               // tidak final, tidak masuk\n}\n\n// sama dengan menulis:\n// TodoService(TodoRepository repo) { this.repo = repo; }\n```\n\nPilihan `staticName` membuat constructor menjadi method static bernama, misalnya `@AllArgsConstructor(staticName = \"of\")` menghasilkan `Todo.of(1, \"Belajar\", false)`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@Getter\n@Setter\n@ToString\n@NoArgsConstructor\n@AllArgsConstructor\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n}\n\nTodo a = new Todo(1, \"Belajar Lombok\", false);   // @AllArgsConstructor\nTodo b = new Todo();                             // @NoArgsConstructor\nb.setId(2);\n```\n\nUrutan parameter `@AllArgsConstructor` mengikuti urutan field di class: `id`, lalu `judul`, lalu `selesai`. Kalau urutan field ditukar, urutan parameternya ikut berubah."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Pesanan p = new Pesanan(\"A-17\", \"Sari\");\n        System.out.println(p);\n        p.setCatatan(\"tanpa gula\");\n        System.out.println(p);\n    }\n}\n\n@Getter\n@Setter\n@ToString\n@RequiredArgsConstructor\nclass Pesanan {\n    private final String kode;\n    private final String pelanggan;\n    private String catatan;\n}",
+      "predict": {
+        "question": "Tebak dulu: catatan tidak final. Apa yang tercetak di baris pertama?",
+        "options": [
+          "Pesanan(kode=A-17, pelanggan=Sari)",
+          "Pesanan(kode=A-17, pelanggan=Sari, catatan=)",
+          "Pesanan(A-17, Sari)",
+          "Pesanan(kode=A-17, pelanggan=Sari, catatan=null)"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 17,
+          "note": "Constructor untuk field final saja."
+        },
+        {
+          "line": 21,
+          "note": "Tidak final: tidak masuk constructor, awalnya null."
+        },
+        {
+          "line": 7,
+          "note": "Dua parameter: kode dan pelanggan."
+        }
+      ],
+      "explanation": "@RequiredArgsConstructor hanya membuat parameter untuk field final, yaitu kode dan pelanggan. Field catatan tidak final, jadi nilainya null sampai diisi dengan setter. toString tetap menampilkan semua field, termasuk yang null.",
+      "tryThis": [
+        {
+          "task": "Jadikan catatan final. Kenapa new Pesanan(\"A-17\", \"Sari\") sekarang gagal di-compile?",
+          "hint": null
+        },
+        {
+          "task": "Ganti dengan @AllArgsConstructor dan buat pesanan dengan tiga argumen.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Urutan argumen `@AllArgsConstructor` tertukar**\n\n`new Todo(\"Belajar\", 1, false)` gagal di-compile karena urutannya mengikuti field. Yang lebih berbahaya: dua field bertipe sama (misalnya `String nama, String email`) bisa tertukar tanpa error. Untuk class dengan banyak field, pakai `@Builder` (materi 5).\n\n**2. `@NoArgsConstructor` pada class dengan field `final`**\n\nField final wajib diisi, sedangkan constructor kosong tidak mengisinya. Compile gagal dengan pesan `variable ... might not have been initialized`.\n\n**3. Mengira `@RequiredArgsConstructor` memasukkan semua field**\n\nHanya field `final` (dan yang bertanda `@NonNull`) yang masuk. Field lain tetap bernilai bawaan: `null`, `0`, atau `false`.\n\n**4. Menukar urutan field tanpa sadar**\n\nMemindahkan baris field saat merapikan kode diam-diam mengubah urutan parameter `@AllArgsConstructor`, dan semua pemanggil yang tipenya kebetulan cocok jadi salah isi."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\nPola paling umum di aplikasi Spring Boot adalah **constructor injection** dengan `@RequiredArgsConstructor`:\n\n```java\n@Service\n@RequiredArgsConstructor\npublic class TodoService {\n    private final TodoRepository todoRepository;\n    private final NotifikasiService notifikasiService;\n}\n```\n\nSpring melihat constructor yang dibuat Lombok, lalu mengisi kedua dependency secara otomatis. Saat dependency baru ditambahkan, cukup tambah satu field `final`.\n\n`@NoArgsConstructor` sering diwajibkan oleh library yang membuat object lewat reflection, misalnya JPA untuk entity dan Jackson untuk membaca JSON (modul JSON). Tim biasanya menulisnya dengan akses dibatasi: `@NoArgsConstructor(access = AccessLevel.PROTECTED)`."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Ringkas 3: Membuat Todo dengan Berbagai Cara",
+      "pembuka": "Kita beri `Todo` dan `TodoService` constructor buatan Lombok.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `@AllArgsConstructor` membuat constructor tiga parameter sesuai urutan field.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\", false);\n        System.out.println(a);\n    }\n}\n\n@Getter\n@ToString\n@AllArgsConstructor\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=false)",
+          "otomatis": true,
+          "benar": "Tidak ada constructor yang kutulis sendiri.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan `@Setter` dan `@NoArgsConstructor` di class. Lalu buat `Todo b = new Todo();`, isi id 2 dan judul `\"Beli kopi\"` dengan setter, dan cetak.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\", false);\n        System.out.println(a);\n        Todo b = new Todo();\n        b.setId(2);\n        b.setJudul(\"Beli kopi\");\n        System.out.println(b);\n    }\n}\n\n@Getter\n@ToString\n@Setter\n@NoArgsConstructor\n@AllArgsConstructor\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=false)\nTodo(id=2, judul=Beli kopi, selesai=false)",
+          "wajib": [
+            {
+              "pola": "@NoArgsConstructor",
+              "pesan": "tambahkan `@NoArgsConstructor`."
+            },
+            {
+              "pola": "new\\s+Todo\\s*\\(\\s*\\)",
+              "pesan": "buat `new Todo()`."
+            },
+            {
+              "pola": "b\\.setJudul\\s*\\(\\s*\"Beli kopi\"\\s*\\)",
+              "pesan": "isi judul dengan `b.setJudul(\"Beli kopi\")`."
+            }
+          ],
+          "benar": "Satu class, dua cara membuat object.",
+          "petunjuk": "Kedua anotasi ditulis di atas `@AllArgsConstructor`. Di main: `b.setId(2); b.setJudul(\"Beli kopi\");`."
+        },
+        {
+          "arahan": "Aku sudah menambahkan `TodoRepository` dan `TodoService` (dengan `@RequiredArgsConstructor`). Buat service dengan `new TodoService(new TodoRepositoryMemori(a, b))` lalu cetak `\"Jumlah todo: \" + service.jumlah()`.",
+          "kodeAwal": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\", false);\n        System.out.println(a);\n        Todo b = new Todo();\n        b.setId(2);\n        b.setJudul(\"Beli kopi\");\n        System.out.println(b);\n    }\n}\n\n@Getter\n@ToString\n@Setter\n@NoArgsConstructor\n@AllArgsConstructor\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n}\n\ninterface TodoRepository {\n    List<Todo> semua();\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n\n    TodoRepositoryMemori(Todo... awal) {\n        data.addAll(Arrays.asList(awal));\n    }\n\n    public List<Todo> semua() {\n        return data;\n    }\n}\n\n@RequiredArgsConstructor\nclass TodoService {\n    private final TodoRepository repo;\n    private int dipanggil;\n\n    int jumlah() {\n        dipanggil++;\n        return repo.semua().size();\n    }\n}\n",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\", false);\n        System.out.println(a);\n        Todo b = new Todo();\n        b.setId(2);\n        b.setJudul(\"Beli kopi\");\n        System.out.println(b);\n        TodoService service = new TodoService(new TodoRepositoryMemori(a, b));\n        System.out.println(\"Jumlah todo: \" + service.jumlah());\n    }\n}\n\n@Getter\n@ToString\n@Setter\n@NoArgsConstructor\n@AllArgsConstructor\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n}\n\ninterface TodoRepository {\n    List<Todo> semua();\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n\n    TodoRepositoryMemori(Todo... awal) {\n        data.addAll(Arrays.asList(awal));\n    }\n\n    public List<Todo> semua() {\n        return data;\n    }\n}\n\n@RequiredArgsConstructor\nclass TodoService {\n    private final TodoRepository repo;\n    private int dipanggil;\n\n    int jumlah() {\n        dipanggil++;\n        return repo.semua().size();\n    }\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=false)\nTodo(id=2, judul=Beli kopi, selesai=false)\nJumlah todo: 2",
+          "wajib": [
+            {
+              "pola": "new\\s+TodoService\\s*\\(\\s*new\\s+TodoRepositoryMemori\\s*\\(\\s*a\\s*,\\s*b\\s*\\)\\s*\\)",
+              "pesan": "buat `new TodoService(new TodoRepositoryMemori(a, b))`."
+            }
+          ],
+          "benar": "Field `dipanggil` tidak final, jadi tidak ikut di constructor.",
+          "petunjuk": "Constructor `TodoService` hanya menerima `repo`, karena hanya itu yang final."
+        },
+        {
+          "arahan": "Tantangan: ganti constructor lengkap `Todo` menjadi method static bernama `of`, lalu ubah pembuatan `a` menjadi `Todo.of(1, \"Belajar Lombok\", false)` dan cetak juga `Todo.of(3, \"Olahraga\", true)`.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = Todo.of(1, \"Belajar Lombok\", false);\n        System.out.println(a);\n        Todo b = new Todo();\n        b.setId(2);\n        b.setJudul(\"Beli kopi\");\n        System.out.println(b);\n        TodoService service = new TodoService(new TodoRepositoryMemori(a, b));\n        System.out.println(\"Jumlah todo: \" + service.jumlah());\n        System.out.println(Todo.of(3, \"Olahraga\", true));\n    }\n}\n\n@Getter\n@ToString\n@Setter\n@NoArgsConstructor\n@AllArgsConstructor(staticName = \"of\")\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n}\n\ninterface TodoRepository {\n    List<Todo> semua();\n}\n\nclass TodoRepositoryMemori implements TodoRepository {\n    private final List<Todo> data = new ArrayList<>();\n\n    TodoRepositoryMemori(Todo... awal) {\n        data.addAll(Arrays.asList(awal));\n    }\n\n    public List<Todo> semua() {\n        return data;\n    }\n}\n\n@RequiredArgsConstructor\nclass TodoService {\n    private final TodoRepository repo;\n    private int dipanggil;\n\n    int jumlah() {\n        dipanggil++;\n        return repo.semua().size();\n    }\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=false)\nTodo(id=2, judul=Beli kopi, selesai=false)\nJumlah todo: 2\nTodo(id=3, judul=Olahraga, selesai=true)",
+          "wajib": [
+            {
+              "pola": "@AllArgsConstructor\\s*\\(\\s*staticName\\s*=\\s*\"of\"\\s*\\)",
+              "pesan": "tulis `@AllArgsConstructor(staticName = \"of\")`."
+            },
+            {
+              "pola": "Todo\\.of\\s*\\(\\s*3\\s*,\\s*\"Olahraga\"\\s*,\\s*true\\s*\\)",
+              "pesan": "cetak `Todo.of(3, \"Olahraga\", true)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "`Todo.of(...)` lebih enak dibaca daripada `new Todo(...)`, dan banyak library Java memakai nama seperti ini.",
+          "petunjuk": "Pakai pilihan `staticName` di `@AllArgsConstructor`."
+        }
+      ],
+      "penutup": "Constructor Todo dan TodoService sekarang dibuat Lombok. Berikutnya, anotasi gabungan yang paling sering dipakai: `@Data` dan `@Value`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Class punya field private final String kode dan private String catatan. Constructor buatan @RequiredArgsConstructor menerima...",
+          "options": [
+            "Hanya kode",
+            "kode dan catatan",
+            "Tidak ada parameter",
+            "Hanya catatan"
+          ],
+          "answer": 0,
+          "explanation": "Hanya field final.",
+          "remedial": "`@RequiredArgsConstructor` membuat parameter untuk field yang wajib diisi di awal, yaitu field `final` (dan field bertanda `@NonNull`). `catatan` tidak final, jadi tidak masuk."
+        },
+        {
+          "question": "Urutan parameter constructor buatan @AllArgsConstructor ditentukan oleh...",
+          "options": [
+            "Urutan abjad nama field",
+            "Urutan penulisan field di class",
+            "Urutan tipe data",
+            "Urutan yang ditulis di anotasi"
+          ],
+          "answer": 1,
+          "explanation": "Mengikuti urutan field.",
+          "remedial": "Lombok membaca field dari atas ke bawah. Kalau field ditukar posisinya, urutan parameter ikut berubah, sehingga kode pemanggil bisa salah tanpa disadari."
+        },
+        {
+          "question": "Kenapa @RequiredArgsConstructor populer di class service Spring?",
+          "options": [
+            "Karena Spring melarang constructor biasa",
+            "Karena membuat service lebih cepat",
+            "Karena dependency di field final otomatis masuk constructor, yang dipakai Spring untuk mengisinya",
+            "Karena service tidak boleh punya field"
+          ],
+          "answer": 2,
+          "explanation": "Constructor injection.",
+          "remedial": "Spring mengisi dependency lewat constructor. Dengan field `final` dan `@RequiredArgsConstructor`, constructor itu dibuat Lombok, dan field-nya terjamin terisi serta tidak bisa diganti."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Anotasi yang membuat constructor static bernama Todo.of(...) adalah...",
+      "options": [
+        "@AllArgsConstructor(name = \"of\")",
+        "@Of",
+        "@StaticConstructor(\"of\")",
+        "@AllArgsConstructor(staticName = \"of\")"
+      ],
+      "answer": 3,
+      "explanation": "Pilihan staticName."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca tarif per kilo di baris pertama input, lalu berat paket di baris-baris berikutnya, dan mencetak ongkos setiap paket. Class Tarif dan Kurir belum punya constructor maupun getter sehingga gagal di-compile. Tambahkan anotasi Lombok saja (tanpa menulis method atau constructor sendiri): Tarif butuh constructor dengan semua field dan getter, Kurir butuh constructor untuk field final-nya.",
+      "starterCode": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        Kurir k = new Kurir(new Tarif(Integer.parseInt(in.nextLine().trim())));\n        while (in.hasNextLine()) {\n            int kilo = Integer.parseInt(in.nextLine().trim());\n            System.out.println(kilo + \" kg: \" + k.ongkos(kilo));\n        }\n    }\n}\n\nclass Tarif {\n    private final int perKilo;\n}\n\nclass Kurir {\n    private final Tarif tarif;\n\n    int ongkos(int kilo) {\n        return tarif.getPerKilo() * kilo;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        Kurir k = new Kurir(new Tarif(Integer.parseInt(in.nextLine().trim())));\n        while (in.hasNextLine()) {\n            int kilo = Integer.parseInt(in.nextLine().trim());\n            System.out.println(kilo + \" kg: \" + k.ongkos(kilo));\n        }\n    }\n}\n\n@Getter\n@AllArgsConstructor\nclass Tarif {\n    private final int perKilo;\n}\n\n@RequiredArgsConstructor\nclass Kurir {\n    private final Tarif tarif;\n\n    int ongkos(int kilo) {\n        return tarif.getPerKilo() * kilo;\n    }\n}",
+      "tests": [
+        {
+          "input": "9000\n1\n3\n",
+          "expectedOutput": "1 kg: 9000\n3 kg: 27000\n"
+        },
+        {
+          "input": "15000\n2\n",
+          "expectedOutput": "2 kg: 30000\n"
+        }
+      ],
+      "hints": [
+        "Tarif: @Getter dan @AllArgsConstructor.",
+        "Kurir: @RequiredArgsConstructor, karena tarif adalah field final."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@NoArgsConstructor: tanpa parameter; @AllArgsConstructor: semua field.",
+        "@RequiredArgsConstructor: hanya field final (dan @NonNull).",
+        "Urutan parameter mengikuti urutan field.",
+        "Constructor injection di Spring: field final + @RequiredArgsConstructor."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,233 @@
+{
+  "id": "java-database-06",
+  "moduleId": "database",
+  "order": 6,
+  "title": "SQL Injection dan PreparedStatement",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Saat SQL disusun dengan menyambung teks dari masukan pengguna, pengguna bisa menyisipkan potongan SQL miliknya sendiri. Serangan ini disebut **SQL injection**, dan sudah puluhan tahun termasuk celah keamanan paling berbahaya di aplikasi web (selalu masuk daftar OWASP Top 10).\n\n```java\nString sql = \"SELECT * FROM produk WHERE nama = '\" + nama + \"'\";\n```\n\nKalau `nama` diisi `x' OR '1'='1`, SQL-nya menjadi `... WHERE nama = 'x' OR '1'='1'`, yang selalu benar, dan semua data terbuka.\n\nIbarat formulir bank yang kolom \"jumlah transfer\"-nya diisi \"100 ribu, dan sekalian kosongkan rekening orang lain\". Petugas yang membaca semua tulisan sebagai perintah akan menurut. Petugas yang baik hanya menganggap isi kolom itu sebagai angka."
+    },
+    {
+      "type": "theory",
+      "content": "Solusinya adalah **PreparedStatement**: SQL ditulis dengan tanda tanya `?` sebagai tempat nilai, lalu nilainya dikirim terpisah.\n\n```java\nPreparedStatement ps = c.prepareStatement(\"SELECT nama, harga FROM produk WHERE nama = ?\");\nps.setString(1, nama);            // ? pertama diisi nama\nResultSet rs = ps.executeQuery();\n```\n\nDatabase menerima struktur SQL dan nilainya secara terpisah, sehingga isi `nama` **selalu** dianggap data, tidak pernah dianggap perintah. Tanda kutip di dalam nama (seperti `O'Neil`) juga otomatis aman.\n\n| Method | Untuk |\n|---|---|\n| `setString(n, teks)` | kolom teks |\n| `setInt(n, angka)`, `setLong`, `setDouble` | angka |\n| `setBoolean(n, b)` | benar/salah |\n| `executeQuery()` / `executeUpdate()` | tanpa parameter SQL lagi |\n\nNomor `n` adalah urutan tanda tanya, dimulai dari **1**."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nstatic void tambah(Connection c, String nama, int harga, int stok) throws SQLException {\n    try (PreparedStatement ps = c.prepareStatement(\n            \"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\")) {\n        ps.setString(1, nama);\n        ps.setInt(2, harga);\n        ps.setInt(3, stok);\n        ps.executeUpdate();\n    }\n}\n```\n\nSelain lebih aman, PreparedStatement juga lebih cepat untuk perintah yang dijalankan berulang, karena database cukup menyiapkan rencana eksekusinya sekali.\n\nAturan yang dipegang di hampir semua tim: **setiap nilai yang berasal dari luar program (pengguna, file, API) masuk lewat `?`**, tanpa pengecualian."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            String masukan = \"Pensil'; DELETE FROM produk; --\";\n            try (PreparedStatement ps = c.prepareStatement(\"SELECT COUNT(*) FROM produk WHERE nama = ?\")) {\n                ps.setString(1, masukan);\n                try (ResultSet rs = ps.executeQuery()) {\n                    rs.next();\n                    System.out.println(\"Hasil pencarian: \" + rs.getInt(1));\n                }\n            }\n            try (Statement st = c.createStatement();\n                 ResultSet rs = st.executeQuery(\"SELECT COUNT(*) FROM produk\")) {\n                rs.next();\n                System.out.println(\"Produk di tabel: \" + rs.getInt(1));\n            }\n        }\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: masukan berisi perintah DELETE. Berapa produk yang tersisa di tabel?",
+        "options": [
+          "Produk di tabel: 0",
+          "Hasil pencarian: 4",
+          "Produk di tabel: 3",
+          "Produk di tabel: 4"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 18,
+          "note": "Masukan jahat berisi perintah SQL."
+        },
+        {
+          "line": 20,
+          "note": "Seluruh masukan dianggap satu nilai teks."
+        },
+        {
+          "line": 29,
+          "note": "Tabel tetap utuh."
+        }
+      ],
+      "explanation": "Dengan PreparedStatement, seluruh masukan termasuk tanda kutip dan perintah DELETE dianggap satu nilai teks biasa. Database mencari produk yang namanya persis teks aneh itu, tidak menemukan apa-apa (hasil 0), dan tidak menjalankan DELETE. Tabel tetap berisi 4 produk.",
+      "tryThis": [
+        {
+          "task": "Ganti masukan dengan \"Pensil\". Berapa hasil pencariannya?",
+          "hint": null
+        },
+        {
+          "task": "Coba masukan \"Spidol\" dan periksa hasilnya.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyambung teks walaupun sudah memakai PreparedStatement**\n\n```java\nc.prepareStatement(\"SELECT * FROM produk WHERE nama = '\" + nama + \"'\");   // tetap rawan\n```\n\nYang melindungi adalah tanda tanya, bukan nama class-nya.\n\n**2. Membungkus `?` dengan kutip**\n\n`WHERE nama = '?'` dibaca sebagai teks berisi tanda tanya, bukan tempat parameter. Tulis `WHERE nama = ?` tanpa kutip.\n\n**3. Nomor parameter mulai dari 0**\n\n`setString(0, ...)` melempar `SQLException`. Parameter dihitung mulai **1**.\n\n**4. Mengira `?` bisa dipakai untuk nama tabel atau kolom**\n\n`SELECT * FROM ?` tidak bisa. Tanda tanya hanya untuk nilai. Kalau nama kolom harus dipilih pengguna (misalnya kolom pengurutan), cocokkan dengan daftar nama yang diizinkan di kode."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Code review di hampir semua perusahaan langsung menolak SQL yang disusun dengan `+` dari masukan pengguna. Alat analisis kode seperti SonarQube dan SpotBugs juga menandainya sebagai celah keamanan.\n- JPA/Hibernate dan Spring Data memakai PreparedStatement di dalamnya, sehingga aman selama query ditulis dengan parameter:\n\n```java\n@Query(\"SELECT p FROM Produk p WHERE p.nama = :nama\")\nList<Produk> cariNama(@Param(\"nama\") String nama);\n```\n\n- Kata sandi **tidak pernah** disimpan apa adanya di database seperti di latihan tantangan materi ini. Aplikasi sungguhan menyimpan hasil hash dengan BCrypt atau Argon2, dan membandingkan hash, bukan teks sandi."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Toko Database 3: Pencarian yang Aman",
+      "pembuka": "Toko kita punya fitur pencarian produk berdasarkan nama. Mari uji keamanannya.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Method `cari` menyusun SQL dengan menyambung teks.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static void cari(Connection c, String nama) throws SQLException {\n        String sql = \"SELECT nama, harga FROM produk WHERE nama = '\" + nama + \"'\";\n        try (Statement st = c.createStatement();\n             ResultSet rs = st.executeQuery(sql)) {\n            int n = 0;\n            while (rs.next()) {\n                System.out.println(rs.getString(\"nama\") + \" \" + rs.getInt(\"harga\"));\n                n++;\n            }\n            System.out.println(n + \" hasil untuk: \" + nama);\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            cari(c, \"Pensil\");\n        }\n    }\n}\n",
+          "keluaran": "Pensil 3000\n1 hasil untuk: Pensil",
+          "otomatis": true,
+          "benar": "Mencari \"Pensil\" berjalan normal.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Sekarang coba pencarian dengan masukan jahat: tambahkan `cari(c, \"x' OR '1'='1\");` di bawahnya.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static void cari(Connection c, String nama) throws SQLException {\n        String sql = \"SELECT nama, harga FROM produk WHERE nama = '\" + nama + \"'\";\n        try (Statement st = c.createStatement();\n             ResultSet rs = st.executeQuery(sql)) {\n            int n = 0;\n            while (rs.next()) {\n                System.out.println(rs.getString(\"nama\") + \" \" + rs.getInt(\"harga\"));\n                n++;\n            }\n            System.out.println(n + \" hasil untuk: \" + nama);\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            cari(c, \"Pensil\");\n            cari(c, \"x' OR '1'='1\");\n        }\n    }\n}\n",
+          "keluaran": "Pensil 3000\n1 hasil untuk: Pensil\nPensil 3000\nBuku tulis 8000\nPenghapus 2000\nSpidol 9500\n4 hasil untuk: x' OR '1'='1",
+          "wajib": [
+            {
+              "pola": "cari\\s*\\(\\s*c\\s*,\\s*\"x' OR '1'='1\"\\s*\\)",
+              "pesan": "panggil `cari(c, \"x' OR '1'='1\")`."
+            }
+          ],
+          "benar": "Semua produk muncul, padahal tidak ada produk bernama itu. Bayangkan kalau ini tabel pengguna dan sandi.",
+          "petunjuk": "Tulis persis: `cari(c, \"x' OR '1'='1\");`."
+        },
+        {
+          "arahan": "Perbaiki method `cari` dengan PreparedStatement: query `SELECT nama, harga FROM produk WHERE nama = ?`, lalu `ps.setString(1, nama);` dan `ps.executeQuery()`.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static void cari(Connection c, String nama) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"SELECT nama, harga FROM produk WHERE nama = ?\")) {\n            ps.setString(1, nama);\n            try (ResultSet rs = ps.executeQuery()) {\n                int n = 0;\n                while (rs.next()) {\n                    System.out.println(rs.getString(\"nama\") + \" \" + rs.getInt(\"harga\"));\n                    n++;\n                }\n                System.out.println(n + \" hasil untuk: \" + nama);\n            }\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            cari(c, \"Pensil\");\n            cari(c, \"x' OR '1'='1\");\n        }\n    }\n}\n",
+          "keluaran": "Pensil 3000\n1 hasil untuk: Pensil\n0 hasil untuk: x' OR '1'='1",
+          "wajib": [
+            {
+              "pola": "prepareStatement\\s*\\(\\s*\"SELECT nama, harga FROM produk WHERE nama = \\?\"\\s*\\)",
+              "pesan": "pakai `c.prepareStatement(\"SELECT nama, harga FROM produk WHERE nama = ?\")`."
+            },
+            {
+              "pola": "ps\\.setString\\s*\\(\\s*1\\s*,\\s*nama\\s*\\)",
+              "pesan": "isi parameter dengan `ps.setString(1, nama)`."
+            }
+          ],
+          "benar": "Masukan jahat sekarang menghasilkan 0 hasil. Isinya dianggap nama biasa.",
+          "petunjuk": "Ganti Statement dengan `try (PreparedStatement ps = c.prepareStatement(\"...\")) { ps.setString(1, nama); try (ResultSet rs = ps.executeQuery()) { ... } }`."
+        },
+        {
+          "arahan": "Aku sudah menambahkan method `tambah` yang memakai PreparedStatement. Tambahkan produk `\"Pena O'Neil\"` seharga 12000 stok 30, lalu cari produk itu.",
+          "kodeAwal": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static void cari(Connection c, String nama) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"SELECT nama, harga FROM produk WHERE nama = ?\")) {\n            ps.setString(1, nama);\n            try (ResultSet rs = ps.executeQuery()) {\n                int n = 0;\n                while (rs.next()) {\n                    System.out.println(rs.getString(\"nama\") + \" \" + rs.getInt(\"harga\"));\n                    n++;\n                }\n                System.out.println(n + \" hasil untuk: \" + nama);\n            }\n        }\n    }\n\n    static void tambah(Connection c, String nama, int harga, int stok) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\")) {\n            ps.setString(1, nama);\n            ps.setInt(2, harga);\n            ps.setInt(3, stok);\n            ps.executeUpdate();\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            cari(c, \"Pensil\");\n            cari(c, \"x' OR '1'='1\");\n        }\n    }\n}\n",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static void cari(Connection c, String nama) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"SELECT nama, harga FROM produk WHERE nama = ?\")) {\n            ps.setString(1, nama);\n            try (ResultSet rs = ps.executeQuery()) {\n                int n = 0;\n                while (rs.next()) {\n                    System.out.println(rs.getString(\"nama\") + \" \" + rs.getInt(\"harga\"));\n                    n++;\n                }\n                System.out.println(n + \" hasil untuk: \" + nama);\n            }\n        }\n    }\n\n    static void tambah(Connection c, String nama, int harga, int stok) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\")) {\n            ps.setString(1, nama);\n            ps.setInt(2, harga);\n            ps.setInt(3, stok);\n            ps.executeUpdate();\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            cari(c, \"Pensil\");\n            cari(c, \"x' OR '1'='1\");\n            tambah(c, \"Pena O'Neil\", 12000, 30);\n            cari(c, \"Pena O'Neil\");\n        }\n    }\n}\n",
+          "keluaran": "Pensil 3000\n1 hasil untuk: Pensil\n0 hasil untuk: x' OR '1'='1\nPena O'Neil 12000\n1 hasil untuk: Pena O'Neil",
+          "wajib": [
+            {
+              "pola": "tambah\\s*\\(\\s*c\\s*,\\s*\"Pena O'Neil\"\\s*,\\s*12000\\s*,\\s*30\\s*\\)",
+              "pesan": "panggil `tambah(c, \"Pena O'Neil\", 12000, 30)`."
+            },
+            {
+              "pola": "cari\\s*\\(\\s*c\\s*,\\s*\"Pena O'Neil\"\\s*\\)",
+              "pesan": "cari `\"Pena O'Neil\"`."
+            }
+          ],
+          "benar": "Tanda kutip di dalam nama tidak merusak SQL, karena nilai dikirim terpisah.",
+          "petunjuk": "Panggil `tambah(c, \"Pena O'Neil\", 12000, 30);` lalu `cari(c, \"Pena O'Neil\");`."
+        },
+        {
+          "arahan": "Tantangan: buat method `static int ubahHarga(Connection c, int id, int hargaBaru)` yang mengubah harga produk dengan PreparedStatement dan mengembalikan jumlah baris yang berubah. Ubah harga produk nomor 1 menjadi 3500, cetak `... produk diubah`, lalu cari Pensil lagi.",
+          "jawaban": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    // Membuat tabel produk berisi beberapa data (di laptop, tabel ini sudah ada di MySQL).\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE produk (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, harga INT NOT NULL, stok INT NOT NULL DEFAULT 0)\");\n            st.executeUpdate(\"INSERT INTO produk (nama, harga, stok) VALUES ('Pensil', 3000, 120), ('Buku tulis', 8000, 40), ('Penghapus', 2000, 15), ('Spidol', 9500, 60)\");\n        }\n    }\n\n    static void cari(Connection c, String nama) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"SELECT nama, harga FROM produk WHERE nama = ?\")) {\n            ps.setString(1, nama);\n            try (ResultSet rs = ps.executeQuery()) {\n                int n = 0;\n                while (rs.next()) {\n                    System.out.println(rs.getString(\"nama\") + \" \" + rs.getInt(\"harga\"));\n                    n++;\n                }\n                System.out.println(n + \" hasil untuk: \" + nama);\n            }\n        }\n    }\n\n    static void tambah(Connection c, String nama, int harga, int stok) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"INSERT INTO produk (nama, harga, stok) VALUES (?, ?, ?)\")) {\n            ps.setString(1, nama);\n            ps.setInt(2, harga);\n            ps.setInt(3, stok);\n            ps.executeUpdate();\n        }\n    }\n\n    static int ubahHarga(Connection c, int id, int hargaBaru) throws SQLException {\n        try (PreparedStatement ps = c.prepareStatement(\"UPDATE produk SET harga = ? WHERE id = ?\")) {\n            ps.setInt(1, hargaBaru);\n            ps.setInt(2, id);\n            return ps.executeUpdate();\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            cari(c, \"Pensil\");\n            cari(c, \"x' OR '1'='1\");\n            tambah(c, \"Pena O'Neil\", 12000, 30);\n            cari(c, \"Pena O'Neil\");\n            System.out.println(ubahHarga(c, 1, 3500) + \" produk diubah\");\n            cari(c, \"Pensil\");\n        }\n    }\n}\n",
+          "keluaran": "Pensil 3000\n1 hasil untuk: Pensil\n0 hasil untuk: x' OR '1'='1\nPena O'Neil 12000\n1 hasil untuk: Pena O'Neil\n1 produk diubah\nPensil 3500\n1 hasil untuk: Pensil",
+          "wajib": [
+            {
+              "pola": "static\\s+int\\s+ubahHarga\\s*\\(\\s*Connection\\s+c\\s*,\\s*int\\s+id\\s*,\\s*int\\s+hargaBaru\\s*\\)",
+              "pesan": "buat `static int ubahHarga(Connection c, int id, int hargaBaru)`."
+            },
+            {
+              "pola": "\"UPDATE produk SET harga = \\? WHERE id = \\?\"",
+              "pesan": "pakai `\"UPDATE produk SET harga = ? WHERE id = ?\"`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Harga Pensil sekarang 3500. Semua perintah di toko kita sudah memakai PreparedStatement.",
+          "petunjuk": "Query-nya `UPDATE produk SET harga = ? WHERE id = ?`, dengan `setInt(1, hargaBaru)` dan `setInt(2, id)`, lalu `return ps.executeUpdate();`."
+        }
+      ],
+      "penutup": "Semua query toko sekarang aman dari SQL injection. Berikutnya: mendapatkan id baru setelah INSERT, dan memasukkan banyak data sekaligus."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kenapa \"SELECT * FROM produk WHERE nama = '\" + nama + \"'\" berbahaya?",
+          "options": [
+            "Pengguna bisa menyisipkan potongan SQL lewat isi nama",
+            "Karena query menjadi lambat",
+            "Karena nama tidak boleh berisi huruf kecil",
+            "Karena Statement tidak bisa membaca teks"
+          ],
+          "answer": 0,
+          "explanation": "SQL injection.",
+          "remedial": "Isi `nama` digabungkan langsung ke perintah SQL. Masukan seperti `x' OR '1'='1` mengubah arti perintahnya. Itulah SQL injection."
+        },
+        {
+          "question": "Penulisan PreparedStatement yang benar adalah...",
+          "options": [
+            "prepareStatement(\"SELECT * FROM produk WHERE nama = '?'\") lalu setString(1, nama)",
+            "prepareStatement(\"SELECT * FROM produk WHERE nama = ?\") lalu setString(1, nama)",
+            "prepareStatement(\"SELECT * FROM produk WHERE nama = \" + nama)",
+            "prepareStatement(\"SELECT * FROM ? WHERE nama = ?\")"
+          ],
+          "answer": 1,
+          "explanation": "Tanda tanya tanpa kutip, hanya untuk nilai.",
+          "remedial": "`?` ditulis tanpa kutip dan hanya menggantikan nilai. Nomor parameter dimulai dari 1. Nama tabel tidak bisa diganti `?`."
+        },
+        {
+          "question": "Nama produk Pena O'Neil mengandung tanda kutip. Dengan PreparedStatement dan setString, apa yang terjadi?",
+          "options": [
+            "SQL error karena kutip tidak seimbang",
+            "Kutipnya otomatis dihapus",
+            "Tersimpan dengan benar, karena nilai dikirim terpisah dari SQL",
+            "Harus ditulis Pena O''Neil secara manual"
+          ],
+          "answer": 2,
+          "explanation": "Nilai bukan bagian dari teks SQL.",
+          "remedial": "Dengan PreparedStatement, nilai tidak pernah ditempel ke teks SQL, jadi tanda kutip di dalam nama tidak bisa merusak perintah. Tidak perlu meng-escape manual."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Nomor parameter pertama di PreparedStatement adalah...",
+      "options": [
+        "0",
+        "-1",
+        "Sesuai nama kolom",
+        "1"
+      ],
+      "answer": 3,
+      "explanation": "Mulai dari 1."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program memeriksa login dari input dengan format nama spasi sandi per baris, terhadap tabel pengguna yang sudah disiapkan. Kodenya menyambung teks masukan ke SQL, sehingga masukan seperti sari ' OR '1'='1 bisa masuk tanpa sandi yang benar. Ubah query menjadi PreparedStatement dengan dua tanda tanya untuk nama dan sandi, sehingga hanya pasangan nama dan sandi yang benar yang berhasil masuk. Format keluaran tetap nama: berhasil masuk atau nama: ditolak.",
+      "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE pengguna (nama VARCHAR(50) PRIMARY KEY, sandi VARCHAR(50) NOT NULL)\");\n            st.executeUpdate(\"INSERT INTO pengguna VALUES ('sari', 'kopi123'), ('budi', 'teh456')\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            while (in.hasNextLine()) {\n                String[] d = in.nextLine().split(\" \", 2);\n                String sql = \"SELECT COUNT(*) FROM pengguna WHERE nama = '\" + d[0] + \"' AND sandi = '\" + d[1] + \"'\";\n                try (Statement st = c.createStatement();\n                     ResultSet rs = st.executeQuery(sql)) {\n                    rs.next();\n                    System.out.println(d[0] + \": \" + (rs.getInt(1) > 0 ? \"berhasil masuk\" : \"ditolak\"));\n                }\n            }\n        }\n    }\n}",
+      "solution": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    private static final String URL = \"jdbc:h2:mem:toko;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1\";\n\n    static void siapkan(Connection c) throws SQLException {\n        try (Statement st = c.createStatement()) {\n            st.execute(\"CREATE TABLE pengguna (nama VARCHAR(50) PRIMARY KEY, sandi VARCHAR(50) NOT NULL)\");\n            st.executeUpdate(\"INSERT INTO pengguna VALUES ('sari', 'kopi123'), ('budi', 'teh456')\");\n        }\n    }\n\n    public static void main(String[] args) throws SQLException {\n        Scanner in = new Scanner(System.in);\n        try (Connection c = DriverManager.getConnection(URL, \"sa\", \"\")) {\n            siapkan(c);\n            while (in.hasNextLine()) {\n                String[] d = in.nextLine().split(\" \", 2);\n                try (PreparedStatement ps = c.prepareStatement(\"SELECT COUNT(*) FROM pengguna WHERE nama = ? AND sandi = ?\")) {\n                    ps.setString(1, d[0]);\n                    ps.setString(2, d[1]);\n                    try (ResultSet rs = ps.executeQuery()) {\n                        rs.next();\n                        System.out.println(d[0] + \": \" + (rs.getInt(1) > 0 ? \"berhasil masuk\" : \"ditolak\"));\n                    }\n                }\n            }\n        }\n    }\n}",
+      "tests": [
+        {
+          "input": "sari kopi123\nbudi salah\n",
+          "expectedOutput": "sari: berhasil masuk\nbudi: ditolak\n"
+        },
+        {
+          "input": "sari ' OR '1'='1\n",
+          "expectedOutput": "sari: ditolak\n"
+        }
+      ],
+      "hints": [
+        "Query-nya: SELECT COUNT(*) FROM pengguna WHERE nama = ? AND sandi = ?",
+        "Isi dengan ps.setString(1, d[0]) dan ps.setString(2, d[1]), lalu ps.executeQuery()."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "SQL yang disusun dengan menyambung masukan pengguna rawan SQL injection.",
+        "PreparedStatement memakai ? untuk nilai, lalu setString/setInt dengan nomor mulai 1.",
+        "Nilai dikirim terpisah dari SQL, sehingga selalu dianggap data, termasuk tanda kutip.",
+        "Tanda tanya hanya untuk nilai, bukan nama tabel atau kolom."
+      ]
+    }
+  ]
+}

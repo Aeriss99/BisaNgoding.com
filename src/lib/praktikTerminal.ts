@@ -11,6 +11,14 @@ import { rapikanKetikan } from './ketikan';
 const KUNCI_SIMPAN = 'bn_praktik_terminal';
 const POLA_ISIAN = /\{\{(\w+)\}\}/g;
 
+/**
+ * Teks prompt terminal. Folder biasa ditambah " $" (contoh "~/todolist $"). Prompt program interaktif
+ * yang sudah berakhiran ">" (contoh "mysql>" saat masuk ke klien MySQL) ditampilkan apa adanya.
+ */
+export function teksPrompt(folder: string): string {
+  return /[>#]$/.test(folder) ? folder : `${folder} $`;
+}
+
 /** Rapikan ketikan pengguna: kutip pintar, kutip tunggal, dan spasi ganda. */
 export function rapikanPerintah(s: string): string {
   return rapikanKetikan(s).replace(/'/g, '"').replace(/\s+/g, ' ').trim();

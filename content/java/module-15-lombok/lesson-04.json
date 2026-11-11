@@ -1,0 +1,215 @@
+{
+  "id": "java-lombok-04",
+  "moduleId": "lombok",
+  "order": 4,
+  "title": "Data dan Value",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Banyak class hanya bertugas membawa data: `Todo`, `Kategori`, `Alamat`, `Pesanan`. Hampir semuanya butuh getter, `toString`, `equals`, `hashCode`, dan constructor. Memasang lima anotasi di setiap class tetap merepotkan.\n\nLombok menyediakan dua anotasi gabungan: **`@Data`** untuk object yang boleh berubah, dan **`@Value`** untuk object yang tidak boleh berubah.\n\nIbarat papan tulis dan prasasti: papan tulis (`@Data`) bisa dihapus dan ditulis ulang kapan saja, prasasti (`@Value`) sekali dipahat tidak bisa diubah. Kalau ingin isi yang berbeda, pahat prasasti baru."
+    },
+    {
+      "type": "theory",
+      "content": "| | `@Data` | `@Value` |\n|---|---|---|\n| Getter | ✔ | ✔ |\n| Setter | ✔ (field tidak final) | tidak ada |\n| `toString`, `equals`, `hashCode` | ✔ | ✔ |\n| Constructor | `@RequiredArgsConstructor` | constructor semua field |\n| Field | apa adanya | otomatis `private final` |\n| Class | biasa | otomatis `final` (tidak bisa diturunkan) |\n\nKarena `@Value` membuat semua field `private final`, cukup menulis `String nama;` tanpa `private final`.\n\nObject yang tidak bisa berubah (**immutable**) aman dipakai bersama: tidak ada kode lain yang bisa diam-diam mengubah isinya. Untuk mendapatkan versi yang sedikit berbeda, `@With` membuat method `withNamaField(...)` yang mengembalikan object **baru**."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@Value\n@With\nclass Kategori {\n    String nama;\n    String warna;\n}\n\nKategori kerja = new Kategori(\"Kerja\", \"biru\");\nKategori kerjaMerah = kerja.withWarna(\"merah\");   // object baru\n\nSystem.out.println(kerja);        // Kategori(nama=Kerja, warna=biru), tidak berubah\nSystem.out.println(kerjaMerah);   // Kategori(nama=Kerja, warna=merah)\n```\n\nMulai Java 16 ada **record** yang sifatnya mirip `@Value` tanpa library apa pun:\n\n```text\nrecord Kategori(String nama, String warna) { }\n```\n\nBedanya: getter record bernama `nama()`, bukan `getNama()`. Website ini memakai Java 8, jadi `record` hanya dibahas di sini."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Uang a = new Uang(50000, \"IDR\");\n        Uang b = a.tambah(new Uang(25000, \"IDR\"));\n        System.out.println(a);\n        System.out.println(b);\n        System.out.println(b.equals(new Uang(75000, \"IDR\")));\n    }\n}\n\n@Value\nclass Uang {\n    long jumlah;\n    String mataUang;\n\n    Uang tambah(Uang lain) {\n        return new Uang(jumlah + lain.jumlah, mataUang);\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: method tambah tidak mengubah a. Apa yang tercetak di baris pertama?",
+        "options": [
+          "Uang(jumlah=50000, mataUang=IDR)",
+          "Uang(jumlah=50000, mataUang=IDR, tambah=25000)",
+          "Uang(50000, IDR)",
+          "Uang(jumlah=25000, mataUang=IDR)"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 15,
+          "note": "Semua field private final, tanpa setter."
+        },
+        {
+          "line": 21,
+          "note": "Hasilnya object baru."
+        },
+        {
+          "line": 11,
+          "note": "Dibandingkan berdasarkan semua field."
+        }
+      ],
+      "explanation": "Uang adalah object nilai yang immutable. Method tambah tidak mengubah a, tetapi membuat object baru berisi jumlah gabungan. Karena itu a tetap 50000 dan b bernilai 75000. equals buatan @Value membandingkan semua field, jadi b sama dengan Uang baru berisi 75000 IDR.",
+      "tryThis": [
+        {
+          "task": "Coba tulis a.setJumlah(1). Kenapa gagal di-compile?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan method kali(int n) yang mengembalikan Uang baru.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. `@Data` di entity JPA**\n\n`@Data` membuat `equals`/`hashCode` dari semua field dan `toString` dari semua relasi. Untuk entity database ini memicu masalah performa dan bahkan `StackOverflowError`. Untuk entity, pakai `@Getter`, `@Setter` seperlunya, dan `equals` berdasarkan id.\n\n**2. Mengira `@Data` membuat constructor semua field**\n\n`@Data` hanya membuat constructor untuk field `final`. Kalau butuh constructor lengkap, tambahkan `@AllArgsConstructor`, dan kalau masih butuh constructor kosong, tambahkan juga `@NoArgsConstructor`.\n\n**3. Mencoba mengubah object `@Value`**\n\nTidak ada setter. Pakai `@With` atau buat object baru.\n\n**4. Field berisi List di object `@Value`**\n\n`@Value` membuat field `final`, tetapi List-nya sendiri masih bisa diubah dari luar dengan `add`. Untuk benar-benar immutable, simpan salinan yang tidak bisa diubah, misalnya `Collections.unmodifiableList(...)`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- **DTO** (Data Transfer Object), yaitu class pembawa data untuk request dan response API, sangat sering memakai `@Data` atau `@Value`. Di proyek dengan Java 17 ke atas, banyak tim beralih ke `record` untuk DTO.\n- Object nilai seperti `Uang`, `Alamat`, atau `RentangTanggal` sebaiknya immutable (`@Value` atau `record`), sehingga aman dibagikan dan mudah diuji.\n- Panduan singkat yang dipakai banyak tim:\n\n| Jenis class | Pilihan |\n|---|---|\n| Entity JPA | `@Getter`, `@Setter` seperlunya, `@NoArgsConstructor(access = PROTECTED)` |\n| DTO request/response | `record` (Java 16+) atau `@Value` |\n| Object nilai | `record` atau `@Value` |\n| Class konfigurasi yang diubah-ubah | `@Data` |"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Ringkas 4: Data dan Nilai Tetap",
+      "pembuka": "Kita ringkas `Todo` dengan `@Data` dan menambah class `Kategori` yang tidak bisa berubah.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `@Data` ditambah `@AllArgsConstructor`: Todo punya semuanya.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\", false);\n        a.setSelesai(true);\n        System.out.println(a);\n        System.out.println(a.equals(new Todo(1, \"Belajar Lombok\", true)));\n    }\n}\n\n@Data\n@AllArgsConstructor\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=true)\ntrue",
+          "otomatis": true,
+          "benar": "Setter, toString, dan equals bekerja dari dua anotasi saja.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Buat class `Kategori` dengan `@Value` berisi field `String nama;` dan `String warna;` (tanpa `private final`). Di main buat `new Kategori(\"Kerja\", \"biru\")`, cetak object-nya, lalu cetak `getNama()`.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\", false);\n        a.setSelesai(true);\n        System.out.println(a);\n        System.out.println(a.equals(new Todo(1, \"Belajar Lombok\", true)));\n        Kategori kerja = new Kategori(\"Kerja\", \"biru\");\n        System.out.println(kerja);\n        System.out.println(kerja.getNama());\n    }\n}\n\n@Data\n@AllArgsConstructor\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n}\n\n@Value\nclass Kategori {\n    String nama;\n    String warna;\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=true)\ntrue\nKategori(nama=Kerja, warna=biru)\nKerja",
+          "wajib": [
+            {
+              "pola": "@Value\\s+class\\s+Kategori",
+              "pesan": "beri `@Value` pada `class Kategori`."
+            },
+            {
+              "pola": "new\\s+Kategori\\s*\\(\\s*\"Kerja\"\\s*,\\s*\"biru\"\\s*\\)",
+              "pesan": "buat `new Kategori(\"Kerja\", \"biru\")`."
+            }
+          ],
+          "benar": "Object Kategori siap dipakai tanpa satu baris method pun.",
+          "petunjuk": "`@Value` otomatis menjadikan field `private final` dan membuat constructor dua parameter."
+        },
+        {
+          "arahan": "Tambahkan `@With` di class `Kategori`. Buat `Kategori kerjaMerah = kerja.withWarna(\"merah\");`, lalu cetak `kerja` dan `kerjaMerah`.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\", false);\n        a.setSelesai(true);\n        System.out.println(a);\n        System.out.println(a.equals(new Todo(1, \"Belajar Lombok\", true)));\n        Kategori kerja = new Kategori(\"Kerja\", \"biru\");\n        System.out.println(kerja);\n        System.out.println(kerja.getNama());\n        Kategori kerjaMerah = kerja.withWarna(\"merah\");\n        System.out.println(kerja);\n        System.out.println(kerjaMerah);\n    }\n}\n\n@Data\n@AllArgsConstructor\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n}\n\n@Value\n@With\nclass Kategori {\n    String nama;\n    String warna;\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=true)\ntrue\nKategori(nama=Kerja, warna=biru)\nKerja\nKategori(nama=Kerja, warna=biru)\nKategori(nama=Kerja, warna=merah)",
+          "wajib": [
+            {
+              "pola": "@With",
+              "pesan": "tambahkan `@With`."
+            },
+            {
+              "pola": "kerja\\.withWarna\\s*\\(\\s*\"merah\"\\s*\\)",
+              "pesan": "panggil `kerja.withWarna(\"merah\")`."
+            }
+          ],
+          "benar": "`kerja` tetap biru. `withWarna` membuat object baru.",
+          "petunjuk": "Anotasi `@With` ditulis di bawah `@Value`."
+        },
+        {
+          "arahan": "Tantangan: buat `List<Kategori> daftar = Arrays.asList(kerja, kerjaMerah);` lalu cetak apakah daftar memuat `new Kategori(\"Kerja\", \"merah\")`.",
+          "jawaban": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Todo a = new Todo(1, \"Belajar Lombok\", false);\n        a.setSelesai(true);\n        System.out.println(a);\n        System.out.println(a.equals(new Todo(1, \"Belajar Lombok\", true)));\n        Kategori kerja = new Kategori(\"Kerja\", \"biru\");\n        System.out.println(kerja);\n        System.out.println(kerja.getNama());\n        Kategori kerjaMerah = kerja.withWarna(\"merah\");\n        System.out.println(kerja);\n        System.out.println(kerjaMerah);\n        List<Kategori> daftar = Arrays.asList(kerja, kerjaMerah);\n        System.out.println(daftar.contains(new Kategori(\"Kerja\", \"merah\")));\n    }\n}\n\n@Data\n@AllArgsConstructor\nclass Todo {\n    private int id;\n    private String judul;\n    private boolean selesai;\n}\n\n@Value\n@With\nclass Kategori {\n    String nama;\n    String warna;\n}\n",
+          "keluaran": "Todo(id=1, judul=Belajar Lombok, selesai=true)\ntrue\nKategori(nama=Kerja, warna=biru)\nKerja\nKategori(nama=Kerja, warna=biru)\nKategori(nama=Kerja, warna=merah)\ntrue",
+          "wajib": [
+            {
+              "pola": "daftar\\.contains\\s*\\(\\s*new\\s+Kategori\\s*\\(\\s*\"Kerja\"\\s*,\\s*\"merah\"\\s*\\)\\s*\\)",
+              "pesan": "cetak `daftar.contains(new Kategori(\"Kerja\", \"merah\"))`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "`true`: object baru dengan isi yang sama dianggap sama.",
+          "petunjuk": "Pakai `daftar.contains(...)`. Hasilnya bergantung pada `equals` buatan `@Value`."
+        }
+      ],
+      "penutup": "`@Data` untuk data yang berubah, `@Value` untuk nilai yang tetap. Berikutnya, cara membuat object dengan banyak field tanpa bingung urutan: `@Builder`."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Apa perbedaan utama @Data dan @Value?",
+          "options": [
+            "@Value punya setter, @Data tidak",
+            "@Data punya setter, @Value membuat object yang tidak bisa diubah",
+            "@Data tidak punya toString",
+            "Tidak ada bedanya"
+          ],
+          "answer": 1,
+          "explanation": "Papan tulis dan prasasti.",
+          "remedial": "`@Data` membuat setter untuk field yang tidak final, sehingga isinya bisa diubah. `@Value` menjadikan semua field `private final` dan tidak membuat setter sama sekali."
+        },
+        {
+          "question": "Kategori kerja diberi @Value dan @With. Apa yang terjadi pada kerja setelah kerja.withWarna(\"merah\")?",
+          "options": [
+            "warna kerja berubah menjadi merah",
+            "Program error karena @Value tidak bisa diubah",
+            "kerja tidak berubah; withWarna mengembalikan object baru",
+            "kerja menjadi null"
+          ],
+          "answer": 2,
+          "explanation": "Immutable.",
+          "remedial": "Method `with...` tidak menyentuh object asal. Ia membuat object baru dengan satu field berbeda. Hasilnya harus disimpan ke variabel, misalnya `Kategori kerjaMerah = kerja.withWarna(\"merah\");`."
+        },
+        {
+          "question": "Kenapa @Data tidak disarankan untuk entity JPA?",
+          "options": [
+            "Karena @Data tidak membuat getter",
+            "Karena JPA tidak bisa membaca Lombok",
+            "Karena @Data membuat class final",
+            "Karena equals, hashCode, dan toString-nya memakai semua field termasuk relasi"
+          ],
+          "answer": 3,
+          "explanation": "Semua field ikut dibandingkan dan dicetak.",
+          "remedial": "Entity punya relasi ke entity lain dan nilainya berubah selama hidupnya. `equals`/`hashCode` dari semua field merusak perilaku di `Set`, dan `toString` yang mengikuti relasi bisa berputar tanpa ujung."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Padanan bawaan Java 16 ke atas untuk @Value adalah...",
+      "options": [
+        "record",
+        "enum",
+        "interface",
+        "abstract class"
+      ],
+      "answer": 0,
+      "explanation": "record Kategori(String nama, String warna) { }"
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca nilai siswa dari input dengan format nama;skor per baris, mencari nilai tertinggi, lalu memeriksa apakah ada nilai Budi 80. Class Nilai belum punya constructor, getter, toString, maupun equals sehingga gagal di-compile. Tambahkan satu anotasi Lombok saja di class Nilai supaya program berjalan, object Nilai tidak bisa diubah, dan dua Nilai dengan nama dan skor yang sama dianggap sama.",
+      "starterCode": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        List<Nilai> semua = new ArrayList<>();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            semua.add(new Nilai(d[0], Integer.parseInt(d[1])));\n        }\n        Nilai tertinggi = semua.get(0);\n        for (Nilai n : semua) {\n            if (n.getSkor() > tertinggi.getSkor()) {\n                tertinggi = n;\n            }\n        }\n        System.out.println(\"Tertinggi: \" + tertinggi);\n        System.out.println(\"Ada Budi 80? \" + semua.contains(new Nilai(\"Budi\", 80)));\n    }\n}\n\nclass Nilai {\n    String nama;\n    int skor;\n}",
+      "solution": "import java.util.*;\n\nimport lombok.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        List<Nilai> semua = new ArrayList<>();\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\");\n            semua.add(new Nilai(d[0], Integer.parseInt(d[1])));\n        }\n        Nilai tertinggi = semua.get(0);\n        for (Nilai n : semua) {\n            if (n.getSkor() > tertinggi.getSkor()) {\n                tertinggi = n;\n            }\n        }\n        System.out.println(\"Tertinggi: \" + tertinggi);\n        System.out.println(\"Ada Budi 80? \" + semua.contains(new Nilai(\"Budi\", 80)));\n    }\n}\n\n@Value\nclass Nilai {\n    String nama;\n    int skor;\n}",
+      "tests": [
+        {
+          "input": "Sari;90\nBudi;80\nAni;85\n",
+          "expectedOutput": "Tertinggi: Nilai(nama=Sari, skor=90)\nAda Budi 80? true\n"
+        },
+        {
+          "input": "Budi;70\n",
+          "expectedOutput": "Tertinggi: Nilai(nama=Budi, skor=70)\nAda Budi 80? false\n"
+        }
+      ],
+      "hints": [
+        "Program memakai constructor dua parameter, getSkor, toString, dan equals.",
+        "Anotasi untuk object immutable membuat semuanya sekaligus."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@Data: getter, setter, toString, equals, hashCode, dan constructor field final.",
+        "@Value: versi immutable; field private final, tanpa setter, constructor semua field.",
+        "@With membuat method withX yang mengembalikan object baru.",
+        "Jangan pakai @Data untuk entity JPA; record (Java 16+) adalah padanan @Value."
+      ]
+    }
+  ]
+}

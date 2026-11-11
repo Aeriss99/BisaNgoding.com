@@ -8,6 +8,7 @@ import {
   isiTemplate,
   pecahTeks,
   simpanVariabel,
+  teksPrompt,
   type HasilCocok,
 } from '../../lib/praktikTerminal';
 
@@ -84,7 +85,7 @@ function BlokTerminal({
 }) {
   return (
     <pre className="m-0 px-4 py-3 bg-[#1d1d1b] text-[#f5f1e6] rounded-[10px] font-mono text-[13px] leading-[20px] whitespace-pre-wrap [overflow-wrap:anywhere]">
-      <span className="text-[#7ee2a8]">{folder} $</span> {perintah}
+      <span className="text-[#7ee2a8]">{teksPrompt(folder)}</span> {perintah}
       {kursor && (
         <span aria-hidden="true" className="inline-block w-[0.6em] h-[1.1em] align-text-bottom bg-[#f5f1e6] ml-[1px]" />
       )}
@@ -315,7 +316,7 @@ function Praktik({ card, onSuccess }: { card: PraktikTerminalCard; onSuccess: (a
             className="flex items-center gap-2 bg-[#1d1d1b] rounded-[10px] pl-4 pr-2 py-2 border-2 border-[var(--color-text-main)]"
           >
             <label htmlFor="ketik-perintah" className="shrink-0 font-mono text-[13px] text-[#7ee2a8]">
-              {folder} $<span className="sr-only"> Ketik perintah</span>
+              {teksPrompt(folder)}<span className="sr-only"> Ketik perintah</span>
             </label>
             <input
               id="ketik-perintah"
