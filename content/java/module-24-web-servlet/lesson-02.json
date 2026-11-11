@@ -1,0 +1,211 @@
+{
+  "id": "java-web-servlet-02",
+  "moduleId": "web-servlet",
+  "order": 2,
+  "title": "Membaca Request",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Pencarian produk, form pendaftaran, dan halaman detail todo nomor 7 semuanya mengirim data ke server lewat request. Data itu bisa datang dari beberapa tempat: **query string** di alamat (`?kata=kopi`), **isi form** dari POST, **bagian alamat** (`/todo/7`), dan **header**.\n\n`HttpServletRequest` menyediakan method untuk membaca semuanya.\n\nIbarat amplop surat: alamat tujuan (URL), keterangan di sampul (header), dan isi surat di dalamnya (body). Petugas pos membaca bagian yang ia butuhkan."
+    },
+    {
+      "type": "theory",
+      "content": "| Method | Membaca | Contoh hasil untuk `GET /todo/7?tampil=lengkap` |\n|---|---|---|\n| `getMethod()` | method HTTP | `GET` |\n| `getRequestURI()` | alamat tanpa query | `/todo/7` |\n| `getQueryString()` | query mentah | `tampil=lengkap` |\n| `getParameter(\"tampil\")` | satu parameter (query atau form) | `lengkap` |\n| `getParameterValues(\"label\")` | parameter yang muncul berkali-kali | array |\n| `getServletPath()` | bagian yang cocok dengan pola servlet | `/todo` (untuk pola `/todo/*`) |\n| `getPathInfo()` | sisa alamat setelah pola | `/7` |\n| `getHeader(\"Host\")` | header request | `localhost:8080` |\n| `getReader()` | isi mentah (misalnya JSON) | dibahas di materi REST API |\n\n`getParameter` mengembalikan **`null`** kalau parameter tidak ada, dan **semua nilainya String**. Mengubah ke angka dan memeriksa kosong adalah tugas kita.\n\nParameter dari form POST (`application/x-www-form-urlencoded`) dibaca dengan `getParameter` yang sama seperti parameter query.\n\nKarakter khusus di URL ditulis dengan **percent-encoding**: spasi menjadi `+` atau `%20`, `&` menjadi `%26`. Container mengembalikannya ke bentuk asli saat dibaca."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@WebServlet(\"/cari\")\nclass CariServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String kata = req.getParameter(\"kata\");\n        String halaman = req.getParameter(\"halaman\");     // bisa null\n        ...\n    }\n}\n```\n\n`GET /cari?kata=teh+manis` menghasilkan `kata` berisi `teh manis` dan `halaman` bernilai `null`.\n\nPola URL servlet:\n\n| Pola | Cocok untuk |\n|---|---|\n| `/todo` | tepat `/todo` |\n| `/todo/*` | `/todo`, `/todo/7`, `/todo/7/label` |\n| `*.html` | semua alamat berakhiran `.html` |\n| `/` | semua yang tidak cocok servlet lain |"
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new CariServlet());\n        server.cetak(\"GET\", \"/cari?kata=Kopi%20%26%20Teh\");\n    }\n}\n\n@WebServlet(\"/cari\")\nclass CariServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String kata = req.getParameter(\"kata\");\n        String halaman = req.getParameter(\"halaman\");\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Cari \\\"\" + kata + \"\\\", halaman \" + (halaman == null ? \"1\" : halaman));\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: kata dikirim sebagai Kopi%20%26%20Teh. Apa isi response?",
+        "options": [
+          "Cari \"Kopi%20%26%20Teh\", halaman 1",
+          "Cari \"Kopi \", halaman 1",
+          "Cari \"Kopi & Teh\", halaman 1",
+          "Cari \"Kopi & Teh\", halaman null"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 21,
+          "note": "Container sudah mengembalikan percent-encoding."
+        },
+        {
+          "line": 24,
+          "note": "halaman yang null diganti 1."
+        }
+      ],
+      "explanation": "%20 adalah spasi dan %26 adalah tanda &. Container mengubahnya kembali sebelum getParameter mengembalikan nilai. Kalau & ditulis langsung tanpa encoding, ia dianggap pemisah parameter, dan kata hanya berisi Kopi diikuti spasi.",
+      "tryThis": [
+        {
+          "task": "Kirim /cari?kata=Kopi & Teh tanpa encoding. Apa yang berubah?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan halaman=3 ke alamat.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tidak memeriksa `null`**\n\n`req.getParameter(\"halaman\").trim()` melempar NullPointerException saat parameter tidak dikirim, dan pengguna melihat error 500.\n\n**2. `Integer.parseInt` tanpa penanganan**\n\n`?a=dua` menghasilkan NumberFormatException dan error 500. Kesalahan input pengguna seharusnya dijawab **400 Bad Request**.\n\n**3. Mempercayai input**\n\nParameter bisa diisi apa saja oleh siapa saja. Validasi panjang, format, dan izin di server, walau form di browser sudah memeriksa.\n\n**4. Membaca isi dua kali**\n\nIsi request hanya bisa dibaca sekali. Setelah `getReader()` dibaca habis, membaca lagi tidak mendapat apa-apa."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di Spring MVC, parameter dibaca otomatis lewat anotasi: `@RequestParam String kata`, `@PathVariable Long id`, `@RequestHeader(\"Host\") String host`. Di baliknya tetap `getParameter`, `getPathInfo`, dan `getHeader`.\n- Alamat REST modern menaruh identitas data di path (`/todo/7`), dan pilihan seperti filter atau halaman di query (`?halaman=2&ukuran=20`).\n- Data rahasia (sandi, token) tidak pernah dikirim di query string, karena alamat lengkap tercatat di log server, riwayat browser, dan proxy. Kirim di isi request atau header.\n- Header yang sering dipakai: `Authorization` (token login), `Content-Type`, `Accept`, `User-Agent`, dan `X-Request-Id` untuk pelacakan."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Web 2: Membaca Permintaan",
+      "pembuka": "Todolist Web mulai menerima data dari pengguna.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `CariServlet` membaca dua parameter query.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new CariServlet());\n        server.cetak(\"GET\", \"/cari?kata=kopi&halaman=2\");\n        server.cetak(\"GET\", \"/cari?kata=teh+manis\");\n    }\n}\n\n@WebServlet(\"/cari\")\nclass CariServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String kata = req.getParameter(\"kata\");\n        String halaman = req.getParameter(\"halaman\");\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Cari \\\"\" + kata + \"\\\", halaman \" + (halaman == null ? \"1\" : halaman));\n    }\n}\n",
+          "keluaran": "GET /cari?kata=kopi&halaman=2\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nCari \"kopi\", halaman 2\nGET /cari?kata=teh+manis\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nCari \"teh manis\", halaman 1",
+          "otomatis": true,
+          "benar": "`halaman` yang tidak dikirim bernilai `null`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Buat `TambahServlet` di `/todo` dengan `doPost` yang membaca `judul` dan semua `label` (`getParameterValues`). Kirim POST berisi `judul=Belajar+Servlet&label=kantor&label=penting`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new CariServlet());\n        server.tambah(new TambahServlet());\n        server.cetak(\"GET\", \"/cari?kata=kopi&halaman=2\");\n        server.cetak(\"GET\", \"/cari?kata=teh+manis\");\n        server.cetak(\"POST\", \"/todo\", \"judul=Belajar+Servlet&label=kantor&label=penting\");\n    }\n}\n\n@WebServlet(\"/cari\")\nclass CariServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String kata = req.getParameter(\"kata\");\n        String halaman = req.getParameter(\"halaman\");\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Cari \\\"\" + kata + \"\\\", halaman \" + (halaman == null ? \"1\" : halaman));\n    }\n}\n\n@WebServlet(\"/todo\")\nclass TambahServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String judul = req.getParameter(\"judul\");\n        String[] label = req.getParameterValues(\"label\");\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Todo baru: \" + judul + \", label \" + (label == null ? \"[]\" : Arrays.toString(label)));\n    }\n}\n",
+          "keluaran": "GET /cari?kata=kopi&halaman=2\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nCari \"kopi\", halaman 2\nGET /cari?kata=teh+manis\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nCari \"teh manis\", halaman 1\nPOST /todo  [judul=Belajar+Servlet&label=kantor&label=penting]\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nTodo baru: Belajar Servlet, label [kantor, penting]",
+          "wajib": [
+            {
+              "pola": "getParameterValues\\s*\\(\\s*\"label\"\\s*\\)",
+              "pesan": "baca label dengan `getParameterValues(\"label\")`."
+            },
+            {
+              "pola": "protected\\s+void\\s+doPost",
+              "pesan": "timpa `doPost`."
+            }
+          ],
+          "benar": "Parameter form dibaca dengan cara yang sama seperti parameter query.",
+          "petunjuk": "Isi form dikirim dengan `server.cetak(\"POST\", \"/todo\", \"judul=...&label=...&label=...\")`."
+        },
+        {
+          "arahan": "Buat `DetailServlet` dengan pola `/todo/*` yang mencetak `servletPath` dan `pathInfo`, lalu kirim GET ke `/todo/7`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new CariServlet());\n        server.tambah(new TambahServlet());\n        server.tambah(new DetailServlet());\n        server.cetak(\"GET\", \"/cari?kata=kopi&halaman=2\");\n        server.cetak(\"GET\", \"/cari?kata=teh+manis\");\n        server.cetak(\"POST\", \"/todo\", \"judul=Belajar+Servlet&label=kantor&label=penting\");\n        server.cetak(\"GET\", \"/todo/7\");\n    }\n}\n\n@WebServlet(\"/cari\")\nclass CariServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String kata = req.getParameter(\"kata\");\n        String halaman = req.getParameter(\"halaman\");\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Cari \\\"\" + kata + \"\\\", halaman \" + (halaman == null ? \"1\" : halaman));\n    }\n}\n\n@WebServlet(\"/todo\")\nclass TambahServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String judul = req.getParameter(\"judul\");\n        String[] label = req.getParameterValues(\"label\");\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Todo baru: \" + judul + \", label \" + (label == null ? \"[]\" : Arrays.toString(label)));\n    }\n}\n\n@WebServlet(\"/todo/*\")\nclass DetailServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"servletPath=\" + req.getServletPath() + \", pathInfo=\" + req.getPathInfo());\n    }\n}\n",
+          "keluaran": "GET /cari?kata=kopi&halaman=2\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nCari \"kopi\", halaman 2\nGET /cari?kata=teh+manis\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nCari \"teh manis\", halaman 1\nPOST /todo  [judul=Belajar+Servlet&label=kantor&label=penting]\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nTodo baru: Belajar Servlet, label [kantor, penting]\nGET /todo/7\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nservletPath=/todo, pathInfo=/7",
+          "wajib": [
+            {
+              "pola": "@WebServlet\\s*\\(\\s*\"/todo/\\*\"\\s*\\)",
+              "pesan": "pakai pola `/todo/*`."
+            },
+            {
+              "pola": "getPathInfo\\(\\)",
+              "pesan": "baca `getPathInfo()`."
+            }
+          ],
+          "benar": "`/todo` tepat tetap ditangani `TambahServlet`, sedangkan `/todo/7` ke `DetailServlet`.",
+          "petunjuk": "`@WebServlet(\"/todo/*\")`, lalu `req.getServletPath()` dan `req.getPathInfo()`."
+        },
+        {
+          "arahan": "Tantangan: buat `InfoRequestServlet` di `/info-request` yang mencetak method, URI, query string, dan header `Host`, masing-masing satu baris. Kirim GET ke `/info-request?a=1`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new CariServlet());\n        server.tambah(new TambahServlet());\n        server.tambah(new DetailServlet());\n        server.tambah(new InfoRequestServlet());\n        server.cetak(\"GET\", \"/cari?kata=kopi&halaman=2\");\n        server.cetak(\"GET\", \"/cari?kata=teh+manis\");\n        server.cetak(\"POST\", \"/todo\", \"judul=Belajar+Servlet&label=kantor&label=penting\");\n        server.cetak(\"GET\", \"/todo/7\");\n        server.cetak(\"GET\", \"/info-request?a=1\");\n    }\n}\n\n@WebServlet(\"/cari\")\nclass CariServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String kata = req.getParameter(\"kata\");\n        String halaman = req.getParameter(\"halaman\");\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Cari \\\"\" + kata + \"\\\", halaman \" + (halaman == null ? \"1\" : halaman));\n    }\n}\n\n@WebServlet(\"/todo\")\nclass TambahServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String judul = req.getParameter(\"judul\");\n        String[] label = req.getParameterValues(\"label\");\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Todo baru: \" + judul + \", label \" + (label == null ? \"[]\" : Arrays.toString(label)));\n    }\n}\n\n@WebServlet(\"/todo/*\")\nclass DetailServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"servletPath=\" + req.getServletPath() + \", pathInfo=\" + req.getPathInfo());\n    }\n}\n\n@WebServlet(\"/info-request\")\nclass InfoRequestServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        PrintWriter out = res.getWriter();\n        out.println(\"method \" + req.getMethod());\n        out.println(\"uri \" + req.getRequestURI());\n        out.println(\"query \" + req.getQueryString());\n        out.print(\"host \" + req.getHeader(\"Host\"));\n    }\n}\n",
+          "keluaran": "GET /cari?kata=kopi&halaman=2\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nCari \"kopi\", halaman 2\nGET /cari?kata=teh+manis\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nCari \"teh manis\", halaman 1\nPOST /todo  [judul=Belajar+Servlet&label=kantor&label=penting]\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nTodo baru: Belajar Servlet, label [kantor, penting]\nGET /todo/7\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nservletPath=/todo, pathInfo=/7\nGET /info-request?a=1\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nmethod GET\nuri /info-request\nquery a=1\nhost localhost:8080",
+          "wajib": [
+            {
+              "pola": "getQueryString\\(\\)",
+              "pesan": "cetak `getQueryString()`."
+            },
+            {
+              "pola": "getHeader\\s*\\(\\s*\"Host\"\\s*\\)",
+              "pesan": "cetak header `Host`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Semua bagian request bisa dibaca dari satu object.",
+          "petunjuk": "Pakai `PrintWriter out = res.getWriter();` lalu `out.println(...)`."
+        }
+      ],
+      "penutup": "Request sudah terbaca. Berikutnya: menyusun response dengan status dan header yang tepat."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "req.getParameter(\"halaman\") untuk request tanpa parameter halaman mengembalikan...",
+          "options": [
+            "String kosong",
+            "0",
+            "Exception",
+            "null"
+          ],
+          "answer": 3,
+          "explanation": "Tidak dikirim.",
+          "remedial": "Parameter yang tidak ada menghasilkan `null`. Parameter yang dikirim tanpa nilai (`?halaman=`) menghasilkan string kosong."
+        },
+        {
+          "question": "Untuk pola @WebServlet(\"/todo/*\") dan request /todo/7, getPathInfo() menghasilkan...",
+          "options": [
+            "/7",
+            "/todo/7",
+            "7",
+            "/todo"
+          ],
+          "answer": 0,
+          "explanation": "Sisa setelah pola.",
+          "remedial": "`getServletPath()` berisi bagian yang cocok (`/todo`), dan `getPathInfo()` berisi sisanya, termasuk garis miring di depan."
+        },
+        {
+          "question": "Input angka yang salah dari pengguna sebaiknya dijawab dengan status...",
+          "options": [
+            "500 Internal Server Error",
+            "400 Bad Request",
+            "200 OK",
+            "404 Not Found"
+          ],
+          "answer": 1,
+          "explanation": "Salah pengirim.",
+          "remedial": "400 berarti request yang dikirim tidak benar. 500 berarti server yang gagal, dan seharusnya tidak muncul karena input pengguna."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Method untuk membaca parameter yang dikirim berkali-kali, misalnya label=a&label=b, adalah...",
+      "options": [
+        "getParameter(\"label\")",
+        "getHeaders(\"label\")",
+        "getParameterValues(\"label\")",
+        "getPathInfo()"
+      ],
+      "answer": 2,
+      "explanation": "Banyak nilai."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program mengirim request GET dari input (satu alamat per baris) ke HitungServlet di /hitung, yang menjumlahkan parameter a dan b. Saat parameter hilang atau bukan angka, servlet gagal dengan error 500. Ubah supaya parameter yang hilang dijawab sendError(400, \"parameter a dan b wajib diisi\"), dan yang bukan angka dijawab sendError(400, \"a dan b harus angka\").",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new HitungServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            server.cetak(\"GET\", in.nextLine());\n        }\n    }\n}\n\n@WebServlet(\"/hitung\")\nclass HitungServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        int a = Integer.parseInt(req.getParameter(\"a\"));\n        int b = Integer.parseInt(req.getParameter(\"b\"));\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(a + b);\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new HitungServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            server.cetak(\"GET\", in.nextLine());\n        }\n    }\n}\n\n@WebServlet(\"/hitung\")\nclass HitungServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String ta = req.getParameter(\"a\");\n        String tb = req.getParameter(\"b\");\n        if (ta == null || tb == null) {\n            res.sendError(400, \"parameter a dan b wajib diisi\");\n            return;\n        }\n        int a;\n        int b;\n        try {\n            a = Integer.parseInt(ta);\n            b = Integer.parseInt(tb);\n        } catch (NumberFormatException e) {\n            res.sendError(400, \"a dan b harus angka\");\n            return;\n        }\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(a + b);\n    }\n}",
+      "tests": [
+        {
+          "input": "/hitung?a=2&b=3\n/hitung?a=2\n/hitung?a=dua&b=3\n",
+          "expectedOutput": "GET /hitung?a=2&b=3\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\n5\nGET /hitung?a=2\nHTTP 400 Bad Request\nContent-Type: text/plain;charset=UTF-8\n\nparameter a dan b wajib diisi\nGET /hitung?a=dua&b=3\nHTTP 400 Bad Request\nContent-Type: text/plain;charset=UTF-8\n\na dan b harus angka\n"
+        }
+      ],
+      "hints": [
+        "Periksa null lebih dulu, lalu bungkus Integer.parseInt dengan try-catch NumberFormatException.",
+        "Setelah sendError, langsung return."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "getParameter membaca query dan form; hasilnya String atau null.",
+        "getServletPath dan getPathInfo memecah alamat untuk pola /todo/*.",
+        "getHeader membaca header; percent-encoding dikembalikan otomatis.",
+        "Input salah dijawab 400, bukan dibiarkan menjadi 500."
+      ]
+    }
+  ]
+}

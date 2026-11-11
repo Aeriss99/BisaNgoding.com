@@ -1,0 +1,215 @@
+{
+  "id": "java-web-servlet-01",
+  "moduleId": "web-servlet",
+  "order": 1,
+  "title": "Mengenal Servlet",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Setiap kali browser membuka sebuah halaman atau aplikasi HP memanggil API, ada program di server yang menerima **request HTTP** dan mengirim **response HTTP**. Di Java, fondasi untuk menulis program seperti itu adalah **Servlet** (Jakarta Servlet).\n\nSpring MVC, Spring Boot, dan hampir semua framework web Java berdiri di atas Servlet. Spring Boot menyembunyikannya, tetapi di balik `@GetMapping` tetap ada servlet bernama `DispatcherServlet` yang dijalankan Tomcat.\n\nIbarat loket di kantor pos: petugas (servlet) menerima formulir (request) dari pengunjung, memprosesnya, lalu memberikan tanda terima (response). Gedung kantor posnya (servlet container) yang mengatur antrean dan membuka pintu."
+    },
+    {
+      "type": "theory",
+      "content": "Bagian-bagian yang terlibat:\n\n| Bagian | Peran |\n|---|---|\n| **Servlet container** | server yang menerima koneksi HTTP dan menjalankan servlet: Apache Tomcat, Jetty, Undertow |\n| `HttpServlet` | class induk servlet; kita menimpa `doGet`, `doPost`, `doPut`, `doDelete` |\n| `HttpServletRequest` | isi request: method, alamat, parameter, header, isi |\n| `HttpServletResponse` | tempat menulis response: status, header, isi |\n| `@WebServlet(\"/halo\")` | alamat (URL pattern) yang ditangani servlet |\n\n```java\n@WebServlet(\"/halo\")\nclass HaloServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Halo\");\n    }\n}\n```\n\n**Siklus hidup servlet:**\n\n1. `init()` dipanggil **sekali**, saat servlet pertama kali dipakai.\n2. `service()` dipanggil untuk **setiap request**, lalu meneruskan ke `doGet`, `doPost`, dan seterusnya sesuai method HTTP.\n3. `destroy()` dipanggil sekali saat server dimatikan.\n\nHanya ada **satu object** untuk setiap servlet, yang melayani semua request, sering bersamaan dari banyak thread.\n\nMethod HTTP yang tidak ditimpa otomatis dijawab **405 Method Not Allowed**, dan alamat yang tidak ada dijawab **404 Not Found**."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDi editor website ini tidak ada jaringan, jadi tidak ada Tomcat sungguhan. Sebagai gantinya ada **`ServerUji`**: servlet container kecil yang menjalankan servlet sungguhan, dengan request dan response dibuat di memori. Idenya sama dengan alat uji yang dipakai di industri, seperti `MockMvc` di Spring.\n\n```java\nServerUji server = new ServerUji();\nserver.tambah(new HaloServlet());       // membaca @WebServlet(\"/halo\")\nserver.cetak(\"GET\", \"/halo\");\n```\n\n```text\nGET /halo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo\n```\n\nBentuk keluarannya sama dengan `curl -i http://localhost:8080/halo` ke server sungguhan: baris status, header, baris kosong, lalu isi.\n\nDi proyek sungguhan, servlet dibungkus menjadi file **WAR** lalu dipasang di Tomcat, atau Tomcat dijalankan dari dalam aplikasi (*embedded*) seperti di Spring Boot."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new HaloServlet());\n        server.cetak(\"POST\", \"/halo\");\n    }\n}\n\n@WebServlet(\"/halo\")\nclass HaloServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Halo dari Todolist Web\");\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: HaloServlet hanya punya doGet. Apa baris status untuk POST?",
+        "options": [
+          "HTTP 200 OK",
+          "HTTP 405 Method Not Allowed",
+          "HTTP 404 Not Found",
+          "HTTP 500 Internal Server Error"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 17,
+          "note": "Alamat yang ditangani."
+        },
+        {
+          "line": 20,
+          "note": "Hanya GET yang ditangani."
+        },
+        {
+          "line": 13,
+          "note": "Request dengan method POST."
+        }
+      ],
+      "explanation": "Alamat /halo ada, jadi bukan 404. Tetapi doPost tidak ditimpa, sehingga versi bawaan HttpServlet dipakai, yang menjawab 405: method ini tidak didukung untuk alamat ini. Pesan bawaannya berasal dari library Servlet.",
+      "tryThis": [
+        {
+          "task": "Ganti POST menjadi GET lalu jalankan.",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan doPost yang menjawab \"Diterima\".",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menyimpan data per pengguna di field servlet**\n\nSatu object servlet melayani semua pengguna bersamaan. Field `String namaPengguna` di servlet akan tertukar antar pengguna. Simpan data per request di variabel lokal, dan data per pengguna di session.\n\n**2. Lupa menimpa method yang tepat**\n\nMenulis `doGet` padahal form mengirim POST menghasilkan 405.\n\n**3. Lupa `charset=UTF-8`**\n\n`setContentType(\"text/plain\")` saja membuat huruf seperti é atau emoji rusak, karena bawaan Servlet adalah ISO-8859-1 (materi Response).\n\n**4. Menulis response lalu mengubah status**\n\nStatus dan header harus diatur **sebelum** isi ditulis. Di server sungguhan, setelah isi mulai dikirim, header tidak bisa diubah lagi."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Versi terbaru: **Jakarta Servlet 6** (paket `jakarta.servlet`), dijalankan **Tomcat 10.1** ke atas. Paket lama `javax.servlet` dipakai Tomcat 9 dan Spring Boot 2. Editor website ini memakai Servlet 5 (Java 8); class dan method di modul ini sama.\n- Dependency Maven:\n\n```xml\n<dependency>\n  <groupId>jakarta.servlet</groupId>\n  <artifactId>jakarta.servlet-api</artifactId>\n  <version>6.0.0</version>\n  <scope>provided</scope>\n</dependency>\n```\n\n`provided` berarti library ini sudah disediakan Tomcat, jadi tidak ikut dibungkus ke WAR.\n- Hari ini servlet jarang ditulis langsung untuk aplikasi baru; tim memakai Spring MVC. Tetapi filter, session, status code, dan siklus hidup di modul ini tetap berlaku di Spring dan sering muncul saat debugging."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Web 1: Servlet Pertama",
+      "pembuka": "Mulai materi ini kita buat **Todolist Web**: aplikasi todolist yang bisa diakses lewat HTTP.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `HaloServlet` menjawab GET ke `/halo`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new HaloServlet());\n        server.cetak(\"GET\", \"/halo\");\n    }\n}\n\n@WebServlet(\"/halo\")\nclass HaloServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Halo dari Todolist Web\");\n    }\n}\n",
+          "keluaran": "GET /halo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo dari Todolist Web",
+          "otomatis": true,
+          "benar": "Baris status, header, baris kosong, lalu isi.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Buat `VersiServlet` di alamat `/versi` yang menjawab `Todolist Web versi 1.0`, daftarkan ke server, lalu cetak request GET ke `/versi` setelah `/halo`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new HaloServlet());\n        server.tambah(new VersiServlet());\n        server.cetak(\"GET\", \"/halo\");\n        server.cetak(\"GET\", \"/versi\");\n    }\n}\n\n@WebServlet(\"/halo\")\nclass HaloServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Halo dari Todolist Web\");\n    }\n}\n\n@WebServlet(\"/versi\")\nclass VersiServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Todolist Web versi 1.0\");\n    }\n}\n",
+          "keluaran": "GET /halo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo dari Todolist Web\nGET /versi\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nTodolist Web versi 1.0",
+          "wajib": [
+            {
+              "pola": "@WebServlet\\s*\\(\\s*\"/versi\"\\s*\\)",
+              "pesan": "pasang `@WebServlet(\"/versi\")`."
+            },
+            {
+              "pola": "server\\.tambah\\s*\\(\\s*new\\s+VersiServlet\\s*\\(\\s*\\)\\s*\\)",
+              "pesan": "daftarkan `new VersiServlet()`."
+            }
+          ],
+          "benar": "Satu server, dua servlet, dua alamat.",
+          "petunjuk": "Salin pola `HaloServlet`: `@WebServlet(\"/versi\")`, `doGet`, `setContentType`, `getWriter().print(...)`."
+        },
+        {
+          "arahan": "Cetak juga request GET ke alamat `/tidak-ada`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new HaloServlet());\n        server.tambah(new VersiServlet());\n        server.cetak(\"GET\", \"/halo\");\n        server.cetak(\"GET\", \"/versi\");\n        server.cetak(\"GET\", \"/tidak-ada\");\n    }\n}\n\n@WebServlet(\"/halo\")\nclass HaloServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Halo dari Todolist Web\");\n    }\n}\n\n@WebServlet(\"/versi\")\nclass VersiServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Todolist Web versi 1.0\");\n    }\n}\n",
+          "keluaran": "GET /halo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo dari Todolist Web\nGET /versi\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nTodolist Web versi 1.0\nGET /tidak-ada\nHTTP 404 Not Found\nContent-Type: text/plain;charset=UTF-8\n\nNot Found",
+          "wajib": [
+            {
+              "pola": "server\\.cetak\\s*\\(\\s*\"GET\"\\s*,\\s*\"/tidak-ada\"\\s*\\)",
+              "pesan": "kirim GET ke `/tidak-ada`."
+            }
+          ],
+          "benar": "Alamat tanpa servlet dijawab 404.",
+          "petunjuk": "`server.cetak(\"GET\", \"/tidak-ada\");`"
+        },
+        {
+          "arahan": "Tantangan: tambahkan `init()` yang mencetak `[init] ` diikuti `getServletName()`, hitung jumlah permintaan di `doGet` lalu sertakan di jawaban, dan `destroy()` yang mencetak jumlahnya. Kirim GET ke `/halo` sekali lagi di akhir, lalu `server.matikan()`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new HaloServlet());\n        server.tambah(new VersiServlet());\n        server.cetak(\"GET\", \"/halo\");\n        server.cetak(\"GET\", \"/versi\");\n        server.cetak(\"GET\", \"/tidak-ada\");\n        server.cetak(\"GET\", \"/halo\");\n        server.matikan();\n    }\n}\n\n@WebServlet(\"/halo\")\nclass HaloServlet extends HttpServlet {\n    private int dilayani;\n\n    @Override\n    public void init() {\n        System.out.println(\"[init] \" + getServletName());\n    }\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        dilayani++;\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Halo dari Todolist Web, permintaan ke-\" + dilayani);\n    }\n\n    @Override\n    public void destroy() {\n        System.out.println(\"[destroy] setelah \" + dilayani + \" permintaan\");\n    }\n}\n\n@WebServlet(\"/versi\")\nclass VersiServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Todolist Web versi 1.0\");\n    }\n}\n",
+          "keluaran": "GET /halo\n[init] HaloServlet\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo dari Todolist Web, permintaan ke-1\nGET /versi\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nTodolist Web versi 1.0\nGET /tidak-ada\nHTTP 404 Not Found\nContent-Type: text/plain;charset=UTF-8\n\nNot Found\nGET /halo\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nHalo dari Todolist Web, permintaan ke-2\n[destroy] setelah 2 permintaan",
+          "wajib": [
+            {
+              "pola": "public\\s+void\\s+init\\s*\\(\\s*\\)",
+              "pesan": "timpa `init()`."
+            },
+            {
+              "pola": "public\\s+void\\s+destroy\\s*\\(\\s*\\)",
+              "pesan": "timpa `destroy()`."
+            },
+            {
+              "pola": "server\\.matikan\\(\\)",
+              "pesan": "panggil `server.matikan()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "`init` hanya sekali walau ada dua request, dan `destroy` dipanggil saat server dimatikan.",
+          "petunjuk": "Field `private int dilayani;` ditambah di `doGet`. Untuk latihan ini aman, tetapi ingat field servlet dipakai bersama semua pengguna."
+        }
+      ],
+      "penutup": "Servlet pertama sudah menjawab. Berikutnya: membaca isi request."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Berapa object yang dibuat container untuk satu servlet?",
+          "options": [
+            "Satu untuk setiap request",
+            "Satu untuk setiap pengguna",
+            "Satu, dipakai untuk semua request",
+            "Satu untuk setiap method HTTP"
+          ],
+          "answer": 2,
+          "explanation": "Dipakai bersama.",
+          "remedial": "Container membuat satu object servlet dan memanggil `service` untuknya di setiap request, sering dari banyak thread sekaligus. Karena itu field servlet tidak boleh menyimpan data per pengguna."
+        },
+        {
+          "question": "init() pada servlet dipanggil...",
+          "options": [
+            "Di setiap request",
+            "Setiap kali doGet selesai",
+            "Saat server dimatikan",
+            "Sekali, saat servlet pertama kali dipakai"
+          ],
+          "answer": 3,
+          "explanation": "Siklus hidup.",
+          "remedial": "`init` menyiapkan servlet sekali. Setiap request dilayani `service`, dan `destroy` dipanggil saat server berhenti."
+        },
+        {
+          "question": "Request PUT ke servlet yang hanya punya doGet dijawab dengan...",
+          "options": [
+            "405 Method Not Allowed",
+            "404 Not Found",
+            "200 OK dengan isi kosong",
+            "500 Internal Server Error"
+          ],
+          "answer": 0,
+          "explanation": "Alamatnya ada.",
+          "remedial": "Alamatnya cocok, tetapi method PUT tidak ditangani. Versi bawaan `doPut` di HttpServlet menjawab 405."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Server yang menerima koneksi HTTP dan menjalankan servlet disebut...",
+      "options": [
+        "Database server",
+        "Servlet container, misalnya Tomcat",
+        "Build tool, misalnya Maven",
+        "Browser"
+      ],
+      "answer": 1,
+      "explanation": "Wadah servlet."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program mendaftarkan InfoServlet di alamat /info, lalu membaca method HTTP per baris dari input dan mencetak hasil request ke /info. InfoServlet belum bisa menjawab apa pun. Tambahkan doGet yang menjawab teks Toko Sari buka 08.00-21.00 dengan content type text/plain;charset=UTF-8. Method lain biarkan dijawab bawaan HttpServlet.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new InfoServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            server.cetak(in.nextLine(), \"/info\");\n        }\n    }\n}\n\n@WebServlet(\"/info\")\nclass InfoServlet extends HttpServlet {\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new InfoServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            server.cetak(in.nextLine(), \"/info\");\n        }\n    }\n}\n\n@WebServlet(\"/info\")\nclass InfoServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Toko Sari buka 08.00-21.00\");\n    }\n}",
+      "tests": [
+        {
+          "input": "GET\nPOST\n",
+          "expectedOutput": "GET /info\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nToko Sari buka 08.00-21.00\nPOST /info\nHTTP 405 Method Not Allowed\nContent-Type: text/plain;charset=UTF-8\n\nHTTP method POST is not supported by this URL\n"
+        }
+      ],
+      "hints": [
+        "Timpa protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException.",
+        "res.setContentType(...) lalu res.getWriter().print(...)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Servlet menerima request HTTP dan menulis response; container seperti Tomcat yang menjalankannya.",
+        "@WebServlet menentukan alamat; doGet, doPost, dan lainnya menangani method HTTP.",
+        "Siklus hidup: init sekali, service per request, destroy saat berhenti.",
+        "Satu object servlet untuk semua request: jangan simpan data pengguna di field."
+      ]
+    }
+  ]
+}

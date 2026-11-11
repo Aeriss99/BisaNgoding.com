@@ -1,0 +1,203 @@
+{
+  "id": "java-web-servlet-05",
+  "moduleId": "web-servlet",
+  "order": 5,
+  "title": "Filter: Penjaga di Depan Servlet",
+  "estimatedMinutes": 18,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Ada pekerjaan yang harus terjadi di **setiap** request: mencatat log, memeriksa login, mengatur encoding, menambahkan header keamanan. Menulisnya di setiap servlet berarti kode berulang dan mudah terlupa di servlet baru.\n\n**Filter** berjalan sebelum (dan sesudah) servlet untuk semua alamat yang cocok dengan polanya. Filter bisa meneruskan request ke tahap berikutnya, mengubahnya, atau menghentikannya.\n\nIbarat satpam dan resepsionis di lobi gedung: semua tamu melewati mereka dulu, apa pun lantai tujuannya. Tamu tanpa kartu akses dihentikan di lobi, tidak sampai ke kantor."
+    },
+    {
+      "type": "theory",
+      "content": "```java\n@WebFilter(\"/*\")\nclass LogFilter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)\n            throws IOException, ServletException {\n        // sebelum servlet\n        chain.doFilter(req, res);    // teruskan ke filter berikutnya atau servlet\n        // sesudah servlet\n    }\n}\n```\n\n| Bagian | Gunanya |\n|---|---|\n| `@WebFilter(\"/*\")` | pola alamat yang dilewati filter |\n| `chain.doFilter(req, res)` | lanjutkan; kalau tidak dipanggil, request berhenti di filter ini |\n| `ServletRequest` | perlu di-cast ke `HttpServletRequest` untuk method HTTP |\n\nBeberapa filter membentuk **rantai** sesuai urutan pendaftaran. Kode sebelum `chain.doFilter` berjalan berurutan masuk, dan kode sesudahnya berjalan dalam urutan terbalik saat keluar, seperti tumpukan.\n\nKegunaan filter yang umum:\n\n| Filter | Pekerjaan |\n|---|---|\n| log dan pengukuran waktu | catat setiap request dan lamanya |\n| autentikasi dan otorisasi | tolak yang belum login atau tidak berhak |\n| encoding | pastikan UTF-8 di request dan response |\n| header keamanan | tambahkan header seperti `X-Content-Type-Options` |\n| CORS | izinkan situs lain memanggil API |"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\n@WebFilter(\"/admin/*\")\nclass AdminFilter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)\n            throws IOException, ServletException {\n        HttpSession sesi = ((HttpServletRequest) req).getSession(false);\n        Object pengguna = sesi == null ? null : sesi.getAttribute(\"pengguna\");\n        if (!\"admin\".equals(pengguna)) {\n            ((HttpServletResponse) res).sendError(403, \"khusus admin\");\n            return;                      // tidak memanggil chain: servlet tidak dijalankan\n        }\n        chain.doFilter(req, res);\n    }\n}\n```\n\nSemua servlet di bawah `/admin/` terlindungi tanpa satu baris pun di servlet itu sendiri. Servlet baru di `/admin/` otomatis ikut terlindungi.\n\nSelain filter, ada **listener** (`ServletContextListener`, `HttpSessionListener`) untuk bereaksi pada peristiwa seperti aplikasi mulai atau session dibuat."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new FilterA());\n        server.tambah(new FilterB());\n        server.tambah(new HaloServlet());\n        server.kirim(\"GET\", \"/halo\");\n        System.out.println(String.join(\" > \", Jejak.urutan));\n    }\n}\n\nclass Jejak {\n    static final List<String> urutan = new ArrayList<>();\n}\n\n@WebFilter(\"/*\")\nclass FilterA implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        Jejak.urutan.add(\"A masuk\");\n        chain.doFilter(req, res);\n        Jejak.urutan.add(\"A keluar\");\n    }\n}\n\n@WebFilter(\"/*\")\nclass FilterB implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        Jejak.urutan.add(\"B masuk\");\n        chain.doFilter(req, res);\n        Jejak.urutan.add(\"B keluar\");\n    }\n}\n\n@WebServlet(\"/halo\")\nclass HaloServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) {\n        Jejak.urutan.add(\"servlet\");\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: bagaimana urutan yang tercetak?",
+        "options": [
+          "A masuk > B masuk > servlet > A keluar > B keluar",
+          "A masuk > B masuk > servlet > B keluar > A keluar",
+          "A masuk > A keluar > B masuk > B keluar > servlet",
+          "servlet > A masuk > B masuk > A keluar > B keluar"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 29,
+          "note": "Masuk ke tahap berikutnya."
+        },
+        {
+          "line": 48,
+          "note": "Paling dalam."
+        }
+      ],
+      "explanation": "Filter A masuk lebih dulu dan memanggil B, B memanggil servlet, lalu jalan kembali dalam urutan terbalik. Filter yang didaftarkan pertama adalah yang paling luar: ia yang pertama masuk dan terakhir keluar, seperti lapisan bawang.",
+      "tryThis": [
+        {
+          "task": "Tukar urutan pendaftaran FilterA dan FilterB.",
+          "hint": null
+        },
+        {
+          "task": "Hapus chain.doFilter di FilterB. Apa yang hilang dari urutan?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa memanggil `chain.doFilter`**\n\nRequest berhenti di filter, dan servlet tidak pernah dijalankan. Response kosong dengan status 200 membingungkan.\n\n**2. Lupa `return` setelah menolak**\n\n`sendError` lalu tetap memanggil `chain.doFilter` membuat servlet tetap berjalan.\n\n**3. Pola filter terlalu sempit**\n\nFilter keamanan di `/admin/*` tidak melindungi `/api/admin/...`. Pastikan semua jalan masuk tercakup, atau lindungi dari sisi sebaliknya: semua dilindungi kecuali yang terbuka.\n\n**4. Urutan filter yang salah**\n\nFilter log yang dipasang setelah filter login tidak mencatat request yang ditolak. Urutan pendaftaran penting.\n\n**5. Mengubah header setelah `chain.doFilter`**\n\nDi server sungguhan, isi response mungkin sudah terkirim. Header ditambahkan sebelum meneruskan."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- **Spring Security** pada dasarnya adalah rangkaian belasan filter (`SecurityFilterChain`): membaca session atau token, memeriksa izin, menangani CSRF, dan menambahkan header keamanan.\n- Di Spring Boot, filter sendiri dibuat dengan `OncePerRequestFilter` atau `@Component` yang mengimplementasikan `Filter`, dan urutannya diatur dengan `@Order`.\n- Filter yang hampir selalu ada di aplikasi produksi: *request id* (memberi setiap request id unik untuk log, seperti MDC di modul Logging), pengukur waktu untuk metrik, dan CORS.\n- Spring MVC juga punya `HandlerInterceptor`, mirip filter tetapi berjalan di dalam Spring, dengan akses ke controller yang akan dipanggil."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Web 5: Satpam di Lobi",
+      "pembuka": "Todolist Web mendapat filter untuk log dan pembatasan halaman admin.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `LogFilter` mencatat setiap request masuk dan statusnya saat keluar.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new LogFilter());\n        server.tambah(new TodoServlet());\n        server.tambah(new LaporanServlet());\n        server.tambah(new MasukServlet());\n        server.cetak(\"POST\", \"/masuk\", \"nama=Sari\");\n        server.cetak(\"GET\", \"/todo\");\n    }\n}\n\n@WebFilter(\"/*\")\nclass LogFilter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        HttpServletRequest r = (HttpServletRequest) req;\n        HttpServletResponse s = (HttpServletResponse) res;\n        System.out.println(\"[log] masuk \" + r.getMethod() + \" \" + r.getRequestURI());\n        chain.doFilter(req, res);\n        System.out.println(\"[log] keluar \" + s.getStatus());\n    }\n}\n\n@WebServlet(\"/todo\")\nclass TodoServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Daftar todo milik \" + req.getSession().getAttribute(\"pengguna\"));\n    }\n}\n\n@WebServlet(\"/admin/laporan\")\nclass LaporanServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Laporan rahasia\");\n    }\n}\n\n@WebServlet(\"/masuk\")\nclass MasukServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        req.getSession().setAttribute(\"pengguna\", req.getParameter(\"nama\"));\n        res.sendRedirect(\"/todo\");\n    }\n}\n",
+          "keluaran": "POST /masuk  [nama=Sari]\n[log] masuk POST /masuk\n[log] keluar 302\nHTTP 302 Found\nLocation: /todo\nSet-Cookie: JSESSIONID=SESI1; Path=/; HttpOnly\nGET /todo\n[log] masuk GET /todo\n[log] keluar 200\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nDaftar todo milik Sari",
+          "otomatis": true,
+          "benar": "Servlet tidak perlu tahu ada pencatatan.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan `AdminFilter` untuk `/admin/*` yang menolak dengan `sendError(403, \"khusus admin\")` kalau pengguna di session bukan `admin`. Daftarkan setelah `LogFilter`, lalu minta `/admin/laporan` sebagai Sari.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new LogFilter());\n        server.tambah(new AdminFilter());\n        server.tambah(new TodoServlet());\n        server.tambah(new LaporanServlet());\n        server.tambah(new MasukServlet());\n        server.cetak(\"POST\", \"/masuk\", \"nama=Sari\");\n        server.cetak(\"GET\", \"/todo\");\n        server.cetak(\"GET\", \"/admin/laporan\");\n    }\n}\n\n@WebFilter(\"/*\")\nclass LogFilter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        HttpServletRequest r = (HttpServletRequest) req;\n        HttpServletResponse s = (HttpServletResponse) res;\n        System.out.println(\"[log] masuk \" + r.getMethod() + \" \" + r.getRequestURI());\n        chain.doFilter(req, res);\n        System.out.println(\"[log] keluar \" + s.getStatus());\n    }\n}\n\n@WebServlet(\"/todo\")\nclass TodoServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Daftar todo milik \" + req.getSession().getAttribute(\"pengguna\"));\n    }\n}\n\n@WebServlet(\"/admin/laporan\")\nclass LaporanServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Laporan rahasia\");\n    }\n}\n\n@WebServlet(\"/masuk\")\nclass MasukServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        req.getSession().setAttribute(\"pengguna\", req.getParameter(\"nama\"));\n        res.sendRedirect(\"/todo\");\n    }\n}\n\n@WebFilter(\"/admin/*\")\nclass AdminFilter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        HttpSession sesi = ((HttpServletRequest) req).getSession(false);\n        Object pengguna = sesi == null ? null : sesi.getAttribute(\"pengguna\");\n        if (!\"admin\".equals(pengguna)) {\n            ((HttpServletResponse) res).sendError(403, \"khusus admin\");\n            return;\n        }\n        chain.doFilter(req, res);\n    }\n}\n",
+          "keluaran": "POST /masuk  [nama=Sari]\n[log] masuk POST /masuk\n[log] keluar 302\nHTTP 302 Found\nLocation: /todo\nSet-Cookie: JSESSIONID=SESI1; Path=/; HttpOnly\nGET /todo\n[log] masuk GET /todo\n[log] keluar 200\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nDaftar todo milik Sari\nGET /admin/laporan\n[log] masuk GET /admin/laporan\n[log] keluar 403\nHTTP 403 Forbidden\nContent-Type: text/plain;charset=UTF-8\n\nkhusus admin",
+          "wajib": [
+            {
+              "pola": "@WebFilter\\s*\\(\\s*\"/admin/\\*\"\\s*\\)",
+              "pesan": "pasang `@WebFilter(\"/admin/*\")`."
+            },
+            {
+              "pola": "sendError\\s*\\(\\s*403",
+              "pesan": "tolak dengan 403."
+            }
+          ],
+          "benar": "Sari ditolak sebelum `LaporanServlet` dijalankan.",
+          "petunjuk": "Jangan lupa `return` setelah `sendError`, dan `chain.doFilter` kalau lolos."
+        },
+        {
+          "arahan": "Tiru pengguna lain: lupakan cookie, masuk sebagai `admin`, lalu minta `/admin/laporan` lagi.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new LogFilter());\n        server.tambah(new AdminFilter());\n        server.tambah(new TodoServlet());\n        server.tambah(new LaporanServlet());\n        server.tambah(new MasukServlet());\n        server.cetak(\"POST\", \"/masuk\", \"nama=Sari\");\n        server.cetak(\"GET\", \"/todo\");\n        server.cetak(\"GET\", \"/admin/laporan\");\n        server.lupakanCookie();\n        server.cetak(\"POST\", \"/masuk\", \"nama=admin\");\n        server.cetak(\"GET\", \"/admin/laporan\");\n    }\n}\n\n@WebFilter(\"/*\")\nclass LogFilter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        HttpServletRequest r = (HttpServletRequest) req;\n        HttpServletResponse s = (HttpServletResponse) res;\n        System.out.println(\"[log] masuk \" + r.getMethod() + \" \" + r.getRequestURI());\n        chain.doFilter(req, res);\n        System.out.println(\"[log] keluar \" + s.getStatus());\n    }\n}\n\n@WebServlet(\"/todo\")\nclass TodoServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Daftar todo milik \" + req.getSession().getAttribute(\"pengguna\"));\n    }\n}\n\n@WebServlet(\"/admin/laporan\")\nclass LaporanServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Laporan rahasia\");\n    }\n}\n\n@WebServlet(\"/masuk\")\nclass MasukServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        req.getSession().setAttribute(\"pengguna\", req.getParameter(\"nama\"));\n        res.sendRedirect(\"/todo\");\n    }\n}\n\n@WebFilter(\"/admin/*\")\nclass AdminFilter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        HttpSession sesi = ((HttpServletRequest) req).getSession(false);\n        Object pengguna = sesi == null ? null : sesi.getAttribute(\"pengguna\");\n        if (!\"admin\".equals(pengguna)) {\n            ((HttpServletResponse) res).sendError(403, \"khusus admin\");\n            return;\n        }\n        chain.doFilter(req, res);\n    }\n}\n",
+          "keluaran": "POST /masuk  [nama=Sari]\n[log] masuk POST /masuk\n[log] keluar 302\nHTTP 302 Found\nLocation: /todo\nSet-Cookie: JSESSIONID=SESI1; Path=/; HttpOnly\nGET /todo\n[log] masuk GET /todo\n[log] keluar 200\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nDaftar todo milik Sari\nGET /admin/laporan\n[log] masuk GET /admin/laporan\n[log] keluar 403\nHTTP 403 Forbidden\nContent-Type: text/plain;charset=UTF-8\n\nkhusus admin\nPOST /masuk  [nama=admin]\n[log] masuk POST /masuk\n[log] keluar 302\nHTTP 302 Found\nLocation: /todo\nSet-Cookie: JSESSIONID=SESI2; Path=/; HttpOnly\nGET /admin/laporan\n[log] masuk GET /admin/laporan\n[log] keluar 200\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\n\nLaporan rahasia",
+          "wajib": [
+            {
+              "pola": "nama=admin",
+              "pesan": "masuk sebagai admin."
+            }
+          ],
+          "benar": "Admin lolos dan laporan tampil.",
+          "petunjuk": "`server.lupakanCookie();` lalu dua `server.cetak`."
+        },
+        {
+          "arahan": "Tantangan: buat `KeamananFilter` untuk `/*` yang menambahkan header `X-Content-Type-Options: nosniff` di setiap response, daftarkan setelah `AdminFilter`.",
+          "jawaban": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new LogFilter());\n        server.tambah(new AdminFilter());\n        server.tambah(new KeamananFilter());\n        server.tambah(new TodoServlet());\n        server.tambah(new LaporanServlet());\n        server.tambah(new MasukServlet());\n        server.cetak(\"POST\", \"/masuk\", \"nama=Sari\");\n        server.cetak(\"GET\", \"/todo\");\n        server.cetak(\"GET\", \"/admin/laporan\");\n        server.lupakanCookie();\n        server.cetak(\"POST\", \"/masuk\", \"nama=admin\");\n        server.cetak(\"GET\", \"/admin/laporan\");\n    }\n}\n\n@WebFilter(\"/*\")\nclass LogFilter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        HttpServletRequest r = (HttpServletRequest) req;\n        HttpServletResponse s = (HttpServletResponse) res;\n        System.out.println(\"[log] masuk \" + r.getMethod() + \" \" + r.getRequestURI());\n        chain.doFilter(req, res);\n        System.out.println(\"[log] keluar \" + s.getStatus());\n    }\n}\n\n@WebServlet(\"/todo\")\nclass TodoServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Daftar todo milik \" + req.getSession().getAttribute(\"pengguna\"));\n    }\n}\n\n@WebServlet(\"/admin/laporan\")\nclass LaporanServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain;charset=UTF-8\");\n        res.getWriter().print(\"Laporan rahasia\");\n    }\n}\n\n@WebServlet(\"/masuk\")\nclass MasukServlet extends HttpServlet {\n    @Override\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        req.getSession().setAttribute(\"pengguna\", req.getParameter(\"nama\"));\n        res.sendRedirect(\"/todo\");\n    }\n}\n\n@WebFilter(\"/admin/*\")\nclass AdminFilter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        HttpSession sesi = ((HttpServletRequest) req).getSession(false);\n        Object pengguna = sesi == null ? null : sesi.getAttribute(\"pengguna\");\n        if (!\"admin\".equals(pengguna)) {\n            ((HttpServletResponse) res).sendError(403, \"khusus admin\");\n            return;\n        }\n        chain.doFilter(req, res);\n    }\n}\n\n@WebFilter(\"/*\")\nclass KeamananFilter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        ((HttpServletResponse) res).setHeader(\"X-Content-Type-Options\", \"nosniff\");\n        chain.doFilter(req, res);\n    }\n}\n",
+          "keluaran": "POST /masuk  [nama=Sari]\n[log] masuk POST /masuk\n[log] keluar 302\nHTTP 302 Found\nLocation: /todo\nSet-Cookie: JSESSIONID=SESI1; Path=/; HttpOnly\nX-Content-Type-Options: nosniff\nGET /todo\n[log] masuk GET /todo\n[log] keluar 200\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\nX-Content-Type-Options: nosniff\n\nDaftar todo milik Sari\nGET /admin/laporan\n[log] masuk GET /admin/laporan\n[log] keluar 403\nHTTP 403 Forbidden\nContent-Type: text/plain;charset=UTF-8\n\nkhusus admin\nPOST /masuk  [nama=admin]\n[log] masuk POST /masuk\n[log] keluar 302\nHTTP 302 Found\nLocation: /todo\nSet-Cookie: JSESSIONID=SESI2; Path=/; HttpOnly\nX-Content-Type-Options: nosniff\nGET /admin/laporan\n[log] masuk GET /admin/laporan\n[log] keluar 200\nHTTP 200 OK\nContent-Type: text/plain;charset=UTF-8\nX-Content-Type-Options: nosniff\n\nLaporan rahasia",
+          "wajib": [
+            {
+              "pola": "setHeader\\s*\\(\\s*\"X-Content-Type-Options\"\\s*,\\s*\"nosniff\"\\s*\\)",
+              "pesan": "tambahkan header `X-Content-Type-Options: nosniff`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Request yang ditolak AdminFilter tidak melewati KeamananFilter, jadi tidak mendapat header itu. Karena itu filter header keamanan biasanya dipasang paling depan.",
+          "petunjuk": "Atur header sebelum `chain.doFilter`."
+        }
+      ],
+      "penutup": "Penjaga sudah terpasang. Berikutnya: REST API JSON dengan servlet."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Filter yang tidak memanggil chain.doFilter mengakibatkan...",
+          "options": [
+            "Servlet tetap dijalankan setelah filter",
+            "Server berhenti",
+            "Servlet tujuan tidak dijalankan",
+            "Request diulang otomatis"
+          ],
+          "answer": 2,
+          "explanation": "Rantai terputus.",
+          "remedial": "`chain.doFilter` yang meneruskan request. Tanpa itu, filter menjadi akhir perjalanan request."
+        },
+        {
+          "question": "Dua filter A lalu B terdaftar untuk /*. Urutan kode sesudah chain.doFilter adalah...",
+          "options": [
+            "A dulu, lalu B",
+            "Bersamaan",
+            "Hanya A",
+            "B dulu, lalu A"
+          ],
+          "answer": 3,
+          "explanation": "Seperti tumpukan.",
+          "remedial": "A masuk lebih dulu dan memanggil B, yang memanggil servlet. Saat kembali, B selesai lebih dulu sebelum kembali ke A."
+        },
+        {
+          "question": "Status yang tepat untuk pengguna yang sudah login tetapi bukan admin adalah...",
+          "options": [
+            "403 Forbidden",
+            "401 Unauthorized",
+            "404 Not Found",
+            "400 Bad Request"
+          ],
+          "answer": 0,
+          "explanation": "Dikenali tetapi tidak berhak.",
+          "remedial": "401 berarti belum terautentikasi (belum login). 403 berarti sudah dikenali tetapi tidak punya izin."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Framework keamanan Java yang pada dasarnya adalah rangkaian filter servlet adalah...",
+      "options": [
+        "Hibernate",
+        "Spring Security",
+        "Jackson",
+        "Resilience4j"
+      ],
+      "answer": 1,
+      "explanation": "SecurityFilterChain."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program mengirim GET ke alamat dari input dan mencetak header Content-Type response. Semua servlet hanya mengatur text/plain sehingga encoding-nya ISO-8859-1. Lengkapi Utf8Filter yang terpasang untuk semua alamat supaya setiap response memakai UTF-8, tanpa mengubah servlet satu per satu.",
+      "starterCode": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new Utf8Filter());\n        server.tambah(new BerandaServlet());\n        server.tambah(new MenuServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            System.out.println(server.kirim(\"GET\", in.nextLine()).header(\"Content-Type\"));\n        }\n    }\n}\n\n@WebFilter(\"/*\")\nclass Utf8Filter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        chain.doFilter(req, res);\n    }\n}\n\n@WebServlet(\"/beranda\")\nclass BerandaServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain\");\n        res.getWriter().print(\"Selamat datang\");\n    }\n}\n\n@WebServlet(\"/menu\")\nclass MenuServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain\");\n        res.getWriter().print(\"Kopi, Teh\");\n    }\n}",
+      "solution": "import java.io.*;\nimport java.util.*;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport com.bisangoding.web.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        ServerUji server = new ServerUji();\n        server.tambah(new Utf8Filter());\n        server.tambah(new BerandaServlet());\n        server.tambah(new MenuServlet());\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            System.out.println(server.kirim(\"GET\", in.nextLine()).header(\"Content-Type\"));\n        }\n    }\n}\n\n@WebFilter(\"/*\")\nclass Utf8Filter implements Filter {\n    @Override\n    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {\n        res.setCharacterEncoding(\"UTF-8\");\n        chain.doFilter(req, res);\n    }\n}\n\n@WebServlet(\"/beranda\")\nclass BerandaServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain\");\n        res.getWriter().print(\"Selamat datang\");\n    }\n}\n\n@WebServlet(\"/menu\")\nclass MenuServlet extends HttpServlet {\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/plain\");\n        res.getWriter().print(\"Kopi, Teh\");\n    }\n}",
+      "tests": [
+        {
+          "input": "/beranda\n/menu\n",
+          "expectedOutput": "text/plain;charset=UTF-8\ntext/plain;charset=UTF-8\n"
+        }
+      ],
+      "hints": [
+        "Encoding response bisa diatur sebelum servlet berjalan.",
+        "res.setCharacterEncoding(\"UTF-8\") sebelum chain.doFilter(req, res)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Filter berjalan sebelum dan sesudah servlet untuk alamat yang cocok dengan polanya.",
+        "chain.doFilter meneruskan; tidak memanggilnya berarti menghentikan request.",
+        "Urutan pendaftaran menentukan urutan masuk; keluarnya terbalik.",
+        "Dipakai untuk log, login, izin, encoding, header keamanan, dan CORS."
+      ]
+    }
+  ]
+}
