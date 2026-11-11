@@ -1,0 +1,199 @@
+{
+  "id": "java-validation-03",
+  "moduleId": "validation",
+  "order": 3,
+  "title": "Pesan Kesalahan Sendiri",
+  "estimatedMinutes": 15,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`must not be blank` mudah dipahami programmer, tetapi pengguna aplikasi berbahasa Indonesia butuh pesan seperti **Judul wajib diisi**. Pesan kesalahan adalah bagian dari tampilan aplikasi, sama pentingnya dengan tombol dan label.\n\nSetiap constraint punya atribut `message` untuk mengganti pesan bawaan.\n\nIbarat rambu jalan: rambu dalam bahasa asing tetap rambu, tetapi pengemudi lokal baru paham kalau tulisannya bahasa sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "```java\n@NotBlank(message = \"Judul wajib diisi\")\n@Size(max = 50, message = \"Judul maksimal {max} huruf\")\nString judul;\n```\n\nTulisan di dalam kurung kurawal diganti dengan nilai atribut anotasi:\n\n| Di pesan | Diganti dengan |\n|---|---|\n| `{min}`, `{max}` | atribut `min` dan `max` (misalnya di `@Size`) |\n| `{value}` | atribut `value` (misalnya di `@Min`, `@Max`) |\n| `{regexp}` | atribut `regexp` di `@Pattern` |\n| `${validatedValue}` | nilai yang sedang diperiksa |\n\nDengan `{max}`, kalau batasnya diubah menjadi 60, pesannya ikut berubah sendiri.\n\nUntuk `@Min` dan `@Max`, kalau ada atribut lain selain angka, angkanya ditulis sebagai `value`:\n\n```java\n@Min(value = 1, message = \"Prioritas minimal {value}\")\n```\n\nPesan bawaan Hibernate Validator mengikuti bahasa komputer (Inggris, Jerman, Prancis, dan lainnya), tetapi **tidak tersedia dalam bahasa Indonesia**. Itu alasan lain untuk menulis pesan sendiri."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @Size(max = 50, message = \"Judul maksimal {max} huruf\")\n    String judul;\n\n    @Min(value = 1, message = \"Prioritas minimal {value}\")\n    @Max(value = 3, message = \"Prioritas maksimal {value}\")\n    int prioritas;\n}\n```\n\nMemeriksa `new TodoBaru(\"\", 4)` menghasilkan:\n\n```text\njudul: Judul wajib diisi\nprioritas: Prioritas maksimal 3\n```\n\n`getInvalidValue()` mengembalikan nilai yang ditolak (di sini `4`). Berguna untuk log, tetapi hati-hati dengan data rahasia."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"ab\"));\n    }\n}\n\nclass TodoBaru {\n    @Size(min = 3, max = 50, message = \"Judul {min} sampai {max} huruf\")\n    String judul;\n\n    TodoBaru(String judul) {\n        this.judul = judul;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: judul \"ab\" diperiksa. Pesan apa yang muncul?",
+        "options": [
+          "judul: Judul {min} sampai {max} huruf",
+          "judul: size must be between 3 and 50",
+          "judul: Judul 2 sampai 50 huruf",
+          "judul: Judul 3 sampai 50 huruf"
+        ],
+        "answer": 3
+      },
+      "annotations": [
+        {
+          "line": 29,
+          "note": "Kurung kurawal diisi dari atribut anotasi."
+        }
+      ],
+      "explanation": "Atribut message menggantikan pesan bawaan. Tulisan {min} dan {max} diganti dengan atribut min dan max dari anotasi yang sama, yaitu 3 dan 50.\n\nPanjang judul yang sebenarnya (2) tidak ikut, karena {min} adalah batas, bukan nilai yang diperiksa.",
+      "tryThis": [
+        {
+          "task": "Ubah max menjadi 60 tanpa menyentuh message. Apa yang berubah di pesan?",
+          "hint": null
+        },
+        {
+          "task": "Ganti message menjadi \"Judul ${validatedValue} terlalu pendek\".",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis angka langsung di pesan**\n\n`message = \"Judul maksimal 50 huruf\"` lalu batasnya diubah ke 60. Pesan berbohong. Pakai `{max}`.\n\n**2. Menulis `${value}`**\n\n`{value}` adalah atribut anotasi, sedangkan `${...}` adalah ekspresi. `\"${value}\"` menghasilkan tanda dolar ikut tercetak, misalnya `$3`. Untuk atribut cukup `{value}`; untuk nilai yang diperiksa pakai `${validatedValue}`.\n\n**3. Menampilkan nilai rahasia**\n\nPesan seperti `\"Sandi ${validatedValue} terlalu pendek\"` membocorkan sandi ke layar dan log. Jangan sertakan nilai untuk data sensitif.\n\n**4. Pesan teknis untuk pengguna**\n\n`must match \"08[0-9]{8,11}\"` tidak bisa dipahami pengguna. Tulis `\"Nomor HP diawali 08, 10 sampai 13 angka\"`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Pesan biasanya tidak ditulis langsung di anotasi, melainkan di file `src/main/resources/ValidationMessages.properties`, sehingga bisa diterjemahkan:\n\n```properties\ntodo.judul.wajib=Judul wajib diisi\ntodo.judul.panjang=Judul maksimal {max} huruf\n```\n\n```java\n@NotBlank(message = \"{todo.judul.wajib}\")\n@Size(max = 50, message = \"{todo.judul.panjang}\")\nString judul;\n```\n\nFile `ValidationMessages_en.properties` berisi versi bahasa Inggris, dan bahasa yang dipakai mengikuti locale pengguna.\n\n- Di REST API, pesan dikirim sebagai JSON per field, misalnya `{\"judul\": \"Judul wajib diisi\"}`, sehingga frontend bisa menampilkannya di bawah kotak isian yang tepat."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Formulir Todo 3: Pesan Berbahasa Indonesia",
+      "pembuka": "Pesan Formulir Todo kita ubah ke bahasa Indonesia.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. `@NotBlank` diberi `message`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"\", 2));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @Size(max = 50)\n    String judul;\n\n    @Min(1)\n    @Max(3)\n    int prioritas;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n",
+          "keluaran": "judul: Judul wajib diisi",
+          "otomatis": true,
+          "benar": "Pesannya sekarang bahasa Indonesia.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Beri `@Size` pesan `\"Judul maksimal {max} huruf\"`, lalu periksa todo berjudul `\"Belajar Bean Validation sampai semua formulir aman dipakai\"` prioritas 2.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"\", 2));\n        periksa(new TodoBaru(\"Belajar Bean Validation sampai semua formulir aman dipakai\", 2));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @Size(max = 50, message = \"Judul maksimal {max} huruf\")\n    String judul;\n\n    @Min(1)\n    @Max(3)\n    int prioritas;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n",
+          "keluaran": "judul: Judul wajib diisi\njudul: Judul maksimal 50 huruf",
+          "wajib": [
+            {
+              "pola": "@Size\\s*\\(\\s*max\\s*=\\s*50\\s*,\\s*message\\s*=\\s*\"Judul maksimal \\{max\\} huruf\"\\s*\\)",
+              "pesan": "tulis `@Size(max = 50, message = \"Judul maksimal {max} huruf\")`."
+            }
+          ],
+          "benar": "`{max}` diganti 50.",
+          "petunjuk": "`@Size(max = 50, message = \"Judul maksimal {max} huruf\")`."
+        },
+        {
+          "arahan": "Beri prioritas pesan `\"Prioritas minimal {value}\"` dan `\"Prioritas maksimal {value}\"`, lalu periksa prioritas 0 dan 4 dengan judul `\"Belajar\"`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"\", 2));\n        periksa(new TodoBaru(\"Belajar Bean Validation sampai semua formulir aman dipakai\", 2));\n        periksa(new TodoBaru(\"Belajar\", 0));\n        periksa(new TodoBaru(\"Belajar\", 4));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @Size(max = 50, message = \"Judul maksimal {max} huruf\")\n    String judul;\n\n    @Min(value = 1, message = \"Prioritas minimal {value}\")\n    @Max(value = 3, message = \"Prioritas maksimal {value}\")\n    int prioritas;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n",
+          "keluaran": "judul: Judul wajib diisi\njudul: Judul maksimal 50 huruf\nprioritas: Prioritas minimal 1\nprioritas: Prioritas maksimal 3",
+          "wajib": [
+            {
+              "pola": "@Min\\s*\\(\\s*value\\s*=\\s*1\\s*,\\s*message\\s*=\\s*\"Prioritas minimal \\{value\\}\"\\s*\\)",
+              "pesan": "tulis `@Min(value = 1, message = \"Prioritas minimal {value}\")`."
+            },
+            {
+              "pola": "@Max\\s*\\(\\s*value\\s*=\\s*3\\s*,\\s*message\\s*=\\s*\"Prioritas maksimal \\{value\\}\"\\s*\\)",
+              "pesan": "tulis `@Max(value = 3, message = \"Prioritas maksimal {value}\")`."
+            }
+          ],
+          "benar": "Semua pesan Formulir Todo sudah berbahasa Indonesia.",
+          "petunjuk": "Tulis angkanya sebagai `value`: `@Min(value = 1, message = \"...\")`."
+        },
+        {
+          "arahan": "Tantangan: ubah method `periksa` supaya setiap baris juga menampilkan nilai yang ditolak, dengan bentuk `prioritas = 4: Prioritas maksimal 3`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \" = \" + v.getInvalidValue() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"\", 2));\n        periksa(new TodoBaru(\"Belajar Bean Validation sampai semua formulir aman dipakai\", 2));\n        periksa(new TodoBaru(\"Belajar\", 0));\n        periksa(new TodoBaru(\"Belajar\", 4));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @Size(max = 50, message = \"Judul maksimal {max} huruf\")\n    String judul;\n\n    @Min(value = 1, message = \"Prioritas minimal {value}\")\n    @Max(value = 3, message = \"Prioritas maksimal {value}\")\n    int prioritas;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n",
+          "keluaran": "judul = : Judul wajib diisi\njudul = Belajar Bean Validation sampai semua formulir aman dipakai: Judul maksimal 50 huruf\nprioritas = 0: Prioritas minimal 1\nprioritas = 4: Prioritas maksimal 3",
+          "wajib": [
+            {
+              "pola": "v\\.getInvalidValue\\(\\)",
+              "pesan": "pakai `v.getInvalidValue()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Nilai yang ditolak membantu saat mencari penyebab masalah. Untuk data rahasia, jangan tampilkan.",
+          "petunjuk": "Gabungkan `v.getPropertyPath() + \" = \" + v.getInvalidValue() + \": \" + v.getMessage()`."
+        }
+      ],
+      "penutup": "Pesan sudah ramah pengguna. Berikutnya: memeriksa object di dalam object."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pesan \"Judul maksimal {max} huruf\" di @Size(max = 50) tampil sebagai...",
+          "options": [
+            "Judul maksimal 50 huruf",
+            "Judul maksimal {max} huruf",
+            "Judul maksimal 0 huruf",
+            "Judul maksimal panjang judul huruf"
+          ],
+          "answer": 0,
+          "explanation": "{max} diisi dari atribut.",
+          "remedial": "Kurung kurawal berisi nama atribut anotasi. `{max}` diganti dengan nilai atribut `max`, yaitu 50."
+        },
+        {
+          "question": "Kenapa pesan bawaan perlu diganti untuk aplikasi berbahasa Indonesia?",
+          "options": [
+            "Karena pesan bawaan selalu salah",
+            "Karena Hibernate Validator tidak menyediakan pesan bahasa Indonesia",
+            "Karena tanpa message validasi tidak jalan",
+            "Karena pesan bawaan terlalu panjang"
+          ],
+          "answer": 1,
+          "explanation": "Lihat daftar bahasa bawaan.",
+          "remedial": "Hibernate Validator punya pesan bawaan untuk banyak bahasa, tetapi bukan bahasa Indonesia. Tanpa `message`, pengguna Indonesia melihat bahasa Inggris."
+        },
+        {
+          "question": "Data mana yang sebaiknya tidak ditampilkan dengan ${validatedValue} di pesan?",
+          "options": [
+            "Judul todo",
+            "Nama kota",
+            "Sandi",
+            "Jumlah barang"
+          ],
+          "answer": 2,
+          "explanation": "Data rahasia.",
+          "remedial": "Pesan validasi sering tercatat di log dan tampil di layar. Nilai sandi tidak boleh ikut di dalamnya."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Untuk @Min dengan pesan sendiri, cara menulisnya adalah...",
+      "options": [
+        "@Min(1, message = \"...\")",
+        "@Min(message = \"...\")",
+        "@Min(min = 1, message = \"...\")",
+        "@Min(value = 1, message = \"...\")"
+      ],
+      "answer": 3,
+      "explanation": "Atribut angkanya bernama value."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca produk dengan format nama;harga;stok lalu mencetak Produk nama: dan hasil periksa. Class Produk sudah punya constraint yang benar, tetapi pesannya masih bahasa Inggris. Ganti pesannya menjadi: Nama produk wajib diisi, Harga minimal Rp1000 (angka diambil dari atribut value), dan Stok tidak boleh negatif.",
+      "starterCode": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            System.out.println(\"Produk \" + d[0] + \":\");\n            periksa(new Produk(d[0], Integer.parseInt(d[1]), Integer.parseInt(d[2])));\n        }\n    }\n}\n\nclass Produk {\n    @NotBlank\n    String nama;\n\n    @Min(1000)\n    int harga;\n\n    @PositiveOrZero\n    int stok;\n\n    Produk(String nama, int harga, int stok) {\n        this.nama = nama;\n        this.harga = harga;\n        this.stok = stok;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            System.out.println(\"Produk \" + d[0] + \":\");\n            periksa(new Produk(d[0], Integer.parseInt(d[1]), Integer.parseInt(d[2])));\n        }\n    }\n}\n\nclass Produk {\n    @NotBlank(message = \"Nama produk wajib diisi\")\n    String nama;\n\n    @Min(value = 1000, message = \"Harga minimal Rp{value}\")\n    int harga;\n\n    @PositiveOrZero(message = \"Stok tidak boleh negatif\")\n    int stok;\n\n    Produk(String nama, int harga, int stok) {\n        this.nama = nama;\n        this.harga = harga;\n        this.stok = stok;\n    }\n}",
+      "tests": [
+        {
+          "input": "Kopi;18000;5\nTeh;500;-2\n;2000;0\n",
+          "expectedOutput": "Produk Kopi:\nValid\nProduk Teh:\nharga: Harga minimal Rp1000\nstok: Stok tidak boleh negatif\nProduk :\nnama: Nama produk wajib diisi\n"
+        }
+      ],
+      "hints": [
+        "Pakai atribut message di setiap anotasi.",
+        "Untuk harga: @Min(value = 1000, message = \"Harga minimal Rp{value}\")."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Atribut message mengganti pesan bawaan.",
+        "{min}, {max}, {value} diisi dari atribut anotasi; ${validatedValue} berisi nilai yang diperiksa.",
+        "Pesan bawaan tidak tersedia dalam bahasa Indonesia, jadi tulis sendiri.",
+        "Di proyek, pesan disimpan di ValidationMessages.properties."
+      ]
+    }
+  ]
+}

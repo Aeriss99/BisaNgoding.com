@@ -1,0 +1,215 @@
+{
+  "id": "java-validation-01",
+  "moduleId": "validation",
+  "order": 1,
+  "title": "Mengenal Bean Validation",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di Proyek Todolist OOP, `TodoService` memeriksa judul dengan `if`: tidak boleh kosong, maksimal 50 huruf. Bayangkan formulir pendaftaran dengan 15 kotak isian. Kalau semuanya diperiksa dengan `if`, method-nya panjang, aturannya tersebar, dan pengguna hanya diberi tahu satu kesalahan per kali kirim.\n\n**Bean Validation** (nama resminya *Jakarta Validation*) adalah standar Java untuk menulis aturan data sebagai **anotasi** di field. Library yang menjalankannya disebut *implementasi*; yang paling banyak dipakai adalah **Hibernate Validator**.\n\nIbarat formulir di bank: kotak wajib diberi tanda bintang. Petugas memeriksa seluruh formulir sekaligus, lalu mengembalikan daftar semua kotak yang salah, bukan satu per satu."
+    },
+    {
+      "type": "theory",
+      "content": "Ada tiga bagian yang perlu dikenal:\n\n| Bagian | Tugas |\n|---|---|\n| Anotasi constraint | Aturan di field, misalnya `@NotBlank`, `@Size(max = 50)` |\n| `Validator` | Pemeriksa yang membaca anotasi lalu memeriksa object |\n| `ConstraintViolation` | Satu pelanggaran: field mana, pesannya, nilai yang salah |\n\n```java\nValidator validator = Validation.buildDefaultValidatorFactory().getValidator();\nSet<ConstraintViolation<TodoBaru>> hasil = validator.validate(todo);\n```\n\nKalau `hasil` kosong, object valid. Setiap pelanggaran punya:\n\n- `getPropertyPath()`: nama field, misalnya `judul`\n- `getMessage()`: pesan, misalnya `must not be blank`\n- `getInvalidValue()`: nilai yang ditolak\n\nHasilnya berupa `Set`, jadi **urutannya tidak tetap**. Supaya mudah dibaca dan dicek, pesan dikumpulkan ke `List` lalu diurutkan.\n\nDua constraint pertama:\n\n| Anotasi | Artinya |\n|---|---|\n| `@NotBlank` | String tidak null dan berisi minimal satu huruf selain spasi |\n| `@Size(min = .., max = ..)` | Panjang String (atau ukuran List) di antara min dan max |\n\nImport-nya dari paket `jakarta.validation` dan `jakarta.validation.constraints`. Di editor website ini Hibernate Validator sudah tersedia."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nstatic final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\nstatic void periksa(Object o) {\n    List<String> pesan = new ArrayList<>();\n    for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n        pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n    }\n    Collections.sort(pesan);\n    if (pesan.isEmpty()) {\n        System.out.println(\"Valid\");\n    }\n    for (String p : pesan) {\n        System.out.println(p);\n    }\n}\n```\n\nMethod `periksa` ini dipakai di seluruh modul. `Validator` dibuat **sekali** sebagai `static final`, karena membuatnya cukup berat dan satu validator aman dipakai berulang kali.\n\n```java\nclass TodoBaru {\n    @NotBlank\n    @Size(max = 50)\n    String judul;\n}\n```\n\nDua anotasi di satu field berarti kedua aturan diperiksa. Pesan bawaan Hibernate Validator berbahasa Inggris; di materi Pesan Kesalahan kita menggantinya dengan bahasa Indonesia."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Produk p = new Produk(\"\", \"KOPI-SUSU-GULA-AREN\");\n        periksa(p);\n    }\n}\n\nclass Produk {\n    @NotBlank\n    String nama;\n\n    @Size(max = 10)\n    String kode;\n\n    Produk(String nama, String kode) {\n        this.nama = nama;\n        this.kode = kode;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: kode produk berisi 19 huruf. Pesan apa yang muncul untuk kode?",
+        "options": [
+          "kode: must not be blank",
+          "kode: size must be between 0 and 10",
+          "kode: size must be at most 10",
+          "Valid"
+        ],
+        "answer": 1
+      },
+      "annotations": [
+        {
+          "line": 7,
+          "note": "Validator dibuat sekali."
+        },
+        {
+          "line": 12,
+          "note": "Nama field lalu pesannya."
+        },
+        {
+          "line": 14,
+          "note": "Set tidak berurutan, jadi diurutkan dulu."
+        },
+        {
+          "line": 33,
+          "note": "Tanpa min, batas bawahnya 0."
+        }
+      ],
+      "explanation": "Validator menemukan dua pelanggaran sekaligus: nama kosong dan kode terlalu panjang. Keduanya dilaporkan bersama, bukan berhenti di kesalahan pertama.\n\nKarena min tidak ditulis, pesan bawaan menyebut batas 0 sampai 10.",
+      "tryThis": [
+        {
+          "task": "Ganti kode menjadi \"KOPI\" lalu jalankan. Berapa pesan yang tersisa?",
+          "hint": null
+        },
+        {
+          "task": "Tambahkan min = 3 ke @Size lalu isi kode dengan \"AB\".",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira anotasi langsung bekerja**\n\n`@NotBlank` hanya label. Object dengan judul kosong tetap bisa dibuat dan disimpan sampai ada yang memanggil `validator.validate(...)`. Framework seperti Spring memanggilnya untuk kita, tetapi di Java biasa kita yang memanggil.\n\n**2. Mencetak Set pelanggaran apa adanya**\n\nUrutan `Set` bisa berbeda di setiap jalan. Test yang membandingkan teks keluaran jadi kadang lulus kadang gagal. Urutkan dulu, atau periksa per field.\n\n**3. Salah paket: `javax` dan `jakarta`**\n\nVersi lama memakai `javax.validation`, versi baru `jakarta.validation`. Spring Boot 3 ke atas memakai `jakarta`. Mencampur keduanya membuat anotasi diam-diam diabaikan.\n\n**4. Membuat ValidatorFactory setiap kali memeriksa**\n\n`buildDefaultValidatorFactory()` cukup berat. Buat sekali saat aplikasi mulai, lalu pakai ulang."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di proyek Maven, tambahkan Hibernate Validator dan library Expression Language yang dipakainya untuk menyusun pesan:\n\n```xml\n<dependency>\n  <groupId>org.hibernate.validator</groupId>\n  <artifactId>hibernate-validator</artifactId>\n  <version>8.0.2.Final</version>\n</dependency>\n<dependency>\n  <groupId>org.glassfish.expressly</groupId>\n  <artifactId>expressly</artifactId>\n  <version>5.0.0</version>\n</dependency>\n```\n\nVersi 8 butuh Java 11 ke atas. Editor website ini memakai versi 7 karena berjalan di Java 8; anotasinya sama.\n\n- Di Spring Boot cukup `spring-boot-starter-validation`. Menulis `@Valid` di parameter controller membuat Spring memvalidasi request JSON dan membalas **400 Bad Request** secara otomatis.\n- Validasi di frontend (form HTML) membantu pengguna, tetapi **backend tetap wajib memvalidasi**, karena request bisa dikirim langsung tanpa lewat form."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Formulir Todo 1: Pemeriksa Pertama",
+      "pembuka": "Mulai materi ini kita buat **Formulir Todo**: class `TodoBaru` berisi data yang diketik pengguna, lalu diperiksa sebelum disimpan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Judul diberi `@NotBlank`, lalu dua todo diperiksa.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"\"));\n        periksa(new TodoBaru(\"Belajar validasi\"));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank\n    String judul;\n\n    TodoBaru(String judul) {\n        this.judul = judul;\n    }\n}\n",
+          "keluaran": "judul: must not be blank\nValid",
+          "otomatis": true,
+          "benar": "Judul kosong ditolak, judul yang benar lolos.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Batasi judul maksimal 50 huruf dengan `@Size(max = 50)`, lalu periksa todo berjudul `\"Belajar Bean Validation sampai semua formulir aman dipakai\"`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"\"));\n        periksa(new TodoBaru(\"Belajar validasi\"));\n        periksa(new TodoBaru(\"Belajar Bean Validation sampai semua formulir aman dipakai\"));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank\n    @Size(max = 50)\n    String judul;\n\n    TodoBaru(String judul) {\n        this.judul = judul;\n    }\n}\n",
+          "keluaran": "judul: must not be blank\nValid\njudul: size must be between 0 and 50",
+          "wajib": [
+            {
+              "pola": "@Size\\s*\\(\\s*max\\s*=\\s*50\\s*\\)",
+              "pesan": "pasang `@Size(max = 50)` di field judul."
+            }
+          ],
+          "benar": "Judul 58 huruf ditolak oleh `@Size`.",
+          "petunjuk": "Tulis `@Size(max = 50)` di bawah `@NotBlank`, lalu tambah satu baris `periksa(new TodoBaru(\"...\"));`."
+        },
+        {
+          "arahan": "Periksa juga judul berisi tiga spasi `\"   \"` dan judul `null`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"\"));\n        periksa(new TodoBaru(\"Belajar validasi\"));\n        periksa(new TodoBaru(\"Belajar Bean Validation sampai semua formulir aman dipakai\"));\n        periksa(new TodoBaru(\"   \"));\n        periksa(new TodoBaru(null));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank\n    @Size(max = 50)\n    String judul;\n\n    TodoBaru(String judul) {\n        this.judul = judul;\n    }\n}\n",
+          "keluaran": "judul: must not be blank\nValid\njudul: size must be between 0 and 50\njudul: must not be blank\njudul: must not be blank",
+          "wajib": [
+            {
+              "pola": "new\\s+TodoBaru\\s*\\(\\s*\"   \"\\s*\\)",
+              "pesan": "periksa `new TodoBaru(\"   \")`."
+            },
+            {
+              "pola": "new\\s+TodoBaru\\s*\\(\\s*null\\s*\\)",
+              "pesan": "periksa `new TodoBaru(null)`."
+            }
+          ],
+          "benar": "`@NotBlank` menolak keduanya: spasi saja dan null.",
+          "petunjuk": "Dua baris `periksa(...)` lagi."
+        },
+        {
+          "arahan": "Tantangan: tanpa memanggil `periksa`, cetak `true` kalau todo `\"Beli kopi\"` valid. Pakai `VALIDATOR.validate(...)` dan method `isEmpty()`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"\"));\n        periksa(new TodoBaru(\"Belajar validasi\"));\n        periksa(new TodoBaru(\"Belajar Bean Validation sampai semua formulir aman dipakai\"));\n        periksa(new TodoBaru(\"   \"));\n        periksa(new TodoBaru(null));\n        System.out.println(VALIDATOR.validate(new TodoBaru(\"Beli kopi\")).isEmpty());\n    }\n}\n\nclass TodoBaru {\n    @NotBlank\n    @Size(max = 50)\n    String judul;\n\n    TodoBaru(String judul) {\n        this.judul = judul;\n    }\n}\n",
+          "keluaran": "judul: must not be blank\nValid\njudul: size must be between 0 and 50\njudul: must not be blank\njudul: must not be blank\ntrue",
+          "wajib": [
+            {
+              "pola": "VALIDATOR\\.validate\\s*\\(\\s*new\\s+TodoBaru\\s*\\(\\s*\"Beli kopi\"\\s*\\)\\s*\\)\\.isEmpty\\(\\)",
+              "pesan": "pakai `VALIDATOR.validate(new TodoBaru(\"Beli kopi\")).isEmpty()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Set kosong berarti valid. Cara ini dipakai service untuk memutuskan boleh menyimpan atau tidak.",
+          "petunjuk": "`System.out.println(VALIDATOR.validate(new TodoBaru(\"Beli kopi\")).isEmpty());`"
+        }
+      ],
+      "penutup": "Formulir Todo sudah punya pemeriksa. Berikutnya: constraint lain untuk angka, email, dan pola."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Kapan aturan @NotBlank di field judul benar-benar diperiksa?",
+          "options": [
+            "Saat object dibuat dengan new",
+            "Saat program di-compile",
+            "Saat validator.validate dipanggil untuk object itu",
+            "Saat field judul dibaca"
+          ],
+          "answer": 2,
+          "explanation": "Anotasi hanya label.",
+          "remedial": "Anotasi constraint tidak menghentikan pembuatan object. Pemeriksaan terjadi ketika `Validator` dipanggil, baik oleh kode kita maupun oleh framework."
+        },
+        {
+          "question": "Kenapa pesan pelanggaran diurutkan sebelum dicetak?",
+          "options": [
+            "Karena Validator meminta diurutkan",
+            "Supaya pesan lebih pendek",
+            "Karena tanpa sort ada pesan yang hilang",
+            "Karena hasil validate berupa Set yang urutannya tidak tetap"
+          ],
+          "answer": 3,
+          "explanation": "Set tidak menjamin urutan.",
+          "remedial": "`validate` mengembalikan `Set<ConstraintViolation>`. Urutannya bisa berubah di setiap jalan, sehingga keluaran sulit dibandingkan. Mengurutkan membuat hasilnya selalu sama."
+        },
+        {
+          "question": "Field judul diberi @NotBlank dan @Size(max = 50), lalu diisi string kosong. Berapa pelanggaran yang dilaporkan?",
+          "options": [
+            "1, hanya @NotBlank",
+            "2, keduanya",
+            "0, karena kosong lebih pendek dari 50",
+            "1, hanya @Size"
+          ],
+          "answer": 0,
+          "explanation": "Kosong tetap tidak lebih dari 50 huruf.",
+          "remedial": "String kosong panjangnya 0, jadi `@Size(max = 50)` terpenuhi. Hanya `@NotBlank` yang dilanggar."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Library yang paling banyak dipakai untuk menjalankan aturan Bean Validation adalah...",
+      "options": [
+        "Jackson",
+        "Hibernate Validator",
+        "Lombok",
+        "Logback"
+      ],
+      "answer": 1,
+      "explanation": "Implementasi dari standar Jakarta Validation."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca data pendaftar dengan format nama;kota per baris, lalu mencetak Baris n: dan hasil periksa. Aturannya: nama wajib diisi (tidak boleh kosong atau hanya spasi), dan kota paling panjang 20 huruf (boleh kosong). Kode main dan method periksa sudah lengkap. Tambahkan anotasi yang tepat di class Pendaftar.",
+      "starterCode": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        int n = 1;\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            System.out.println(\"Baris \" + n++ + \":\");\n            periksa(new Pendaftar(d[0], d[1]));\n        }\n    }\n}\n\nclass Pendaftar {\n    String nama;\n    String kota;\n\n    Pendaftar(String nama, String kota) {\n        this.nama = nama;\n        this.kota = kota;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        int n = 1;\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            System.out.println(\"Baris \" + n++ + \":\");\n            periksa(new Pendaftar(d[0], d[1]));\n        }\n    }\n}\n\nclass Pendaftar {\n    @NotBlank\n    String nama;\n\n    @Size(max = 20)\n    String kota;\n\n    Pendaftar(String nama, String kota) {\n        this.nama = nama;\n        this.kota = kota;\n    }\n}",
+      "tests": [
+        {
+          "input": "Sari;Bandung\n;Bogor\nBudi;Kota Administrasi Jakarta Selatan\n",
+          "expectedOutput": "Baris 1:\nValid\nBaris 2:\nnama: must not be blank\nBaris 3:\nkota: size must be between 0 and 20\n"
+        },
+        {
+          "input": "  ;\n",
+          "expectedOutput": "Baris 1:\nnama: must not be blank\n"
+        }
+      ],
+      "hints": [
+        "Nama: @NotBlank. Kota: @Size(max = 20).",
+        "String kosong lolos @Size, jadi kota kosong tetap Valid."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Bean Validation menulis aturan data sebagai anotasi; Hibernate Validator menjalankannya.",
+        "validator.validate(obj) mengembalikan Set pelanggaran; kosong berarti valid.",
+        "Setiap pelanggaran punya getPropertyPath, getMessage, dan getInvalidValue.",
+        "@NotBlank menolak null, kosong, dan spasi saja; @Size membatasi panjang."
+      ]
+    }
+  ]
+}

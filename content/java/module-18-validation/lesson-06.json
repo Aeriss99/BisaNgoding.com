@@ -1,0 +1,198 @@
+{
+  "id": "java-validation-06",
+  "moduleId": "validation",
+  "order": 6,
+  "title": "Validasi di Service",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Constraint sudah lengkap, tetapi siapa yang wajib memanggil validator? Kalau setiap tempat yang memanggil `tambah` harus ingat memvalidasi, cepat atau lambat ada yang lupa.\n\nTempat yang tepat adalah **pintu masuk** data: method service yang menyimpan. Service memvalidasi lebih dulu, dan kalau ada pelanggaran, menolak dengan exception. Tidak ada jalan untuk menyimpan data yang tidak valid.\n\nIbarat satpam di gerbang gedung: tidak perlu satpam di setiap ruangan, cukup satu di pintu masuk yang tidak bisa dilewati."
+    },
+    {
+      "type": "theory",
+      "content": "```java\nclass TodoService {\n    private final Validator validator;\n\n    TodoService(Validator validator) {\n        this.validator = validator;\n    }\n\n    Todo tambah(TodoBaru baru) {\n        Set<ConstraintViolation<TodoBaru>> salah = validator.validate(baru);\n        if (!salah.isEmpty()) {\n            throw new ConstraintViolationException(salah);\n        }\n        // aman: data sudah valid\n        ...\n    }\n}\n```\n\n- `Validator` disuntikkan lewat constructor, sama seperti repository (dependency injection).\n- **`ConstraintViolationException`** adalah exception bawaan Jakarta Validation yang membawa semua pelanggaran. Ia termasuk *unchecked*, jadi tidak perlu `throws`.\n- Pemanggil (view atau controller) menangkapnya dan menampilkan pesan:\n\n```java\ntry {\n    service.tambah(baru);\n} catch (ConstraintViolationException e) {\n    for (ConstraintViolation<?> v : e.getConstraintViolations()) {\n        ...\n    }\n}\n```\n\n`getMessage()` dari exception ini menggabungkan semua pelanggaran dalam urutan acak. Untuk pengguna, ambil pelanggarannya satu per satu dan urutkan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nstatic List<String> pesan(ConstraintViolationException e) {\n    List<String> hasil = new ArrayList<>();\n    for (ConstraintViolation<?> v : e.getConstraintViolations()) {\n        hasil.add(v.getPropertyPath() + \": \" + v.getMessage());\n    }\n    Collections.sort(hasil);\n    return hasil;\n}\n```\n\nDi Proyek Todolist OOP, service memeriksa judul dengan `if` dan melempar `IllegalArgumentException`. Dengan Bean Validation, aturannya pindah ke anotasi di `TodoBaru`, dan service hanya punya satu langkah: validasi.\n\n| Sebelum | Sesudah |\n|---|---|\n| `if (judul.trim().isEmpty()) throw ...` | `@NotBlank` di field |\n| `if (judul.length() > 50) throw ...` | `@Size(max = 50)` |\n| satu pesan per percobaan | semua pesan sekaligus |\n\nAturan yang butuh data lain, misalnya \"judul belum pernah dipakai\", tetap ditulis di service, karena anotasi di `TodoBaru` tidak bisa melihat isi repository."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    public static void main(String[] args) {\n        TodoService service = new TodoService(VALIDATOR);\n        try {\n            service.tambah(new TodoBaru(\"\", 5));\n            System.out.println(\"Tersimpan\");\n        } catch (ConstraintViolationException e) {\n            System.out.println(\"Ditolak: \" + e.getConstraintViolations().size());\n        }\n        System.out.println(\"Jumlah todo: \" + service.semua().size());\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @Size(max = 50, message = \"Judul maksimal {max} huruf\")\n    String judul;\n\n    @Min(value = 1, message = \"Prioritas minimal {value}\")\n    @Max(value = 3, message = \"Prioritas maksimal {value}\")\n    int prioritas;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final int prioritas;\n\n    Todo(int id, String judul, int prioritas) {\n        this.id = id;\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". \" + judul + \" (P\" + prioritas + \")\";\n    }\n}\n\nclass TodoService {\n    private final Validator validator;\n    private final List<Todo> data = new ArrayList<>();\n\n    TodoService(Validator validator) {\n        this.validator = validator;\n    }\n\n    Todo tambah(TodoBaru baru) {\n        Set<ConstraintViolation<TodoBaru>> salah = validator.validate(baru);\n        if (!salah.isEmpty()) {\n            throw new ConstraintViolationException(salah);\n        }\n        Todo t = new Todo(data.size() + 1, baru.judul.trim(), baru.prioritas);\n        data.add(t);\n        return t;\n    }\n\n    List<Todo> semua() {\n        return data;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: judul kosong dan prioritas 5. Apa baris terakhir yang tercetak?",
+        "options": [
+          "Jumlah todo: 1",
+          "Tersimpan",
+          "Jumlah todo: 0",
+          "Ditolak: 1"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 62,
+          "note": "Validasi sebelum menyimpan."
+        },
+        {
+          "line": 64,
+          "note": "Menolak dengan semua pelanggaran."
+        },
+        {
+          "line": 14,
+          "note": "Pemanggil menangkap dan memberi tahu pengguna."
+        }
+      ],
+      "explanation": "Ada dua pelanggaran, jadi tercetak Ditolak: 2. Exception dilempar sebelum data.add, sehingga baris Tersimpan dilewati dan tidak ada todo yang masuk.\n\nData yang tidak valid tidak pernah sampai ke penyimpanan.",
+      "tryThis": [
+        {
+          "task": "Ubah prioritas menjadi 2. Berapa jumlah pelanggarannya?",
+          "hint": null
+        },
+        {
+          "task": "Isi dengan judul \"Belajar\" dan prioritas 2 lalu jalankan.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Validasi di banyak tempat**\n\nView memvalidasi, service juga, controller juga. Saat aturan berubah, satu tempat terlupa. Satu pintu masuk cukup.\n\n**2. Menyimpan dulu, validasi belakangan**\n\nKalau `data.add` ditulis sebelum validasi, data salah sudah tersimpan saat exception dilempar.\n\n**3. Menampilkan `e.getMessage()` ke pengguna**\n\nHasilnya seperti `judul: Judul wajib diisi, prioritas: Prioritas maksimal 3` dengan urutan berubah-ubah. Susun sendiri dari `getConstraintViolations()`.\n\n**4. Memaksakan semua aturan ke anotasi**\n\nAturan yang butuh database (email belum dipakai, stok cukup) lebih jelas ditulis di service."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di Spring, controller menulis `@Valid` di parameter, dan Spring yang memanggil validator:\n\n```java\n@PostMapping(\"/todos\")\nTodo tambah(@Valid @RequestBody TodoBaru baru) {\n    return service.tambah(baru);\n}\n```\n\nKalau ada pelanggaran, Spring melempar `MethodArgumentNotValidException` dan membalas **400 Bad Request**.\n\n- Service juga bisa divalidasi otomatis: beri `@Validated` di class service dan `@Valid` di parameter method. Spring melempar `ConstraintViolationException` yang sama dengan yang kita lempar sendiri.\n- **Groups** dipakai kalau aturan berbeda antara membuat dan mengubah data, misalnya `id` wajib kosong saat membuat dan wajib ada saat mengubah: `@NotNull(groups = SaatUbah.class)`.\n- Tim biasanya membuat satu tempat (di Spring: `@RestControllerAdvice`) yang mengubah exception validasi menjadi JSON berisi daftar pesan per field."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Formulir Todo 6: Satpam di Gerbang",
+      "pembuka": "`TodoService` memvalidasi `TodoBaru` sebelum menyimpan.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Service memanggil validator dan melempar `ConstraintViolationException`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static List<String> pesan(ConstraintViolationException e) {\n        List<String> hasil = new ArrayList<>();\n        for (ConstraintViolation<?> v : e.getConstraintViolations()) {\n            hasil.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(hasil);\n        return hasil;\n    }\n\n    public static void main(String[] args) {\n        TodoService service = new TodoService(VALIDATOR);\n        System.out.println(service.tambah(new TodoBaru(\"Belajar validasi\", 1)));\n        try {\n            service.tambah(new TodoBaru(\"\", 2));\n        } catch (ConstraintViolationException e) {\n            System.out.println(\"Gagal: \" + e.getConstraintViolations().size() + \" kesalahan\");\n        }\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @Size(max = 50, message = \"Judul maksimal {max} huruf\")\n    String judul;\n\n    @Min(value = 1, message = \"Prioritas minimal {value}\")\n    @Max(value = 3, message = \"Prioritas maksimal {value}\")\n    int prioritas;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final int prioritas;\n\n    Todo(int id, String judul, int prioritas) {\n        this.id = id;\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". \" + judul + \" (P\" + prioritas + \")\";\n    }\n}\n\nclass TodoService {\n    private final Validator validator;\n    private final List<Todo> data = new ArrayList<>();\n\n    TodoService(Validator validator) {\n        this.validator = validator;\n    }\n\n    Todo tambah(TodoBaru baru) {\n        Set<ConstraintViolation<TodoBaru>> salah = validator.validate(baru);\n        if (!salah.isEmpty()) {\n            throw new ConstraintViolationException(salah);\n        }\n        Todo t = new Todo(data.size() + 1, baru.judul.trim(), baru.prioritas);\n        data.add(t);\n        return t;\n    }\n\n    List<Todo> semua() {\n        return data;\n    }\n}\n",
+          "keluaran": "1. Belajar validasi (P1)\nGagal: 1 kesalahan",
+          "otomatis": true,
+          "benar": "Judul kosong ditolak sebelum disimpan.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Tambahkan percobaan dengan judul `\" \"` dan prioritas 9. Tangkap exception-nya dan cetak setiap pesan dari method `pesan(e)` dengan awalan `\"- \"`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static List<String> pesan(ConstraintViolationException e) {\n        List<String> hasil = new ArrayList<>();\n        for (ConstraintViolation<?> v : e.getConstraintViolations()) {\n            hasil.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(hasil);\n        return hasil;\n    }\n\n    public static void main(String[] args) {\n        TodoService service = new TodoService(VALIDATOR);\n        System.out.println(service.tambah(new TodoBaru(\"Belajar validasi\", 1)));\n        try {\n            service.tambah(new TodoBaru(\"\", 2));\n        } catch (ConstraintViolationException e) {\n            System.out.println(\"Gagal: \" + e.getConstraintViolations().size() + \" kesalahan\");\n        }\n\n        try {\n            service.tambah(new TodoBaru(\" \", 9));\n        } catch (ConstraintViolationException e) {\n            for (String p : pesan(e)) {\n                System.out.println(\"- \" + p);\n            }\n        }\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @Size(max = 50, message = \"Judul maksimal {max} huruf\")\n    String judul;\n\n    @Min(value = 1, message = \"Prioritas minimal {value}\")\n    @Max(value = 3, message = \"Prioritas maksimal {value}\")\n    int prioritas;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final int prioritas;\n\n    Todo(int id, String judul, int prioritas) {\n        this.id = id;\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". \" + judul + \" (P\" + prioritas + \")\";\n    }\n}\n\nclass TodoService {\n    private final Validator validator;\n    private final List<Todo> data = new ArrayList<>();\n\n    TodoService(Validator validator) {\n        this.validator = validator;\n    }\n\n    Todo tambah(TodoBaru baru) {\n        Set<ConstraintViolation<TodoBaru>> salah = validator.validate(baru);\n        if (!salah.isEmpty()) {\n            throw new ConstraintViolationException(salah);\n        }\n        Todo t = new Todo(data.size() + 1, baru.judul.trim(), baru.prioritas);\n        data.add(t);\n        return t;\n    }\n\n    List<Todo> semua() {\n        return data;\n    }\n}\n",
+          "keluaran": "1. Belajar validasi (P1)\nGagal: 1 kesalahan\n- judul: Judul wajib diisi\n- prioritas: Prioritas maksimal 3",
+          "wajib": [
+            {
+              "pola": "new\\s+TodoBaru\\s*\\(\\s*\" \"\\s*,\\s*9\\s*\\)",
+              "pesan": "coba `new TodoBaru(\" \", 9)`."
+            },
+            {
+              "pola": "for\\s*\\(\\s*String\\s+\\w+\\s*:\\s*pesan\\s*\\(\\s*e\\s*\\)\\s*\\)",
+              "pesan": "ulangi hasil `pesan(e)` dengan for."
+            }
+          ],
+          "benar": "Pengguna melihat semua kesalahannya sekaligus, terurut.",
+          "petunjuk": "Blok try-catch baru, lalu `for (String p : pesan(e)) { System.out.println(\"- \" + p); }`."
+        },
+        {
+          "arahan": "Tantangan: tambahkan todo `\"  Rapat tim  \"` prioritas 3 (dengan spasi di depan dan belakang), lalu cetak semua todo di service.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static List<String> pesan(ConstraintViolationException e) {\n        List<String> hasil = new ArrayList<>();\n        for (ConstraintViolation<?> v : e.getConstraintViolations()) {\n            hasil.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(hasil);\n        return hasil;\n    }\n\n    public static void main(String[] args) {\n        TodoService service = new TodoService(VALIDATOR);\n        System.out.println(service.tambah(new TodoBaru(\"Belajar validasi\", 1)));\n        try {\n            service.tambah(new TodoBaru(\"\", 2));\n        } catch (ConstraintViolationException e) {\n            System.out.println(\"Gagal: \" + e.getConstraintViolations().size() + \" kesalahan\");\n        }\n\n        try {\n            service.tambah(new TodoBaru(\" \", 9));\n        } catch (ConstraintViolationException e) {\n            for (String p : pesan(e)) {\n                System.out.println(\"- \" + p);\n            }\n        }\n\n        service.tambah(new TodoBaru(\"  Rapat tim  \", 3));\n        for (Todo t : service.semua()) {\n            System.out.println(t);\n        }\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    @Size(max = 50, message = \"Judul maksimal {max} huruf\")\n    String judul;\n\n    @Min(value = 1, message = \"Prioritas minimal {value}\")\n    @Max(value = 3, message = \"Prioritas maksimal {value}\")\n    int prioritas;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n\nclass Todo {\n    private final int id;\n    private final String judul;\n    private final int prioritas;\n\n    Todo(int id, String judul, int prioritas) {\n        this.id = id;\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n\n    @Override\n    public String toString() {\n        return id + \". \" + judul + \" (P\" + prioritas + \")\";\n    }\n}\n\nclass TodoService {\n    private final Validator validator;\n    private final List<Todo> data = new ArrayList<>();\n\n    TodoService(Validator validator) {\n        this.validator = validator;\n    }\n\n    Todo tambah(TodoBaru baru) {\n        Set<ConstraintViolation<TodoBaru>> salah = validator.validate(baru);\n        if (!salah.isEmpty()) {\n            throw new ConstraintViolationException(salah);\n        }\n        Todo t = new Todo(data.size() + 1, baru.judul.trim(), baru.prioritas);\n        data.add(t);\n        return t;\n    }\n\n    List<Todo> semua() {\n        return data;\n    }\n}\n",
+          "keluaran": "1. Belajar validasi (P1)\nGagal: 1 kesalahan\n- judul: Judul wajib diisi\n- prioritas: Prioritas maksimal 3\n1. Belajar validasi (P1)\n2. Rapat tim (P3)",
+          "wajib": [
+            {
+              "pola": "service\\.semua\\(\\)",
+              "pesan": "ulangi `service.semua()`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Hanya dua todo yang tersimpan. Judul dirapikan dengan `trim()` oleh service setelah lolos validasi.",
+          "petunjuk": "`service.tambah(...)` lalu ulangi `service.semua()`."
+        }
+      ],
+      "penutup": "Formulir Todo selesai: aturan di anotasi, pesan berbahasa Indonesia, dan satu pintu masuk di service."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di mana validasi sebaiknya dipanggil supaya data tidak valid tidak pernah tersimpan?",
+          "options": [
+            "Di setiap view yang memanggil service",
+            "Di repository setelah data disimpan",
+            "Di method toString",
+            "Di awal method service yang menyimpan data"
+          ],
+          "answer": 3,
+          "explanation": "Satu pintu masuk.",
+          "remedial": "Service adalah pintu masuk data. Memvalidasi di awal method penyimpan memastikan setiap jalan masuk diperiksa tanpa harus diingat oleh setiap pemanggil."
+        },
+        {
+          "question": "ConstraintViolationException membawa...",
+          "options": [
+            "Semua pelanggaran yang ditemukan",
+            "Hanya pelanggaran pertama",
+            "Hanya pesan dalam bahasa Inggris",
+            "Object yang sudah tersimpan"
+          ],
+          "answer": 0,
+          "explanation": "Lihat getConstraintViolations.",
+          "remedial": "Exception ini dibuat dari Set pelanggaran hasil `validate`, dan `getConstraintViolations()` mengembalikan semuanya."
+        },
+        {
+          "question": "Aturan \"judul belum pernah dipakai todo lain\" paling tepat ditulis di...",
+          "options": [
+            "Anotasi @NotBlank",
+            "Service, karena butuh data dari repository",
+            "Anotasi @Size",
+            "Constructor TodoBaru"
+          ],
+          "answer": 1,
+          "explanation": "Butuh data lain.",
+          "remedial": "Constraint di `TodoBaru` hanya melihat isi object itu sendiri. Memeriksa todo lain butuh repository, dan itu tugas service."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Kenapa method service tidak perlu menulis throws ConstraintViolationException?",
+      "options": [
+        "Karena validator menangkapnya sendiri",
+        "Karena exception itu tidak pernah dilempar",
+        "Karena exception itu unchecked",
+        "Karena Java 8 melarang throws"
+      ],
+      "answer": 2,
+      "explanation": "Turunan RuntimeException."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program pendaftaran membaca peserta dengan format nama;email per baris. Peserta yang valid dicetak OK: nama, yang tidak valid dicetak Ditolak: diikuti setiap pesannya, dan di akhir dicetak Tersimpan: jumlah peserta yang tersimpan. Class Peserta dan kode main sudah lengkap, tetapi PesertaService menyimpan semua peserta tanpa memeriksa. Lengkapi method daftar supaya memvalidasi dan melempar ConstraintViolationException sebelum menyimpan.",
+      "starterCode": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static List<String> pesan(ConstraintViolationException e) {\n        List<String> hasil = new ArrayList<>();\n        for (ConstraintViolation<?> v : e.getConstraintViolations()) {\n            hasil.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(hasil);\n        return hasil;\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        PesertaService service = new PesertaService(VALIDATOR);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            try {\n                service.daftar(new Peserta(d[0], d[1]));\n                System.out.println(\"OK: \" + d[0]);\n            } catch (ConstraintViolationException e) {\n                for (String p : pesan(e)) {\n                    System.out.println(\"Ditolak: \" + p);\n                }\n            }\n        }\n        System.out.println(\"Tersimpan: \" + service.jumlah());\n    }\n}\n\nclass Peserta {\n    @NotBlank(message = \"Nama wajib diisi\")\n    String nama;\n\n    @NotBlank(message = \"Email wajib diisi\")\n    @Email(message = \"Email tidak valid\")\n    String email;\n\n    Peserta(String nama, String email) {\n        this.nama = nama;\n        this.email = email;\n    }\n}\n\nclass PesertaService {\n    private final Validator validator;\n    private final List<Peserta> data = new ArrayList<>();\n\n    PesertaService(Validator validator) {\n        this.validator = validator;\n    }\n\n    void daftar(Peserta p) {\n        data.add(p);\n    }\n\n    int jumlah() {\n        return data.size();\n    }\n}",
+      "solution": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static List<String> pesan(ConstraintViolationException e) {\n        List<String> hasil = new ArrayList<>();\n        for (ConstraintViolation<?> v : e.getConstraintViolations()) {\n            hasil.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(hasil);\n        return hasil;\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        PesertaService service = new PesertaService(VALIDATOR);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            try {\n                service.daftar(new Peserta(d[0], d[1]));\n                System.out.println(\"OK: \" + d[0]);\n            } catch (ConstraintViolationException e) {\n                for (String p : pesan(e)) {\n                    System.out.println(\"Ditolak: \" + p);\n                }\n            }\n        }\n        System.out.println(\"Tersimpan: \" + service.jumlah());\n    }\n}\n\nclass Peserta {\n    @NotBlank(message = \"Nama wajib diisi\")\n    String nama;\n\n    @NotBlank(message = \"Email wajib diisi\")\n    @Email(message = \"Email tidak valid\")\n    String email;\n\n    Peserta(String nama, String email) {\n        this.nama = nama;\n        this.email = email;\n    }\n}\n\nclass PesertaService {\n    private final Validator validator;\n    private final List<Peserta> data = new ArrayList<>();\n\n    PesertaService(Validator validator) {\n        this.validator = validator;\n    }\n\n    void daftar(Peserta p) {\n        Set<ConstraintViolation<Peserta>> salah = validator.validate(p);\n        if (!salah.isEmpty()) {\n            throw new ConstraintViolationException(salah);\n        }\n        data.add(p);\n    }\n\n    int jumlah() {\n        return data.size();\n    }\n}",
+      "tests": [
+        {
+          "input": "Sari;sari@mail.com\n;budi@\nDewi;dewi@kantor.id\n",
+          "expectedOutput": "OK: Sari\nDitolak: email: Email tidak valid\nDitolak: nama: Nama wajib diisi\nOK: Dewi\nTersimpan: 2\n"
+        },
+        {
+          "input": "Andi;\n",
+          "expectedOutput": "Ditolak: email: Email wajib diisi\nTersimpan: 0\n"
+        }
+      ],
+      "hints": [
+        "Panggil validator.validate(p) di awal method daftar.",
+        "Kalau hasilnya tidak kosong: throw new ConstraintViolationException(salah); sebelum data.add(p)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Validasi di pintu masuk: awal method service yang menyimpan.",
+        "Pelanggaran dilempar sebagai ConstraintViolationException (unchecked).",
+        "Pemanggil menangkap, mengurutkan, dan menampilkan pesannya.",
+        "Aturan yang butuh data lain tetap ditulis di service."
+      ]
+    }
+  ]
+}

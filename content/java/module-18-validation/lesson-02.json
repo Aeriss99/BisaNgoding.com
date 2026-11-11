@@ -1,0 +1,211 @@
+{
+  "id": "java-validation-02",
+  "moduleId": "validation",
+  "order": 2,
+  "title": "Constraint yang Sering Dipakai",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "`@NotBlank` dan `@Size` baru permulaan. Formulir sungguhan berisi angka, email, nomor HP, dan tanggal, masing-masing dengan aturan sendiri.\n\nJakarta Validation menyediakan sekitar 20 constraint siap pakai, jadi hampir semua aturan umum tidak perlu ditulis sendiri.\n\nIbarat kotak perkakas: ada obeng, kunci pas, dan tang. Pilih alat yang cocok untuk setiap baut, jangan memaksa satu obeng untuk semua."
+    },
+    {
+      "type": "theory",
+      "content": "**Ada isinya atau tidak**\n\n| Anotasi | Menolak | Untuk tipe |\n|---|---|---|\n| `@NotNull` | `null` | semua tipe |\n| `@NotEmpty` | `null` dan panjang 0 | String, List, Map, array |\n| `@NotBlank` | `null`, kosong, dan spasi saja | String |\n\n**Angka**\n\n| Anotasi | Artinya |\n|---|---|\n| `@Min(1)`, `@Max(3)` | batas bawah dan atas (termasuk) |\n| `@Positive`, `@PositiveOrZero` | lebih dari 0, atau 0 ke atas |\n| `@DecimalMin(\"0.5\")` | batas untuk angka desimal seperti `BigDecimal` |\n\n**Bentuk teks dan tanggal**\n\n| Anotasi | Artinya |\n|---|---|\n| `@Email` | bentuk alamat email |\n| `@Pattern(regexp = \"08[0-9]{8,11}\")` | cocok dengan regex, **seluruh** teks |\n| `@Past`, `@Future`, `@PastOrPresent` | tanggal sebelum atau sesudah sekarang |\n\nSatu aturan penting: **semua constraint selain `@NotNull`, `@NotEmpty`, dan `@NotBlank` menganggap null valid**. Field email yang wajib diisi ditulis dengan dua anotasi:\n\n```java\n@NotBlank\n@Email\nString email;\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nclass Akun {\n    @NotBlank\n    String nama;\n\n    @NotBlank\n    @Email\n    String email;\n\n    @Pattern(regexp = \"08[0-9]{8,11}\")\n    String hp;\n\n    @Min(17)\n    int umur;\n\n    @Past\n    LocalDate tanggalLahir;\n}\n```\n\nPesan bawaan untuk masing-masing:\n\n| Anotasi | Pesan |\n|---|---|\n| `@Min(17)` | `must be greater than or equal to 17` |\n| `@Max(3)` | `must be less than or equal to 3` |\n| `@Email` | `must be a well-formed email address` |\n| `@Pattern` | `must match \"08[0-9]{8,11}\"` |\n| `@Positive` | `must be greater than 0` |\n\nUntuk tipe `int` (primitif), nilai bawaannya 0, bukan null. Jadi field `int` yang lupa diisi akan bernilai 0 dan diperiksa oleh `@Min`."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new Isian());\n    }\n}\n\nclass Isian {\n    @NotNull\n    String a = \"   \";\n\n    @NotEmpty\n    String b = \"   \";\n\n    @NotBlank\n    String c = \"   \";\n}",
+      "predict": {
+        "question": "Tebak dulu: ketiga field berisi tiga spasi. Pesan apa yang muncul?",
+        "options": [
+          "a: must not be null",
+          "b: must not be empty",
+          "c: must not be blank",
+          "Valid"
+        ],
+        "answer": 2
+      },
+      "annotations": [
+        {
+          "line": 29,
+          "note": "Hanya menolak null."
+        },
+        {
+          "line": 32,
+          "note": "Menolak null dan panjang 0."
+        },
+        {
+          "line": 35,
+          "note": "Menolak juga yang hanya spasi."
+        }
+      ],
+      "explanation": "Tiga spasi bukan null, jadi NotNull lolos. Panjangnya 3, bukan 0, jadi NotEmpty juga lolos. Hanya NotBlank yang melihat isinya hanya spasi.\n\nUntuk input teks dari pengguna, NotBlank hampir selalu pilihan yang tepat.",
+      "tryThis": [
+        {
+          "task": "Ubah ketiga nilai menjadi string kosong \"\". Field mana saja yang ditolak?",
+          "hint": null
+        },
+        {
+          "task": "Ubah ketiganya menjadi null.",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira `@Email` atau `@Size` menolak null**\n\nField `@Email String email` yang null dianggap valid. Tambahkan `@NotBlank` kalau wajib diisi.\n\n**2. Memasang constraint di tipe yang salah**\n\n`@Size` di field `int`, atau `@NotBlank` di field `Integer`, tidak gagal saat compile. Error baru muncul saat validasi: `UnexpectedTypeException: No validator could be found for constraint ...`. Untuk angka pakai `@Min`, `@Max`, atau `@Positive`.\n\n**3. Mengira `@Email` memeriksa domain sungguhan**\n\n`sari@kantor` dianggap valid karena bentuknya benar. `@Email` tidak mengecek apakah alamat itu ada. Untuk memastikan email milik pengguna, kirim email verifikasi.\n\n**4. `@Pattern` hanya cocok sebagian**\n\nRegex harus cocok dengan **seluruh** teks. `@Pattern(regexp = \"08\")` menolak `\"0812345678\"`, karena teks itu lebih dari sekadar `08`.\n\n**5. Memakai `@Future` dengan tanggal tetap di test**\n\nTanggal \"besok\" yang ditulis hari ini akan menjadi masa lalu bulan depan, dan test tiba-tiba gagal. Di test, buat tanggal relatif dari hari ini."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Class yang menampung data dari luar (form, request JSON) biasa disebut **DTO** (*Data Transfer Object*) atau *request*: `DaftarRequest`, `TodoBaru`. Constraint ditulis di class ini, bukan di entity database.\n- Hibernate Validator menambah constraint di luar standar, seperti `@URL`, `@Range(min = 1, max = 3)`, dan `@CreditCardNumber`, di paket `org.hibernate.validator.constraints`.\n- Aturan yang sama sering ditulis dua kali: di form HTML (`required`, `maxlength`) untuk kenyamanan pengguna, dan di backend dengan Bean Validation untuk keamanan.\n- Untuk uang, pakai `BigDecimal` dengan `@DecimalMin(\"0.00\")` dan `@Digits(integer = 12, fraction = 2)`."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Formulir Todo 2: Prioritas dan Pengingat",
+      "pembuka": "`TodoBaru` sekarang punya prioritas 1 sampai 3.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Prioritas diberi `@Min(1)` dan `@Max(3)`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"Belajar validasi\", 2));\n        periksa(new TodoBaru(\"Belajar validasi\", 5));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank\n    @Size(max = 50)\n    String judul;\n\n    @Min(1)\n    @Max(3)\n    int prioritas;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n",
+          "keluaran": "Valid\nprioritas: must be less than or equal to 3",
+          "otomatis": true,
+          "benar": "Prioritas 5 ditolak oleh `@Max`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Periksa todo dengan judul kosong dan prioritas 0: `new TodoBaru(\"\", 0)`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"Belajar validasi\", 2));\n        periksa(new TodoBaru(\"Belajar validasi\", 5));\n        periksa(new TodoBaru(\"\", 0));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank\n    @Size(max = 50)\n    String judul;\n\n    @Min(1)\n    @Max(3)\n    int prioritas;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n",
+          "keluaran": "Valid\nprioritas: must be less than or equal to 3\njudul: must not be blank\nprioritas: must be greater than or equal to 1",
+          "wajib": [
+            {
+              "pola": "new\\s+TodoBaru\\s*\\(\\s*\"\"\\s*,\\s*0\\s*\\)",
+              "pesan": "periksa `new TodoBaru(\"\", 0)`."
+            }
+          ],
+          "benar": "Dua pelanggaran dilaporkan sekaligus.",
+          "petunjuk": "Satu baris `periksa(...)` lagi."
+        },
+        {
+          "arahan": "Tambahkan field `String emailPengingat` dengan `@Email`. Buat todo `\"Rapat tim\"` prioritas 1, isi `t.emailPengingat = \"sari@\";`, lalu periksa.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"Belajar validasi\", 2));\n        periksa(new TodoBaru(\"Belajar validasi\", 5));\n        periksa(new TodoBaru(\"\", 0));\n\n        TodoBaru t = new TodoBaru(\"Rapat tim\", 1);\n        t.emailPengingat = \"sari@\";\n        periksa(t);\n    }\n}\n\nclass TodoBaru {\n    @NotBlank\n    @Size(max = 50)\n    String judul;\n\n    @Min(1)\n    @Max(3)\n    int prioritas;\n\n    @Email\n    String emailPengingat;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n",
+          "keluaran": "Valid\nprioritas: must be less than or equal to 3\njudul: must not be blank\nprioritas: must be greater than or equal to 1\nemailPengingat: must be a well-formed email address",
+          "wajib": [
+            {
+              "pola": "@Email\\s+String\\s+emailPengingat",
+              "pesan": "buat field `@Email String emailPengingat`."
+            },
+            {
+              "pola": "t\\.emailPengingat\\s*=\\s*\"sari@\"",
+              "pesan": "isi `t.emailPengingat = \"sari@\"`."
+            }
+          ],
+          "benar": "Bentuk email salah ditolak.",
+          "petunjuk": "Field baru di class `TodoBaru`, lalu di main: `TodoBaru t = new TodoBaru(\"Rapat tim\", 1);`."
+        },
+        {
+          "arahan": "Tantangan: email pengingat sifatnya pilihan. Isi `t.emailPengingat` dengan `null` lalu periksa lagi. Tebak dulu hasilnya sebelum menjalankan.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"Belajar validasi\", 2));\n        periksa(new TodoBaru(\"Belajar validasi\", 5));\n        periksa(new TodoBaru(\"\", 0));\n\n        TodoBaru t = new TodoBaru(\"Rapat tim\", 1);\n        t.emailPengingat = \"sari@\";\n        periksa(t);\n\n        t.emailPengingat = null;\n        periksa(t);\n    }\n}\n\nclass TodoBaru {\n    @NotBlank\n    @Size(max = 50)\n    String judul;\n\n    @Min(1)\n    @Max(3)\n    int prioritas;\n\n    @Email\n    String emailPengingat;\n\n    TodoBaru(String judul, int prioritas) {\n        this.judul = judul;\n        this.prioritas = prioritas;\n    }\n}\n",
+          "keluaran": "Valid\nprioritas: must be less than or equal to 3\njudul: must not be blank\nprioritas: must be greater than or equal to 1\nemailPengingat: must be a well-formed email address\nValid",
+          "wajib": [
+            {
+              "pola": "t\\.emailPengingat\\s*=\\s*null",
+              "pesan": "isi `t.emailPengingat = null`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Valid. `@Email` menganggap null boleh, cocok untuk isian yang tidak wajib.",
+          "petunjuk": "`t.emailPengingat = null;` lalu `periksa(t);`."
+        }
+      ],
+      "penutup": "Formulir Todo memeriksa teks, angka, dan email. Pesannya masih bahasa Inggris; itu yang kita ubah berikutnya."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Field email harus diisi dan berbentuk email. Anotasi yang tepat adalah...",
+          "options": [
+            "@Email saja",
+            "@NotNull saja",
+            "@Size dan @Email",
+            "@NotBlank dan @Email"
+          ],
+          "answer": 3,
+          "explanation": "Null lolos dari @Email.",
+          "remedial": "`@Email` hanya memeriksa bentuk, dan null dianggap valid. `@NotBlank` menolak null, kosong, dan spasi, sehingga keduanya dipakai bersama."
+        },
+        {
+          "question": "Field int umur diberi @Min(17) dan tidak diisi sama sekali. Hasil validasinya...",
+          "options": [
+            "Ditolak, karena nilai bawaan int adalah 0",
+            "Valid, karena belum diisi",
+            "Error NullPointerException",
+            "Diabaikan oleh validator"
+          ],
+          "answer": 0,
+          "explanation": "Primitif tidak bisa null.",
+          "remedial": "`int` selalu punya nilai, bawaannya 0. Validator memeriksa 0 terhadap `@Min(17)` dan menolaknya."
+        },
+        {
+          "question": "Constraint yang tepat untuk jumlah barang yang harus lebih dari nol adalah...",
+          "options": [
+            "@NotBlank",
+            "@Positive",
+            "@Size(min = 1)",
+            "@NotEmpty"
+          ],
+          "answer": 1,
+          "explanation": "Constraint angka.",
+          "remedial": "`@Positive` menolak 0 dan angka negatif. `@NotBlank`, `@NotEmpty`, dan `@Size` dipakai untuk teks atau koleksi, bukan angka."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pemasangan @Size di field int menghasilkan...",
+      "options": [
+        "Error saat compile",
+        "Pesan size must be between",
+        "UnexpectedTypeException saat validasi",
+        "Field selalu valid"
+      ],
+      "answer": 2,
+      "explanation": "Ketahuan saat validasi berjalan."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca akun dengan format nama;email;umur per baris lalu mencetak Akun n: dan hasil periksa. Aturannya: nama wajib diisi, email wajib diisi dan berbentuk email, umur minimal 17. Kode main dan periksa sudah lengkap. Tambahkan anotasi yang tepat di class Akun.",
+      "starterCode": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        int n = 1;\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            System.out.println(\"Akun \" + n++ + \":\");\n            periksa(new Akun(d[0], d[1], Integer.parseInt(d[2])));\n        }\n    }\n}\n\nclass Akun {\n    String nama;\n    String email;\n    int umur;\n\n    Akun(String nama, String email, int umur) {\n        this.nama = nama;\n        this.email = email;\n        this.umur = umur;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        int n = 1;\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            System.out.println(\"Akun \" + n++ + \":\");\n            periksa(new Akun(d[0], d[1], Integer.parseInt(d[2])));\n        }\n    }\n}\n\nclass Akun {\n    @NotBlank\n    String nama;\n\n    @NotBlank\n    @Email\n    String email;\n\n    @Min(17)\n    int umur;\n\n    Akun(String nama, String email, int umur) {\n        this.nama = nama;\n        this.email = email;\n        this.umur = umur;\n    }\n}",
+      "tests": [
+        {
+          "input": "Sari;sari@mail.com;20\nBudi;budi@;15\n;;30\n",
+          "expectedOutput": "Akun 1:\nValid\nAkun 2:\nemail: must be a well-formed email address\numur: must be greater than or equal to 17\nAkun 3:\nemail: must not be blank\nnama: must not be blank\n"
+        },
+        {
+          "input": "Dewi;dewi@kantor.id;17\n",
+          "expectedOutput": "Akun 1:\nValid\n"
+        }
+      ],
+      "hints": [
+        "Email butuh dua anotasi: @NotBlank dan @Email.",
+        "Umur: @Min(17)."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@NotNull, @NotEmpty, @NotBlank: makin ke kanan makin ketat untuk teks.",
+        "Angka: @Min, @Max, @Positive; teks: @Email, @Pattern; tanggal: @Past, @Future.",
+        "Selain tiga anotasi Not, constraint menganggap null valid.",
+        "Constraint di tipe yang salah memicu UnexpectedTypeException saat validasi."
+      ]
+    }
+  ]
+}

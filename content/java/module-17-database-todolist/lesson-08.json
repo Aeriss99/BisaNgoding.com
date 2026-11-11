@@ -1,0 +1,240 @@
+{
+  "id": "java-database-todolist-08",
+  "moduleId": "database-todolist",
+  "order": 8,
+  "title": "Todolist dengan MySQL Sungguhan",
+  "estimatedMinutes": 17,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Semua kode Todolist Database sudah teruji dengan H2. Sekarang kita jalankan di laptop Sari dengan **MySQL sungguhan**, memakai proyek Maven dari modul-modul sebelumnya.\n\nYang berubah hanya cara membuat DataSource: `JdbcDataSource` H2 diganti `HikariDataSource` ke MySQL. Repository, service, dan view tetap sama.\n\nIbarat latihan menyetir di lapangan kosong lalu turun ke jalan raya: mobil dan cara mengemudinya sama, hanya lingkungannya yang sungguhan."
+    },
+    {
+      "type": "theory",
+      "content": "Bagian proyek Maven Todolist Database:\n\n```text\npom.xml                        mysql-connector-j, HikariCP, logback-classic, h2 (scope test)\nsrc/main/resources/schema.sql  CREATE TABLE IF NOT EXISTS todo (...)\nsrc/main/resources/logback.xml\nsrc/main/java/.../App.java     merakit HikariDataSource, repository, service\nsrc/test/java/.../TodoRepositoryJdbcTest.java   test dengan H2\n```\n\nSkema dijalankan sekali ke MySQL dari terminal:\n\n```bash\nmysql -u root -p todolist < src/main/resources/schema.sql\n```\n\nTanda `<` mengirim isi file sebagai masukan ke klien `mysql`.\n\n`App` versi ini menambah todo dari argumen program (kalau ada), lalu mencetak semua todo. Argumen untuk `exec:java` diberikan dengan `-Dexec.args=\"...\"`.\n\nSandi tetap dari environment variable `DB_PASSWORD`, dan alamat database bisa diganti lewat `DB_URL`."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nInti `App.java`:\n\n```java\nHikariConfig config = new HikariConfig();\nconfig.setJdbcUrl(System.getenv().getOrDefault(\"DB_URL\", \"jdbc:mysql://localhost:3306/todolist\"));\nconfig.setUsername(\"root\");\nconfig.setPassword(System.getenv(\"DB_PASSWORD\"));\ntry (HikariDataSource ds = new HikariDataSource(config)) {\n    TodoService service = new TodoService(new TodoRepositoryJdbc(ds));\n    if (args.length > 0) {\n        service.tambah(String.join(\" \", args));\n    }\n    for (Todo t : service.semua()) {\n        System.out.println(t);\n    }\n}\n```\n\n`TodoRepositoryJdbc` menerima `DataSource`, sehingga `HikariDataSource` bisa langsung dimasukkan tanpa mengubah satu baris pun di repository."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tabel belum dibuat di MySQL**\n\nAplikasi gagal dengan `Table 'todolist.todo' doesn't exist`. Jalankan `schema.sql` lebih dulu (atau pakai Flyway yang menjalankannya otomatis).\n\n**2. Lupa `export DB_PASSWORD` di terminal baru**\n\nEnvironment variable hanya berlaku di terminal tempat ia diatur. Terminal baru berarti `Access denied ... (using password: NO)`.\n\n**3. Data uji tercampur dengan data asli**\n\nMenjalankan test ke database MySQL yang sama dengan data asli bisa menghapus data (test membersihkan tabel). Test memakai H2 atau database khusus test.\n\n**4. Argumen dengan spasi tanpa kutip**\n\n`-Dexec.args=Belajar JDBC` terpotong. Tulis `-Dexec.args=\"Belajar JDBC\"`."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Di proyek Spring Boot, semua yang dirakit manual di `App` (pool, repository, service) dibuat otomatis dari `application.properties`, dan `schema.sql` atau migration Flyway dijalankan saat aplikasi mulai.\n- Aplikasi dan MySQL sering dijalankan bersama dengan **Docker Compose** di laptop developer:\n\n```yaml\nservices:\n  mysql:\n    image: mysql:8.4\n    environment:\n      MYSQL_ROOT_PASSWORD: rahasia\n      MYSQL_DATABASE: todolist\n    ports:\n      - \"3306:3306\"\n```\n\n- Di CI, integration test memakai MySQL dari Testcontainers atau service container, sehingga test tidak bergantung pada database di laptop siapa pun."
+    },
+    {
+      "type": "praktik_terminal",
+      "judul": "Todolist Database 8: Jalan di MySQL",
+      "folder": "~/todolist",
+      "pembuka": "Proyek Maven Todolist sudah berisi semua class dari modul ini. MySQL berjalan di laptop Sari dengan database `todolist` yang masih kosong.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Ini skema tabelnya.",
+          "terima": [
+            "cat src/main/resources/schema.sql"
+          ],
+          "keluaran": "CREATE TABLE IF NOT EXISTS todo (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  judul VARCHAR(100) NOT NULL,\n  selesai BOOLEAN NOT NULL DEFAULT FALSE\n);",
+          "petunjuk": "",
+          "otomatis": true,
+          "benar": "Sama dengan `Database.SKEMA` di praktik, hanya ditulis rapi di file.\n\nSekarang giliranmu."
+        },
+        {
+          "arahan": "Jalankan skema itu ke database todolist: `mysql -u root -p todolist < src/main/resources/schema.sql`.",
+          "terima": [
+            "mysql -u root -p todolist < src/main/resources/schema.sql",
+            "mysql -uroot -p todolist < src/main/resources/schema.sql"
+          ],
+          "keluaran": "Enter password:",
+          "petunjuk": "Ketik persis, termasuk tanda `<` sebelum nama file.",
+          "benar": "Tidak ada pesan setelah sandi berarti berhasil. Tabel `todo` sudah dibuat di MySQL."
+        },
+        {
+          "arahan": "Atur sandi database: `export DB_PASSWORD=rahasia`.",
+          "terima": [
+            "export DB_PASSWORD=rahasia"
+          ],
+          "keluaran": "",
+          "petunjuk": "Ketik `export DB_PASSWORD=rahasia`.",
+          "benar": "Siap dipakai aplikasi."
+        },
+        {
+          "arahan": "Jalankan aplikasinya dengan `mvn -q compile exec:java`.",
+          "terima": [
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q"
+          ],
+          "keluaran": "14:33:35.830 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...\n14:33:35.987 INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@531900d8\n14:33:35.988 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.\n14:33:36.014 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...\n14:33:36.017 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.",
+          "petunjuk": "Ketik `mvn -q compile exec:java`.",
+          "benar": "Pool HikariCP dimulai dan ditutup. Belum ada todo yang dicetak karena tabelnya masih kosong."
+        },
+        {
+          "arahan": "Tambahkan todo lewat argumen: `mvn -q exec:java -Dexec.args=\"Belajar JDBC\"`.",
+          "terima": [
+            "mvn -q exec:java -Dexec.args=\"Belajar JDBC\"",
+            "mvn -q exec:java -Dexec.args='Belajar JDBC'",
+            "mvn -q compile exec:java -Dexec.args=\"Belajar JDBC\""
+          ],
+          "keluaran": "14:33:53.853 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...\n14:33:54.008 INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@218d4665\n14:33:54.010 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.\n1. [ ] Belajar JDBC\n14:33:54.043 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...\n14:33:54.048 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.",
+          "petunjuk": "Judul berisi spasi, jadi bungkus dengan tanda kutip.",
+          "benar": "Todo pertama tersimpan di MySQL lewat `TodoService` dan `TodoRepositoryJdbc`."
+        },
+        {
+          "arahan": "Tambahkan todo kedua berjudul `Rapikan kode` dengan cara yang sama.",
+          "terima": [
+            "mvn -q exec:java -Dexec.args=\"Rapikan kode\"",
+            "mvn -q exec:java -Dexec.args='Rapikan kode'",
+            "mvn -q compile exec:java -Dexec.args=\"Rapikan kode\""
+          ],
+          "keluaran": "14:34:11.865 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...\n14:34:12.065 INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@592d56db\n14:34:12.068 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.\n1. [ ] Belajar JDBC\n2. [ ] Rapikan kode\n14:34:12.104 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...\n14:34:12.108 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.",
+          "petunjuk": "Polanya sama dengan langkah sebelumnya, ganti judulnya.",
+          "tantangan": true,
+          "benar": "Dua todo, dibaca kembali dari MySQL."
+        },
+        {
+          "arahan": "Periksa langsung dari klien MySQL: masuk dengan `mysql -u root -p todolist`.",
+          "terima": [
+            "mysql -u root -p todolist",
+            "mysql -uroot -p todolist"
+          ],
+          "keluaran": "Enter password:\nReading table information for completion of table and column names\nYou can turn off this feature to get a quicker startup with -A\n\nWelcome to the MySQL monitor.  Commands end with ; or \\g.\nYour MySQL connection id is 37\nServer version: 8.4.13 MySQL Community Server - GPL\n\nCopyright (c) 2000, 2026, Oracle and/or its affiliates.\n\nOracle is a registered trademark of Oracle Corporation and/or its\naffiliates. Other names may be trademarks of their respective\nowners.\n\nType 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.",
+          "petunjuk": "Ketik `mysql -u root -p todolist`.",
+          "benar": "Prompt berubah menjadi `mysql>`.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Tampilkan isi tabel todo.",
+          "terima": [
+            "SELECT * FROM todo;",
+            "select * from todo;"
+          ],
+          "keluaran": "+----+--------------+---------+\n| id | judul        | selesai |\n+----+--------------+---------+\n|  1 | Belajar JDBC |       0 |\n|  2 | Rapikan kode |       0 |\n+----+--------------+---------+\n2 rows in set (0.00 sec)",
+          "petunjuk": "Ketik `SELECT * FROM todo;`.",
+          "tantangan": true,
+          "benar": "Data yang disimpan aplikasi Java terlihat di MySQL.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Selesaikan todo nomor 1 langsung dengan SQL: `UPDATE todo SET selesai = TRUE WHERE id = 1;`.",
+          "terima": [
+            "UPDATE todo SET selesai = TRUE WHERE id = 1;",
+            "update todo set selesai = true where id = 1;"
+          ],
+          "keluaran": "Query OK, 1 row affected (0.00 sec)\nRows matched: 1  Changed: 1  Warnings: 0",
+          "petunjuk": "Jangan lupa `WHERE id = 1`.",
+          "benar": "Satu baris berubah.",
+          "folderBaru": "mysql>"
+        },
+        {
+          "arahan": "Keluar dari klien MySQL.",
+          "terima": [
+            "exit",
+            "exit;",
+            "quit",
+            "\\q"
+          ],
+          "keluaran": "Bye",
+          "petunjuk": "Ketik `exit`.",
+          "benar": "Kembali ke folder proyek.",
+          "folderBaru": "~/todolist"
+        },
+        {
+          "arahan": "Jalankan aplikasinya lagi tanpa argumen.",
+          "terima": [
+            "mvn -q exec:java",
+            "mvn exec:java -q",
+            "mvn -q compile exec:java",
+            "mvn compile exec:java -q"
+          ],
+          "keluaran": "14:34:46.804 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...\n14:34:46.965 INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@342fee67\n14:34:46.966 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.\n1. [x] Belajar JDBC\n2. [ ] Rapikan kode\n14:34:46.996 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...\n14:34:47.000 INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.",
+          "petunjuk": "Pakai `mvn -q exec:java`.",
+          "benar": "Perubahan dari klien MySQL terbaca oleh aplikasi Java: nomor 1 sekarang `[x]`. Aplikasi dan klien berbagi database yang sama."
+        },
+        {
+          "arahan": "Terakhir, jalankan semua test proyek dengan `mvn test`.",
+          "terima": [
+            "mvn test"
+          ],
+          "keluaran": "[INFO]  T E S T S\n[INFO] -------------------------------------------------------\n[INFO] Running com.bisangoding.todolist.TodoTest\n[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.061 s -- in com.bisangoding.todolist.TodoTest\n[INFO] Running com.bisangoding.todolist.TodoRepositoryJdbcTest\n[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.207 s -- in com.bisangoding.todolist.TodoRepositoryJdbcTest\n[INFO] Running com.bisangoding.todolist.TodoServiceTest\nOpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended\n[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.921 s -- in com.bisangoding.todolist.TodoServiceTest\n[INFO]\n[INFO] Results:\n[INFO]\n[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD SUCCESS\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time:  5.096 s\n[INFO] Finished at: 2026-11-11T14:34:33+07:00\n[INFO] ------------------------------------------------------------------------",
+          "petunjuk": "Ketik `mvn test`.",
+          "benar": "10 test lulus, termasuk 3 test `TodoRepositoryJdbcTest` yang memakai H2. Test tidak menyentuh data di MySQL."
+        }
+      ],
+      "penutup": "Selamat, Proyek Todolist Database selesai! Aplikasi yang sama berjalan di H2 untuk test dan di MySQL untuk data sungguhan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Perintah mysql -u root -p todolist < schema.sql berfungsi untuk...",
+          "options": [
+            "Menjalankan isi file schema.sql ke database todolist",
+            "Menyalin database ke file schema.sql",
+            "Menghapus database todolist",
+            "Membuka schema.sql di editor"
+          ],
+          "answer": 0,
+          "explanation": "Tanda < mengirim isi file sebagai masukan.",
+          "remedial": "Klien `mysql` membaca perintah SQL dari masukan. Dengan `< schema.sql`, isi file dijalankan seolah diketik satu per satu."
+        },
+        {
+          "question": "Apa yang perlu diubah di TodoRepositoryJdbc saat berpindah dari H2 ke MySQL dengan HikariCP?",
+          "options": [
+            "Semua query harus ditulis ulang",
+            "Tidak ada, karena repository hanya menerima DataSource",
+            "Constructor harus menerima HikariConfig",
+            "Method baca harus diganti"
+          ],
+          "answer": 1,
+          "explanation": "Bergantung pada DataSource.",
+          "remedial": "`HikariDataSource` dan `JdbcDataSource` sama-sama `DataSource`. Repository tidak tahu dan tidak peduli dari mana koneksinya."
+        },
+        {
+          "question": "Kenapa test proyek memakai H2, bukan MySQL tempat data asli?",
+          "options": [
+            "Karena MySQL tidak bisa dipakai di test",
+            "Karena H2 lebih lengkap dari MySQL",
+            "Supaya test yang membersihkan tabel tidak menghapus data asli",
+            "Supaya test tidak pernah gagal"
+          ],
+          "answer": 2,
+          "explanation": "Pisahkan data uji dari data asli.",
+          "remedial": "Test membuat ulang tabel di setiap `@BeforeEach`. Kalau dijalankan ke database asli, semua todo pengguna hilang. H2 di memori aman dan cepat."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Cara memberikan judul berisi spasi sebagai argumen lewat Maven adalah...",
+      "options": [
+        "mvn -q exec:java Belajar JDBC",
+        "mvn -q exec:java -args Belajar JDBC",
+        "mvn -q exec:java --judul=Belajar",
+        "mvn -q exec:java -Dexec.args=\"Belajar JDBC\""
+      ],
+      "answer": 3,
+      "explanation": "Dibungkus kutip."
+    },
+    {
+      "type": "fill_blank",
+      "question": "Lengkapi perintah untuk menjalankan file skema ke database todolist.",
+      "code": "mysql -u root -p todolist ___ src/main/resources/schema.sql",
+      "answers": [
+        "<"
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Di laptop, DataSource diganti HikariDataSource ke MySQL; repository, service, dan view tetap.",
+        "Skema dijalankan dengan mysql -u root -p todolist < schema.sql.",
+        "Argumen program lewat -Dexec.args=\"...\"; sandi lewat DB_PASSWORD.",
+        "Test memakai H2 sehingga data asli di MySQL aman."
+      ]
+    }
+  ],
+  "runnable": false
+}

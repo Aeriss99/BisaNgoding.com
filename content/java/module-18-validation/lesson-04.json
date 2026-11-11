@@ -1,0 +1,219 @@
+{
+  "id": "java-validation-04",
+  "moduleId": "validation",
+  "order": 4,
+  "title": "Object Bersarang dan Daftar",
+  "estimatedMinutes": 16,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Data jarang berdiri sendiri. Sebuah pesanan punya pelanggan, dan pelanggan punya alamat. Sebuah todo bisa punya pemilik dan daftar subtugas. Masing-masing class punya constraint sendiri.\n\nValidator tidak otomatis masuk ke object di dalam object. Kita yang menandai field mana yang perlu ikut diperiksa, dengan **`@Valid`**.\n\nIbarat pemeriksaan koper di bandara: petugas memeriksa koper. Tas kecil di dalamnya hanya ikut dibuka kalau diberi tanda \"periksa juga\"."
+    },
+    {
+      "type": "theory",
+      "content": "```java\nclass TodoBaru {\n    @NotBlank\n    String judul;\n\n    @NotNull\n    @Valid\n    Pemilik pemilik;\n\n    @Valid\n    List<SubTugas> subTugas = new ArrayList<>();\n}\n```\n\n| Anotasi di field | Yang diperiksa |\n|---|---|\n| `@Valid` di object | constraint di dalam class `Pemilik` |\n| `@Valid` di List | constraint di **setiap** elemen |\n| `@NotNull` | object-nya sendiri tidak boleh null |\n| `@NotEmpty` atau `@Size` di List | jumlah elemen |\n\nNama field di pelanggaran menunjukkan jalurnya:\n\n```text\npemilik.email: must be a well-formed email address\nsubTugas[1].judul: must not be blank\n```\n\n`subTugas[1]` berarti elemen kedua (indeks mulai dari 0).\n\n`@Valid` pada field yang **null** tidak melaporkan apa-apa, karena tidak ada yang bisa diperiksa. Tambahkan `@NotNull` kalau object itu wajib ada."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n```java\nclass Keranjang {\n    @NotEmpty(message = \"Keranjang kosong\")\n    @Valid\n    List<Barang> barang = new ArrayList<>();\n}\n\nclass Barang {\n    @NotBlank(message = \"Nama barang wajib diisi\")\n    String nama;\n\n    @Positive(message = \"Jumlah minimal 1\")\n    int jumlah;\n}\n```\n\nKeranjang berisi barang `(\"Kopi\", 2)` dan `(\"\", 0)` menghasilkan:\n\n```text\nbarang[1].jumlah: Jumlah minimal 1\nbarang[1].nama: Nama barang wajib diisi\n```\n\nSelain `@Valid` di atas field, kode modern juga menulis `List<@Valid Barang>`. Hasilnya sama; di materi ini kita memakai `@Valid` di atas field."
+    },
+    {
+      "type": "runnable",
+      "code": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new Pesanan(\"P-01\", new Pelanggan(\"\")));\n    }\n}\n\nclass Pesanan {\n    @NotBlank\n    String kode;\n\n    Pelanggan pelanggan;\n\n    Pesanan(String kode, Pelanggan pelanggan) {\n        this.kode = kode;\n        this.pelanggan = pelanggan;\n    }\n}\n\nclass Pelanggan {\n    @NotBlank\n    String nama;\n\n    Pelanggan(String nama) {\n        this.nama = nama;\n    }\n}",
+      "predict": {
+        "question": "Tebak dulu: nama pelanggan kosong. Apa yang tercetak?",
+        "options": [
+          "Valid",
+          "pelanggan.nama: must not be blank",
+          "nama: must not be blank",
+          "pelanggan: must not be null"
+        ],
+        "answer": 0
+      },
+      "annotations": [
+        {
+          "line": 32,
+          "note": "Tidak ada @Valid di sini."
+        },
+        {
+          "line": 29,
+          "note": "Constraint milik Pesanan diperiksa."
+        }
+      ],
+      "explanation": "Validator hanya memeriksa constraint milik Pesanan. Field pelanggan tidak diberi @Valid, jadi isi Pelanggan tidak ikut diperiksa walaupun punya NotBlank sendiri.\n\nIni kesalahan yang mudah terjadi dan tidak memunculkan error apa pun.",
+      "tryThis": [
+        {
+          "task": "Tambahkan @Valid di atas field pelanggan lalu jalankan lagi.",
+          "hint": null
+        },
+        {
+          "task": "Setelah itu, isi pelanggan dengan null. Apa hasilnya?",
+          "hint": null
+        }
+      ]
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Lupa `@Valid`**\n\nObject di dalam lolos tanpa diperiksa dan tidak ada peringatan. Setiap field berupa object atau List dari class buatan sendiri perlu dipertanyakan: perlu `@Valid` atau tidak?\n\n**2. Mengira `@Valid` menolak null**\n\n`@Valid` hanya memeriksa isi. Object yang null dilewati. Pasangkan dengan `@NotNull`.\n\n**3. Membatasi jumlah elemen dengan `@Valid`**\n\n`@Valid` tidak peduli berapa banyak elemen. Untuk jumlah, pakai `@NotEmpty` atau `@Size(min = .., max = ..)`.\n\n**4. Membaca indeks sebagai nomor urut**\n\n`subTugas[1]` adalah elemen kedua. Saat menampilkan ke pengguna, tambahkan 1."
+    },
+    {
+      "type": "theory",
+      "content": "### Di dunia kerja\n\n- Request REST API sering bersarang, misalnya pesanan berisi alamat dan daftar barang. Spring memvalidasi semuanya selama ada `@Valid` di setiap tingkat, dan nama field seperti `items[0].qty` dikirim ke frontend.\n- Batasi ukuran List di request (`@Size(max = 100)`), supaya pengguna tidak bisa mengirim 1 juta elemen yang membuat server sibuk memeriksa.\n- Validasi bisa juga dipasang di level class (constraint di atas `class`), misalnya untuk aturan \"tanggal selesai harus setelah tanggal mulai\" yang melibatkan dua field. Caranya dibahas di materi constraint buatan sendiri."
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Formulir Todo 4: Pemilik dan Subtugas",
+      "pembuka": "Todo sekarang punya pemilik dan daftar subtugas.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Field `pemilik` diberi `@Valid`, jadi isi `Pemilik` ikut diperiksa.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"Rapat tim\", new Pemilik(\"Sari\", \"sari@mail.com\")));\n        periksa(new TodoBaru(\"Rapat tim\", new Pemilik(\"\", \"sari@\")));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    String judul;\n\n    @Valid\n    Pemilik pemilik;\n\n    TodoBaru(String judul, Pemilik pemilik) {\n        this.judul = judul;\n        this.pemilik = pemilik;\n    }\n}\n\nclass Pemilik {\n    @NotBlank(message = \"Nama pemilik wajib diisi\")\n    String nama;\n\n    @Email(message = \"Email pemilik tidak valid\")\n    String email;\n\n    Pemilik(String nama, String email) {\n        this.nama = nama;\n        this.email = email;\n    }\n}\n",
+          "keluaran": "Valid\npemilik.email: Email pemilik tidak valid\npemilik.nama: Nama pemilik wajib diisi",
+          "otomatis": true,
+          "benar": "Jalurnya ditulis `pemilik.email` dan `pemilik.nama`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Pemilik wajib ada. Tambahkan `@NotNull(message = \"Pemilik wajib diisi\")` di field `pemilik`, lalu periksa todo `\"Rapat tim\"` dengan pemilik `null`.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"Rapat tim\", new Pemilik(\"Sari\", \"sari@mail.com\")));\n        periksa(new TodoBaru(\"Rapat tim\", new Pemilik(\"\", \"sari@\")));\n        periksa(new TodoBaru(\"Rapat tim\", null));\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    String judul;\n\n    @NotNull(message = \"Pemilik wajib diisi\")\n    @Valid\n    Pemilik pemilik;\n\n    TodoBaru(String judul, Pemilik pemilik) {\n        this.judul = judul;\n        this.pemilik = pemilik;\n    }\n}\n\nclass Pemilik {\n    @NotBlank(message = \"Nama pemilik wajib diisi\")\n    String nama;\n\n    @Email(message = \"Email pemilik tidak valid\")\n    String email;\n\n    Pemilik(String nama, String email) {\n        this.nama = nama;\n        this.email = email;\n    }\n}\n",
+          "keluaran": "Valid\npemilik.email: Email pemilik tidak valid\npemilik.nama: Nama pemilik wajib diisi\npemilik: Pemilik wajib diisi",
+          "wajib": [
+            {
+              "pola": "@NotNull\\s*\\(\\s*message\\s*=\\s*\"Pemilik wajib diisi\"\\s*\\)",
+              "pesan": "pasang `@NotNull(message = \"Pemilik wajib diisi\")`."
+            },
+            {
+              "pola": "new\\s+TodoBaru\\s*\\(\\s*\"Rapat tim\"\\s*,\\s*null\\s*\\)",
+              "pesan": "periksa todo dengan pemilik `null`."
+            }
+          ],
+          "benar": "Tanpa `@NotNull`, pemilik null akan lolos.",
+          "petunjuk": "Pasang `@NotNull(...)` di atas `@Valid`."
+        },
+        {
+          "arahan": "Tambahkan field `@Valid List<SubTugas> subTugas = new ArrayList<>();` dan class `SubTugas` dengan judul `@NotBlank(message = \"Judul subtugas wajib diisi\")`. Buat todo `\"Rilis aplikasi\"` dengan pemilik `(\"Sari\", null)`, tambahkan subtugas `\"Tulis catatan rilis\"` dan `\"\"`, lalu periksa.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"Rapat tim\", new Pemilik(\"Sari\", \"sari@mail.com\")));\n        periksa(new TodoBaru(\"Rapat tim\", new Pemilik(\"\", \"sari@\")));\n        periksa(new TodoBaru(\"Rapat tim\", null));\n\n        TodoBaru t = new TodoBaru(\"Rilis aplikasi\", new Pemilik(\"Sari\", null));\n        t.subTugas.add(new SubTugas(\"Tulis catatan rilis\"));\n        t.subTugas.add(new SubTugas(\"\"));\n        periksa(t);\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    String judul;\n\n    @NotNull(message = \"Pemilik wajib diisi\")\n    @Valid\n    Pemilik pemilik;\n\n    @Valid\n    List<SubTugas> subTugas = new ArrayList<>();\n\n    TodoBaru(String judul, Pemilik pemilik) {\n        this.judul = judul;\n        this.pemilik = pemilik;\n    }\n}\n\nclass Pemilik {\n    @NotBlank(message = \"Nama pemilik wajib diisi\")\n    String nama;\n\n    @Email(message = \"Email pemilik tidak valid\")\n    String email;\n\n    Pemilik(String nama, String email) {\n        this.nama = nama;\n        this.email = email;\n    }\n}\n\nclass SubTugas {\n    @NotBlank(message = \"Judul subtugas wajib diisi\")\n    String judul;\n\n    SubTugas(String judul) {\n        this.judul = judul;\n    }\n}\n",
+          "keluaran": "Valid\npemilik.email: Email pemilik tidak valid\npemilik.nama: Nama pemilik wajib diisi\npemilik: Pemilik wajib diisi\nsubTugas[1].judul: Judul subtugas wajib diisi",
+          "wajib": [
+            {
+              "pola": "@Valid\\s+List<SubTugas>\\s+subTugas",
+              "pesan": "beri `@Valid` di atas `List<SubTugas> subTugas`."
+            },
+            {
+              "pola": "class\\s+SubTugas",
+              "pesan": "buat class `SubTugas`."
+            }
+          ],
+          "benar": "`subTugas[1].judul` menunjuk subtugas kedua yang kosong.",
+          "petunjuk": "Subtugas ditambahkan dengan `t.subTugas.add(new SubTugas(\"...\"));`."
+        },
+        {
+          "arahan": "Tantangan: batasi subtugas maksimal 3 dengan pesan `\"Subtugas maksimal {max}\"`. Lalu perbaiki subtugas kedua menjadi `\"Uji di HP\"` (pakai `set`), tambahkan `\"Tag versi\"` dan `\"Umumkan\"`, dan periksa lagi.",
+          "jawaban": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        periksa(new TodoBaru(\"Rapat tim\", new Pemilik(\"Sari\", \"sari@mail.com\")));\n        periksa(new TodoBaru(\"Rapat tim\", new Pemilik(\"\", \"sari@\")));\n        periksa(new TodoBaru(\"Rapat tim\", null));\n\n        TodoBaru t = new TodoBaru(\"Rilis aplikasi\", new Pemilik(\"Sari\", null));\n        t.subTugas.add(new SubTugas(\"Tulis catatan rilis\"));\n        t.subTugas.add(new SubTugas(\"\"));\n        periksa(t);\n\n        t.subTugas.set(1, new SubTugas(\"Uji di HP\"));\n        t.subTugas.add(new SubTugas(\"Tag versi\"));\n        t.subTugas.add(new SubTugas(\"Umumkan\"));\n        periksa(t);\n    }\n}\n\nclass TodoBaru {\n    @NotBlank(message = \"Judul wajib diisi\")\n    String judul;\n\n    @NotNull(message = \"Pemilik wajib diisi\")\n    @Valid\n    Pemilik pemilik;\n\n    @Size(max = 3, message = \"Subtugas maksimal {max}\")\n    @Valid\n    List<SubTugas> subTugas = new ArrayList<>();\n\n    TodoBaru(String judul, Pemilik pemilik) {\n        this.judul = judul;\n        this.pemilik = pemilik;\n    }\n}\n\nclass Pemilik {\n    @NotBlank(message = \"Nama pemilik wajib diisi\")\n    String nama;\n\n    @Email(message = \"Email pemilik tidak valid\")\n    String email;\n\n    Pemilik(String nama, String email) {\n        this.nama = nama;\n        this.email = email;\n    }\n}\n\nclass SubTugas {\n    @NotBlank(message = \"Judul subtugas wajib diisi\")\n    String judul;\n\n    SubTugas(String judul) {\n        this.judul = judul;\n    }\n}\n",
+          "keluaran": "Valid\npemilik.email: Email pemilik tidak valid\npemilik.nama: Nama pemilik wajib diisi\npemilik: Pemilik wajib diisi\nsubTugas[1].judul: Judul subtugas wajib diisi\nsubTugas: Subtugas maksimal 3",
+          "wajib": [
+            {
+              "pola": "@Size\\s*\\(\\s*max\\s*=\\s*3\\s*,\\s*message\\s*=\\s*\"Subtugas maksimal \\{max\\}\"\\s*\\)",
+              "pesan": "pasang `@Size(max = 3, message = \"Subtugas maksimal {max}\")`."
+            },
+            {
+              "pola": "t\\.subTugas\\.set\\s*\\(\\s*1\\s*,",
+              "pesan": "ganti subtugas kedua dengan `t.subTugas.set(1, ...)`."
+            }
+          ],
+          "tantangan": true,
+          "benar": "Isi setiap subtugas benar, tetapi jumlahnya 4, jadi `@Size` menolak.",
+          "petunjuk": "`@Size(max = 3, message = \"Subtugas maksimal {max}\")` di atas `@Valid`, lalu `t.subTugas.set(1, new SubTugas(\"Uji di HP\"));`."
+        }
+      ],
+      "penutup": "Formulir Todo memeriksa sampai ke dalam. Berikutnya: aturan yang tidak tersedia, kita buat sendiri."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Field Pemilik pemilik tanpa @Valid, dan nama pemilik kosong. Hasil validasi TodoBaru...",
+          "options": [
+            "pemilik.nama ditolak",
+            "Nama pemilik tidak diperiksa",
+            "Error saat validasi",
+            "Seluruh TodoBaru ditolak"
+          ],
+          "answer": 1,
+          "explanation": "Validator tidak masuk tanpa tanda.",
+          "remedial": "Tanpa `@Valid`, validator berhenti di field milik `TodoBaru` sendiri. Constraint di class `Pemilik` tidak dijalankan."
+        },
+        {
+          "question": "Pelanggaran subTugas[2].judul menunjuk ke...",
+          "options": [
+            "Judul subtugas kedua",
+            "Dua subtugas pertama",
+            "Judul subtugas ketiga",
+            "Judul TodoBaru"
+          ],
+          "answer": 2,
+          "explanation": "Indeks mulai dari 0.",
+          "remedial": "Angka di dalam kurung siku adalah indeks List, dimulai dari 0. Indeks 2 berarti elemen ketiga."
+        },
+        {
+          "question": "Daftar barang wajib berisi minimal satu barang dan setiap barang diperiksa. Anotasi yang tepat adalah...",
+          "options": [
+            "@Valid saja",
+            "@NotNull saja",
+            "@NotBlank dan @Valid",
+            "@NotEmpty dan @Valid"
+          ],
+          "answer": 3,
+          "explanation": "Jumlah dan isi diperiksa terpisah.",
+          "remedial": "`@NotEmpty` menolak List null dan kosong. `@Valid` memeriksa setiap barang di dalamnya. `@NotBlank` hanya untuk String."
+        }
+      ]
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Pemilik pemilik diberi @Valid tetapi isinya null. Hasilnya...",
+      "options": [
+        "Tidak ada pelanggaran untuk pemilik",
+        "pemilik: must not be null",
+        "NullPointerException",
+        "pemilik.nama: must not be blank"
+      ],
+      "answer": 0,
+      "explanation": "Tidak ada isi untuk diperiksa."
+    },
+    {
+      "type": "code_challenge",
+      "prompt": "Program membaca nama pembeli di baris pertama, lalu barang dengan format nama;jumlah di baris berikutnya, kemudian memeriksa keranjang. Keranjang harus berisi minimal satu barang (pesan Keranjang kosong) dan setiap barang ikut diperiksa dengan constraint yang sudah ada di class Barang. Tambahkan anotasi yang tepat di field barang.",
+      "starterCode": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        Keranjang k = new Keranjang(in.nextLine());\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            k.barang.add(new Barang(d[0], Integer.parseInt(d[1])));\n        }\n        periksa(k);\n    }\n}\n\nclass Keranjang {\n    @NotBlank(message = \"Pembeli wajib diisi\")\n    String pembeli;\n\n    List<Barang> barang = new ArrayList<>();\n\n    Keranjang(String pembeli) {\n        this.pembeli = pembeli;\n    }\n}\n\nclass Barang {\n    @NotBlank(message = \"Nama barang wajib diisi\")\n    String nama;\n\n    @Positive(message = \"Jumlah minimal 1\")\n    int jumlah;\n\n    Barang(String nama, int jumlah) {\n        this.nama = nama;\n        this.jumlah = jumlah;\n    }\n}",
+      "solution": "import java.util.*;\n\nimport jakarta.validation.*;\nimport jakarta.validation.constraints.*;\n\npublic class Main {\n    static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();\n\n    static void periksa(Object o) {\n        List<String> pesan = new ArrayList<>();\n        for (ConstraintViolation<Object> v : VALIDATOR.validate(o)) {\n            pesan.add(v.getPropertyPath() + \": \" + v.getMessage());\n        }\n        Collections.sort(pesan);\n        if (pesan.isEmpty()) {\n            System.out.println(\"Valid\");\n        }\n        for (String p : pesan) {\n            System.out.println(p);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        Keranjang k = new Keranjang(in.nextLine());\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().split(\";\", -1);\n            k.barang.add(new Barang(d[0], Integer.parseInt(d[1])));\n        }\n        periksa(k);\n    }\n}\n\nclass Keranjang {\n    @NotBlank(message = \"Pembeli wajib diisi\")\n    String pembeli;\n\n    @NotEmpty(message = \"Keranjang kosong\")\n    @Valid\n    List<Barang> barang = new ArrayList<>();\n\n    Keranjang(String pembeli) {\n        this.pembeli = pembeli;\n    }\n}\n\nclass Barang {\n    @NotBlank(message = \"Nama barang wajib diisi\")\n    String nama;\n\n    @Positive(message = \"Jumlah minimal 1\")\n    int jumlah;\n\n    Barang(String nama, int jumlah) {\n        this.nama = nama;\n        this.jumlah = jumlah;\n    }\n}",
+      "tests": [
+        {
+          "input": "Sari\nKopi;2\n;0\nTeh;1\n",
+          "expectedOutput": "barang[1].jumlah: Jumlah minimal 1\nbarang[1].nama: Nama barang wajib diisi\n"
+        },
+        {
+          "input": "Budi\n",
+          "expectedOutput": "barang: Keranjang kosong\n"
+        },
+        {
+          "input": " \nRoti;-1\n",
+          "expectedOutput": "barang[0].jumlah: Jumlah minimal 1\npembeli: Pembeli wajib diisi\n"
+        }
+      ],
+      "hints": [
+        "Dua anotasi: satu untuk jumlah elemen, satu untuk memeriksa isinya.",
+        "@NotEmpty(message = \"Keranjang kosong\") dan @Valid di atas List<Barang> barang."
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "@Valid membuat validator ikut memeriksa object atau setiap elemen List.",
+        "Jalur pelanggaran berbentuk pemilik.email atau subTugas[1].judul.",
+        "@Valid melewati null; pasangkan dengan @NotNull kalau wajib.",
+        "Jumlah elemen dibatasi dengan @NotEmpty atau @Size."
+      ]
+    }
+  ]
+}
