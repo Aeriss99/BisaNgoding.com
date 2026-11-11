@@ -35,17 +35,31 @@ await page.evaluate(() => window.siap);
 const r = await page.evaluate(({ code, cp }) => window.jalankan(code, cp), { code: KODE, cp: cpDari('bisangoding', 'junit-', 'opentest4j', 'apiguardian') });
 console.log('===== param dengan pengganti\n' + r.out + '\nERR ' + r.err);
 const KODE2 = `
-import java.lang.reflect.Array;
+import java.lang.reflect.*;
+import java.lang.annotation.*;
+import org.junit.jupiter.params.provider.ValueSource;
+@Retention(RetentionPolicy.RUNTIME) @interface Milik { int[] angka() default {}; short[] pendek() default {}; String[] teks() default {}; Class<?>[] kelas() default {}; boolean[] b() default {}; }
+class X {
+  @ValueSource(ints = {1, 25, 50}) void a(int n) {}
+  @ValueSource(strings = {"", " "}) void b(String s) {}
+  @Milik(angka = {7}) void c() {}
+}
 public class Main {
-  public static void main(String[] a) {
-    int[] x = {1, 25, 50};
-    String[] s = {"", " ", "  "};
-    for (int k = 0; k < 5; k++) {
-      try { for (int i = 0; i < 3; i++) System.out.print(Array.get(x, i) + ","); System.out.println(" int ok"); } catch (Throwable t) { System.out.println("int " + t); }
-      try { for (int i = 0; i < 3; i++) System.out.print("[" + Array.get(s, i) + "]"); System.out.println(" str ok"); } catch (Throwable t) { System.out.println("str " + t); }
+  static void coba(String nama, java.util.concurrent.Callable<Object> f) {
+    try { Object o = f.call(); System.out.println(nama + " ok " + o.getClass().getSimpleName() + " " + Array.getLength(o)); } catch (Throwable t) { System.out.println(nama + " GAGAL " + t); }
+  }
+  public static void main(String[] args) throws Exception {
+    ValueSource a = X.class.getDeclaredMethod("a", int.class).getAnnotation(ValueSource.class);
+    ValueSource b = X.class.getDeclaredMethod("b", String.class).getAnnotation(ValueSource.class);
+    Milik c = X.class.getDeclaredMethod("c").getAnnotation(Milik.class);
+    for (ValueSource v : new ValueSource[] {a, b}) {
+      coba("shorts", v::shorts); coba("bytes", v::bytes); coba("ints", v::ints); coba("longs", v::longs); coba("floats", v::floats);
+      coba("doubles", v::doubles); coba("chars", v::chars); coba("booleans", v::booleans); coba("strings", v::strings); coba("classes", v::classes);
+      System.out.println("--");
     }
+    coba("angka", c::angka); coba("pendek", c::pendek); coba("teks", c::teks); coba("kelas", c::kelas); coba("b", c::b);
   }
 }`;
-const r2 = await page.evaluate(({ code, cp }) => window.jalankan(code, cp), { code: KODE2, cp: '' });
-console.log('===== array get\n' + r2.out + '\nERR ' + r2.err);
+const r2 = await page.evaluate(({ code, cp }) => window.jalankan(code, cp), { code: KODE2, cp: cpDari('junit-jupiter-params') });
+console.log('===== anotasi\n' + r2.out + '\nERR ' + r2.err);
 await browser.close();
