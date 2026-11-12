@@ -4,6 +4,8 @@
   "order": 4,
   "title": "ExecutorService dan Thread Pool",
   "estimatedMinutes": 19,
+  "runnable": false,
+  "javaVersion": 21,
   "cards": [
     {
       "type": "theory",
@@ -15,46 +17,19 @@
     },
     {
       "type": "theory",
-      "content": "### Contoh\n\n```java\nExecutorService pool = Executors.newFixedThreadPool(3);\nList<Future<String>> hasil = new ArrayList<>();\nfor (int i = 1; i <= 5; i++) {\n    String id = \"PSN-\" + i;\n    hasil.add(pool.submit(() -> proses(id)));     // langsung kembali\n}\nfor (Future<String> f : hasil) {\n    System.out.println(f.get());                  // urut sesuai pengiriman\n}\npool.shutdown();\n```\n\nLima pesanan dikerjakan tiga thread. Mengambil hasil lewat daftar `Future` sesuai urutan pengiriman membuat keluarannya rapi, walau urutan selesainya berbeda.\n\n**Exception di dalam tugas** tidak muncul di thread pemanggil saat itu juga. Ia disimpan di `Future`, lalu `get()` melemparnya terbungkus **`ExecutionException`**. Penyebab aslinya ada di `getCause()`.\n\n**Catatan tentang editor ini:** Java di website ini berjalan di dalam browser. Thread tetap bergantian sungguhan, tetapi tidak berjalan di beberapa inti CPU sekaligus. Karena itu contoh di modul ini memakai `Thread.sleep` untuk membuat urutan kejadian jelas dan hasilnya selalu sama. Di laptop atau server, masalah yang sama muncul lebih acak, dan justru itu yang membuatnya berbahaya."
+      "content": "### Contoh\n\n```java\nExecutorService pool = Executors.newFixedThreadPool(3);\nList<Future<String>> hasil = new ArrayList<>();\nfor (int i = 1; i <= 5; i++) {\n    String id = \"PSN-\" + i;\n    hasil.add(pool.submit(() -> proses(id)));     // langsung kembali\n}\nfor (Future<String> f : hasil) {\n    System.out.println(f.get());                  // urut sesuai pengiriman\n}\npool.shutdown();\n```\n\nLima pesanan dikerjakan tiga thread. Mengambil hasil lewat daftar `Future` sesuai urutan pengiriman membuat keluarannya rapi, walau urutan selesainya berbeda.\n\n**Exception di dalam tugas** tidak muncul di thread pemanggil saat itu juga. Ia disimpan di `Future`, lalu `get()` melemparnya terbungkus **`ExecutionException`**. Penyebab aslinya ada di `getCause()`.\n\n**Catatan:** contoh di modul ini memakai `Thread.sleep` untuk membuat urutan kejadian jelas dan hasilnya selalu sama. Di aplikasi sungguhan, masalah yang sama muncul lebih acak, dan justru itu yang membuatnya berbahaya."
     },
     {
-      "type": "runnable",
-      "code": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        ExecutorService pool = Executors.newFixedThreadPool(2);\n        Future<Integer> f = pool.submit(() -> Integer.parseInt(\"dua\"));\n        try {\n            System.out.println(\"Hasil: \" + f.get());\n        } catch (ExecutionException e) {\n            System.out.println(\"Gagal: \" + e.getCause().getClass().getSimpleName());\n        }\n        pool.shutdown();\n    }\n}",
-      "predict": {
-        "question": "Tebak dulu: apa yang tercetak?",
-        "options": [
-          "Gagal: NumberFormatException",
-          "Hasil: 2",
-          "Gagal: ExecutionException",
-          "Hasil: null"
-        ],
-        "answer": 0
-      },
-      "annotations": [
-        {
-          "line": 8,
-          "note": "Exception terjadi di thread pool."
-        },
-        {
-          "line": 11,
-          "note": "get() membungkusnya."
-        },
-        {
-          "line": 12,
-          "note": "Penyebab asli."
-        }
+      "type": "predict_output",
+      "code": "// Pertanyaan: Apa yang tercetak?\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        ExecutorService pool = Executors.newFixedThreadPool(2);\n        Future<Integer> f = pool.submit(() -> Integer.parseInt(\"dua\"));\n        try {\n            System.out.println(\"Hasil: \" + f.get());\n        } catch (ExecutionException e) {\n            System.out.println(\"Gagal: \" + e.getCause().getClass().getSimpleName());\n        }\n        pool.shutdown();\n    }\n}",
+      "options": [
+        "Gagal: NumberFormatException",
+        "Hasil: 2",
+        "Gagal: ExecutionException",
+        "Hasil: null"
       ],
-      "explanation": "parseInt gagal di dalam thread pool. Exception itu disimpan di Future, lalu f.get() melemparnya kembali di thread main sebagai ExecutionException. getCause() berisi NumberFormatException yang asli. Kalau get() tidak pernah dipanggil, kegagalan ini hilang tanpa jejak.",
-      "tryThis": [
-        {
-          "task": "Ganti \"dua\" dengan \"2\".",
-          "hint": null
-        },
-        {
-          "task": "Cetak juga e.getCause().getMessage().",
-          "hint": null
-        }
-      ]
+      "answer": 0,
+      "explanation": "parseInt gagal di dalam thread pool. Exception itu disimpan di Future, lalu f.get() melemparnya kembali di thread main sebagai ExecutionException. getCause() berisi NumberFormatException yang asli. Kalau get() tidak pernah dipanggil, kegagalan ini hilang tanpa jejak."
     },
     {
       "type": "theory",
@@ -65,64 +40,12 @@
       "content": "### Di dunia kerja\n\n- Spring menyediakan `ThreadPoolTaskExecutor` dan anotasi `@Async`: method yang ditandai `@Async` dijalankan di thread pool yang dikonfigurasi di `application.properties` (`spring.task.execution.pool.core-size`).\n- Tomcat, HikariCP (pool koneksi database), dan Kafka consumer semuanya memakai thread pool. Ukurannya termasuk pengaturan yang paling sering disetel saat *tuning* performa.\n- Thread pool sebaiknya diberi nama lewat `ThreadFactory` (misalnya `pengemas-1`, `pengemas-2`) supaya mudah dikenali di log dan thread dump.\n- Pool harus dimatikan rapi saat aplikasi berhenti (*graceful shutdown*), supaya tugas yang sedang berjalan selesai dan tidak setengah jadi."
     },
     {
-      "type": "praktik_java",
-      "judul": "Pemroses Pesanan 4: Tiga Pengemas",
-      "pembuka": "Pemroses Pesanan berhenti membuat thread sendiri dan memakai thread pool.",
-      "langkah": [
-        {
-          "arahan": "Lihat aku dulu ya. Satu pesanan dikirim ke pool berisi 3 thread, lalu hasilnya diambil lewat `Future`.",
-          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String proses(String id) {\n        Jeda.ms(200);\n        return id + \" dikemas\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        ExecutorService pool = Executors.newFixedThreadPool(3);\n        Future<String> f = pool.submit(() -> proses(\"PSN-1\"));\n        System.out.println(\"Pesanan dikirim ke pool\");\n        System.out.println(f.get());\n        pool.shutdown();\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
-          "keluaran": "Pesanan dikirim ke pool\nPSN-1 dikemas",
-          "otomatis": true,
-          "benar": "`submit` langsung kembali; `get()` yang menunggu.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
-          "petunjuk": ""
-        },
-        {
-          "arahan": "Kirim 5 pesanan (`PSN-1` sampai `PSN-5`) ke pool, simpan semua `Future` di list, lalu cetak hasilnya berurutan.",
-          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String proses(String id) {\n        Jeda.ms(200);\n        return id + \" dikemas\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        ExecutorService pool = Executors.newFixedThreadPool(3);\n        List<Future<String>> hasil = new ArrayList<>();\n        for (int i = 1; i <= 5; i++) {\n            String id = \"PSN-\" + i;\n            hasil.add(pool.submit(() -> proses(id)));\n        }\n        System.out.println(hasil.size() + \" pesanan dikirim ke pool\");\n        for (Future<String> f : hasil) {\n            System.out.println(f.get());\n        }\n        pool.shutdown();\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
-          "keluaran": "5 pesanan dikirim ke pool\nPSN-1 dikemas\nPSN-2 dikemas\nPSN-3 dikemas\nPSN-4 dikemas\nPSN-5 dikemas",
-          "wajib": [
-            {
-              "pola": "List<Future<String>>",
-              "pesan": "simpan di `List<Future<String>>`."
-            }
-          ],
-          "benar": "Lima pesanan dikerjakan tiga thread; hasilnya tetap urut karena diambil sesuai urutan pengiriman.",
-          "petunjuk": "Simpan `\"PSN-\" + i` ke variabel baru di dalam perulangan sebelum dipakai di lambda."
-        },
-        {
-          "arahan": "Setelah `shutdown()`, tunggu pool dengan `awaitTermination(5, TimeUnit.SECONDS)` dan cetak `Selesai semua: ` diikuti hasilnya.",
-          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String proses(String id) {\n        Jeda.ms(200);\n        return id + \" dikemas\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        ExecutorService pool = Executors.newFixedThreadPool(3);\n        List<Future<String>> hasil = new ArrayList<>();\n        for (int i = 1; i <= 5; i++) {\n            String id = \"PSN-\" + i;\n            hasil.add(pool.submit(() -> proses(id)));\n        }\n        System.out.println(hasil.size() + \" pesanan dikirim ke pool\");\n        for (Future<String> f : hasil) {\n            System.out.println(f.get());\n        }\n        pool.shutdown();\n        System.out.println(\"Selesai semua: \" + pool.awaitTermination(5, TimeUnit.SECONDS));\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
-          "keluaran": "5 pesanan dikirim ke pool\nPSN-1 dikemas\nPSN-2 dikemas\nPSN-3 dikemas\nPSN-4 dikemas\nPSN-5 dikemas\nSelesai semua: true",
-          "wajib": [
-            {
-              "pola": "awaitTermination\\s*\\(\\s*5\\s*,\\s*TimeUnit\\.SECONDS\\s*\\)",
-              "pesan": "tunggu dengan `awaitTermination(5, TimeUnit.SECONDS)`."
-            }
-          ],
-          "benar": "Pool dimatikan dengan rapi.",
-          "petunjuk": "`awaitTermination` mengembalikan `boolean`."
-        },
-        {
-          "arahan": "Tantangan: buat `proses` melempar `IllegalStateException(\"alamat PSN-3 tidak lengkap\")` untuk `PSN-3`. Pakai try-with-resources untuk pool, dan cetak `Gagal: ` diikuti pesan penyebabnya untuk pesanan yang gagal.",
-          "jawaban": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String proses(String id) {\n        Jeda.ms(200);\n        if (id.equals(\"PSN-3\")) {\n            throw new IllegalStateException(\"alamat \" + id + \" tidak lengkap\");\n        }\n        return id + \" dikemas\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<Future<String>> hasil = new ArrayList<>();\n        try (ExecutorService pool = Executors.newFixedThreadPool(3)) {\n            for (int i = 1; i <= 5; i++) {\n                String id = \"PSN-\" + i;\n                hasil.add(pool.submit(() -> proses(id)));\n            }\n        }\n        for (Future<String> f : hasil) {\n            try {\n                System.out.println(f.get());\n            } catch (ExecutionException e) {\n                System.out.println(\"Gagal: \" + e.getCause().getMessage());\n            }\n        }\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
-          "keluaran": "PSN-1 dikemas\nPSN-2 dikemas\nGagal: alamat PSN-3 tidak lengkap\nPSN-4 dikemas\nPSN-5 dikemas",
-          "wajib": [
-            {
-              "pola": "try\\s*\\(\\s*ExecutorService\\s+pool",
-              "pesan": "pakai try-with-resources untuk pool."
-            },
-            {
-              "pola": "catch\\s*\\(\\s*ExecutionException",
-              "pesan": "tangkap `ExecutionException`."
-            }
-          ],
-          "tantangan": true,
-          "benar": "Satu pesanan gagal tidak menggagalkan pesanan lain.",
-          "petunjuk": "Tangkap `ExecutionException` di sekitar `f.get()`, lalu `e.getCause().getMessage()`."
-        }
-      ],
-      "penutup": "Pool sudah bekerja. Berikutnya: membuat thread saling menunggu dan bertukar pekerjaan."
+      "type": "theory",
+      "content": "### Praktik di laptop: Pemroses Pesanan 4: Tiga Pengemas\n\nPemroses Pesanan berhenti membuat thread sendiri dan memakai thread pool.\n\nMateri ini memakai **Java 21**, jadi praktiknya dikerjakan di laptopmu (JDK 21). Simpan kode sebagai `Main.java`, lalu jalankan dengan `java Main.java`.\n\n**Langkah:**\n\n1. Lihat aku dulu ya. Satu pesanan dikirim ke pool berisi 3 thread, lalu hasilnya diambil lewat `Future`.\n2. Kirim 5 pesanan (`PSN-1` sampai `PSN-5`) ke pool, simpan semua `Future` di list, lalu cetak hasilnya berurutan.\n3. Setelah `shutdown()`, tunggu pool dengan `awaitTermination(5, TimeUnit.SECONDS)` dan cetak `Selesai semua: ` diikuti hasilnya.\n4. Tantangan: buat `proses` melempar `IllegalStateException(\"alamat PSN-3 tidak lengkap\")` untuk `PSN-3`. Pakai try-with-resources untuk pool, dan cetak `Gagal: ` diikuti pesan penyebabnya untuk pesanan yang gagal.\n\n**Kode awal (langkah 1):**\n\n```java\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String proses(String id) {\n        Jeda.ms(200);\n        return id + \" dikemas\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        ExecutorService pool = Executors.newFixedThreadPool(3);\n        Future<String> f = pool.submit(() -> proses(\"PSN-1\"));\n        System.out.println(\"Pesanan dikirim ke pool\");\n        System.out.println(f.get());\n        pool.shutdown();\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Hasil akhir praktik\n\nBandingkan dengan pekerjaanmu setelah semua langkah selesai.\n\n```java\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static String proses(String id) {\n        Jeda.ms(200);\n        if (id.equals(\"PSN-3\")) {\n            throw new IllegalStateException(\"alamat \" + id + \" tidak lengkap\");\n        }\n        return id + \" dikemas\";\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<Future<String>> hasil = new ArrayList<>();\n        try (ExecutorService pool = Executors.newFixedThreadPool(3)) {\n            for (int i = 1; i <= 5; i++) {\n                String id = \"PSN-\" + i;\n                hasil.add(pool.submit(() -> proses(id)));\n            }\n        }\n        for (Future<String> f : hasil) {\n            try {\n                System.out.println(f.get());\n            } catch (ExecutionException e) {\n                System.out.println(\"Gagal: \" + e.getCause().getMessage());\n            }\n        }\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n```\n\nKeluaran:\n\n```text\nPSN-1 dikemas\nPSN-2 dikemas\nGagal: alamat PSN-3 tidak lengkap\nPSN-4 dikemas\nPSN-5 dikemas\n```\n\nPool sudah bekerja. Berikutnya: membuat thread saling menunggu dan bertukar pekerjaan."
     },
     {
       "type": "understanding_check",
@@ -179,24 +102,8 @@
       "explanation": "Punya hasil."
     },
     {
-      "type": "code_challenge",
-      "prompt": "Program membaca nama kota tujuan dari input (satu per baris), menghitung ongkir setiap kota di thread pool, lalu mencetak totalnya. Kalau ada kota yang belum dilayani, program berhenti dengan error. Ubah supaya kota yang gagal dilewati dengan mencetak Dilewati: diikuti pesan exception aslinya, dan total tetap dihitung dari kota yang berhasil.",
-      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final Map<String, Integer> TARIF = Map.of(\"Jakarta\", 10000, \"Bandung\", 15000, \"Surabaya\", 20000);\n\n    static int hitungOngkir(String kota) {\n        Jeda.ms(100);\n        Integer tarif = TARIF.get(kota);\n        if (tarif == null) {\n            throw new IllegalArgumentException(\"kota \" + kota + \" belum dilayani\");\n        }\n        return tarif;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        int total = 0;\n        try (ExecutorService pool = Executors.newFixedThreadPool(4)) {\n            List<Future<Integer>> hasil = new ArrayList<>();\n            while (in.hasNextLine()) {\n                String kota = in.nextLine().trim();\n                hasil.add(pool.submit(() -> hitungOngkir(kota)));\n            }\n            for (Future<Integer> f : hasil) {\n                total += f.get();\n            }\n        }\n        System.out.println(\"Total ongkir: \" + total);\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
-      "solution": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final Map<String, Integer> TARIF = Map.of(\"Jakarta\", 10000, \"Bandung\", 15000, \"Surabaya\", 20000);\n\n    static int hitungOngkir(String kota) {\n        Jeda.ms(100);\n        Integer tarif = TARIF.get(kota);\n        if (tarif == null) {\n            throw new IllegalArgumentException(\"kota \" + kota + \" belum dilayani\");\n        }\n        return tarif;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        int total = 0;\n        try (ExecutorService pool = Executors.newFixedThreadPool(4)) {\n            List<Future<Integer>> hasil = new ArrayList<>();\n            while (in.hasNextLine()) {\n                String kota = in.nextLine().trim();\n                hasil.add(pool.submit(() -> hitungOngkir(kota)));\n            }\n            for (Future<Integer> f : hasil) {\n                try {\n                    total += f.get();\n                } catch (ExecutionException e) {\n                    System.out.println(\"Dilewati: \" + e.getCause().getMessage());\n                }\n            }\n        }\n        System.out.println(\"Total ongkir: \" + total);\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
-      "tests": [
-        {
-          "input": "Jakarta\nBandung\nJakarta\n",
-          "expectedOutput": "Total ongkir: 35000\n"
-        },
-        {
-          "input": "Medan\nSurabaya\nPalu\n",
-          "expectedOutput": "Dilewati: kota Medan belum dilayani\nDilewati: kota Palu belum dilayani\nTotal ongkir: 20000\n"
-        }
-      ],
-      "hints": [
-        "Bungkus f.get() dengan try-catch ExecutionException.",
-        "Pesan aslinya ada di e.getCause().getMessage()."
-      ]
+      "type": "theory",
+      "content": "### Tantangan di laptop\n\nProgram membaca nama kota tujuan dari input (satu per baris), menghitung ongkir setiap kota di thread pool, lalu mencetak totalnya. Kalau ada kota yang belum dilayani, program berhenti dengan error. Ubah supaya kota yang gagal dilewati dengan mencetak Dilewati: diikuti pesan exception aslinya, dan total tetap dihitung dari kota yang berhasil.\n\n**Kode awal:**\n\n```java\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    static final Map<String, Integer> TARIF = Map.of(\"Jakarta\", 10000, \"Bandung\", 15000, \"Surabaya\", 20000);\n\n    static int hitungOngkir(String kota) {\n        Jeda.ms(100);\n        Integer tarif = TARIF.get(kota);\n        if (tarif == null) {\n            throw new IllegalArgumentException(\"kota \" + kota + \" belum dilayani\");\n        }\n        return tarif;\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        int total = 0;\n        try (ExecutorService pool = Executors.newFixedThreadPool(4)) {\n            List<Future<Integer>> hasil = new ArrayList<>();\n            while (in.hasNextLine()) {\n                String kota = in.nextLine().trim();\n                hasil.add(pool.submit(() -> hitungOngkir(kota)));\n            }\n            for (Future<Integer> f : hasil) {\n                total += f.get();\n            }\n        }\n        System.out.println(\"Total ongkir: \" + total);\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n```\n\n**Input:**\n\n```text\nJakarta\nBandung\nJakarta\n```\n\n**Keluaran yang diharapkan:**\n\n```text\nTotal ongkir: 35000\n```\n\n**Petunjuk:**\n\n- Bungkus f.get() dengan try-catch ExecutionException.\n- Pesan aslinya ada di e.getCause().getMessage()."
     },
     {
       "type": "summary",
@@ -207,6 +114,5 @@
         "Ukuran pool disesuaikan jenis pekerjaan: CPU atau menunggu I/O."
       ]
     }
-  ],
-  "javaVersion": 21
+  ]
 }

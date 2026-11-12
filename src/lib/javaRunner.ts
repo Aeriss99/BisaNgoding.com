@@ -6,6 +6,8 @@ export interface RunResult {
   stderr: string;
   exitCode: number;
   timedOut?: boolean;
+  /** Diisi runner: error datang dari mesin Java (CheerpJ), bukan dari program. */
+  mesinGagal?: boolean;
 }
 
 const CHEERPJ_CDN = 'https://cjrtnc.leaningtech.com/3.0/cj3loader.js';
@@ -15,6 +17,16 @@ const TIMEOUT_MS = 20_000;
 // Kode yang memakai library (JUnit, Mockito, Jackson, dan lainnya) atau Java 21: pemuatan pertama bisa makan waktu.
 const TIMEOUT_PUSTAKA_MS = 90_000;
 const KUNCI_MODE = 'bn_java_versi';
+// Mesin Java (CheerpJ) dibuang dan dibuat ulang setelah sekian kali jalan, supaya memorinya tidak menumpuk.
+// Diukur di Chromium (12 Nov 2026): tanpa ini, tab crash tepat di jalan ke-35 dalam satu tab.
+export const BATAS_JALAN_PER_MESIN = 12;
+export const PESAN_MESIN_RUSAK =
+  'Mesin Java di browser kehabisan memori dan sudah dimuat ulang. Tekan Jalankan sekali lagi. Kalau masih muncul, tutup tab lain lalu muat ulang halaman ini.';
+
+/** true kalau pesan error berasal dari mesin WebAssembly yang rusak atau kehabisan memori, bukan dari program Java. */
+export function apakahMesinRusak(pesan: string): boolean {
+  return /RuntimeError|memory access out of bounds|out of memory|unreachable|table index is out of bounds|call stack size exceeded|null function or function signature mismatch/i.test(pesan);
+}
 
 export type VersiJava = 8 | 21;
 
@@ -38,7 +50,7 @@ export function versiUntukMateri(javaVersion?: number): VersiJava {
 }
 
 // Satu iframe CheerpJ per versi Java (Java 8 dan Java 21 bisa dipakai bergantian di satu sesi).
-const iframes = new Map<VersiJava, { iframe: HTMLIFrameElement; siap: Promise<void> }>();
+const iframes = new Map<VersiJava, { iframe: HTMLIFrameElement; siap: Promise<void>; jalan: number }>();
 let runCounter = 0;
 
 interface PendingCallback {
@@ -161,7 +173,7 @@ async function tanpaAnotasiTipe() { return null; }
       try { stderr = await (await cjFileBlob('/files/err' + runId + '.txt')).text(); } catch(_) {}
       window.parent.postMessage({ id: id, stdout: stdout, stderr: stderr, exitCode: rx }, '*');
     } catch (err) {
-      window.parent.postMessage({ id: id, stdout: '', stderr: String(err), exitCode: -1 }, '*');
+      window.parent.postMessage({ id: id, stdout: '', stderr: String(err), exitCode: -1, mesinGagal: true }, '*');
     }
   });
 })();
@@ -200,7 +212,7 @@ function getOrCreateIframe(versi: VersiJava): Promise<HTMLIFrameElement> {
     if (versi === 21) console.info('[BisaNgoding] Java 21 (CheerpJ 5).');
     iframe.srcdoc = buildIframeSrcdoc(versi);
   });
-  iframes.set(versi, { iframe, siap });
+  iframes.set(versi, { iframe, siap, jalan: 0 });
   return siap.then(() => iframe);
 }
 
@@ -221,7 +233,7 @@ function sendToIframe(iframe: HTMLIFrameElement, message: Record<string, unknown
       }
       window.removeEventListener('message', onMsg);
       pendingCallbacks.delete(id);
-      resolve({ stdout: data.stdout ?? '', stderr: data.stderr ?? '', exitCode: data.exitCode ?? -1 });
+      resolve({ stdout: data.stdout ?? '', stderr: data.stderr ?? '', exitCode: data.exitCode ?? -1, ...(data.mesinGagal ? { mesinGagal: true } : {}) });
     };
     window.addEventListener('message', onMsg);
 
@@ -242,20 +254,21 @@ export function resetJavaRunner(): void {
   // no-op: we no longer kill iframe on stop
 }
 
-/**
- * Jalankan kode Java. javaVersion diisi dari materi (lesson.javaVersion): 21 berarti Java 21 (CheerpJ 5),
- * selain itu Java 8 (CheerpJ 3) kecuali mode percobaan ?java=21 sedang menyala.
- */
-export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: string) => void, javaVersion?: number): Promise<RunResult> {
-  code = rapikanKetikan(code);
-  const versi = versiUntukMateri(javaVersion);
+/** Buang mesin Java versi ini (iframe CheerpJ). Jalan berikutnya membuat mesin baru dengan memori bersih. */
+function buangMesin(versi: VersiJava): void {
+  const ada = iframes.get(versi);
+  iframes.delete(versi);
+  try { ada?.iframe.remove(); } catch { /* sudah hilang */ }
+}
+
+async function jalankanSekali(versi: VersiJava, code: string, stdinInput: string, onStatus: ((s: string) => void) | undefined, cp: string): Promise<RunResult> {
   const iframe = await getOrCreateIframe(versi);
+  const mesin = iframes.get(versi);
+  if (mesin) mesin.jalan++;
 
   runCounter++;
   const runId = runCounter;
   const msgId = `run-${runId}-${Date.now()}`;
-  const runnerSource = buildRunnerSource();
-  const cp = classpathPustaka(code, import.meta.env.BASE_URL || '/');
 
   const runPromise = sendToIframe(iframe, {
     type: 'run',
@@ -263,17 +276,54 @@ export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: 
     runId,
     code,
     stdin: stdinInput,
-    runnerSource,
+    runnerSource: buildRunnerSource(),
     toolsPath: getToolsPath(),
     cp,
   }, onStatus);
 
+  let pewaktu: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<RunResult>((resolve) => {
-    setTimeout(() => {
+    pewaktu = setTimeout(() => {
       pendingCallbacks.delete(msgId);
       resolve({ stdout: '', stderr: '', exitCode: -1, timedOut: true });
     }, cp || versi === 21 ? TIMEOUT_PUSTAKA_MS : TIMEOUT_MS);
   });
 
-  return Promise.race([runPromise, timeoutPromise]);
+  const hasil = await Promise.race([runPromise, timeoutPromise]);
+  clearTimeout(pewaktu);
+  return hasil;
+}
+
+/**
+ * Jalankan kode Java. javaVersion diisi dari materi (lesson.javaVersion): 21 berarti Java 21 (CheerpJ 5),
+ * selain itu Java 8 (CheerpJ 3) kecuali mode percobaan ?java=21 sedang menyala.
+ *
+ * Menjaga mesin tetap sehat:
+ * - program yang melewati batas waktu masih berjalan di dalam mesin, jadi mesinnya dibuang;
+ * - mesin yang rusak (error WebAssembly seperti "memory access out of bounds") dibuang dan program dicoba sekali lagi di mesin baru;
+ * - mesin diganti setelah BATAS_JALAN_PER_MESIN kali jalan.
+ */
+export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: string) => void, javaVersion?: number): Promise<RunResult> {
+  code = rapikanKetikan(code);
+  const versi = versiUntukMateri(javaVersion);
+  const cp = classpathPustaka(code, import.meta.env.BASE_URL || '/');
+
+  if ((iframes.get(versi)?.jalan ?? 0) >= BATAS_JALAN_PER_MESIN) buangMesin(versi);
+
+  let hasil = await jalankanSekali(versi, code, stdinInput, onStatus, cp);
+  if (hasil.timedOut) {
+    buangMesin(versi);
+    return hasil;
+  }
+  if (hasil.mesinGagal && apakahMesinRusak(hasil.stderr)) {
+    buangMesin(versi);
+    onStatus?.('Memuat ulang Java');
+    hasil = await jalankanSekali(versi, code, stdinInput, onStatus, cp);
+    if (hasil.timedOut) buangMesin(versi);
+    else if (hasil.mesinGagal && apakahMesinRusak(hasil.stderr)) {
+      buangMesin(versi);
+      return { stdout: '', stderr: PESAN_MESIN_RUSAK, exitCode: -1 };
+    }
+  }
+  return hasil;
 }

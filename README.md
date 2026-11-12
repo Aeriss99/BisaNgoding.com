@@ -95,7 +95,7 @@ Materi hanya berupa file JSON, tanpa perlu mengubah kode:
 2. Daftarkan modulnya di `content/<kelas>/modules.json` (`id`, `title`, `order`, `lessonCount`, `status: "ready"`, `requires`).
 3. Jalankan `npm run build && npm run test:content`. Untuk kelas Java, jalankan juga `npm run test:java`.
 
-Jenis kartu dan field-nya ada di `src/types/schema.ts`. Kode Java yang dijalankan di browser harus kompatibel dengan **Java 8**, karena editor memakai CheerpJ 3 (Java 8). Pelajaran bertanda `"javaVersion": 21` dijalankan dengan CheerpJ 5 (Java 21) dan diperiksa `test:java` tanpa `--release 8`. Pelajaran bertanda `"javaVersion": 17` hanya teori dan dipraktikkan di komputer pelajar.
+Jenis kartu dan field-nya ada di `src/types/schema.ts`. Kode Java yang dijalankan di browser harus kompatibel dengan **Java 8**, karena editor memakai CheerpJ 3 (Java 8). Pelajaran yang butuh fitur lebih baru diberi `"javaVersion": 17` atau `21` dan `"runnable": false`: isinya teori dan soal, praktiknya di komputer pelajar.
 
 Library Java untuk editor (JUnit 5, Mockito, Logback, Lombok, H2, Hibernate Validator, Jackson, Commons CSV, Hibernate ORM, Jakarta Servlet, Resilience4j) ada di `public/java-lib` dan dipasang otomatis sesuai `import` di kode, lewat aturan di `src/lib/javaPustaka.json`. Sumber `bisangoding.jar` (penjalan test JUnit, format log, dan `ServerUji` untuk Servlet) ada di `pustaka-java/`, dibangun dengan `pustaka-java/bangun.sh`.
 
