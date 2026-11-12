@@ -38,6 +38,31 @@ async function halamanBaru() {
   }
   throw new Error('halaman Java tidak bisa dibuka');
 }
+if (process.env.UJI_PULIH) {
+  await halamanBaru();
+  const halo = (n) => `public class Main { public static void main(String[] a) { System.out.println("Halo ${n}"); } }`;
+  const jalan = (kode) => page.evaluate(async (kode) => { const r = await window.runJavaCode(kode, ''); return { ...r, iframe: document.querySelectorAll('iframe').length }; }, kode);
+  let gagal = 0;
+  const t0 = Date.now();
+  for (let n = 1; n <= 45; n++) {
+    const r = await jalan(halo(n));
+    if (r.stdout.trim() !== `Halo ${n}` || r.iframe !== 1) { gagal++; console.log(`PULIH jalan ${n} SALAH: ${JSON.stringify(r).slice(0, 200)}`); }
+    if (n === 40 || n === 41 || n === 45) console.log(`PULIH jalan ${n}: ${r.stdout.trim()} iframe=${r.iframe} ${Date.now() - t0}ms`);
+  }
+  const macet = await jalan('public class Main { public static void main(String[] a) { long x = 0; while (true) { x++; } } }');
+  console.log(`PULIH macet: timedOut=${macet.timedOut} iframe=${macet.iframe}`);
+  if (!macet.timedOut || macet.iframe !== 0) gagal++;
+  const t1 = Date.now();
+  const lagi = await jalan(halo(99));
+  console.log(`PULIH setelah macet: ${lagi.stdout.trim()} iframe=${lagi.iframe} ${Date.now() - t1}ms`);
+  if (lagi.stdout.trim() !== 'Halo 99' || lagi.iframe !== 1) gagal++;
+  const scan = await page.evaluate(async () => (await window.runJavaCode('import java.util.*; public class Main { public static void main(String[] a) { Scanner s = new Scanner(System.in); System.out.println(s.nextInt() * 2); } }', '21')).stdout.trim());
+  console.log(`PULIH input: ${scan}`);
+  if (scan !== '42') gagal++;
+  console.log(`PULIH GAGAL: ${gagal}`);
+  await browser.close();
+  process.exit(gagal ? 1 : 0);
+}
 const temuan = [];
 const waktu = [];
 let i = 0;
