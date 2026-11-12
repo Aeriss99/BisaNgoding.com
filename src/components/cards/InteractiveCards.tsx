@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RunnableCard, CodeChallengeCard } from '../../types/schema';
 import { CodeEditor } from './CodeEditor';
 import { HtmlResult } from './HtmlPreviewCard';
@@ -9,7 +9,6 @@ import { Play, Loader2, CheckCircle, RefreshCw } from 'lucide-react';
 import { getErrorHint } from '../../lib/errorHints';
 import { formatKeluaranHtml } from '../../lib/formatKeluaran';
 import { runJavaCode } from '../../lib/javaRunner';
-import { VersiJavaMateri } from '../../lib/versiJavaMateri';
 import { runPythonCode, artiGalatPython } from '../../lib/pythonRunner';
 import { rapikanKeluaran } from '../../lib/praktikPython';
 import { runJsCode, pratinjauHtml } from '../../lib/jsRunner';
@@ -35,7 +34,6 @@ function WadahHasilDom({ html }: { html: string }) {
 }
 
 export function RunnableCardComponent({ card, mini = false, language = 'java', lessonRunnable = true }: { card: RunnableCard, mini?: boolean, language?: string, lessonRunnable?: boolean }) {
-  const versiJava = useContext(VersiJavaMateri);
   const [code, setCode] = useState(card.code);
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
@@ -80,7 +78,7 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
         ? await runTsCode(code, (s) => setStatusText(s))
         : language === 'python'
         ? await runPythonCode(code, "", (s) => setStatusText(s))
-        : await runJavaCode(code, "", (s) => setStatusText(s), versiJava);
+        : await runJavaCode(code, "", (s) => setStatusText(s));
         
       if (res.timedOut) {
         setTimedOut(true);
@@ -271,7 +269,6 @@ export function CodeChallengeCardComponent({
   onRequireRecheck?: () => void,
   language?: string
 }) {
-  const versiJava = useContext(VersiJavaMateri);
   const [code, setCode] = useState(card.starterCode);
   const [resetKey, setResetKey] = useState(0);
   const [output, setOutput] = useState('');
@@ -353,7 +350,7 @@ export function CodeChallengeCardComponent({
           ? await runTsCode(code, (s) => setStatusText(s))
           : language === 'python'
           ? await runPythonCode(code, test.input, (s) => setStatusText(s))
-          : await runJavaCode(code, test.input, (s) => setStatusText(s), versiJava);
+          : await runJavaCode(code, test.input, (s) => setStatusText(s));
 
         if (res.timedOut) {
           setTimedOut(true);

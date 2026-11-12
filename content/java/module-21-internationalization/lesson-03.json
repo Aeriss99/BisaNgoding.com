@@ -4,6 +4,8 @@
   "order": 3,
   "title": "MessageFormat: Kalimat dengan Isian",
   "estimatedMinutes": 17,
+  "runnable": false,
+  "javaVersion": 21,
   "cards": [
     {
       "type": "theory",
@@ -18,39 +20,16 @@
       "content": "### Contoh\n\n```java\nstatic String teks(String kunci, Locale locale, Object... isian) {\n    ResourceBundle rb = ResourceBundle.getBundle(\"notif\", locale);\n    return new MessageFormat(rb.getString(kunci), locale).format(isian);\n}\n\nteks(\"pesanan\", Locale.forLanguageTag(\"id-ID\"), \"Sari\", 1250);\n// Halo Sari, pesananmu berisi 1.250 barang.\n```\n\nMethod bantu seperti `teks` ini persis yang dikerjakan `MessageSource.getMessage(kunci, isian, locale)` di Spring.\n\n`MessageFormat` hanya memformat `Date` lama untuk isian tanggal. Untuk `LocalDate` dan `ZonedDateTime`, format dulu dengan `DateTimeFormatter` (materi Tanggal dan Waktu), lalu kirim hasilnya sebagai teks."
     },
     {
-      "type": "runnable",
+      "type": "predict_output",
       "code": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        System.out.println(MessageFormat.format(\"Don't forget {0}\", \"kopi\"));\n        System.out.println(MessageFormat.format(\"Don''t forget {0}\", \"kopi\"));\n    }\n}",
-      "predict": {
-        "question": "Tebak dulu: apa baris pertama yang tercetak?",
-        "options": [
-          "Dont forget kopi",
-          "Don't forget {0}",
-          "Don t forget kopi",
-          "Dont forget {0}"
-        ],
-        "answer": 3
-      },
-      "annotations": [
-        {
-          "line": 6,
-          "note": "Petik tunggal membuka teks apa adanya."
-        },
-        {
-          "line": 7,
-          "note": "Petik ditulis dua kali."
-        }
+      "options": [
+        "Dont forget kopi",
+        "Don't forget {0}",
+        "Don t forget kopi",
+        "Dont forget {0}"
       ],
-      "explanation": "Bagi MessageFormat, petik tunggal adalah tanda mulai teks apa adanya. Petik itu hilang, dan {0} setelahnya ikut dianggap teks biasa, sehingga tidak diganti. Baris kedua menulis petik dua kali dan hasilnya benar. Bug ini sering muncul di terjemahan bahasa Inggris dan Prancis.",
-      "tryThis": [
-        {
-          "task": "Ubah baris pertama menjadi Jum''at {0} dan jalankan.",
-          "hint": null
-        },
-        {
-          "task": "Coba MessageFormat.format(\"Harga {0}\", 1250000).",
-          "hint": null
-        }
-      ]
+      "answer": 3,
+      "explanation": "Bagi MessageFormat, petik tunggal adalah tanda mulai teks apa adanya. Petik itu hilang, dan {0} setelahnya ikut dianggap teks biasa, sehingga tidak diganti. Baris kedua menulis petik dua kali dan hasilnya benar. Bug ini sering muncul di terjemahan bahasa Inggris dan Prancis."
     },
     {
       "type": "theory",
@@ -61,64 +40,12 @@
       "content": "### Di dunia kerja\n\n- Spring `MessageSource` memakai `java.text.MessageFormat`. Thymeleaf menulisnya `#{pesanan(${nama}, ${jumlah})}`.\n- Spring punya pengaturan `spring.messages.always-use-message-format`: kalau `false` (bawaan), teks tanpa isian tidak diproses MessageFormat, sehingga petik tunggal di teks itu tidak perlu digandakan. Aturan yang berbeda ini sering membingungkan, jadi tim biasanya menyepakati satu aturan.\n- Untuk aturan jamak dan gender yang lengkap, banyak tim memakai **ICU MessageFormat** (`{n, plural, one {# item} other {# items}}`), format yang juga dipakai di frontend (FormatJS di React).\n- Log teknis dan pesan exception untuk developer biasanya tetap berbahasa Inggris dan tidak diterjemahkan. Yang diterjemahkan adalah teks untuk pengguna."
     },
     {
-      "type": "praktik_java",
-      "judul": "Toko Global 3: Notifikasi Pesanan",
-      "pembuka": "Toko Global mengirim notifikasi pesanan dalam bahasa pembeli.",
-      "langkah": [
-        {
-          "arahan": "Lihat aku dulu ya. Kalimat dengan dua isian diambil dari file terjemahan, lalu diisi nama dan jumlah barang.",
-          "jawaban": "import java.io.IOException;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"notif\",\n                \"\", \"pesanan=Hi {0}, your order has {1,number,integer} items.\\n\",\n                \"_id\", \"pesanan=Halo {0}, pesananmu berisi {1,number,integer} barang.\\n\");\n        Locale id = Locale.forLanguageTag(\"id-ID\");\n        ResourceBundle rb = ResourceBundle.getBundle(\"notif\", id);\n        MessageFormat mf = new MessageFormat(rb.getString(\"pesanan\"), id);\n        System.out.println(mf.format(new Object[]{\"Sari\", 1250}));\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}\n",
-          "keluaran": "Halo Sari, pesananmu berisi 1.250 barang.",
-          "otomatis": true,
-          "benar": "Angka 1250 ditulis `1.250` karena MessageFormat dibuat dengan locale Indonesia.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
-          "petunjuk": ""
-        },
-        {
-          "arahan": "Buat method bantu `teks(kunci, locale, isian...)` lalu cetak notifikasi untuk `id-ID` dan `en-US`.",
-          "jawaban": "import java.io.IOException;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    static String teks(String kunci, Locale locale, Object... isian) {\n        ResourceBundle rb = ResourceBundle.getBundle(\"notif\", locale);\n        return new MessageFormat(rb.getString(kunci), locale).format(isian);\n    }\n\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"notif\",\n                \"\", \"pesanan=Hi {0}, your order has {1,number,integer} items.\\n\",\n                \"_id\", \"pesanan=Halo {0}, pesananmu berisi {1,number,integer} barang.\\n\");\n        for (String tag : List.of(\"id-ID\", \"en-US\")) {\n            System.out.println(teks(\"pesanan\", Locale.forLanguageTag(tag), \"Sari\", 1250));\n        }\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}\n",
-          "keluaran": "Halo Sari, pesananmu berisi 1.250 barang.\nHi Sari, your order has 1,250 items.",
-          "wajib": [
-            {
-              "pola": "static\\s+String\\s+teks\\s*\\(\\s*String\\s+kunci\\s*,\\s*Locale\\s+locale\\s*,\\s*Object\\.\\.\\.\\s*isian\\s*\\)",
-              "pesan": "buat method `teks(String kunci, Locale locale, Object... isian)`."
-            }
-          ],
-          "benar": "Pembeli Amerika mendapat `1,250`, pembeli Indonesia `1.250`.",
-          "petunjuk": "`static String teks(String kunci, Locale locale, Object... isian)` mengambil bundle, membuat `MessageFormat` dengan locale, lalu `format(isian)`."
-        },
-        {
-          "arahan": "Ubah terjemahan memakai `choice`: bahasa Inggris membedakan 0, 1, dan banyak; bahasa Indonesia membedakan 0 (`masih kosong`) dan lebih dari 0. Cetak untuk jumlah 0, 1, dan 1250.",
-          "jawaban": "import java.io.IOException;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    static String teks(String kunci, Locale locale, Object... isian) {\n        ResourceBundle rb = ResourceBundle.getBundle(\"notif\", locale);\n        return new MessageFormat(rb.getString(kunci), locale).format(isian);\n    }\n\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"notif\",\n                \"\", \"pesanan=Hi {0}, your order has {1,choice,0#no items|1#one item|1<{1,number,integer} items}.\\n\",\n                \"_id\", \"pesanan=Halo {0}, pesananmu {1,choice,0#masih kosong|0<berisi {1,number,integer} barang}.\\n\");\n        for (String tag : List.of(\"id-ID\", \"en-US\")) {\n            for (int n : new int[]{0, 1, 1250}) {\n                System.out.println(teks(\"pesanan\", Locale.forLanguageTag(tag), \"Sari\", n));\n            }\n        }\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}\n",
-          "keluaran": "Halo Sari, pesananmu masih kosong.\nHalo Sari, pesananmu berisi 1 barang.\nHalo Sari, pesananmu berisi 1.250 barang.\nHi Sari, your order has no items.\nHi Sari, your order has one item.\nHi Sari, your order has 1,250 items.",
-          "wajib": [
-            {
-              "pola": "choice",
-              "pesan": "pakai `choice`."
-            }
-          ],
-          "benar": "Aturan jamak tinggal di terjemahan, bukan di kode Java.",
-          "petunjuk": "Contoh pola Indonesia: `{1,choice,0#masih kosong|0<berisi {1,number,integer} barang}`. `0<` berarti lebih dari 0."
-        },
-        {
-          "arahan": "Tantangan: tambahkan terjemahan Jepang `_ja` dengan pola `{0}さん、ご注文は{1,number,integer}点です。`, lalu cetak notifikasi 1250 barang untuk `id-ID`, `en-US`, dan `ja-JP`.",
-          "jawaban": "import java.io.IOException;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    static String teks(String kunci, Locale locale, Object... isian) {\n        ResourceBundle rb = ResourceBundle.getBundle(\"notif\", locale);\n        return new MessageFormat(rb.getString(kunci), locale).format(isian);\n    }\n\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"notif\",\n                \"\", \"pesanan=Hi {0}, your order has {1,choice,0#no items|1#one item|1<{1,number,integer} items}.\\n\",\n                \"_id\", \"pesanan=Halo {0}, pesananmu {1,choice,0#masih kosong|0<berisi {1,number,integer} barang}.\\n\",\n                \"_ja\", \"pesanan={0}さん、ご注文は{1,number,integer}点です。\\n\");\n        for (String tag : List.of(\"id-ID\", \"en-US\", \"ja-JP\")) {\n            System.out.println(teks(\"pesanan\", Locale.forLanguageTag(tag), \"Sari\", 1250));\n        }\n    }\n}\n\nclass Bundel {\n    // Khusus editor: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}\n",
-          "keluaran": "Halo Sari, pesananmu berisi 1.250 barang.\nHi Sari, your order has 1,250 items.\nSariさん、ご注文は1,250点です。",
-          "wajib": [
-            {
-              "pola": "\"_ja\"",
-              "pesan": "tambahkan terjemahan `_ja`."
-            },
-            {
-              "pola": "\"ja-JP\"",
-              "pesan": "tambahkan `ja-JP`."
-            }
-          ],
-          "tantangan": true,
-          "benar": "Urutan isian dalam kalimat Jepang berbeda, dan MessageFormat tidak peduli.",
-          "petunjuk": "File `.properties` dibaca sebagai UTF-8, jadi huruf Jepang bisa ditulis langsung."
-        }
-      ],
-      "penutup": "Kalimat sudah fleksibel. Berikutnya: angka, persen, dan uang."
+      "type": "theory",
+      "content": "### Praktik di laptop: Toko Global 3: Notifikasi Pesanan\n\nToko Global mengirim notifikasi pesanan dalam bahasa pembeli.\n\nMateri ini memakai **Java 21**, jadi praktiknya dikerjakan di laptopmu (JDK 21). Simpan kode sebagai `Main.java`, lalu jalankan dengan `java -Duser.language=en -Duser.country=US Main.java` supaya locale bawaannya `en-US` seperti di contoh.\n\n**Langkah:**\n\n1. Lihat aku dulu ya. Kalimat dengan dua isian diambil dari file terjemahan, lalu diisi nama dan jumlah barang.\n2. Buat method bantu `teks(kunci, locale, isian...)` lalu cetak notifikasi untuk `id-ID` dan `en-US`.\n3. Ubah terjemahan memakai `choice`: bahasa Inggris membedakan 0, 1, dan banyak; bahasa Indonesia membedakan 0 (`masih kosong`) dan lebih dari 0. Cetak untuk jumlah 0, 1, dan 1250.\n4. Tantangan: tambahkan terjemahan Jepang `_ja` dengan pola `{0}さん、ご注文は{1,number,integer}点です。`, lalu cetak notifikasi 1250 barang untuk `id-ID`, `en-US`, dan `ja-JP`.\n\n**Kode awal (langkah 1):**\n\n```java\nimport java.io.IOException;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"notif\",\n                \"\", \"pesanan=Hi {0}, your order has {1,number,integer} items.\\n\",\n                \"_id\", \"pesanan=Halo {0}, pesananmu berisi {1,number,integer} barang.\\n\");\n        Locale id = Locale.forLanguageTag(\"id-ID\");\n        ResourceBundle rb = ResourceBundle.getBundle(\"notif\", id);\n        MessageFormat mf = new MessageFormat(rb.getString(\"pesanan\"), id);\n        System.out.println(mf.format(new Object[]{\"Sari\", 1250}));\n    }\n}\n\nclass Bundel {\n    // Khusus praktik satu file: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Hasil akhir praktik\n\nBandingkan dengan pekerjaanmu setelah semua langkah selesai.\n\n```java\nimport java.io.IOException;\nimport java.nio.file.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    static String teks(String kunci, Locale locale, Object... isian) {\n        ResourceBundle rb = ResourceBundle.getBundle(\"notif\", locale);\n        return new MessageFormat(rb.getString(kunci), locale).format(isian);\n    }\n\n    public static void main(String[] args) throws Exception {\n        Bundel.siapkan(\"notif\",\n                \"\", \"pesanan=Hi {0}, your order has {1,choice,0#no items|1#one item|1<{1,number,integer} items}.\\n\",\n                \"_id\", \"pesanan=Halo {0}, pesananmu {1,choice,0#masih kosong|0<berisi {1,number,integer} barang}.\\n\",\n                \"_ja\", \"pesanan={0}さん、ご注文は{1,number,integer}点です。\\n\");\n        for (String tag : List.of(\"id-ID\", \"en-US\", \"ja-JP\")) {\n            System.out.println(teks(\"pesanan\", Locale.forLanguageTag(tag), \"Sari\", 1250));\n        }\n    }\n}\n\nclass Bundel {\n    // Khusus praktik satu file: menulis file .properties ke folder kerja, yang ada di classpath.\n    // Di proyek sungguhan, file ini disimpan di src/main/resources.\n    static void siapkan(String dasar, String... akhiranDanIsi) throws IOException {\n        for (String akhiran : new String[]{\"\", \"_id\", \"_en\", \"_ja\", \"_ms\", \"_id_ID\", \"_en_US\"}) {\n            Files.deleteIfExists(Path.of(dasar + akhiran + \".properties\"));\n        }\n        for (int i = 0; i < akhiranDanIsi.length; i += 2) {\n            Files.writeString(Path.of(dasar + akhiranDanIsi[i] + \".properties\"), akhiranDanIsi[i + 1]);\n        }\n        ResourceBundle.clearCache();\n    }\n}\n```\n\nKeluaran:\n\n```text\nHalo Sari, pesananmu berisi 1.250 barang.\nHi Sari, your order has 1,250 items.\nSariさん、ご注文は1,250点です。\n```\n\nKalimat sudah fleksibel. Berikutnya: angka, persen, dan uang."
     },
     {
       "type": "understanding_check",
@@ -175,24 +102,8 @@
       "explanation": "Format pesan."
     },
     {
-      "type": "code_challenge",
-      "prompt": "Program membaca tag bahasa di baris pertama, lalu baris-baris berisi nama dan jumlah poin pelanggan. Saat ini kalimatnya disambung manual dan angka tidak diformat. Ubah memakai MessageFormat dengan locale dari input dan pola: nama, kata punya, lalu belum ada poin untuk 0, 1 poin untuk 1, dan angka berformat integer diikuti poin untuk lebih dari 1. Contoh: Sari punya 1.250 poin.",
-      "starterCode": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Locale locale = Locale.forLanguageTag(in.nextLine().trim());\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            String nama = d[0];\n            int poin = Integer.parseInt(d[1]);\n            System.out.println(nama + \" punya \" + poin + \" poin\");\n        }\n    }\n}",
-      "solution": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Locale locale = Locale.forLanguageTag(in.nextLine().trim());\n        MessageFormat mf = new MessageFormat(\"{0} punya {1,choice,0#belum ada poin|1#1 poin|1<{1,number,integer} poin}\", locale);\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            String nama = d[0];\n            int poin = Integer.parseInt(d[1]);\n            System.out.println(mf.format(new Object[]{nama, poin}));\n        }\n    }\n}",
-      "tests": [
-        {
-          "input": "id-ID\nSari 1250\nBudi 0\nAni 1\n",
-          "expectedOutput": "Sari punya 1.250 poin\nBudi punya belum ada poin\nAni punya 1 poin\n"
-        },
-        {
-          "input": "en-US\nSari 1250000\n",
-          "expectedOutput": "Sari punya 1,250,000 poin\n"
-        }
-      ],
-      "hints": [
-        "Pola: {0} punya {1,choice,0#belum ada poin|1#1 poin|1<{1,number,integer} poin}",
-        "Buat sekali di luar perulangan: new MessageFormat(pola, locale), lalu mf.format(new Object[]{nama, poin})."
-      ]
+      "type": "theory",
+      "content": "### Tantangan di laptop\n\nProgram membaca tag bahasa di baris pertama, lalu baris-baris berisi nama dan jumlah poin pelanggan. Saat ini kalimatnya disambung manual dan angka tidak diformat. Ubah memakai MessageFormat dengan locale dari input dan pola: nama, kata punya, lalu belum ada poin untuk 0, 1 poin untuk 1, dan angka berformat integer diikuti poin untuk lebih dari 1. Contoh: Sari punya 1.250 poin.\n\n**Kode awal:**\n\n```java\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        Locale locale = Locale.forLanguageTag(in.nextLine().trim());\n        while (in.hasNextLine()) {\n            String[] d = in.nextLine().trim().split(\" \");\n            String nama = d[0];\n            int poin = Integer.parseInt(d[1]);\n            System.out.println(nama + \" punya \" + poin + \" poin\");\n        }\n    }\n}\n```\n\n**Input:**\n\n```text\nid-ID\nSari 1250\nBudi 0\nAni 1\n```\n\n**Keluaran yang diharapkan:**\n\n```text\nSari punya 1.250 poin\nBudi punya belum ada poin\nAni punya 1 poin\n```\n\n**Petunjuk:**\n\n- Pola: {0} punya {1,choice,0#belum ada poin|1#1 poin|1<{1,number,integer} poin}\n- Buat sekali di luar perulangan: new MessageFormat(pola, locale), lalu mf.format(new Object[]{nama, poin})."
     },
     {
       "type": "summary",
@@ -203,6 +114,5 @@
         "Tanggal java.time diformat dulu dengan DateTimeFormatter, lalu dikirim sebagai teks."
       ]
     }
-  ],
-  "javaVersion": 21
+  ]
 }
