@@ -18,7 +18,8 @@ const TIMEOUT_MS = 20_000;
 const TIMEOUT_PUSTAKA_MS = 90_000;
 const KUNCI_MODE = 'bn_java_versi';
 // Mesin Java (CheerpJ) dibuang dan dibuat ulang setelah sekian kali jalan, supaya memorinya tidak menumpuk.
-export const BATAS_JALAN_PER_MESIN = 40;
+// Diukur di Chromium (12 Nov 2026): tanpa ini, tab crash tepat di jalan ke-35 dalam satu tab.
+export const BATAS_JALAN_PER_MESIN = 12;
 export const PESAN_MESIN_RUSAK =
   'Mesin Java di browser kehabisan memori dan sudah dimuat ulang. Tekan Jalankan sekali lagi. Kalau masih muncul, tutup tab lain lalu muat ulang halaman ini.';
 
