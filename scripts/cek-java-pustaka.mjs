@@ -44,10 +44,12 @@ if (process.env.UJI_PULIH) {
   const jalan = (kode) => page.evaluate(async (kode) => { const r = await window.runJavaCode(kode, ''); return { ...r, iframe: document.querySelectorAll('iframe').length }; }, kode);
   let gagal = 0;
   const t0 = Date.now();
+  page.on('crash', () => console.log('PULIH TAB CRASH'));
   for (let n = 1; n <= 45; n++) {
-    const r = await jalan(halo(n));
+    let r;
+    try { r = await jalan(halo(n)); } catch (e) { console.log(`PULIH jalan ${n} LEMPAR: ${String(e).slice(0, 120)}`); gagal++; break; }
     if (r.stdout.trim() !== `Halo ${n}` || r.iframe !== 1) { gagal++; console.log(`PULIH jalan ${n} SALAH: ${JSON.stringify(r).slice(0, 200)}`); }
-    if (n === 40 || n === 41 || n === 45) console.log(`PULIH jalan ${n}: ${r.stdout.trim()} iframe=${r.iframe} ${Date.now() - t0}ms`);
+    console.log(`PULIH jalan ${n}: ${r.stdout.trim()} iframe=${r.iframe} ${Date.now() - t0}ms`);
   }
   const macet = await jalan('public class Main { public static void main(String[] a) { long x = 0; while (true) { x++; } } }');
   console.log(`PULIH macet: timedOut=${macet.timedOut} iframe=${macet.iframe}`);
