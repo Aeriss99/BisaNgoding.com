@@ -45,7 +45,7 @@ if (process.env.UJI_PULIH) {
   let gagal = 0;
   const t0 = Date.now();
   page.on('crash', () => console.log('PULIH TAB CRASH'));
-  for (let n = 1; n <= 45; n++) {
+  for (let n = 1; n <= 100; n++) {
     let r;
     try { r = await jalan(halo(n)); } catch (e) { console.log(`PULIH jalan ${n} LEMPAR: ${String(e).slice(0, 120)}`); gagal++; break; }
     if (r.stdout.trim() !== `Halo ${n}` || r.iframe !== 1) { gagal++; console.log(`PULIH jalan ${n} SALAH: ${JSON.stringify(r).slice(0, 200)}`); }
