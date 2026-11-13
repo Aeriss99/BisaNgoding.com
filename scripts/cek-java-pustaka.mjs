@@ -38,6 +38,34 @@ async function halamanBaru() {
   }
   throw new Error('halaman Java tidak bisa dibuka');
 }
+if (process.env.UJI_LOOP) {
+  await halamanBaru();
+  page.on('crash', () => console.log('LOOP TAB CRASH'));
+  // Detak: apakah halaman masih merespons (main thread tidak beku) selama program jalan
+  const detak = async () => { const t = Date.now(); const ok = await Promise.race([page.evaluate(() => 1).then(() => true), new Promise((r) => setTimeout(() => r(false), 3000))]); return ok ? `${Date.now() - t}ms` : 'BEKU'; };
+  const kasus = [
+    ['loop kosong', 'public class Main { public static void main(String[] a) { long x = 0; while (true) { x++; } } }'],
+    ['loop cetak', 'public class Main { public static void main(String[] a) { long x = 0; while (true) { x++; if (x % 100000 == 0) System.out.println(x); } } }'],
+    ['rekursi', 'public class Main { static int f(int n) { return f(n + 1) + 1; } public static void main(String[] a) { System.out.println(f(0)); } }'],
+    ['for besar', 'public class Main { public static void main(String[] a) { long s = 0; for (long i = 0; i < 5000000000L; i++) s += i; System.out.println(s); } }'],
+  ];
+  const halo = 'public class Main { public static void main(String[] a) { System.out.println("Halo"); } }';
+  console.log('LOOP awal: ' + JSON.stringify(await page.evaluate((k) => window.runJavaCode(k, ''), halo)));
+  for (const [nama, kode] of kasus) {
+    const t0 = Date.now();
+    let selesai = null;
+    const jalan = page.evaluate((k) => window.runJavaCode(k, ''), kode).then((r) => { selesai = r; }).catch((e) => { selesai = { lempar: String(e).slice(0, 100) }; });
+    const catat = [];
+    while (!selesai && Date.now() - t0 < 120000) { await new Promise((r) => setTimeout(r, 4000)); catat.push(await detak()); }
+    console.log(`LOOP ${nama}: ${selesai ? JSON.stringify({ ...selesai, stdout: (selesai.stdout || '').slice(-60), stderr: (selesai.stderr || '').slice(0, 150) }) : 'TIDAK KEMBALI 120 detik'} setelah ${Date.now() - t0}ms; detak ${catat.join(' ')}`);
+    if (!selesai) { await halamanBaru(); continue; }
+    const t1 = Date.now();
+    const lagi = await Promise.race([page.evaluate((k) => window.runJavaCode(k, ''), halo), new Promise((r) => setTimeout(() => r({ macet: true }), 60000))]);
+    console.log(`LOOP sesudah ${nama}: ${JSON.stringify(lagi).slice(0, 150)} ${Date.now() - t1}ms`);
+  }
+  await browser.close();
+  process.exit(0);
+}
 if (process.env.UJI_PULIH) {
   await halamanBaru();
   const halo = (n) => `public class Main { public static void main(String[] a) { System.out.println("Halo ${n}"); } }`;
