@@ -1,5 +1,6 @@
 import { rapikanKetikan } from './ketikan';
 import { classpathPustaka } from './javaPustaka';
+import { pasangJagaLoop, rapikanPesanJavac, sumberKelasJaga, TANDA_BATAS_WAKTU, TANDA_BATAS_KELUARAN, PESAN_BATAS_WAKTU, PESAN_BATAS_KELUARAN, type HasilJaga } from './javaJagaLoop';
 
 export interface RunResult {
   stdout: string;
@@ -60,7 +61,11 @@ interface PendingCallback {
 }
 const pendingCallbacks = new Map<string, PendingCallback>();
 
-function buildRunnerSource(): string {
+// Batas waktu program Java (di dalam Java), lebih pendek dari pewaktu JavaScript supaya program berhenti dengan rapi.
+const BATAS_JAVA_MS = 12_000;
+const BATAS_JAVA_PUSTAKA_MS = 70_000;
+
+function buildRunnerSource(batasMs = BATAS_JAVA_MS): string {
   return [
     'import java.io.*;',
     'public class Runner {',
@@ -77,6 +82,7 @@ function buildRunnerSource(): string {
     '    java.util.Locale.setDefault(java.util.Locale.US);',
     '    int code = 0;',
     '    try {',
+    `      _BnJaga.mulai(${batasMs}L, ob);`,
     '      Main.main(new String[0]);',
     '    } catch (Throwable t) {',
     '      t.printStackTrace(System.err);',
@@ -90,7 +96,8 @@ function buildRunnerSource(): string {
     '    } catch (Exception ex) {}',
     '    System.exit(code);',
     '  }',
-    '}'
+    '}',
+    sumberKelasJaga(),
   ].join('\n');
 }
 
@@ -145,7 +152,7 @@ async function tanpaAnotasiTipe() { return null; }
     }
 
     try {
-      var currentHash = hashString(d.code);
+      var currentHash = hashString(d.code + '\\n' + d.runnerSource);
       if (window.lastCompiledHash !== currentHash) {
         window.parent.postMessage({ type: 'status', id: id, status: 'Mengompilasi' }, '*');
         var cx = await cheerpjRunMain(
@@ -276,7 +283,7 @@ async function jalankanSekali(versi: VersiJava, code: string, stdinInput: string
     runId,
     code,
     stdin: stdinInput,
-    runnerSource: buildRunnerSource(),
+    runnerSource: buildRunnerSource(cp || versi === 21 ? BATAS_JAVA_PUSTAKA_MS : BATAS_JAVA_MS),
     toolsPath: getToolsPath(),
     cp,
   }, onStatus);
@@ -307,6 +314,19 @@ export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: 
   code = rapikanKetikan(code);
   const versi = versiUntukMateri(javaVersion);
   const cp = classpathPustaka(code, import.meta.env.BASE_URL || '/');
+  const jaga = pasangJagaLoop(code);
+  return rapikanHasil(await jalankanDenganPulih(versi, jaga.kode, stdinInput, onStatus, cp), jaga);
+}
+
+/** Ubah hasil penjaga perulangan menjadi pesan yang ramah, dan kembalikan pesan javac ke kode asli. */
+export function rapikanHasil(hasil: RunResult, jaga: HasilJaga): RunResult {
+  const err = hasil.stderr || '';
+  if (err.includes(TANDA_BATAS_WAKTU)) return { ...hasil, stderr: PESAN_BATAS_WAKTU, exitCode: 1 };
+  if (err.includes(TANDA_BATAS_KELUARAN)) return { ...hasil, stderr: PESAN_BATAS_KELUARAN, exitCode: 1 };
+  return err ? { ...hasil, stderr: rapikanPesanJavac(err, jaga) } : hasil;
+}
+
+async function jalankanDenganPulih(versi: VersiJava, code: string, stdinInput: string, onStatus: ((s: string) => void) | undefined, cp: string): Promise<RunResult> {
 
   if ((iframes.get(versi)?.jalan ?? 0) >= BATAS_JALAN_PER_MESIN) buangMesin(versi);
 
