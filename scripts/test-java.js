@@ -126,7 +126,7 @@ function processLesson(lessonFile) {
     if (c.type === 'praktik_java') {
       const rapikan = (t) => t.replace(/\r\n?/g, '\n').split('\n').map((b) => b.replace(/\s+$/, '')).join('\n').replace(/\n+$/, '');
       c.langkah.forEach((l, li) => {
-        const res = runJava(l.jawaban, l.input || '', v, v !== 21);
+        const res = runJava(l.jawaban, l.input || '', v, true);
         if (!res.success) {
           errors++;
           report += `| ${data.id} | ${index} (praktik langkah ${li + 1}) | Jawaban gagal: ${res.error.replace(/\n/g, '<br>')} |\n`;
@@ -210,6 +210,7 @@ function runAll() {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 
   if (errors > 0) {
+    console.error(report.split('\n').filter((b) => b.startsWith('| ')).slice(2).join('\n').replace(/<br>/g, '\n').slice(0, 6000));
     console.error(`Ada ${errors} error di test Java!`);
     process.exit(1);
   } else {

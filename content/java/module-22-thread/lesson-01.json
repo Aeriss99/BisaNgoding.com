@@ -4,6 +4,8 @@
   "order": 1,
   "title": "Mengenal Thread",
   "estimatedMinutes": 18,
+  "runnable": false,
+  "javaVersion": 21,
   "cards": [
     {
       "type": "theory",
@@ -15,42 +17,19 @@
     },
     {
       "type": "theory",
-      "content": "### Contoh\n\nClass bantu `Jeda` dipakai di seluruh modul ini:\n\n```java\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n```\n\n```java\nThread a = new Thread(() -> proses(\"PSN-1\", 200), \"kasir-1\");\na.start();\nSystem.out.println(\"Menunggu kasir...\");    // tercetak lebih dulu, kasir masih bekerja\na.join();\nSystem.out.println(\"Semua pesanan selesai\");\n```\n\nSetelah `start()`, thread `main` tidak menunggu. Ia langsung lanjut ke baris berikutnya, sementara `kasir-1` bekerja di jalurnya sendiri. `join()` yang membuat `main` menunggu.\n\n**Catatan tentang editor ini:** Java di website ini berjalan di dalam browser. Thread tetap bergantian sungguhan, tetapi tidak berjalan di beberapa inti CPU sekaligus. Karena itu contoh di modul ini memakai `Thread.sleep` untuk membuat urutan kejadian jelas dan hasilnya selalu sama. Di laptop atau server, masalah yang sama muncul lebih acak, dan justru itu yang membuatnya berbahaya."
+      "content": "### Contoh\n\nClass bantu `Jeda` dipakai di seluruh modul ini:\n\n```java\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n```\n\n```java\nThread a = new Thread(() -> proses(\"PSN-1\", 200), \"kasir-1\");\na.start();\nSystem.out.println(\"Menunggu kasir...\");    // tercetak lebih dulu, kasir masih bekerja\na.join();\nSystem.out.println(\"Semua pesanan selesai\");\n```\n\nSetelah `start()`, thread `main` tidak menunggu. Ia langsung lanjut ke baris berikutnya, sementara `kasir-1` bekerja di jalurnya sendiri. `join()` yang membuat `main` menunggu.\n\n**Catatan:** contoh di modul ini memakai `Thread.sleep` untuk membuat urutan kejadian jelas dan hasilnya selalu sama. Di aplikasi sungguhan, masalah yang sama muncul lebih acak, dan justru itu yang membuatnya berbahaya."
     },
     {
-      "type": "runnable",
-      "code": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Thread t = new Thread(() -> System.out.println(\"dijalankan oleh \" + Thread.currentThread().getName()), \"kurir\");\n        t.run();\n        t.start();\n        t.join();\n    }\n}",
-      "predict": {
-        "question": "Tebak dulu: apa baris pertama yang tercetak?",
-        "options": [
-          "dijalankan oleh Thread-0",
-          "dijalankan oleh main",
-          "dijalankan oleh run",
-          "dijalankan oleh start"
-        ],
-        "answer": 1
-      },
-      "annotations": [
-        {
-          "line": 8,
-          "note": "Dipanggil biasa, di thread main."
-        },
-        {
-          "line": 9,
-          "note": "Thread baru bernama kurir."
-        }
+      "type": "predict_output",
+      "code": "// Pertanyaan: Apa baris pertama yang tercetak?\nimport java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Thread t = new Thread(() -> System.out.println(\"dijalankan oleh \" + Thread.currentThread().getName()), \"kurir\");\n        t.run();\n        t.start();\n        t.join();\n    }\n}",
+      "options": [
+        "dijalankan oleh Thread-0",
+        "dijalankan oleh main",
+        "dijalankan oleh run",
+        "dijalankan oleh start"
       ],
-      "explanation": "run() hanya memanggil isi lambda seperti method biasa, jadi yang menjalankannya tetap thread main. Baru start() yang membuat thread baru bernama kurir. Kesalahan memanggil run() padahal maksudnya start() sering terjadi dan tidak menimbulkan error, hanya program menjadi tidak paralel.",
-      "tryThis": [
-        {
-          "task": "Hapus baris t.run() lalu jalankan.",
-          "hint": null
-        },
-        {
-          "task": "Ganti nama thread kurir menjadi pengirim.",
-          "hint": null
-        }
-      ]
+      "answer": 1,
+      "explanation": "run() hanya memanggil isi lambda seperti method biasa, jadi yang menjalankannya tetap thread main. Baru start() yang membuat thread baru bernama kurir. Kesalahan memanggil run() padahal maksudnya start() sering terjadi dan tidak menimbulkan error, hanya program menjadi tidak paralel."
     },
     {
       "type": "theory",
@@ -61,68 +40,12 @@
       "content": "### Di dunia kerja\n\n- Hampir tidak ada yang menulis `new Thread(...)` langsung di aplikasi produksi. Yang dipakai adalah **`ExecutorService`** (thread pool), `CompletableFuture`, dan sejak Java 21 **virtual thread**.\n- Tomcat melayani setiap request HTTP di thread terpisah dari pool-nya (bawaan 200 thread). Karena itu servlet dan bean Spring harus aman dipakai banyak thread (*thread-safe*).\n- Nama thread muncul di log (`[http-nio-8080-exec-3]` di log Spring Boot). Memberi nama thread sendiri yang jelas sangat membantu saat membaca log dan *thread dump*.\n- Saat aplikasi macet, tim mengambil **thread dump** dengan `jstack <pid>` atau dari Actuator `/actuator/threaddump` untuk melihat setiap thread sedang menunggu apa."
     },
     {
-      "type": "praktik_java",
-      "judul": "Pemroses Pesanan 1: Dua Kasir",
-      "pembuka": "Mulai materi ini kita bangun **Pemroses Pesanan**: program yang menangani banyak pesanan bersamaan.",
-      "langkah": [
-        {
-          "arahan": "Lihat aku dulu ya. `kasir-1` memproses pesanan di thread sendiri, sementara `main` lanjut mencetak.",
-          "jawaban": "import java.util.*;\n\npublic class Main {\n    static void proses(String id, long ms) {\n        Jeda.ms(ms);\n        System.out.println(\"[\" + Thread.currentThread().getName() + \"] \" + id + \" selesai\");\n    }\n\n    public static void main(String[] args) throws Exception {\n        Thread a = new Thread(() -> proses(\"PSN-1\", 200), \"kasir-1\");\n        a.start();\n        System.out.println(\"Menunggu kasir...\");\n        a.join();\n        System.out.println(\"Semua pesanan selesai\");\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
-          "keluaran": "Menunggu kasir...\n[kasir-1] PSN-1 selesai\nSemua pesanan selesai",
-          "otomatis": true,
-          "benar": "`Menunggu kasir...` tercetak lebih dulu, karena `main` tidak menunggu sampai `join()`.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
-          "petunjuk": ""
-        },
-        {
-          "arahan": "Tambahkan `kasir-2` yang memproses `PSN-2` selama 500 ms. Start keduanya, lalu join keduanya.",
-          "jawaban": "import java.util.*;\n\npublic class Main {\n    static void proses(String id, long ms) {\n        Jeda.ms(ms);\n        System.out.println(\"[\" + Thread.currentThread().getName() + \"] \" + id + \" selesai\");\n    }\n\n    public static void main(String[] args) throws Exception {\n        Thread a = new Thread(() -> proses(\"PSN-1\", 200), \"kasir-1\");\n        Thread b = new Thread(() -> proses(\"PSN-2\", 500), \"kasir-2\");\n        a.start();\n        b.start();\n        System.out.println(\"Menunggu kasir...\");\n        a.join();\n        b.join();\n        System.out.println(\"Semua pesanan selesai\");\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
-          "keluaran": "Menunggu kasir...\n[kasir-1] PSN-1 selesai\n[kasir-2] PSN-2 selesai\nSemua pesanan selesai",
-          "wajib": [
-            {
-              "pola": "\"kasir-2\"",
-              "pesan": "beri nama thread `kasir-2`."
-            },
-            {
-              "pola": "b\\.join\\(\\)",
-              "pesan": "tunggu `b` dengan `join()`."
-            }
-          ],
-          "benar": "Dua pesanan diproses bersamaan; total waktunya sekitar 500 ms, bukan 700 ms.",
-          "petunjuk": "Buat `Thread b = new Thread(() -> proses(\"PSN-2\", 500), \"kasir-2\");`, lalu `b.start()` dan `b.join()`."
-        },
-        {
-          "arahan": "Cetak status `a` sebelum `start()` (`Sebelum start: `) dan setelah `join()` (`Sesudah join: `).",
-          "jawaban": "import java.util.*;\n\npublic class Main {\n    static void proses(String id, long ms) {\n        Jeda.ms(ms);\n        System.out.println(\"[\" + Thread.currentThread().getName() + \"] \" + id + \" selesai\");\n    }\n\n    public static void main(String[] args) throws Exception {\n        Thread a = new Thread(() -> proses(\"PSN-1\", 200), \"kasir-1\");\n        Thread b = new Thread(() -> proses(\"PSN-2\", 500), \"kasir-2\");\n        System.out.println(\"Sebelum start: \" + a.getState());\n        a.start();\n        b.start();\n        System.out.println(\"Menunggu kasir...\");\n        a.join();\n        b.join();\n        System.out.println(\"Sesudah join: \" + a.getState());\n        System.out.println(\"Semua pesanan selesai\");\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
-          "keluaran": "Sebelum start: NEW\nMenunggu kasir...\n[kasir-1] PSN-1 selesai\n[kasir-2] PSN-2 selesai\nSesudah join: TERMINATED\nSemua pesanan selesai",
-          "wajib": [
-            {
-              "pola": "a\\.getState\\(\\)",
-              "pesan": "cetak `a.getState()`."
-            }
-          ],
-          "benar": "Dari `NEW` menjadi `TERMINATED`.",
-          "petunjuk": "Pakai `a.getState()`."
-        },
-        {
-          "arahan": "Tantangan: ubah supaya kasir dibuat dengan perulangan (untuk 2 kasir) dan disimpan di `List<Thread>`. Kasir ke-i memproses `PSN-i` selama `i * 200` ms. Cetak `Menunggu 2 kasir...` setelah semua di-start.",
-          "jawaban": "import java.util.*;\n\npublic class Main {\n    static void proses(String id, long ms) {\n        Jeda.ms(ms);\n        System.out.println(\"[\" + Thread.currentThread().getName() + \"] \" + id + \" selesai\");\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<Thread> kasir = new ArrayList<>();\n        for (int i = 1; i <= 2; i++) {\n            String id = \"PSN-\" + i;\n            long lama = i * 200L;\n            kasir.add(new Thread(() -> proses(id, lama), \"kasir-\" + i));\n        }\n        for (Thread t : kasir) {\n            t.start();\n        }\n        System.out.println(\"Menunggu \" + kasir.size() + \" kasir...\");\n        for (Thread t : kasir) {\n            t.join();\n        }\n        System.out.println(\"Semua pesanan selesai\");\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n",
-          "keluaran": "Menunggu 2 kasir...\n[kasir-1] PSN-1 selesai\n[kasir-2] PSN-2 selesai\nSemua pesanan selesai",
-          "wajib": [
-            {
-              "pola": "List<Thread>",
-              "pesan": "simpan thread di `List<Thread>`."
-            },
-            {
-              "pola": "for\\s*\\(\\s*Thread\\s+t\\s*:",
-              "pesan": "start dan join dengan perulangan."
-            }
-          ],
-          "tantangan": true,
-          "benar": "Pola start semua lalu join semua membuat semua kasir bekerja bersamaan.",
-          "petunjuk": "Variabel yang dipakai di lambda harus *effectively final*: simpan `\"PSN-\" + i` di variabel baru di dalam perulangan."
-        }
-      ],
-      "penutup": "Kasir-kasir sudah bekerja bersamaan. Berikutnya: apa yang terjadi kalau mereka mengubah data yang sama."
+      "type": "theory",
+      "content": "### Praktik di laptop: Pemroses Pesanan 1: Dua Kasir\n\nMulai materi ini kita bangun **Pemroses Pesanan**: program yang menangani banyak pesanan bersamaan.\n\nMateri ini memakai **Java 21**, jadi praktiknya dikerjakan di laptopmu (JDK 21). Simpan kode sebagai `Main.java`, lalu jalankan dengan `java Main.java`.\n\n**Langkah:**\n\n1. Lihat aku dulu ya. `kasir-1` memproses pesanan di thread sendiri, sementara `main` lanjut mencetak.\n2. Tambahkan `kasir-2` yang memproses `PSN-2` selama 500 ms. Start keduanya, lalu join keduanya.\n3. Cetak status `a` sebelum `start()` (`Sebelum start: `) dan setelah `join()` (`Sesudah join: `).\n4. Tantangan: ubah supaya kasir dibuat dengan perulangan (untuk 2 kasir) dan disimpan di `List<Thread>`. Kasir ke-i memproses `PSN-i` selama `i * 200` ms. Cetak `Menunggu 2 kasir...` setelah semua di-start.\n\n**Kode awal (langkah 1):**\n\n```java\nimport java.util.*;\n\npublic class Main {\n    static void proses(String id, long ms) {\n        Jeda.ms(ms);\n        System.out.println(\"[\" + Thread.currentThread().getName() + \"] \" + id + \" selesai\");\n    }\n\n    public static void main(String[] args) throws Exception {\n        Thread a = new Thread(() -> proses(\"PSN-1\", 200), \"kasir-1\");\n        a.start();\n        System.out.println(\"Menunggu kasir...\");\n        a.join();\n        System.out.println(\"Semua pesanan selesai\");\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n```"
+    },
+    {
+      "type": "theory",
+      "content": "### Hasil akhir praktik\n\nBandingkan dengan pekerjaanmu setelah semua langkah selesai.\n\n```java\nimport java.util.*;\n\npublic class Main {\n    static void proses(String id, long ms) {\n        Jeda.ms(ms);\n        System.out.println(\"[\" + Thread.currentThread().getName() + \"] \" + id + \" selesai\");\n    }\n\n    public static void main(String[] args) throws Exception {\n        List<Thread> kasir = new ArrayList<>();\n        for (int i = 1; i <= 2; i++) {\n            String id = \"PSN-\" + i;\n            long lama = i * 200L;\n            kasir.add(new Thread(() -> proses(id, lama), \"kasir-\" + i));\n        }\n        for (Thread t : kasir) {\n            t.start();\n        }\n        System.out.println(\"Menunggu \" + kasir.size() + \" kasir...\");\n        for (Thread t : kasir) {\n            t.join();\n        }\n        System.out.println(\"Semua pesanan selesai\");\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n```\n\nKeluaran:\n\n```text\nMenunggu 2 kasir...\n[kasir-1] PSN-1 selesai\n[kasir-2] PSN-2 selesai\nSemua pesanan selesai\n```\n\nKasir-kasir sudah bekerja bersamaan. Berikutnya: apa yang terjadi kalau mereka mengubah data yang sama."
     },
     {
       "type": "understanding_check",
@@ -179,24 +102,8 @@
       "explanation": "Permintaan berhenti."
     },
     {
-      "type": "code_challenge",
-      "prompt": "Program membaca n dari input, lalu membuat n thread pekerja. Pekerja ke-i (mulai dari 0) menunggu sebentar lalu mengisi hasil[i] dengan (i + 1) kuadrat. Saat ini main mencetak array sebelum para pekerja selesai, sehingga isinya masih nol. Perbaiki supaya main menunggu semua pekerja sebelum mencetak.",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        int n = Integer.parseInt(in.nextLine().trim());\n        int[] hasil = new int[n];\n        List<Thread> pekerja = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int ke = i;\n            pekerja.add(new Thread(() -> {\n                Jeda.ms(100);\n                hasil[ke] = (ke + 1) * (ke + 1);\n            }));\n        }\n        for (Thread t : pekerja) {\n            t.start();\n        }\n        System.out.println(Arrays.toString(hasil));\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        int n = Integer.parseInt(in.nextLine().trim());\n        int[] hasil = new int[n];\n        List<Thread> pekerja = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int ke = i;\n            pekerja.add(new Thread(() -> {\n                Jeda.ms(100);\n                hasil[ke] = (ke + 1) * (ke + 1);\n            }));\n        }\n        for (Thread t : pekerja) {\n            t.start();\n        }\n        for (Thread t : pekerja) {\n            t.join();\n        }\n        System.out.println(Arrays.toString(hasil));\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}",
-      "tests": [
-        {
-          "input": "2\n",
-          "expectedOutput": "[1, 4]\n"
-        },
-        {
-          "input": "1\n",
-          "expectedOutput": "[1]\n"
-        }
-      ],
-      "hints": [
-        "Setelah semua thread di-start, panggil join() untuk setiap thread.",
-        "Gunakan perulangan terpisah untuk join, supaya pekerja tetap berjalan bersamaan."
-      ]
+      "type": "theory",
+      "content": "### Tantangan di laptop\n\nProgram membaca n dari input, lalu membuat n thread pekerja. Pekerja ke-i (mulai dari 0) menunggu sebentar lalu mengisi hasil[i] dengan (i + 1) kuadrat. Saat ini main mencetak array sebelum para pekerja selesai, sehingga isinya masih nol. Perbaiki supaya main menunggu semua pekerja sebelum mencetak.\n\n**Kode awal:**\n\n```java\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner in = new Scanner(System.in);\n        int n = Integer.parseInt(in.nextLine().trim());\n        int[] hasil = new int[n];\n        List<Thread> pekerja = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int ke = i;\n            pekerja.add(new Thread(() -> {\n                Jeda.ms(100);\n                hasil[ke] = (ke + 1) * (ke + 1);\n            }));\n        }\n        for (Thread t : pekerja) {\n            t.start();\n        }\n        System.out.println(Arrays.toString(hasil));\n    }\n}\n\nclass Jeda {\n    static void ms(long ms) {\n        try {\n            Thread.sleep(ms);\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n}\n```\n\n**Input:**\n\n```text\n2\n```\n\n**Keluaran yang diharapkan:**\n\n```text\n[1, 4]\n```\n\n**Petunjuk:**\n\n- Setelah semua thread di-start, panggil join() untuk setiap thread.\n- Gunakan perulangan terpisah untuk join, supaya pekerja tetap berjalan bersamaan."
     },
     {
       "type": "summary",
@@ -207,6 +114,5 @@
         "Di produksi, pakai thread pool atau virtual thread, bukan new Thread untuk setiap pekerjaan."
       ]
     }
-  ],
-  "javaVersion": 21
+  ]
 }

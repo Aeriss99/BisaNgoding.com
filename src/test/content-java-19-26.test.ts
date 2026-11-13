@@ -7,8 +7,8 @@ import { jarUntuk } from '../lib/javaPustaka';
 
 /**
  * Delapan modul Java setelah JSON: CSV, Internationalization, Thread, Reflection & Annotation, Web Servlet,
- * JPA & Hibernate, Resilience4j, Java 21. Modul bertanda javaVersion 21 dijalankan dengan Java 21 (CheerpJ 5),
- * sisanya Java 8 (CheerpJ 3) dengan library asli dari public/java-lib.
+ * JPA & Hibernate, Resilience4j, Java 21. Modul bertanda javaVersion 21 (Internationalization, Thread, Java 21)
+ * berisi teori + soal, praktiknya di laptop pelajar; sisanya Java 8 (CheerpJ 3) dengan library asli dari public/java-lib.
  * Jawaban praktik, tantangan, dan contoh diperiksa dengan javac + java oleh pembuat modul;
  * scripts/test-java.js mengulangnya di CI.
  */
@@ -25,6 +25,8 @@ const MODUL: { id: string; folder: string; jumlah: number; requires: string; pra
   { id: 'java-21', folder: 'module-27-java-21', jumlah: 8, requires: 'resilience4j', praktik: 'Kasir Modern', versi: 21 },
 ];
 const EDITOR = ['theory', 'theory', 'theory', 'runnable', 'theory', 'theory', 'praktik_java', 'understanding_check', 'multiple_choice', 'code_challenge', 'summary'];
+// Modul Java 21: editor situs memakai Java 8, jadi praktik dan tantangan dikerjakan di laptop pelajar.
+const LAPTOP = ['theory', 'theory', 'theory', 'predict_output', 'theory', 'theory', 'theory', 'theory', 'understanding_check', 'multiple_choice', 'theory', 'summary'];
 const BUKAN_JAVA8 = [/\bList\.of\(/, /\bMap\.of\(/, /\bSet\.of\(/, /\bvar\s+\w+\s*=/, /"""/, /\brecord\s+\w+\s*\(/, /readString\(/, /writeString\(/, /\bPath\.of\(/, /(?<!Collectors)\.toList\(\)/, /isBlank\(/, /\.repeat\(/];
 
 function kodeJalan(l: Lesson): string[] {
@@ -96,7 +98,7 @@ describe('Modul Java: CSV sampai Java 21', () => {
           const jenis = l.cards.map((c) => c.type);
 
           it('susunan kartu dan teori standar industri', () => {
-            expect(jenis).toEqual(EDITOR);
+            expect(jenis).toEqual(m.versi === 21 ? LAPTOP : EDITOR);
             const teori = l.cards.filter((c) => c.type === 'theory').map((c: any) => c.content as string);
             expect(teori.some((t) => t.includes('### Contoh'))).toBe(true);
             const iKes = teori.findIndex((t) => t.startsWith('### Kesalahan yang sering terjadi'));
@@ -116,16 +118,24 @@ describe('Modul Java: CSV sampai Java 21', () => {
           });
 
           if (m.versi === 21) {
-            it('ditandai javaVersion 21 dan tidak memakai library', () => {
+            it('Java 21: praktik di laptop, tidak ada kartu yang dijalankan di browser', () => {
               expect(l.javaVersion).toBe(21);
-              for (const k of kodeJalan(l)) expect(jarUntuk(k)).toEqual([]);
+              expect((l as any).runnable).toBe(false);
+              expect(kodeJalan(l)).toEqual([]);
+              const tebak = l.cards.find((c) => c.type === 'predict_output') as any;
+              expect(tebak.options.length).toBe(4);
+              expect(tebak.options[tebak.answer]).toBeTruthy();
+              const teori = l.cards.filter((c) => c.type === 'theory').map((c: any) => c.content as string);
+              expect(teori.some((t) => t.startsWith(`### Praktik di laptop: ${m.praktik} ${l.order}: `))).toBe(true);
+              expect(teori.some((t) => t.startsWith('### Hasil akhir praktik'))).toBe(true);
+              expect(teori.some((t) => t.startsWith('### Tantangan di laptop'))).toBe(true);
             });
-          } else {
-            it('semua kode bisa dijalankan di Java 8', () => {
-              expect(l.javaVersion).toBeUndefined();
-              for (const k of kodeJalan(l)) for (const pola of BUKAN_JAVA8) expect(k, `${pola}`).not.toMatch(pola);
-            });
+            return;
           }
+          it('semua kode bisa dijalankan di Java 8', () => {
+            expect(l.javaVersion).toBeUndefined();
+            for (const k of kodeJalan(l)) for (const pola of BUKAN_JAVA8) expect(k, `${pola}`).not.toMatch(pola);
+          });
 
             it('runnable: tebakan, anotasi, dan penjelasan teks biasa', () => {
               const r = l.cards.find((c) => c.type === 'runnable') as any;
