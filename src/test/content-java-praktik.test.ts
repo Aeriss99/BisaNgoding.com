@@ -109,3 +109,51 @@ describe('Praktik bersama Lingga di Java OOP', () => {
     });
   }
 });
+
+/** Java Collection: setiap materi punya praktik bersama Lingga (proyek bersambung "Gudang Toko", lanjutan Toko OOP). */
+describe('Praktik bersama Lingga di Java Collection', () => {
+  const dir = path.resolve(__dirname, '../../content/java/module-04-collection');
+  const files = fs.readdirSync(dir).filter((f) => f.startsWith('lesson-')).sort();
+
+  it('ada 12 materi', () => {
+    expect(files.length).toBe(12);
+  });
+
+  for (const file of files) {
+    const lesson: Lesson = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
+
+    describe(`${lesson.id} ${lesson.title}`, () => {
+      const idx = lesson.cards.findIndex((c) => c.type === 'praktik_java');
+      const card = lesson.cards[idx] as PraktikJavaCard;
+
+      it('punya satu kartu praktik tepat setelah contoh kode dan sebelum cek pemahaman', () => {
+        expect(lesson.cards.filter((c) => c.type === 'praktik_java').length).toBe(1);
+        expect(lesson.cards[idx - 1].type).toBe('runnable');
+        expect(lesson.cards[idx + 1].type).toBe('understanding_check');
+      });
+
+      it('judul berurutan sebagai proyek bersambung', () => {
+        expect(card.judul).toMatch(new RegExp(`^Gudang Toko ${lesson.order}: `));
+      });
+
+      it('contoh Lingga di langkah pertama, lalu 2 tugas yang melanjutkan kode sebelumnya', () => {
+        expect(card.langkah[0].otomatis).toBe(true);
+        expect(card.langkah.slice(1).some((l) => l.otomatis)).toBe(false);
+        expect(card.langkah.filter((l) => !l.otomatis).length).toBeGreaterThanOrEqual(2);
+        card.langkah.forEach((l, i) => {
+          expect(l.jawaban).toMatch(/public class Main/);
+          expect(l.jawaban).not.toMatch(/\bList\.of\(|\bMap\.of\(|\bvar\s+\w+\s*=|->/);
+          expect(l.keluaran.length).toBeGreaterThan(0);
+          expect(cekWajib(l.jawaban, l.wajib)).toBeNull();
+          if (l.otomatis) return;
+          expect(l.petunjuk.length).toBeGreaterThan(0);
+          const awal = kodeAwalLangkah(card, i);
+          expect(awal.trim()).not.toBe(l.jawaban.trim());
+          expect(cekWajib(awal, l.wajib)).not.toBeNull();
+          const berikut = card.langkah[i + 1];
+          if (berikut) expect(keluaranSama(berikut.keluaran, l.keluaran)).toBe(false);
+        });
+      });
+    });
+  }
+});
