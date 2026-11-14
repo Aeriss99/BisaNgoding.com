@@ -22,7 +22,7 @@ const MODUL: { id: string; folder: string; jumlah: number; requires: string; pra
   { id: 'web-servlet', folder: 'module-24-web-servlet', jumlah: 7, requires: 'reflection', praktik: 'Todolist Web', jar: 'jakarta.servlet-api-5.0.0.jar' },
   { id: 'persistence-api', folder: 'module-25-persistence-api', jumlah: 7, requires: 'web-servlet', praktik: 'Todolist JPA', jar: 'hibernate-core-jakarta-5.6.15.Final.jar' },
   { id: 'resilience4j', folder: 'module-26-resilience4j', jumlah: 6, requires: 'persistence-api', praktik: 'Klien Gudang Tangguh', jar: 'resilience4j-circuitbreaker-1.7.1.jar' },
-  { id: 'java-21', folder: 'module-27-java-21', jumlah: 8, requires: 'resilience4j', praktik: 'Kasir Modern', versi: 21 },
+  { id: 'java-21', folder: 'module-27-java-21', jumlah: 8, requires: 'java-modern', praktik: 'Kasir Modern', versi: 21 },
 ];
 const EDITOR = ['theory', 'theory', 'theory', 'runnable', 'theory', 'theory', 'praktik_java', 'understanding_check', 'multiple_choice', 'code_challenge', 'summary'];
 // Modul Java 21: editor situs memakai Java 8, jadi praktik dan tantangan dikerjakan di laptop pelajar.
@@ -54,13 +54,15 @@ describe('Modul Java: CSV sampai Java 21', () => {
     MODUL.forEach((m, i) => {
       const mod = modules.find((x) => x.id === m.id);
       expect(mod).toMatchObject({ status: 'ready', requires: m.requires, lessonCount: m.jumlah });
-      expect(mod.order).toBe(json.order + i + 1);
+      // Modul Java 17 (Record & Sealed) diletakkan tepat sebelum Java 21.
+      expect(mod.order).toBe(json.order + i + 1 + (m.id === 'java-21' ? 1 : 0));
     });
     const orders = modules.map((m) => m.order);
     expect(new Set(orders).size).toBe(orders.length);
     for (const m of modules) if (m.requires) expect(modules.some((x) => x.id === m.requires), m.id).toBe(true);
     expect(modules.some((m) => m.id === 'sequenced-collection' || m.id === 'virtual-thread')).toBe(false);
     expect(modules[modules.length - 1].id).toBe('java-21');
+    expect(modules[modules.length - 2]).toMatchObject({ id: 'java-modern', requires: 'resilience4j' });
   });
 
   for (const m of MODUL) {
