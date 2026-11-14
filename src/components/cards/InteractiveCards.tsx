@@ -230,8 +230,8 @@ export function RunnableCardComponent({ card, mini = false, language = 'java', l
           {hasRun && card.explanation && (
             <div className="bg-[var(--color-accent-light)] border-2 border-[var(--color-text-main)] p-5 rounded-xl shadow-[4px_4px_0_var(--color-text-main)]">
               <h4 className="font-space text-lg font-bold mb-2">Apa yang barusan terjadi?</h4>
-              <div className="prose prose-sm prose-black max-w-none font-sans font-medium">
-                {card.explanation}
+              <div className="prose prose-sm prose-black max-w-none font-sans font-medium [&_p]:mb-2 [&_p:last-child]:mb-0 [&_code]:break-words">
+                <ReactMarkdown>{card.explanation}</ReactMarkdown>
               </div>
             </div>
           )}
@@ -405,9 +405,7 @@ export function CodeChallengeCardComponent({
 
   return (
     <div className="flex flex-col space-y-4 w-full">
-      {(language === 'html' || language === 'css')
-        ? <div className="font-bold text-lg [&_p]:mb-3 [&_pre]:whitespace-pre-wrap [&_code]:break-words"><ReactMarkdown>{card.prompt}</ReactMarkdown></div>
-        : <h3 className="font-bold text-lg">{card.prompt}</h3>}
+      <div className="font-bold text-lg [&_p]:mb-3 [&_p:last-child]:mb-0 [&_pre]:whitespace-pre-wrap [&_code]:break-words"><ReactMarkdown>{card.prompt}</ReactMarkdown></div>
       
       {card.steps && showSteps && (
         <div className="brutal-card bg-[var(--color-primary-light)] p-4 rounded-xl space-y-2">
