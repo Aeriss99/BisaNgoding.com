@@ -189,4 +189,12 @@ describe('PraktikExcelCardComponent', () => {
     fireEvent.click(screen.getByTitle('F2'));
     expect(screen.getByLabelText('Isi bebas sel F2')).toBeInTheDocument();
   });
+
+  // span sr-only di sel tabel memakai position absolute, jadi kotak geser harus berposisi supaya halaman tidak melebar di HP.
+  it('kotak geser tabel memiliki kelas relative dan overflow-x-auto', () => {
+    render(<PraktikExcelCardComponent card={kartu} onSuccess={vi.fn()} />);
+    const tabel = screen.getByRole('table', { name: 'Lembar kerja' });
+    expect(tabel.parentElement).toHaveClass('relative');
+    expect(tabel.parentElement).toHaveClass('overflow-x-auto');
+  });
 });
