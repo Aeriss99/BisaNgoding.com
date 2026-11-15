@@ -5,7 +5,7 @@ import LessonPage from '../../pages/Lesson';
 import { ProgressProvider } from '../../context/ProgressContext';
 import * as contentLib from '../../lib/content';
 import { UnderstandingCheckCardComponent } from './QuizCards';
-import { CodeChallengeCardComponent } from './InteractiveCards';
+import { CodeChallengeCardComponent, RunnableCardComponent } from './InteractiveCards';
 import * as javaRunner from '../../lib/javaRunner';
 
 vi.mock('../../lib/content', () => ({
@@ -241,5 +241,104 @@ describe('Bagian 6 - Cek Pemahaman & Challenge Flow', () => {
     const textarea = screen.getByTestId('codemirror-mock');
     fireEvent.change(textarea, { target: { value: '--' } });
     expect(textarea).toHaveValue('--');
+  });
+
+  it('language default (java), prompt dengan kode dan tebal dirender sebagai markdown', () => {
+    const card = {
+      type: 'code_challenge' as const,
+      prompt: 'Cetak `Halo` dengan **println**.',
+      starterCode: 'code',
+      tests: [],
+      hints: [],
+    };
+    const { container } = render(
+      <CodeChallengeCardComponent
+        card={card}
+        onSuccess={vi.fn()}
+      />
+    );
+    const codeEl = container.querySelector('code');
+    expect(codeEl).toBeInTheDocument();
+    expect(codeEl?.textContent).toBe('Halo');
+
+    const strongEl = container.querySelector('strong');
+    expect(strongEl).toBeInTheDocument();
+    expect(strongEl?.textContent).toBe('println');
+
+    expect(screen.queryByText(/`|\*\*/)).toBeNull();
+  });
+
+  it('language="javascript", prompt dengan dua paragraf tampil sebagai p terpisah', () => {
+    const card = {
+      type: 'code_challenge' as const,
+      prompt: 'Baris satu.\n\nBaris dua.',
+      starterCode: 'code',
+      tests: [],
+      hints: [],
+    };
+    const { container } = render(
+      <CodeChallengeCardComponent
+        card={card}
+        language="javascript"
+        onSuccess={vi.fn()}
+      />
+    );
+    const paragraphs = container.querySelectorAll('p');
+    const pTexts = Array.from(paragraphs).map((p) => p.textContent);
+    expect(pTexts).toContain('Baris satu.');
+    expect(pTexts).toContain('Baris dua.');
+  });
+
+  it('language="html", prompt Buat elemen `<video>` tampil sebagai kode tanpa elemen video', () => {
+    const card = {
+      type: 'code_challenge' as const,
+      prompt: 'Buat elemen `<video>`.',
+      starterCode: 'code',
+      tests: [],
+      hints: [],
+    };
+    const { container } = render(
+      <CodeChallengeCardComponent
+        card={card}
+        language="html"
+        onSuccess={vi.fn()}
+      />
+    );
+    const codeEl = container.querySelector('code');
+    expect(codeEl).toBeInTheDocument();
+    expect(codeEl?.textContent).toBe('<video>');
+    expect(container.querySelector('video')).toBeNull();
+  });
+
+  it('RunnableCardComponent: explanation dirender sebagai markdown setelah dijalankan', async () => {
+    vi.mocked(javaRunner.runJavaCode).mockResolvedValue({
+      stdout: 'Hasil',
+      stderr: '',
+      exitCode: 0,
+    });
+
+    const card = {
+      type: 'runnable' as const,
+      code: 'System.out.println("test");',
+      explanation: 'Hasilnya `5` karena **ditambah**.',
+    };
+
+    render(<RunnableCardComponent card={card} />);
+
+    const runBtn = screen.getByText('Jalankan Kode');
+    fireEvent.click(runBtn);
+
+    await screen.findByText('Apa yang barusan terjadi?');
+
+    const explanationSection = screen.getByText('Apa yang barusan terjadi?').parentElement;
+    expect(explanationSection).toBeDefined();
+
+    const codeEl = explanationSection?.querySelector('code');
+    expect(codeEl).toBeInTheDocument();
+    expect(codeEl?.textContent).toBe('5');
+
+    const strongEl = explanationSection?.querySelector('strong');
+    expect(strongEl).toBeInTheDocument();
+    expect(strongEl?.textContent).toBe('ditambah');
   });
 });
