@@ -4,6 +4,7 @@ import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import type { Extension } from '@codemirror/state';
 import { python } from './editorPython';
+import { php } from './editorPhp';
 
 export function ekstensiBahasa(language: string): Extension[] {
   if (language === 'javascript' || language === 'nodejs') return [javascript()];
@@ -13,5 +14,6 @@ export function ekstensiBahasa(language: string): Extension[] {
   if (language === 'html') return [html()];
   if (language === 'css') return [css()];
   if (language === 'python') return [python];
+  if (language === 'php') return [php];
   return []; // git, english, and others are plain text
 }
