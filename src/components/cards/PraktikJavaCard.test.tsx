@@ -10,6 +10,8 @@ vi.mock('./CodeEditor', () => ({
 }));
 const { runJavaCode } = vi.hoisted(() => ({ runJavaCode: vi.fn() }));
 vi.mock('../../lib/javaRunner', () => ({ runJavaCode }));
+const { runJsCode } = vi.hoisted(() => ({ runJsCode: vi.fn() }));
+vi.mock('../../lib/jsRunner', () => ({ runJsCode, pratinjauHtml: vi.fn() }));
 
 import { PraktikJavaCardComponent } from './PraktikJavaCard';
 
@@ -119,5 +121,51 @@ describe('Kartu praktik Java bersama Lingga', () => {
     fireEvent.click(screen.getByText('Lewati'));
     expect(screen.getByText('Sekarang giliranmu.')).toBeInTheDocument();
     expect(screen.queryByText(/Lingga sedang mengetik/)).toBeNull();
+  });
+});
+
+describe('Kartu praktik bahasa JavaScript', () => {
+  const kartuJs: PraktikJavaCard = {
+    type: 'praktik_java',
+    bahasa: 'javascript',
+    html: '<ul id="daftar"></ul>',
+    judul: 'Todolist JS 1: tes',
+    pembuka: 'Kita bikin todolist.',
+    langkah: [
+      { arahan: 'Lihat aku dulu ya.', jawaban: "console.log('Todo');", keluaran: 'Todo', otomatis: true, benar: 'Giliranmu.', petunjuk: '' },
+      { arahan: 'Cetak dua baris.', jawaban: "console.log('Todo');\nconsole.log('Belajar JS');", keluaran: 'Todo\nBelajar JS', petunjuk: 'Tambah console.log.', tantangan: true },
+    ],
+    penutup: 'Selesai.',
+  };
+
+  beforeEach(() => {
+    runJsCode.mockReset();
+    runJavaCode.mockReset();
+    tanpaAnimasi();
+  });
+
+  it('memakai script.js, menampilkan halaman, dan menjalankan kode dengan runJsCode beserta html-nya', async () => {
+    const onSuccess = vi.fn();
+    render(<PraktikJavaCardComponent card={kartuJs} onSuccess={onSuccess} />);
+    expect(screen.getAllByText('script.js').length).toBe(1);
+    expect(screen.getByLabelText('Hasil tampilan halaman')).toBeInTheDocument();
+    runJsCode.mockResolvedValueOnce({ stdout: 'Todo\nBelajar JS\n', stderr: '', exitCode: 0 });
+    const kode = "console.log('Todo');\nconsole.log('Belajar JS');";
+    fireEvent.change(screen.getByLabelText('kode'), { target: { value: kode } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Jalankan/ }));
+    });
+    expect(runJsCode).toHaveBeenCalledWith(kode, '<ul id="daftar"></ul>', expect.any(Function));
+    expect(runJavaCode).not.toHaveBeenCalled();
+    expect(onSuccess).toHaveBeenCalledWith(1);
+  });
+
+  it('error JavaScript ditampilkan tanpa saran khusus Java', async () => {
+    render(<PraktikJavaCardComponent card={kartuJs} onSuccess={() => {}} />);
+    runJsCode.mockResolvedValueOnce({ stdout: '', stderr: 'ReferenceError: todo is not defined', exitCode: 1 });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Jalankan/ }));
+    });
+    expect(screen.getByText('ReferenceError: todo is not defined')).toBeInTheDocument();
   });
 });
