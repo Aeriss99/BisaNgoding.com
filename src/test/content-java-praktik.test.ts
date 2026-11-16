@@ -306,6 +306,7 @@ describe('Praktik bersama Lingga di Java Lambda', () => {
 const MODUL_JS: [string, string, number][] = [
   ['js-module-01-dasar', 'Todolist JS', 59],
   ['js-module-01c-todolist', 'Aplikasi Todolist', 8],
+  ['js-module-02-oop', 'Todolist OOP', 20],
 ];
 for (const [folder, awalan, jumlah] of MODUL_JS) {
   describe(`Praktik bersama Lingga di ${folder}`, () => {
