@@ -72,7 +72,7 @@ describe('Kartu praktik Java bersama Lingga', () => {
     const onSuccess = vi.fn();
     render(<PraktikJavaCardComponent card={kartu} onSuccess={onSuccess} />);
     await jalankan(KODE2, { stdout: 'Warung Kita\nBuka setiap hari\n' });
-    expect(runJavaCode).toHaveBeenCalledWith(KODE2, '', expect.any(Function), undefined);
+    expect(runJavaCode).toHaveBeenCalledWith(KODE2, '', expect.any(Function));
     expect(screen.getByText('Mantap.')).toBeInTheDocument();
     expect(screen.getByText('Tantangan · Tugas 2 dari 2')).toBeInTheDocument();
     expect((screen.getByLabelText('kode') as HTMLTextAreaElement).value).toBe(kelas('        int total = 25000;'));
