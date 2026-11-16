@@ -12,6 +12,8 @@ const { runJavaCode } = vi.hoisted(() => ({ runJavaCode: vi.fn() }));
 vi.mock('../../lib/javaRunner', () => ({ runJavaCode }));
 const { runJsCode } = vi.hoisted(() => ({ runJsCode: vi.fn() }));
 vi.mock('../../lib/jsRunner', () => ({ runJsCode, pratinjauHtml: vi.fn() }));
+const { runPhpCode } = vi.hoisted(() => ({ runPhpCode: vi.fn() }));
+vi.mock('../../lib/phpRunner', async (asli) => ({ ...(await asli<typeof import('../../lib/phpRunner')>()), runPhpCode }));
 
 import { PraktikJavaCardComponent } from './PraktikJavaCard';
 
@@ -167,5 +169,50 @@ describe('Kartu praktik bahasa JavaScript', () => {
       fireEvent.click(screen.getByRole('button', { name: /Jalankan/ }));
     });
     expect(screen.getByText('ReferenceError: todo is not defined')).toBeInTheDocument();
+  });
+});
+
+describe('Kartu praktik bahasa PHP', () => {
+  const kartuPhp: PraktikJavaCard = {
+    type: 'praktik_java',
+    bahasa: 'php',
+    judul: 'Todolist PHP 1: tes',
+    pembuka: 'Kita bikin todolist dengan PHP.',
+    langkah: [
+      { arahan: 'Lihat aku dulu ya.', jawaban: '<?php\necho "Todo\\n";', keluaran: 'Todo', otomatis: true, benar: 'Giliranmu.', petunjuk: '' },
+      { arahan: 'Cetak dua baris.', jawaban: '<?php\necho "Todo\\n";\necho "Belajar PHP\\n";', keluaran: 'Todo\nBelajar PHP', petunjuk: 'Tambah echo.', tantangan: true },
+    ],
+    penutup: 'Selesai.',
+  };
+
+  beforeEach(() => {
+    runPhpCode.mockReset();
+    runJavaCode.mockReset();
+    tanpaAnimasi();
+  });
+
+  it('memakai main.php dan menjalankan kode dengan runPhpCode', async () => {
+    const onSuccess = vi.fn();
+    render(<PraktikJavaCardComponent card={kartuPhp} onSuccess={onSuccess} />);
+    expect(screen.getAllByText('main.php').length).toBe(1);
+    runPhpCode.mockResolvedValueOnce({ stdout: 'Todo\nBelajar PHP\n', stderr: '', exitCode: 0 });
+    const kode = kartuPhp.langkah[1].jawaban;
+    fireEvent.change(screen.getByLabelText('kode'), { target: { value: kode } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Jalankan/ }));
+    });
+    expect(runPhpCode).toHaveBeenCalledWith(kode, expect.any(Function));
+    expect(runJavaCode).not.toHaveBeenCalled();
+    expect(onSuccess).toHaveBeenCalledWith(1);
+  });
+
+  it('error PHP ditampilkan dengan penjelasan singkat', async () => {
+    render(<PraktikJavaCardComponent card={kartuPhp} onSuccess={() => {}} />);
+    runPhpCode.mockResolvedValueOnce({ stdout: '', stderr: 'Parse error: syntax error, unexpected token "echo" in main.php on line 3', exitCode: 255 });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Jalankan/ }));
+    });
+    expect(screen.getByText(/unexpected token "echo"/)).toBeInTheDocument();
+    expect(screen.getByText(/titik koma/)).toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import { runJavaCode } from '../../lib/javaRunner';
 import { runTsCode } from '../../lib/tsRunner';
 import { runNodeCode, gabungKeluaranNode } from '../../lib/nodeRunner';
 import { runJsCode } from '../../lib/jsRunner';
+import { runPhpCode, artiGalatPhp } from '../../lib/phpRunner';
 import { artiGalatTs } from '../../lib/tsPeriksa';
 import { getErrorHint } from '../../lib/errorHints';
 import { pecahTeks } from '../../lib/praktikTerminal';
@@ -115,7 +116,8 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
   const ts = card.bahasa === 'typescript';
   const nd = card.bahasa === 'nodejs';
   const js = card.bahasa === 'javascript';
-  const namaFile = ts ? 'main.ts' : nd ? 'main.js' : js ? 'script.js' : 'Main.java';
+  const ph = card.bahasa === 'php';
+  const namaFile = ts ? 'main.ts' : nd ? 'main.js' : js ? 'script.js' : ph ? 'main.php' : 'Main.java';
   const [langkahKe, setLangkahKe] = useState(0);
   const [entri, setEntri] = useState<Entri[]>(() => {
     const awal: Entri[] = [{ jenis: 'lingga', teks: card.pembuka }];
@@ -223,7 +225,7 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
     if (selesai || !langkah || langkah.otomatis || sedangJalan) return;
     sudahBerinteraksi.current = true;
     setSedangJalan(true);
-    setStatusJalan(ts ? 'Memeriksa tipe' : nd ? 'Menjalankan Node.js' : js ? 'Menjalankan JavaScript' : 'Memuat Java (sekali saja)');
+    setStatusJalan(ts ? 'Memeriksa tipe' : nd ? 'Menjalankan Node.js' : js ? 'Menjalankan JavaScript' : ph ? 'Menjalankan PHP' : 'Memuat Java (sekali saja)');
     try {
       const res = ts
         ? await runTsCode(kode, (s) => setStatusJalan(s))
@@ -231,6 +233,8 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
         ? await runNodeCode(kode, (s) => setStatusJalan(s))
         : js
         ? await runJsCode(kode, card.html, (s) => setStatusJalan(s))
+        : ph
+        ? await runPhpCode(kode, (s) => setStatusJalan(s))
         : await runJavaCode(kode, langkah.input ?? '', (s) => setStatusJalan(s));
       if (res.timedOut) {
         salah(
@@ -250,8 +254,8 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
         return;
       }
       if (res.exitCode !== 0) {
-        const pesan = ts || js ? res.stderr || res.stdout : nd ? gabungKeluaranNode(res) : rapikanError(res.stderr || res.stdout);
-        const saran = ts || js ? '' : getErrorHint(pesan);
+        const pesan = ts || js || ph ? res.stderr || res.stdout : nd ? gabungKeluaranNode(res) : rapikanError(res.stderr || res.stdout);
+        const saran = ts || js ? '' : ph ? artiGalatPhp(pesan) : getErrorHint(pesan);
         salah(
           [{ jenis: 'hasil', teks: pesan, status: 'error', judul: 'Error' }],
           `Ada error. ${saran ? saran + ' ' : ''}Baca baris yang ditunjuk pesannya, lalu coba lagi.`
@@ -339,7 +343,7 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
       {!selesai && langkah && !langkah.otomatis && (
         <div className="space-y-2">
           <div className="brutal-border rounded-xl overflow-hidden bg-white" aria-label={ts ? 'Editor kode TypeScript' : nd ? 'Editor kode Node.js' : js ? 'Editor kode JavaScript' : 'Editor kode Java'}>
-            <CodeEditor value={kode} onChange={setKode} language={ts ? 'typescript' : nd ? 'nodejs' : js ? 'javascript' : 'java'} resetKey={resetEditor} />
+            <CodeEditor value={kode} onChange={setKode} language={ts ? 'typescript' : nd ? 'nodejs' : js ? 'javascript' : ph ? 'php' : 'java'} resetKey={resetEditor} />
           </div>
           {js && card.html && <WadahHasilDom html={card.html} />}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

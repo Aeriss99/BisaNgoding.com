@@ -20,6 +20,7 @@ export const WARNA_KELAS: Record<string, string> = {
   'english-it': 'var(--color-landing-magenta)',
   excel: 'var(--color-landing-cyan)',
   python: 'var(--color-primary)',
+  php: 'var(--color-landing-cyan)',
 };
 
 export function warnaKelas(id: string): string {

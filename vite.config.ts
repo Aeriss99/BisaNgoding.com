@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { fileURLToPath } from 'node:url';
 // @ts-expect-error modul JavaScript tanpa deklarasi tipe
 import { pluginNodeVite, pluginNodeDev } from './src/lib/nodeRuntime/peta.mjs';
 
@@ -40,7 +41,7 @@ export default defineConfig({
       workbox: {
         // Compiler TypeScript (sekitar 3 MB) dan runtime Node.js tiruan tidak ikut diunduh semua pengguna saat
         // aplikasi dipasang. Diunduh saat kelasnya dipakai, lalu disimpan di cache di bawah.
-        globIgnores: ['**/version.json', '**/tsWorker-*.js', '**/nodeWorker-*.js'],
+        globIgnores: ['**/version.json', '**/tsWorker-*.js', '**/nodeWorker-*.js', '**/phpWorker-*.js', '**/php_8_3-*.wasm'],
         skipWaiting: true,
         clientsClaim: true,
         maximumFileSizeToCacheInBytes: 8000000,
@@ -59,6 +60,16 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'runtime-node',
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // PHP 8.3 WebAssembly (sekitar 18 MB) dan worker-nya: diunduh saat kelas PHP dipakai.
+            urlPattern: ({ url }) => /\/assets\/(phpWorker-[\w-]+\.js|php_8_3-[\w-]+\.wasm)$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'runtime-php',
               expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 180 },
               cacheableResponse: { statuses: [0, 200] },
             },
@@ -104,6 +115,13 @@ export default defineConfig({
   worker: { format: 'es', plugins: () => [pluginNodeVite(process.cwd())] },
   // Saat dev, paket npm runtime Node tiruan di-prebundle; modul bawaan Node-nya diarahkan ke pengganti browser.
   optimizeDeps: { rolldownOptions: { plugins: [pluginNodeVite(process.cwd())] } },
+  resolve: {
+    alias: {
+      // Paket @php-wasm/web-8-3 hanya membuka index.js (memilih jspi/asyncify dan ikut membawa ekstensi intl
+      // 8 MB). Kita langsung pakai build asyncify supaya hanya satu file .wasm yang ikut di-build.
+      'php-wasm-8-3': fileURLToPath(new URL('./node_modules/@php-wasm/web-8-3/asyncify/php_8_3.js', import.meta.url)),
+    },
+  },
   base: process.env.GITHUB_PAGES === 'true' ? '/BisaNgoding.com/' : '/',
   build: {
     rollupOptions: {

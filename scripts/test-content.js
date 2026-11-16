@@ -91,7 +91,7 @@ const CardSchema = z.union([
   }),
   z.object({
     type: z.literal('praktik_java'),
-    bahasa: z.enum(['typescript', 'nodejs', 'javascript']).optional(),
+    bahasa: z.enum(['typescript', 'nodejs', 'javascript', 'php']).optional(),
     html: z.string().optional(),
     judul: z.string(),
     pembuka: z.string(),
