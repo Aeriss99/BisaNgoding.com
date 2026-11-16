@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { RunnableCard, CodeChallengeCard } from '../../types/schema';
 import { CodeEditor } from './CodeEditor';
 import { HtmlResult } from './HtmlPreviewCard';
@@ -11,27 +11,11 @@ import { formatKeluaranHtml } from '../../lib/formatKeluaran';
 import { runJavaCode } from '../../lib/javaRunner';
 import { runPythonCode, artiGalatPython } from '../../lib/pythonRunner';
 import { rapikanKeluaran } from '../../lib/praktikPython';
-import { runJsCode, pratinjauHtml } from '../../lib/jsRunner';
+import { runJsCode } from '../../lib/jsRunner';
 import { runNodeCode, gabungKeluaranNode } from '../../lib/nodeRunner';
 import { runTsCode } from '../../lib/tsRunner';
 import { artiGalatTs } from '../../lib/tsPeriksa';
-
-/** Wadah hasil latihan DOM: menampilkan HTML awal, lalu diganti hasil kode setiap kali dijalankan. */
-function WadahHasilDom({ html }: { html: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (ref.current) pratinjauHtml(ref.current, html);
-  }, [html]);
-  return (
-    <div
-      ref={ref}
-      id="js-dom-output-container"
-      aria-label="Hasil tampilan halaman"
-      className="mt-4 brutal-border bg-white rounded-xl overflow-hidden min-h-[200px]"
-      style={{ width: '100%', height: '300px' }}
-    />
-  );
-}
+import { WadahHasilDom } from './WadahHasilDom';
 
 export function RunnableCardComponent({ card, mini = false, language = 'java', lessonRunnable = true }: { card: RunnableCard, mini?: boolean, language?: string, lessonRunnable?: boolean }) {
   const [code, setCode] = useState(card.code);
