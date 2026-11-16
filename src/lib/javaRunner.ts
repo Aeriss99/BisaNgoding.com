@@ -12,12 +12,9 @@ export interface RunResult {
 }
 
 const CHEERPJ_CDN = 'https://cjrtnc.leaningtech.com/3.0/cj3loader.js';
-// Mode percobaan Java 21: CheerpJ 5 membawa JDK lengkap (termasuk javac), jadi tidak memakai tools.jar.
-const CHEERPJ5_CDN = 'https://cjrtnc.leaningtech.com/5.0/loader.js';
 const TIMEOUT_MS = 20_000;
-// Kode yang memakai library (JUnit, Mockito, Jackson, dan lainnya) atau Java 21: pemuatan pertama bisa makan waktu.
+// Kode yang memakai library (JUnit, Mockito, Jackson, dan lainnya): pemuatan pertama bisa makan waktu.
 const TIMEOUT_PUSTAKA_MS = 90_000;
-const KUNCI_MODE = 'bn_java_versi';
 // Mesin Java (CheerpJ) dibuang dan dibuat ulang setelah sekian kali jalan, supaya memorinya tidak menumpuk.
 // Diukur di Chromium (12 Nov 2026): tanpa ini, tab crash tepat di jalan ke-35 dalam satu tab.
 export const BATAS_JALAN_PER_MESIN = 12;
@@ -29,28 +26,9 @@ export function apakahMesinRusak(pesan: string): boolean {
   return /RuntimeError|memory access out of bounds|out of memory|unreachable|table index is out of bounds|call stack size exceeded|null function or function signature mismatch/i.test(pesan);
 }
 
-export type VersiJava = 8 | 21;
+/** Editor situs hanya memakai Java 8 (CheerpJ 3 + tools.jar). Mode percobaan Java 21 dihapus 16 Nov 2026 (versi lama di branch main-v2.0). */
+type VersiJava = 8;
 
-/** Versi Java yang dipakai. Bawaan 8. Mode percobaan 21 dinyalakan dengan ?java=21 (dimatikan ?java=8). */
-export function versiJava(): VersiJava {
-  if (typeof window === 'undefined') return 8;
-  const cari = window.location.search + '&' + (window.location.hash.split('?')[1] ?? '');
-  const pilih = new URLSearchParams(cari).get('java');
-  try {
-    if (pilih === '21') localStorage.setItem(KUNCI_MODE, '21');
-    else if (pilih === '8') localStorage.removeItem(KUNCI_MODE);
-    return localStorage.getItem(KUNCI_MODE) === '21' ? 21 : 8;
-  } catch {
-    return pilih === '21' ? 21 : 8;
-  }
-}
-
-/** Versi yang dipakai untuk satu materi: materi bertanda javaVersion 21 selalu memakai Java 21, sisanya mengikuti mode situs. */
-export function versiUntukMateri(javaVersion?: number): VersiJava {
-  return javaVersion === 21 ? 21 : versiJava();
-}
-
-// Satu iframe CheerpJ per versi Java (Java 8 dan Java 21 bisa dipakai bergantian di satu sesi).
 const iframes = new Map<VersiJava, { iframe: HTMLIFrameElement; siap: Promise<void>; jalan: number }>();
 let runCounter = 0;
 
@@ -101,16 +79,14 @@ function buildRunnerSource(batasMs = BATAS_JAVA_MS): string {
   ].join('\n');
 }
 
-export function buildIframeSrcdoc(versi: VersiJava = 8): string {
-  const loader = versi === 21 ? CHEERPJ5_CDN : CHEERPJ_CDN;
+export function buildIframeSrcdoc(): string {
+  const loader = CHEERPJ_CDN;
   // CheerpJ 3 (Java 8) belum punya native untuk anotasi tipe, sehingga Hibernate Validator macet.
   // Native pengganti mengembalikan null, artinya "tidak ada anotasi tipe".
   const init =
-    versi === 21
-      ? "{ status: 'none', version: 21 }"
-      : "{ status: 'none', natives: { Java_java_lang_reflect_Field_getTypeAnnotationBytes0: tanpaAnotasiTipe, Java_java_lang_reflect_Executable_getTypeAnnotationBytes0: tanpaAnotasiTipe } }";
-  // Java 21: javac bawaan JDK (classpath kosong). Java 8: javac dari tools.jar milik situs.
-  const cekTools = versi === 21 ? 'false' : 'true';
+    "{ status: 'none', natives: { Java_java_lang_reflect_Field_getTypeAnnotationBytes0: tanpaAnotasiTipe, Java_java_lang_reflect_Executable_getTypeAnnotationBytes0: tanpaAnotasiTipe } }";
+  // javac dari tools.jar milik situs.
+  const cekTools = 'true';
   return `<!doctype html>
 <html><head>
 <script src="${loader}"></script>
@@ -216,8 +192,7 @@ function getOrCreateIframe(versi: VersiJava): Promise<HTMLIFrameElement> {
     };
     window.addEventListener('message', onMsg);
 
-    if (versi === 21) console.info('[BisaNgoding] Java 21 (CheerpJ 5).');
-    iframe.srcdoc = buildIframeSrcdoc(versi);
+    iframe.srcdoc = buildIframeSrcdoc();
   });
   iframes.set(versi, { iframe, siap, jalan: 0 });
   return siap.then(() => iframe);
@@ -253,8 +228,8 @@ function sendToIframe(iframe: HTMLIFrameElement, message: Record<string, unknown
   });
 }
 
-export async function initCheerpJ(_onProgress?: (msg: string) => void, javaVersion?: number): Promise<void> {
-  await getOrCreateIframe(versiUntukMateri(javaVersion));
+export async function initCheerpJ(_onProgress?: (msg: string) => void): Promise<void> {
+  await getOrCreateIframe(8);
 }
 
 export function resetJavaRunner(): void {
@@ -283,7 +258,7 @@ async function jalankanSekali(versi: VersiJava, code: string, stdinInput: string
     runId,
     code,
     stdin: stdinInput,
-    runnerSource: buildRunnerSource(cp || versi === 21 ? BATAS_JAVA_PUSTAKA_MS : BATAS_JAVA_MS),
+    runnerSource: buildRunnerSource(cp ? BATAS_JAVA_PUSTAKA_MS : BATAS_JAVA_MS),
     toolsPath: getToolsPath(),
     cp,
   }, onStatus);
@@ -293,7 +268,7 @@ async function jalankanSekali(versi: VersiJava, code: string, stdinInput: string
     pewaktu = setTimeout(() => {
       pendingCallbacks.delete(msgId);
       resolve({ stdout: '', stderr: '', exitCode: -1, timedOut: true });
-    }, cp || versi === 21 ? TIMEOUT_PUSTAKA_MS : TIMEOUT_MS);
+    }, cp ? TIMEOUT_PUSTAKA_MS : TIMEOUT_MS);
   });
 
   const hasil = await Promise.race([runPromise, timeoutPromise]);
@@ -302,17 +277,16 @@ async function jalankanSekali(versi: VersiJava, code: string, stdinInput: string
 }
 
 /**
- * Jalankan kode Java. javaVersion diisi dari materi (lesson.javaVersion): 21 berarti Java 21 (CheerpJ 5),
- * selain itu Java 8 (CheerpJ 3) kecuali mode percobaan ?java=21 sedang menyala.
+ * Jalankan kode Java di browser (Java 8, CheerpJ 3).
  *
  * Menjaga mesin tetap sehat:
  * - program yang melewati batas waktu masih berjalan di dalam mesin, jadi mesinnya dibuang;
  * - mesin yang rusak (error WebAssembly seperti "memory access out of bounds") dibuang dan program dicoba sekali lagi di mesin baru;
  * - mesin diganti setelah BATAS_JALAN_PER_MESIN kali jalan.
  */
-export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: string) => void, javaVersion?: number): Promise<RunResult> {
+export async function runJavaCode(code: string, stdinInput = '', onStatus?: (s: string) => void): Promise<RunResult> {
   code = rapikanKetikan(code);
-  const versi = versiUntukMateri(javaVersion);
+  const versi: VersiJava = 8;
   const cp = classpathPustaka(code, import.meta.env.BASE_URL || '/');
   const jaga = pasangJagaLoop(code);
   return rapikanHasil(await jalankanDenganPulih(versi, jaga.kode, stdinInput, onStatus, cp), jaga);
