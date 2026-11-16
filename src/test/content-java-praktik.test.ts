@@ -309,6 +309,7 @@ const MODUL_JS: [string, string, number][] = [
   ['js-module-02-oop', 'Todolist OOP', 20],
   ['js-module-03-dom', 'Todolist DOM', 20],
   ['js-module-04-stdlib', 'Todolist Pustaka', 18],
+  ['js-module-05-async', 'Todolist Async', 18],
 ];
 for (const [folder, awalan, jumlah] of MODUL_JS) {
   describe(`Praktik bersama Lingga di ${folder}`, () => {
