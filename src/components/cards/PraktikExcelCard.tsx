@@ -356,7 +356,7 @@ function Praktik({ card, onSuccess }: { card: PraktikExcelCard; onSuccess: (atte
           )}
         </form>
 
-        <div className="max-w-full overflow-x-auto">
+        <div className="relative max-w-full overflow-x-auto">
           <table className="border-collapse text-[13px] leading-[18px]" aria-label="Lembar kerja">
             <thead>
               <tr>
