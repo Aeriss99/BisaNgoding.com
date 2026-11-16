@@ -9,6 +9,8 @@ import { workerCode } from '../lib/jsRunner';
 // Solusi Standard Library dan Async dijalankan dengan workerCode asli (timer, Promise, server latihan fetch).
 // Solusi Modules (beberapa file, import/export) diperiksa strukturnya: setiap import relatif menunjuk file yang ada.
 const ROOT = path.resolve(__dirname, '../../content/javascript');
+// Kartu praktik dicek di content-java-praktik.test.ts.
+const tanpaPraktik = (l: { cards: { type: string }[] }) => ({ ...l, cards: l.cards.filter((c) => c.type !== 'praktik_java') });
 const baca = (p: string) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const modules: { id: string; lessonCount: number; status: string; requires?: string; order: number }[] = baca(
   path.join(ROOT, 'modules.json')
@@ -56,7 +58,7 @@ function pecahFile(code: string): Record<string, string> {
 for (const M of MODUL) {
   const DIR = path.join(ROOT, M.folder);
   const mod = modules.find((m) => m.id === M.id)!;
-  const lessons = fs.readdirSync(DIR).filter((f) => f.startsWith('lesson-')).sort().map((f) => baca(path.join(DIR, f)));
+  const lessons = fs.readdirSync(DIR).filter((f) => f.startsWith('lesson-')).sort().map((f) => tanpaPraktik(baca(path.join(DIR, f))));
   const quiz: { id: string; options: string[]; answer: number }[] = baca(path.join(DIR, 'quiz.json'));
 
   describe(`Modul ${M.id}`, () => {

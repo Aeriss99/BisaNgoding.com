@@ -5,6 +5,8 @@ import * as path from 'path';
 // Modul JavaScript DOM: struktur 7 kartu, setiap latihan punya HTML, quiz 20 soal,
 // dan solusi tantangan benar-benar dijalankan di DOM (happy-dom) dengan HTML latihannya.
 const DIR = path.resolve(__dirname, '../../content/javascript/js-module-03-dom');
+// Kartu praktik dicek di content-java-praktik.test.ts.
+const tanpaPraktik = (l: { cards: { type: string }[] }) => ({ ...l, cards: l.cards.filter((c) => c.type !== 'praktik_java') });
 const baca = (p: string) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const modules: { id: string; lessonCount: number; status: string; requires?: string; order: number }[] = baca(
   path.resolve(__dirname, '../../content/javascript/modules.json')
@@ -14,7 +16,7 @@ const lessons = fs
   .readdirSync(DIR)
   .filter((f) => f.startsWith('lesson-'))
   .sort()
-  .map((f) => baca(path.join(DIR, f)));
+  .map((f) => tanpaPraktik(baca(path.join(DIR, f))));
 const quiz: { id: string; question: string; code?: string; options: string[]; answer: number; explanation: string }[] = baca(
   path.join(DIR, 'quiz.json')
 );
