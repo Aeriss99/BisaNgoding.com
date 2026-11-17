@@ -5,7 +5,8 @@ import * as path from 'path';
 import { spawnSync } from 'child_process';
 import { PY_SETUP } from '../lib/pythonRunner';
 import { nilaiLangkahPython, rapikanKeluaran } from '../lib/praktikPython';
-import type { Lesson, Module, PraktikPythonCard, QuizQuestion } from '../types/schema';
+import { cekWajib, kodeAwalLangkah } from '../lib/praktikJava';
+import type { Lesson, Module, PraktikJavaCard, PraktikPythonCard, QuizQuestion } from '../types/schema';
 
 // Kelas Python: struktur materi, dan setiap jawaban (praktik konsol, tantangan, tebak keluaran, quiz)
 // dijalankan ulang dengan Python asli memakai PY_SETUP yang sama dengan di browser (Pyodide).
@@ -72,6 +73,10 @@ function jalankanPython(t: Tugas): { praktik: [string, string, string, boolean |
 const praktik = semua.flatMap(({ materi }) =>
   materi.flatMap((l) => l.cards.filter((c): c is PraktikPythonCard => c.type === 'praktik_python').map((c) => ({ l, c })))
 );
+// Praktik editor bersama Lingga (pola Java Dasar), dipakai di modul Python Dasar.
+const praktikEditor = semua.flatMap(({ materi }) =>
+  materi.flatMap((l) => l.cards.filter((c): c is PraktikJavaCard => c.type === 'praktik_java').map((c) => ({ l, c })))
+);
 const tantangan = semua.flatMap(({ materi }) =>
   materi.flatMap((l) =>
     l.cards
@@ -118,6 +123,12 @@ beforeAll(() => {
     t.program.push({ kode: s.code!, masukan: '' });
     urutProgram.push({ jenis: 'soal', i });
   });
+  praktikEditor.forEach(({ c }, i) =>
+    c.langkah.forEach((x, j) => {
+      t.program.push({ kode: x.jawaban, masukan: x.input ?? '' });
+      urutProgram.push({ jenis: 'praktik', i, j });
+    })
+  );
   blokTeori.forEach(({ kode }, i) => {
     t.program.push({ kode, masukan: '' });
     urutProgram.push({ jenis: 'teori', i });
@@ -166,6 +177,10 @@ describe('Kelas Python: susunan kartu', () => {
           expect((l.cards[0] as { content: string }).content).toContain('### Yang dinilai');
           return;
         }
+        if (l.moduleId === 'python-dasar') {
+          expect(jenis).toEqual(['theory', 'theory', 'theory', 'runnable', 'praktik_java', 'understanding_check', 'predict_output', 'fill_blank', 'code_challenge', 'summary']);
+          return;
+        }
         const teori = l.cards.filter((c) => c.type === 'theory') as { content: string }[];
         expect(teori.length).toBeGreaterThanOrEqual(3);
         expect(jenis.slice(0, teori.length).every((j) => j === 'theory')).toBe(true);
@@ -185,7 +200,28 @@ describe('Kelas Python: dijalankan dengan Python asli', () => {
       const ada = materi.some((l) => l.cards.some((c) => c.type === 'praktik_python' || c.type === 'code_challenge'));
       expect(ada, materi[0].moduleId).toBe(true);
     }
-    expect(praktik.length).toBeGreaterThanOrEqual(20);
+    expect(praktik.length + praktikEditor.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it('praktik editor Python Dasar "Todolist Python": keluaran setiap langkah sama dengan hasil Python, wajib cocok', () => {
+    const dasar = semua.find(({ materi }) => materi[0].moduleId === 'python-dasar')!.materi;
+    expect(praktikEditor.length).toBe(dasar.length);
+    praktikEditor.forEach(({ l, c }, i) => {
+      expect(c.bahasa, l.id).toBe('python');
+      expect(c.judul).toMatch(new RegExp(`^Todolist Python ${l.order}: `));
+      expect(c.langkah[0].otomatis, l.id).toBe(true);
+      expect(c.langkah.filter((x) => !x.otomatis).length, l.id).toBeGreaterThanOrEqual(2);
+      c.langkah.forEach((x, j) => {
+        const [out, galat] = hasilProgram('praktik', i, j);
+        expect(galat, `${l.id} langkah ${j}`).toBe('');
+        expect(rapikanKeluaran(x.keluaran), `${l.id} langkah ${j}`).toBe(rapikanKeluaran(out));
+        expect(cekWajib(x.jawaban, x.wajib), `${l.id} langkah ${j}`).toBeNull();
+        if (!x.otomatis) {
+          expect((x.wajib ?? []).length, `${l.id} langkah ${j}`).toBeGreaterThan(0);
+          expect(cekWajib(kodeAwalLangkah(c, j), x.wajib), `${l.id} langkah ${j}: kode awal sudah lolos`).not.toBeNull();
+        }
+      });
+    });
   });
 
   it('setiap langkah praktik konsol diterima dengan jawabannya sendiri', () => {

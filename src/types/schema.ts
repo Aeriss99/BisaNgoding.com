@@ -312,7 +312,7 @@ export interface PraktikJavaCard {
   type: 'praktik_java';
   /** Bahasa kode praktik. Kosong = Java. 'typescript' = diperiksa tsc (strict) lalu dijalankan.
    *  'javascript' = dijalankan di browser seperti kartu contoh JavaScript (console.log yang dicek). */
-  bahasa?: 'typescript' | 'nodejs' | 'javascript' | 'php';
+  bahasa?: 'typescript' | 'nodejs' | 'javascript' | 'php' | 'python';
   /** Hanya untuk bahasa 'javascript': halaman HTML tempat kode dijalankan (praktik DOM). */
   html?: string;
   judul: string;
