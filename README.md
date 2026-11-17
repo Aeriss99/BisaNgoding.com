@@ -1,6 +1,6 @@
 # BisaNgoding.com
 
-Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya pendek-pendek, setiap pelajaran ditutup latihan, dan kode Java maupun JavaScript langsung dijalankan di browser tanpa perlu instal apa pun.
+Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya pendek-pendek, setiap pelajaran ditutup latihan, dan kode Java, JavaScript, Python, maupun PHP langsung dijalankan di browser tanpa perlu instal apa pun.
 
 ## Kelas
 
@@ -8,6 +8,8 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 | --- | --- |
 | **Java** | Java Dasar, Proyek Todolist, OOP, Collection, Record & Sealed Class, Standard Classes, Generics, Lambda, Stream, Date & Time, Input Output, Proyek Todolist OOP, Maven, Unit Test, Logging, Lombok, JDBC, Proyek Todolist Database, Validation, JSON, CSV, Internationalization, Thread, Reflection & Annotation, Web Servlet, JPA & Hibernate, Resilience4j, Java 21 |
 | **JavaScript** | JavaScript Dasar, Proyek Todolist, JavaScript OOP, JavaScript DOM, Standard Library, Async, dan Modules |
+| **Python** | Python Dasar (20 materi dengan praktik Todolist Python), Kondisi, Perulangan, Koleksi, Fungsi, Teks dan File, Error dan OOP, dan Proyek Akhir Todolist; kode dijalankan Python asli (Pyodide) di browser |
+| **PHP** | PHP Dasar: echo, variabel dan tipe data, string, operator, if/elseif/match, perulangan, array, function, sampai proyek Aplikasi Todolist; kode dijalankan PHP 8.3 asli (WebAssembly) di browser |
 | **TypeScript** | Tipe dasar, object dan interface, fungsi, union dan narrowing, generics, class, utility types, async dan module, tooling (tsc, tsconfig, npm) dan proyek Todolist; kode diperiksa compiler TypeScript asli (strict) di browser |
 | **Node.js** | Node.js dasar, ESM dan CommonJS, npm, file system, async dan event loop, stream, HTTP server, Express 5, middleware dan validasi Zod, REST API berlapis, autentikasi (bcrypt, JWT), PostgreSQL dengan Prisma, testing (node:test, Supertest), produksi dan deploy, proyek REST API Todolist; kode Node.js jalan di browser |
 | **Git & GitHub** | Git di laptop sampai GitHub: tag dan versi rilis, pull request, code review, manajemen proyek, keamanan, CI/CD, memperbaiki riwayat (amend, revert, reset, rebase), dan alur kerja tim |
@@ -22,7 +24,7 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 
 ## Fitur
 
-- **Kode berjalan di browser.** Java dijalankan dengan [CheerpJ](https://cheerpj.com/), JavaScript dengan Web Worker, TypeScript diperiksa compiler TypeScript asli sebelum dijalankan, dan Node.js (fs, http, Express) dijalankan runtime Node tiruan di Web Worker. Tidak perlu server.
+- **Kode berjalan di browser.** Java dijalankan dengan [CheerpJ](https://cheerpj.com/), JavaScript dengan Web Worker, TypeScript diperiksa compiler TypeScript asli sebelum dijalankan, Node.js (fs, http, Express) dijalankan runtime Node tiruan di Web Worker, Python dengan Pyodide, dan PHP 8.3 dengan WebAssembly. Tidak perlu server.
 - **Latihan bertahap.** Setiap pelajaran berisi teori, contoh yang bisa dijalankan, cek pemahaman, soal isian, dan tantangan kode. Setiap modul ditutup quiz dengan pilihan jawaban yang diacak.
 - **Progres tersimpan.** Masuk dengan Google, lalu XP, streak, dan pelajaran yang selesai tersinkron lewat Supabase. Kalau offline, progres tetap tersimpan di perangkat.
 - **Bisa dipasang di HP** sebagai aplikasi (PWA).
@@ -69,7 +71,7 @@ content/              materi, satu folder per kelas
   courses.json        daftar kelas
   jalur-karier.json   jalur karier di beranda
   roadmap.json        rencana belajar per peran
-  <kelas>/            java, javascript, typescript, nodejs, git, mysql, linux, html-css, tailwind, rest-api, english, excel, python
+  <kelas>/            java, javascript, typescript, nodejs, git, mysql, linux, html-css, tailwind, rest-api, english, excel, python, php
     modules.json      daftar modul kelas itu
     <modul>/          lesson-XX.json + quiz.json
 public/               gambar, ilustrasi, audio English, ikon PWA, dan tools.jar untuk CheerpJ
