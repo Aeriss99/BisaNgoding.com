@@ -19,7 +19,7 @@ const lessons = fs
 const quiz: { id: string; question: string; code?: string; options: string[]; answer: number; explanation: string }[] = baca(
   path.join(DIR, 'quiz.json')
 );
-const URUTAN = ['theory', 'theory', 'theory', 'runnable', 'praktik_java', 'understanding_check', 'code_challenge', 'summary'];
+const URUTAN = ['theory', 'theory', 'theory', 'runnable', 'theory', 'theory', 'theory', 'praktik_java', 'understanding_check', 'code_challenge', 'summary'];
 const PLACEHOLDER = /\b(Lesson \d+|Quiz Q\d+|Core theory|lorem ipsum|placeholder|TODO)\b/;
 
 describe('Kelas PHP: modul PHP Dasar', () => {
@@ -47,8 +47,8 @@ describe('Kelas PHP: modul PHP Dasar', () => {
   it('kode PHP selalu diawali <?php', () => {
     for (const l of lessons) {
       expect(l.cards[3].code.startsWith('<?php\n'), l.id).toBe(true);
-      expect(l.cards[6].solution.startsWith('<?php\n'), l.id).toBe(true);
-      expect(l.cards[6].starterCode.startsWith('<?php\n'), l.id).toBe(true);
+      expect(l.cards[9].solution.startsWith('<?php\n'), l.id).toBe(true);
+      expect(l.cards[9].starterCode.startsWith('<?php\n'), l.id).toBe(true);
     }
   });
 
@@ -68,7 +68,7 @@ describe('Kelas PHP: modul PHP Dasar', () => {
 
   it('cek pemahaman: 3 soal, opsi unik, kunci tidak semuanya sama, ada remedial', () => {
     for (const l of lessons) {
-      const qs = l.cards[5].questions;
+      const qs = l.cards[8].questions;
       expect(qs.length).toBe(3);
       for (const q of qs) {
         expect(new Set(q.options).size).toBe(4);
@@ -81,7 +81,7 @@ describe('Kelas PHP: modul PHP Dasar', () => {
 
   it('code challenge: skeleton punya ___, solusi beda dari kode awal, output diakhiri baris baru', () => {
     for (const l of lessons) {
-      const c = l.cards[6];
+      const c = l.cards[9];
       expect(c.skeleton.includes('___'), l.id).toBe(true);
       expect(c.solution.trim()).not.toBe(c.starterCode.trim());
       expect(c.tests[0].expectedOutput.endsWith('\n'), l.id).toBe(true);
@@ -91,7 +91,7 @@ describe('Kelas PHP: modul PHP Dasar', () => {
 
   it('praktik bersama Lingga "Todolist PHP": contoh, lalu tugas yang melanjutkan kode sebelumnya', () => {
     for (const l of lessons) {
-      const card = l.cards[4] as PraktikJavaCard;
+      const card = l.cards[7] as PraktikJavaCard;
       expect(card.bahasa).toBe('php');
       expect(card.judul).toMatch(new RegExp(`^Todolist PHP ${l.order}: `));
       expect(card.langkah[0].otomatis).toBe(true);
@@ -112,7 +112,7 @@ describe('Kelas PHP: modul PHP Dasar', () => {
   it('judul materi dan soal tidak kembar', () => {
     expect(new Set(lessons.map((l) => l.title)).size).toBe(lessons.length);
     const semua = [
-      ...lessons.flatMap((l) => l.cards[5].questions.map((q: { question: string; code?: string }) => q.question + (q.code ?? ''))),
+      ...lessons.flatMap((l) => l.cards[8].questions.map((q: { question: string; code?: string }) => q.question + (q.code ?? ''))),
       ...quiz.map((q) => q.question + (q.code ?? '')),
     ];
     expect(new Set(semua).size).toBe(semua.length);
