@@ -356,3 +356,72 @@ for (const [folder, awalan, jumlah] of MODUL_JS) {
     }
   });
 }
+
+/**
+ * Proyek Aplikasi Todolist (setelah Java Dasar) dan Java Stream: 6 kartu teori per materi,
+ * praktik bersama Lingga 5 langkah (contoh, 3 tugas, 1 tantangan) tepat sebelum cek pemahaman.
+ */
+for (const [folder, awalan, banyak] of [
+  ['module-01c-todolist', 'Aplikasi Todolist', 10],
+  ['module-08-stream', 'Todolist Stream', 12],
+] as const) {
+  describe(`Praktik bersama Lingga di ${folder}`, () => {
+    const dir = path.resolve(__dirname, '../../content/java', folder);
+    const files = fs.readdirSync(dir).filter((f) => f.startsWith('lesson-')).sort();
+
+    it(`ada ${banyak} materi`, () => {
+      expect(files.length).toBe(banyak);
+    });
+
+    for (const file of files) {
+      const lesson: Lesson = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
+
+      describe(`${lesson.id} ${lesson.title}`, () => {
+        const idx = lesson.cards.findIndex((c) => c.type === 'praktik_java');
+        const card = lesson.cards[idx] as PraktikJavaCard;
+
+        it('6 kartu teori, termasuk "Gampangnya begini" dan jejak contoh kode', () => {
+          const teori = lesson.cards.filter((c): c is TheoryCard => c.type === 'theory');
+          expect(teori.length).toBe(6);
+          for (const t of teori) expect(t.content.length).toBeGreaterThanOrEqual(150);
+          expect(teori.reduce((n, t) => n + t.content.length, 0)).toBeGreaterThanOrEqual(3000);
+          expect(teori[1].content.startsWith('### Gampangnya begini')).toBe(true);
+          const r = lesson.cards.findIndex((c) => c.type === 'runnable');
+          const jejak = lesson.cards[r + 1] as TheoryCard;
+          expect(jejak.type).toBe('theory');
+          expect(jejak.content.startsWith('### Pelan-pelan')).toBe(true);
+          expect(jejak.content).toMatch(/Hasilnya:\n\n```text\n/);
+        });
+
+        it('satu kartu praktik setelah contoh kode dan teori, tepat sebelum cek pemahaman', () => {
+          expect(lesson.cards.filter((c) => c.type === 'praktik_java').length).toBe(1);
+          expect(lesson.cards.findIndex((c) => c.type === 'runnable')).toBeLessThan(idx);
+          expect(lesson.cards[idx - 1].type).toBe('theory');
+          expect(lesson.cards[idx + 1].type).toBe('understanding_check');
+          expect(card.judul).toMatch(new RegExp(`^${awalan} ${lesson.order}: `));
+        });
+
+        it('5 langkah: contoh Lingga, 3 tugas, 1 tantangan, masing-masing melanjutkan kode sebelumnya', () => {
+          expect(card.langkah.length).toBe(5);
+          expect(card.langkah[0].otomatis).toBe(true);
+          expect(card.langkah.slice(1).some((l) => l.otomatis)).toBe(false);
+          expect(card.langkah.slice(1, 4).some((l) => l.tantangan)).toBe(false);
+          expect(card.langkah[4].tantangan).toBe(true);
+          card.langkah.forEach((l, i) => {
+            expect(l.jawaban).toMatch(/public class Main/);
+            expect(l.jawaban).not.toMatch(/\bList\.of\(|\bMap\.of\(|\bvar\s+\w+\s*=/);
+            expect(l.keluaran.length).toBeGreaterThan(0);
+            expect(cekWajib(l.jawaban, l.wajib)).toBeNull();
+            if (l.otomatis) return;
+            expect(l.petunjuk.length).toBeGreaterThan(0);
+            const awal = kodeAwalLangkah(card, i);
+            expect(awal.trim()).not.toBe(l.jawaban.trim());
+            expect(cekWajib(awal, l.wajib)).not.toBeNull();
+            const berikut = card.langkah[i + 1];
+            if (berikut) expect(keluaranSama(berikut.keluaran, l.keluaran)).toBe(false);
+          });
+        });
+      });
+    }
+  });
+}
