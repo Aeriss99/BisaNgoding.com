@@ -11,6 +11,10 @@
     },
     {
       "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan kamu ketua kelompok yang harus melapor ke dosen setiap minggu. Dosen tidak mau membaca semua catatan kerja satu per satu. Dia ingin jawaban singkat: berapa total jam kerja, siapa mengerjakan apa, bagian mana yang paling berat, dan apakah ada yang belum selesai.\n\nLaporan seperti itu adalah kumpulan pertanyaan, dan setiap pertanyaan bisa dijawab oleh **satu Stream**. Total jam: `mapToInt` lalu `sum`. Per orang atau per kategori: `groupingBy`. Ada yang belum selesai: `anyMatch`. Yang paling berat: `max`. Datanya tetap satu list yang sama, dan setiap Stream membaca list itu tanpa mengubahnya, jadi urutan pertanyaan tidak saling mengganggu."
+    },
+    {
+      "type": "theory",
       "content": "Setiap pertanyaan laporan dijawab oleh satu Stream:\n\n| Pertanyaan | Operasi Stream |\n|---|---|\n| Omzet | `mapToInt(Transaksi::getTotal).sum()` |\n| Pendapatan per kasir | `groupingBy(Transaksi::getKasir, TreeMap::new, summingInt(Transaksi::getTotal))` |\n| Porsi per menu | `groupingBy(Transaksi::getMenu, TreeMap::new, summingInt(Transaksi::getJumlah))` |\n| Ada transaksi besar? | `anyMatch(t -> t.getTotal() >= 30000)` |\n\nPerhatikan `summingInt` di dalam `groupingBy`. Kalau `counting()` menghitung **berapa transaksi**, `summingInt` menjumlahkan **nilai** tertentu dari setiap transaksi di kelompok itu.\n\nContoh: Budi punya dua transaksi. `counting()` memberi 2, sedangkan `summingInt(Transaksi::getTotal)` memberi total uangnya: 24000 + 18000 = 42000."
     },
     {
@@ -66,7 +70,95 @@
     },
     {
       "type": "theory",
+      "content": "### Pelan-pelan: apa yang dikerjakan Java\n\n| Kode | Yang terjadi |\n|---|---|\n| `mapToInt(Transaksi::getTotal).sum()` | Total setiap transaksi dijumlah: omzet 109000. |\n| `groupingBy(getKasir, ..., summingInt(getTotal))` | Total per kasir: Budi 42000, Sari 67000. |\n| `groupingBy(getMenu, ..., summingInt(getJumlah))` | Porsi terjual per menu. |\n| `anyMatch(t -> t.getTotal() >= 30000)` | Sari membeli 2 kopi susu (36000), jadi `true`. |\n\nHasilnya:\n\n```text\nOmzet: 109000\nPer kasir: {Budi=42000, Sari=67000}\nTerjual: {Kopi Susu=3, Roti Bakar=1, Teh Manis=5}\nAda transaksi >= 30000: true\n```\n\nKalau ada baris yang hasilnya belum kamu duga, kembali ke contoh kode tadi, ubah sedikit, lalu jalankan lagi."
+    },
+    {
+      "type": "theory",
       "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai counting saat yang dibutuhkan total nilai**\n\nSalah:\n\n```java\nMap<String, Long> perKasir = trx.stream()\n        .collect(Collectors.groupingBy(Transaksi::getKasir, TreeMap::new,\n                Collectors.counting()));\n```\n\nBenar:\n\n```java\nMap<String, Integer> perKasir = trx.stream()\n        .collect(Collectors.groupingBy(Transaksi::getKasir, TreeMap::new,\n                Collectors.summingInt(Transaksi::getTotal)));\n```\n\ncounting menghitung banyaknya transaksi, bukan uangnya. Untuk menjumlahkan nilai, pakai summingInt.\n\n**2. Menjumlahkan harga satuan, bukan total**\n\nSalah:\n\n```java\nint omzet = trx.stream().mapToInt(t -> t.getJumlah()).sum();\n```\n\nBenar:\n\n```java\nint omzet = trx.stream().mapToInt(Transaksi::getTotal).sum();\n```\n\ngetJumlah hanya jumlah porsi. Omzet adalah jumlah uang, yaitu jumlah dikali harga, yang sudah dihitung getTotal.\n"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Stream 12: Laporan Mingguan Todo",
+      "pembuka": "Materi terakhir Stream! Aku perlu laporan mingguan dari daftar todo. Setiap pertanyaan kita jawab dengan satu Stream.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Total menit semua todo dan jumlah yang selesai.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Todo> todo = Arrays.asList(\n                new Todo(\"Belajar Java\", \"belajar\", 45, true),\n                new Todo(\"Cuci motor\", \"rumah\", 30, false),\n                new Todo(\"Belajar SQL\", \"belajar\", 60, false),\n                new Todo(\"Bayar listrik\", \"rumah\", 10, true),\n                new Todo(\"Rapat tim\", \"kantor\", 25, false));\n        int totalMenit = todo.stream().mapToInt(Todo::getMenit).sum();\n        long jumlahSelesai = todo.stream().filter(Todo::isSelesai).count();\n        System.out.println(\"Total: \" + totalMenit + \" menit\");\n        System.out.println(\"Selesai: \" + jumlahSelesai + \" dari \" + todo.size());\n    }\n}\n\nclass Todo {\n    private String judul;\n    private String label;\n    private int menit;\n    private boolean selesai;\n\n    Todo(String judul, String label, int menit, boolean selesai) {\n        this.judul = judul;\n        this.label = label;\n        this.menit = menit;\n        this.selesai = selesai;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    String getLabel() {\n        return label;\n    }\n\n    int getMenit() {\n        return menit;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n}\n",
+          "keluaran": "Total: 170 menit\nSelesai: 2 dari 5",
+          "otomatis": true,
+          "benar": "`filter(Todo::isSelesai)` menyaring object yang getter boolean-nya bernilai true.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Jumlahkan menit per label dengan `groupingBy(Todo::getLabel, TreeMap::new, Collectors.summingInt(Todo::getMenit))`. Cetak `Menit per label: {belajar=105, kantor=25, rumah=40}`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Todo> todo = Arrays.asList(\n                new Todo(\"Belajar Java\", \"belajar\", 45, true),\n                new Todo(\"Cuci motor\", \"rumah\", 30, false),\n                new Todo(\"Belajar SQL\", \"belajar\", 60, false),\n                new Todo(\"Bayar listrik\", \"rumah\", 10, true),\n                new Todo(\"Rapat tim\", \"kantor\", 25, false));\n        int totalMenit = todo.stream().mapToInt(Todo::getMenit).sum();\n        long jumlahSelesai = todo.stream().filter(Todo::isSelesai).count();\n        System.out.println(\"Total: \" + totalMenit + \" menit\");\n        System.out.println(\"Selesai: \" + jumlahSelesai + \" dari \" + todo.size());\n        Map<String, Integer> menitLabel = todo.stream()\n                .collect(Collectors.groupingBy(Todo::getLabel, TreeMap::new, Collectors.summingInt(Todo::getMenit)));\n        System.out.println(\"Menit per label: \" + menitLabel);\n    }\n}\n\nclass Todo {\n    private String judul;\n    private String label;\n    private int menit;\n    private boolean selesai;\n\n    Todo(String judul, String label, int menit, boolean selesai) {\n        this.judul = judul;\n        this.label = label;\n        this.menit = menit;\n        this.selesai = selesai;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    String getLabel() {\n        return label;\n    }\n\n    int getMenit() {\n        return menit;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n}\n",
+          "keluaran": "Total: 170 menit\nSelesai: 2 dari 5\nMenit per label: {belajar=105, kantor=25, rumah=40}",
+          "wajib": [
+            {
+              "pola": "groupingBy\\(\\s*Todo::getLabel\\s*,\\s*TreeMap::new\\s*,\\s*Collectors\\.summingInt\\(\\s*Todo::getMenit\\s*\\)\\s*\\)",
+              "pesan": "pakai `groupingBy(Todo::getLabel, TreeMap::new, Collectors.summingInt(Todo::getMenit))`."
+            }
+          ],
+          "benar": "Label `belajar` paling banyak menyita waktu.",
+          "petunjuk": "`summingInt` menjumlah nilai di setiap kelompok, bukan menghitung jumlah datanya."
+        },
+        {
+          "arahan": "Hitung persentase selesai: `jumlahSelesai * 100 / todo.size()`, lalu cetak `Kemajuan: 40%`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Todo> todo = Arrays.asList(\n                new Todo(\"Belajar Java\", \"belajar\", 45, true),\n                new Todo(\"Cuci motor\", \"rumah\", 30, false),\n                new Todo(\"Belajar SQL\", \"belajar\", 60, false),\n                new Todo(\"Bayar listrik\", \"rumah\", 10, true),\n                new Todo(\"Rapat tim\", \"kantor\", 25, false));\n        int totalMenit = todo.stream().mapToInt(Todo::getMenit).sum();\n        long jumlahSelesai = todo.stream().filter(Todo::isSelesai).count();\n        System.out.println(\"Total: \" + totalMenit + \" menit\");\n        System.out.println(\"Selesai: \" + jumlahSelesai + \" dari \" + todo.size());\n        Map<String, Integer> menitLabel = todo.stream()\n                .collect(Collectors.groupingBy(Todo::getLabel, TreeMap::new, Collectors.summingInt(Todo::getMenit)));\n        System.out.println(\"Menit per label: \" + menitLabel);\n        System.out.println(\"Kemajuan: \" + (jumlahSelesai * 100 / todo.size()) + \"%\");\n    }\n}\n\nclass Todo {\n    private String judul;\n    private String label;\n    private int menit;\n    private boolean selesai;\n\n    Todo(String judul, String label, int menit, boolean selesai) {\n        this.judul = judul;\n        this.label = label;\n        this.menit = menit;\n        this.selesai = selesai;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    String getLabel() {\n        return label;\n    }\n\n    int getMenit() {\n        return menit;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n}\n",
+          "keluaran": "Total: 170 menit\nSelesai: 2 dari 5\nMenit per label: {belajar=105, kantor=25, rumah=40}\nKemajuan: 40%",
+          "wajib": [
+            {
+              "pola": "jumlahSelesai\\s*\\*\\s*100\\s*/\\s*todo\\.size\\(\\)",
+              "pesan": "hitung `jumlahSelesai * 100 / todo.size()`."
+            }
+          ],
+          "benar": "Dua dari lima todo sudah selesai.",
+          "petunjuk": "Kalikan 100 lebih dulu supaya pembagian bilangan bulat tidak menjadi 0."
+        },
+        {
+          "arahan": "Buat daftar judul todo yang **belum** selesai, diurutkan dari yang terlama, lalu gabung menjadi satu kalimat dengan `joining(\", \")`. Cetak `Prioritas: Belajar SQL, Cuci motor, Rapat tim`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Todo> todo = Arrays.asList(\n                new Todo(\"Belajar Java\", \"belajar\", 45, true),\n                new Todo(\"Cuci motor\", \"rumah\", 30, false),\n                new Todo(\"Belajar SQL\", \"belajar\", 60, false),\n                new Todo(\"Bayar listrik\", \"rumah\", 10, true),\n                new Todo(\"Rapat tim\", \"kantor\", 25, false));\n        int totalMenit = todo.stream().mapToInt(Todo::getMenit).sum();\n        long jumlahSelesai = todo.stream().filter(Todo::isSelesai).count();\n        System.out.println(\"Total: \" + totalMenit + \" menit\");\n        System.out.println(\"Selesai: \" + jumlahSelesai + \" dari \" + todo.size());\n        Map<String, Integer> menitLabel = todo.stream()\n                .collect(Collectors.groupingBy(Todo::getLabel, TreeMap::new, Collectors.summingInt(Todo::getMenit)));\n        System.out.println(\"Menit per label: \" + menitLabel);\n        System.out.println(\"Kemajuan: \" + (jumlahSelesai * 100 / todo.size()) + \"%\");\n        String prioritas = todo.stream()\n                .filter(t -> !t.isSelesai())\n                .sorted(Comparator.comparing(Todo::getMenit).reversed())\n                .map(Todo::getJudul)\n                .collect(Collectors.joining(\", \"));\n        System.out.println(\"Prioritas: \" + prioritas);\n    }\n}\n\nclass Todo {\n    private String judul;\n    private String label;\n    private int menit;\n    private boolean selesai;\n\n    Todo(String judul, String label, int menit, boolean selesai) {\n        this.judul = judul;\n        this.label = label;\n        this.menit = menit;\n        this.selesai = selesai;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    String getLabel() {\n        return label;\n    }\n\n    int getMenit() {\n        return menit;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n}\n",
+          "keluaran": "Total: 170 menit\nSelesai: 2 dari 5\nMenit per label: {belajar=105, kantor=25, rumah=40}\nKemajuan: 40%\nPrioritas: Belajar SQL, Cuci motor, Rapat tim",
+          "wajib": [
+            {
+              "pola": "filter\\(\\s*t\\s*->\\s*!\\s*t\\.isSelesai\\(\\)\\s*\\)",
+              "pesan": "saring yang belum selesai dengan `filter(t -> !t.isSelesai())`."
+            },
+            {
+              "pola": "Comparator\\.comparing\\(\\s*Todo::getMenit\\s*\\)\\.reversed\\(\\)",
+              "pesan": "urutkan terlama dulu dengan `Comparator.comparing(Todo::getMenit).reversed()`."
+            },
+            {
+              "pola": "Collectors\\.joining\\(\\s*\", \"\\s*\\)",
+              "pesan": "gabung dengan `Collectors.joining(\", \")`."
+            }
+          ],
+          "benar": "Satu Stream menjawab satu pertanyaan laporan.",
+          "petunjuk": "Urutan rangkaiannya: saring, urutkan, ambil judul, gabungkan."
+        },
+        {
+          "arahan": "Tantangan: per label, hitung berapa todo yang **belum** selesai memakai `filter` lalu `groupingBy(Todo::getLabel, TreeMap::new, Collectors.counting())`. Cetak `Belum per label: {belajar=1, kantor=1, rumah=1}`, lalu `Ada yang lebih dari 50 menit? true` dengan `anyMatch`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Todo> todo = Arrays.asList(\n                new Todo(\"Belajar Java\", \"belajar\", 45, true),\n                new Todo(\"Cuci motor\", \"rumah\", 30, false),\n                new Todo(\"Belajar SQL\", \"belajar\", 60, false),\n                new Todo(\"Bayar listrik\", \"rumah\", 10, true),\n                new Todo(\"Rapat tim\", \"kantor\", 25, false));\n        int totalMenit = todo.stream().mapToInt(Todo::getMenit).sum();\n        long jumlahSelesai = todo.stream().filter(Todo::isSelesai).count();\n        System.out.println(\"Total: \" + totalMenit + \" menit\");\n        System.out.println(\"Selesai: \" + jumlahSelesai + \" dari \" + todo.size());\n        Map<String, Integer> menitLabel = todo.stream()\n                .collect(Collectors.groupingBy(Todo::getLabel, TreeMap::new, Collectors.summingInt(Todo::getMenit)));\n        System.out.println(\"Menit per label: \" + menitLabel);\n        System.out.println(\"Kemajuan: \" + (jumlahSelesai * 100 / todo.size()) + \"%\");\n        String prioritas = todo.stream()\n                .filter(t -> !t.isSelesai())\n                .sorted(Comparator.comparing(Todo::getMenit).reversed())\n                .map(Todo::getJudul)\n                .collect(Collectors.joining(\", \"));\n        System.out.println(\"Prioritas: \" + prioritas);\n        Map<String, Long> belumLabel = todo.stream()\n                .filter(t -> !t.isSelesai())\n                .collect(Collectors.groupingBy(Todo::getLabel, TreeMap::new, Collectors.counting()));\n        System.out.println(\"Belum per label: \" + belumLabel);\n        System.out.println(\"Ada yang lebih dari 50 menit? \" + todo.stream().anyMatch(t -> t.getMenit() > 50));\n    }\n}\n\nclass Todo {\n    private String judul;\n    private String label;\n    private int menit;\n    private boolean selesai;\n\n    Todo(String judul, String label, int menit, boolean selesai) {\n        this.judul = judul;\n        this.label = label;\n        this.menit = menit;\n        this.selesai = selesai;\n    }\n\n    String getJudul() {\n        return judul;\n    }\n\n    String getLabel() {\n        return label;\n    }\n\n    int getMenit() {\n        return menit;\n    }\n\n    boolean isSelesai() {\n        return selesai;\n    }\n}\n",
+          "keluaran": "Total: 170 menit\nSelesai: 2 dari 5\nMenit per label: {belajar=105, kantor=25, rumah=40}\nKemajuan: 40%\nPrioritas: Belajar SQL, Cuci motor, Rapat tim\nBelum per label: {belajar=1, kantor=1, rumah=1}\nAda yang lebih dari 50 menit? true",
+          "wajib": [
+            {
+              "pola": "Map<String,\\s*Long>\\s+belumLabel",
+              "pesan": "buat `Map<String, Long> belumLabel`."
+            },
+            {
+              "pola": "groupingBy\\(\\s*Todo::getLabel\\s*,\\s*TreeMap::new\\s*,\\s*Collectors\\.counting\\(\\)\\s*\\)",
+              "pesan": "kelompokkan dengan `groupingBy(Todo::getLabel, TreeMap::new, Collectors.counting())`."
+            },
+            {
+              "pola": "anyMatch\\(\\s*t\\s*->\\s*t\\.getMenit\\(\\)\\s*>\\s*50\\s*\\)",
+              "pesan": "periksa dengan `anyMatch(t -> t.getMenit() > 50)`."
+            }
+          ],
+          "tantangan": true,
+          "petunjuk": "Saring dulu yang belum selesai, baru kelompokkan."
+        }
+      ],
+      "penutup": "Selamat, laporan Todolist-mu sekarang dibuat sepenuhnya dengan Stream: total, kelompok, persentase, pencarian, dan ringkasan teks. Semua bahan Java Stream sudah kamu pakai!"
     },
     {
       "type": "understanding_check",

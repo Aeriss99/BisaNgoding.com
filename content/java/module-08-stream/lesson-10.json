@@ -11,6 +11,10 @@
     },
     {
       "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan beberapa kantong belanja. Setiap kantong berisi beberapa barang. Kalau kamu ingin daftar **semua barang**, kamu tidak mau hasilnya berupa daftar kantong, melainkan semua barang dikeluarkan dan dijajarkan di satu meja.\n\nItulah bedanya `map` dan `flatMap`. `map` mengubah setiap kantong menjadi sesuatu yang lain, tapi kantongnya tetap terpisah: hasilnya Stream berisi list. `flatMap` membuka setiap kantong dan menuang isinya ke satu aliran yang rata. Lambda di `flatMap` harus mengembalikan **Stream**, misalnya `k -> k.stream()`, dan semua Stream kecil itu disambung menjadi satu."
+    },
+    {
+      "type": "theory",
       "content": "Bedanya terlihat jelas dari hasilnya:\n\n| Operasi | Lambda | Hasil untuk [[kopi, gula], [teh]] |\n|---|---|---|\n| `map(k -> k.size())` | satu data → satu nilai | [2, 1] |\n| `flatMap(k -> k.stream())` | satu data → Stream berisi banyak nilai | [kopi, gula, teh] |\n\nLambda di `flatMap` wajib menghasilkan **Stream**. Untuk list, pakai `k.stream()`. Untuk array, pakai `Arrays.stream(array)`.\n\n```java run\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.stream.Collectors;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<List<Integer>> nilai = Arrays.asList(\n                Arrays.asList(80, 75),\n                Arrays.asList(90),\n                Arrays.asList(60, 85, 70));\n        int total = nilai.stream()\n                .flatMap(n -> n.stream())\n                .mapToInt(n -> n)\n                .sum();\n        System.out.println(total);\n    }\n}\n```\n\nEnam nilai dari tiga list digabung, lalu dijumlahkan: 460."
     },
     {
@@ -66,7 +70,91 @@
     },
     {
       "type": "theory",
+      "content": "### Pelan-pelan: apa yang dikerjakan Java\n\n| Kode | Yang terjadi |\n|---|---|\n| `keranjang.stream()` | Stream berisi 3 list kecil. |\n| `flatMap(k -> k.stream())` | Setiap list dibuka, isinya disambung: kopi, gula, teh, susu, kopi, roti. |\n| `semua.size()` | Ada 6 barang. |\n| `split(\" \")` dalam `flatMap` | Setiap kalimat dipecah menjadi kata, lalu disambung. |\n| `distinct()` | Kata `java` yang muncul dua kali hanya disimpan sekali. |\n\nHasilnya:\n\n```text\n[kopi, gula, teh, susu, kopi, roti]\n6\n[belajar, java, itu, seru]\n```\n\nKalau ada baris yang hasilnya belum kamu duga, kembali ke contoh kode tadi, ubah sedikit, lalu jalankan lagi."
+    },
+    {
+      "type": "theory",
       "content": "### Kesalahan yang sering terjadi\n\n**1. Memakai map untuk data bertingkat**\n\nSalah:\n\n```java\nList<List<String>> hasil = keranjang.stream()\n        .map(k -> k)\n        .collect(Collectors.toList());\n```\n\nBenar:\n\n```java\nList<String> hasil = keranjang.stream()\n        .flatMap(k -> k.stream())\n        .collect(Collectors.toList());\n```\n\nmap mempertahankan setiap list sebagai satu data, jadi hasilnya tetap list di dalam list. flatMap menggabungkan isinya.\n\n**2. Lambda flatMap tidak menghasilkan Stream**\n\nSalah:\n\n```java\nkalimat.stream().flatMap(k -> k.split(\" \"))\n```\n\nBenar:\n\n```java\nkalimat.stream().flatMap(k -> Arrays.stream(k.split(\" \")))\n```\n\nsplit menghasilkan array, bukan Stream. flatMap butuh Stream, jadi bungkus dengan Arrays.stream.\n"
+    },
+    {
+      "type": "praktik_java",
+      "judul": "Todolist Stream 10: Todo dari Beberapa Hari",
+      "pembuka": "Todo-ku disimpan per hari: Senin punya daftarnya sendiri, Selasa juga. Aku mau melihat semuanya dalam satu daftar.",
+      "langkah": [
+        {
+          "arahan": "Lihat aku dulu ya. Todo tiga hari kuratakan menjadi satu list dengan `flatMap`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<List<String>> perHari = Arrays.asList(\n                Arrays.asList(\"Belajar Java\", \"Cuci motor\"),\n                Arrays.asList(\"Belajar SQL\"),\n                Arrays.asList(\"Bayar listrik\", \"Belajar Java\", \"Masak\"));\n        List<String> semua = perHari.stream()\n                .flatMap(h -> h.stream())\n                .collect(Collectors.toList());\n        System.out.println(\"Semua: \" + semua);\n    }\n}\n",
+          "keluaran": "Semua: [Belajar Java, Cuci motor, Belajar SQL, Bayar listrik, Belajar Java, Masak]",
+          "otomatis": true,
+          "benar": "Tiga list kecil menjadi satu list berisi enam todo.\n\nSekarang giliranmu. Kodeku sudah ada di editor, kamu lanjutkan dari situ.",
+          "petunjuk": ""
+        },
+        {
+          "arahan": "Hitung jumlah semua todo minggu ini langsung dengan `flatMap(List::stream)` dan `count()`. Cetak `Jumlah: 6`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<List<String>> perHari = Arrays.asList(\n                Arrays.asList(\"Belajar Java\", \"Cuci motor\"),\n                Arrays.asList(\"Belajar SQL\"),\n                Arrays.asList(\"Bayar listrik\", \"Belajar Java\", \"Masak\"));\n        List<String> semua = perHari.stream()\n                .flatMap(h -> h.stream())\n                .collect(Collectors.toList());\n        System.out.println(\"Semua: \" + semua);\n        long jumlah = perHari.stream().flatMap(List::stream).count();\n        System.out.println(\"Jumlah: \" + jumlah);\n    }\n}\n",
+          "keluaran": "Semua: [Belajar Java, Cuci motor, Belajar SQL, Bayar listrik, Belajar Java, Masak]\nJumlah: 6",
+          "wajib": [
+            {
+              "pola": "flatMap\\(\\s*List::stream\\s*\\)",
+              "pesan": "ratakan dengan `flatMap(List::stream)`."
+            },
+            {
+              "pola": "\\.count\\(\\)",
+              "pesan": "hitung dengan `.count()`."
+            }
+          ],
+          "benar": "Tidak perlu membuat list dulu kalau hanya butuh jumlahnya.",
+          "petunjuk": "`List::stream` sama artinya dengan `h -> h.stream()`."
+        },
+        {
+          "arahan": "Buang todo yang dobel: tambahkan `distinct()` setelah `flatMap`, kumpulkan ke `unik`, lalu cetak `Unik: [Belajar Java, Cuci motor, Belajar SQL, Bayar listrik, Masak]`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<List<String>> perHari = Arrays.asList(\n                Arrays.asList(\"Belajar Java\", \"Cuci motor\"),\n                Arrays.asList(\"Belajar SQL\"),\n                Arrays.asList(\"Bayar listrik\", \"Belajar Java\", \"Masak\"));\n        List<String> semua = perHari.stream()\n                .flatMap(h -> h.stream())\n                .collect(Collectors.toList());\n        System.out.println(\"Semua: \" + semua);\n        long jumlah = perHari.stream().flatMap(List::stream).count();\n        System.out.println(\"Jumlah: \" + jumlah);\n        List<String> unik = perHari.stream()\n                .flatMap(List::stream)\n                .distinct()\n                .collect(Collectors.toList());\n        System.out.println(\"Unik: \" + unik);\n    }\n}\n",
+          "keluaran": "Semua: [Belajar Java, Cuci motor, Belajar SQL, Bayar listrik, Belajar Java, Masak]\nJumlah: 6\nUnik: [Belajar Java, Cuci motor, Belajar SQL, Bayar listrik, Masak]",
+          "wajib": [
+            {
+              "pola": "flatMap\\(\\s*List::stream\\s*\\)\\s*\\.distinct\\(\\)",
+              "pesan": "pakai `.flatMap(List::stream).distinct()`."
+            }
+          ],
+          "benar": "Urutan kemunculan pertama tetap dijaga.",
+          "petunjuk": "`Belajar Java` ada di hari Senin dan Rabu, jadi satu dibuang."
+        },
+        {
+          "arahan": "Pecah semua judul menjadi kata dengan `flatMap(t -> Arrays.stream(t.split(\" \")))` dari list `unik`, ubah ke huruf kecil, buang dobel, lalu cetak `Kata: [belajar, java, cuci, motor, sql, bayar, listrik, masak]`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<List<String>> perHari = Arrays.asList(\n                Arrays.asList(\"Belajar Java\", \"Cuci motor\"),\n                Arrays.asList(\"Belajar SQL\"),\n                Arrays.asList(\"Bayar listrik\", \"Belajar Java\", \"Masak\"));\n        List<String> semua = perHari.stream()\n                .flatMap(h -> h.stream())\n                .collect(Collectors.toList());\n        System.out.println(\"Semua: \" + semua);\n        long jumlah = perHari.stream().flatMap(List::stream).count();\n        System.out.println(\"Jumlah: \" + jumlah);\n        List<String> unik = perHari.stream()\n                .flatMap(List::stream)\n                .distinct()\n                .collect(Collectors.toList());\n        System.out.println(\"Unik: \" + unik);\n        List<String> kata = unik.stream()\n                .flatMap(t -> Arrays.stream(t.split(\" \")))\n                .map(String::toLowerCase)\n                .distinct()\n                .collect(Collectors.toList());\n        System.out.println(\"Kata: \" + kata);\n    }\n}\n",
+          "keluaran": "Semua: [Belajar Java, Cuci motor, Belajar SQL, Bayar listrik, Belajar Java, Masak]\nJumlah: 6\nUnik: [Belajar Java, Cuci motor, Belajar SQL, Bayar listrik, Masak]\nKata: [belajar, java, cuci, motor, sql, bayar, listrik, masak]",
+          "wajib": [
+            {
+              "pola": "flatMap\\(\\s*t\\s*->\\s*Arrays\\.stream\\(\\s*t\\.split\\(\\s*\" \"\\s*\\)\\s*\\)\\s*\\)",
+              "pesan": "pecah dengan `flatMap(t -> Arrays.stream(t.split(\" \")))`."
+            },
+            {
+              "pola": "map\\(\\s*String::toLowerCase\\s*\\)",
+              "pesan": "ubah dengan `map(String::toLowerCase)`."
+            }
+          ],
+          "benar": "Satu judul bisa menghasilkan beberapa kata.",
+          "petunjuk": "`split(\" \")` menghasilkan array, jadi bungkus dengan `Arrays.stream` supaya menjadi Stream."
+        },
+        {
+          "arahan": "Tantangan: hitung berapa todo yang diawali `Belajar` di seluruh minggu (termasuk yang dobel) dengan `flatMap`, `filter`, dan `count`. Cetak `Belajar minggu ini: 3`.",
+          "jawaban": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<List<String>> perHari = Arrays.asList(\n                Arrays.asList(\"Belajar Java\", \"Cuci motor\"),\n                Arrays.asList(\"Belajar SQL\"),\n                Arrays.asList(\"Bayar listrik\", \"Belajar Java\", \"Masak\"));\n        List<String> semua = perHari.stream()\n                .flatMap(h -> h.stream())\n                .collect(Collectors.toList());\n        System.out.println(\"Semua: \" + semua);\n        long jumlah = perHari.stream().flatMap(List::stream).count();\n        System.out.println(\"Jumlah: \" + jumlah);\n        List<String> unik = perHari.stream()\n                .flatMap(List::stream)\n                .distinct()\n                .collect(Collectors.toList());\n        System.out.println(\"Unik: \" + unik);\n        List<String> kata = unik.stream()\n                .flatMap(t -> Arrays.stream(t.split(\" \")))\n                .map(String::toLowerCase)\n                .distinct()\n                .collect(Collectors.toList());\n        System.out.println(\"Kata: \" + kata);\n        long belajarMinggu = perHari.stream()\n                .flatMap(List::stream)\n                .filter(t -> t.startsWith(\"Belajar\"))\n                .count();\n        System.out.println(\"Belajar minggu ini: \" + belajarMinggu);\n    }\n}\n",
+          "keluaran": "Semua: [Belajar Java, Cuci motor, Belajar SQL, Bayar listrik, Belajar Java, Masak]\nJumlah: 6\nUnik: [Belajar Java, Cuci motor, Belajar SQL, Bayar listrik, Masak]\nKata: [belajar, java, cuci, motor, sql, bayar, listrik, masak]\nBelajar minggu ini: 3",
+          "wajib": [
+            {
+              "pola": "long\\s+belajarMinggu",
+              "pesan": "simpan di `long belajarMinggu`."
+            },
+            {
+              "pola": "flatMap\\(\\s*List::stream\\s*\\)\\s*\\.filter\\(\\s*t\\s*->\\s*t\\.startsWith\\(\\s*\"Belajar\"\\s*\\)\\s*\\)",
+              "pesan": "ratakan dulu, lalu saring `startsWith(\"Belajar\")`."
+            }
+          ],
+          "tantangan": true,
+          "petunjuk": "Ratakan dulu dengan `flatMap`, baru saring. Jangan pakai `distinct` di sini."
+        }
+      ],
+      "penutup": "Kamu sudah meratakan list bertingkat, memecah teks menjadi kata, dan membuang yang dobel. Berikutnya kita pakai Stream untuk daftar object."
     },
     {
       "type": "understanding_check",
