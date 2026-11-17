@@ -25,6 +25,7 @@ Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya p
 ## Fitur
 
 - **Kode berjalan di browser.** Java dijalankan dengan [CheerpJ](https://cheerpj.com/), JavaScript dengan Web Worker, TypeScript diperiksa compiler TypeScript asli sebelum dijalankan, Node.js (fs, http, Express) dijalankan runtime Node tiruan di Web Worker, Python dengan Pyodide, dan PHP 8.3 dengan WebAssembly. Tidak perlu server.
+- **Praktik bersama Lingga.** Di banyak materi (Java, JavaScript, Python Dasar, PHP Dasar) ada praktik terpandu di editor: Lingga memberi contoh, lalu kamu melanjutkan kodenya langkah demi langkah sambil membangun aplikasi Todolist.
 - **Latihan bertahap.** Setiap pelajaran berisi teori, contoh yang bisa dijalankan, cek pemahaman, soal isian, dan tantangan kode. Setiap modul ditutup quiz dengan pilihan jawaban yang diacak.
 - **Progres tersimpan.** Masuk dengan Google, lalu XP, streak, dan pelajaran yang selesai tersinkron lewat Supabase. Kalau offline, progres tetap tersimpan di perangkat.
 - **Bisa dipasang di HP** sebagai aplikasi (PWA).
