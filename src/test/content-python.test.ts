@@ -178,7 +178,7 @@ describe('Kelas Python: susunan kartu', () => {
           return;
         }
         if (l.moduleId === 'python-dasar') {
-          expect(jenis).toEqual(['theory', 'theory', 'theory', 'runnable', 'praktik_java', 'understanding_check', 'predict_output', 'fill_blank', 'code_challenge', 'summary']);
+          expect(jenis).toEqual(['theory', 'theory', 'theory', 'runnable', 'theory', 'theory', 'theory', 'praktik_java', 'understanding_check', 'predict_output', 'fill_blank', 'code_challenge', 'summary']);
           return;
         }
         const teori = l.cards.filter((c) => c.type === 'theory') as { content: string }[];
