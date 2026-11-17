@@ -13,6 +13,8 @@ vi.mock('../../lib/javaRunner', () => ({ runJavaCode }));
 const { runJsCode } = vi.hoisted(() => ({ runJsCode: vi.fn() }));
 vi.mock('../../lib/jsRunner', () => ({ runJsCode, pratinjauHtml: vi.fn() }));
 const { runPhpCode } = vi.hoisted(() => ({ runPhpCode: vi.fn() }));
+const { runPythonCode } = vi.hoisted(() => ({ runPythonCode: vi.fn() }));
+vi.mock('../../lib/pythonRunner', async (asli) => ({ ...(await asli<typeof import('../../lib/pythonRunner')>()), runPythonCode }));
 vi.mock('../../lib/phpRunner', async (asli) => ({ ...(await asli<typeof import('../../lib/phpRunner')>()), runPhpCode }));
 
 import { PraktikJavaCardComponent } from './PraktikJavaCard';
@@ -214,5 +216,49 @@ describe('Kartu praktik bahasa PHP', () => {
     });
     expect(screen.getByText(/unexpected token "echo"/)).toBeInTheDocument();
     expect(screen.getByText(/titik koma/)).toBeInTheDocument();
+  });
+});
+
+describe('Kartu praktik bahasa Python', () => {
+  const kartuPy: PraktikJavaCard = {
+    type: 'praktik_java',
+    bahasa: 'python',
+    judul: 'Todolist Python 1: tes',
+    pembuka: 'Kita bikin todolist dengan Python.',
+    langkah: [
+      { arahan: 'Lihat aku dulu ya.', jawaban: 'print("Todo")', keluaran: 'Todo', otomatis: true, benar: 'Giliranmu.', petunjuk: '' },
+      { arahan: 'Baca judul.', jawaban: 'print("Todo")\njudul = input()\nprint(judul)', input: 'Masak\n', keluaran: 'Todo\nMasak', petunjuk: 'Pakai input().', tantangan: true },
+    ],
+    penutup: 'Selesai.',
+  };
+
+  beforeEach(() => {
+    runPythonCode.mockReset();
+    runJavaCode.mockReset();
+    tanpaAnimasi();
+  });
+
+  it('memakai main.py dan mengirim input langkah ke runPythonCode', async () => {
+    const onSuccess = vi.fn();
+    render(<PraktikJavaCardComponent card={kartuPy} onSuccess={onSuccess} />);
+    expect(screen.getAllByText('main.py').length).toBe(1);
+    runPythonCode.mockResolvedValueOnce({ stdout: 'Todo\nMasak\n', stderr: '', exitCode: 0 });
+    const kode = kartuPy.langkah[1].jawaban;
+    fireEvent.change(screen.getByLabelText('kode'), { target: { value: kode } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Jalankan/ }));
+    });
+    expect(runPythonCode).toHaveBeenCalledWith(kode, 'Masak\n', expect.any(Function));
+    expect(runJavaCode).not.toHaveBeenCalled();
+    expect(onSuccess).toHaveBeenCalledWith(1);
+  });
+
+  it('error Python ditampilkan dengan penjelasan singkat', async () => {
+    render(<PraktikJavaCardComponent card={kartuPy} onSuccess={() => {}} />);
+    runPythonCode.mockResolvedValueOnce({ stdout: '', stderr: 'Traceback (most recent call last):\n  File "main.py", line 2\nNameError: name \'judl\' is not defined', exitCode: 1 });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Jalankan/ }));
+    });
+    expect(screen.getByText(/NameError artinya/)).toBeInTheDocument();
   });
 });
