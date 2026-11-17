@@ -1,113 +1,189 @@
-# BisaNgoding.com
+<div align="center">
 
-Website belajar coding interaktif dan gratis dalam bahasa Indonesia. Materinya pendek-pendek, setiap pelajaran ditutup latihan, dan kode Java, JavaScript, Python, maupun PHP langsung dijalankan di browser tanpa perlu instal apa pun.
+<img src="public/pwa-512x512.png" alt="BisaNgoding logo" width="110" />
 
-## Kelas
+# BisaNgoding
 
-| Kelas | Isi |
+**Free, interactive coding lessons in Bahasa Indonesia**
+
+**English** &nbsp;|&nbsp; [Bahasa Indonesia](README.id.md)
+
+[![Open site](https://img.shields.io/badge/Open-Site-FFD43B?style=flat&logo=googlechrome&logoColor=black)](https://aeriss99.github.io/BisaNgoding.com/)
+[![Version](https://img.shields.io/github/v/tag/Aeriss99/BisaNgoding.com?label=version&color=7950f2)](https://github.com/Aeriss99/BisaNgoding.com/tags)
+![Courses](https://img.shields.io/badge/courses-17-2f9e44)
+![Lessons](https://img.shields.io/badge/lessons-1%2C250%2B-2f9e44)
+![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-installable-5a0fc8?logo=pwa&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
+
+[Features](#features) • [Courses](#courses) • [Running locally](#running-locally) • [Adding lessons](#adding-lessons) • [Deployment](#deployment) • [License](#license)
+
+</div>
+
+---
+
+**BisaNgoding** is a SoloLearn-style learning site for Indonesian learners. Lessons are short, every lesson ends with practice, and Java, JavaScript, Python, and PHP code runs right in the browser with nothing to install. It is free, written in Bahasa Indonesia, and installable on phones.
+
+## Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Code runs in the browser
+Java runs on [CheerpJ](https://cheerpj.com/), JavaScript in a Web Worker, TypeScript is checked by the real compiler, Node.js by an emulated runtime, Python by Pyodide, and PHP 8.3 by WebAssembly. No server needed.
+
+</td>
+<td width="50%" valign="top">
+
+### Practice with Lingga
+Many lessons (Java, JavaScript, Python Basics, PHP Basics) include guided practice in the editor: Lingga shows an example, then you continue the code step by step while building a Todolist app.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Step-by-step exercises
+Each lesson has theory, runnable examples, comprehension checks, fill-in questions, and a coding challenge. Every module ends with a quiz whose answer options are shuffled.
+
+</td>
+<td width="50%" valign="top">
+
+### Saved progress
+Sign in with Google and your XP, streak, and finished lessons sync through Supabase. Offline, progress is still kept on the device.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Mobile first
+Designed for phone screens and installable as an app (PWA), with automatic updates.
+
+</td>
+<td width="50%" valign="top">
+
+### Lessons as JSON
+All lessons are JSON files checked by automated tests, including re-running every code example and answer key.
+
+</td>
+</tr>
+</table>
+
+## Courses
+
+Course content is in Bahasa Indonesia.
+
+| Course | Contents |
 | --- | --- |
-| **Java** | Java Dasar, Proyek Todolist, OOP, Collection, Record & Sealed Class, Standard Classes, Generics, Lambda, Stream, Date & Time, Input Output, Proyek Todolist OOP, Maven, Unit Test, Logging, Lombok, JDBC, Proyek Todolist Database, Validation, JSON, CSV, Internationalization, Thread, Reflection & Annotation, Web Servlet, JPA & Hibernate, Resilience4j, Java 21 |
-| **JavaScript** | JavaScript Dasar, Proyek Todolist, JavaScript OOP, JavaScript DOM, Standard Library, Async, dan Modules |
-| **Python** | Python Dasar (20 materi dengan praktik Todolist Python), Kondisi, Perulangan, Koleksi, Fungsi, Teks dan File, Error dan OOP, dan Proyek Akhir Todolist; kode dijalankan Python asli (Pyodide) di browser |
-| **PHP** | PHP Dasar: echo, variabel dan tipe data, string, operator, if/elseif/match, perulangan, array, function, sampai proyek Aplikasi Todolist; kode dijalankan PHP 8.3 asli (WebAssembly) di browser |
-| **TypeScript** | Tipe dasar, object dan interface, fungsi, union dan narrowing, generics, class, utility types, async dan module, tooling (tsc, tsconfig, npm) dan proyek Todolist; kode diperiksa compiler TypeScript asli (strict) di browser |
-| **Node.js** | Node.js dasar, ESM dan CommonJS, npm, file system, async dan event loop, stream, HTTP server, Express 5, middleware dan validasi Zod, REST API berlapis, autentikasi (bcrypt, JWT), PostgreSQL dengan Prisma, testing (node:test, Supertest), produksi dan deploy, proyek REST API Todolist; kode Node.js jalan di browser |
-| **Git & GitHub** | Git di laptop sampai GitHub: tag dan versi rilis, pull request, code review, manajemen proyek, keamanan, CI/CD, memperbaiki riwayat (amend, revert, reset, rebase), dan alur kerja tim |
-| **Tailwind CSS** | Tailwind v4: warna, spacing, flexbox, grid, responsif mobile-first, state, group/peer, dark mode, nilai bebas, tema dengan @theme, @apply, dan proyek tampilan Todolist (pratinjau jalan di browser) |
-| **React** | React 19: komponen dan JSX, props, render bersyarat, daftar dan key, state dan event, form terkendali, useRef, useEffect (dependency, cleanup, ambil data, localStorage, StrictMode), Context, useReducer, custom hook, React Router 7, dan proyek Todolist sampai build dan terbit (kode React jalan di browser) |
-| **Linux & Terminal** | Mengenal Linux, terminal dan navigasi, file dan folder, membaca dan mencari teks, permission, menginstal program, proses dan service, jaringan dan SSH, bash scripting, cron, mengamankan server, web server Nginx |
-| **Microsoft Excel** | Lembar kerja dan rumus (pengaturan Indonesia), SUM sampai referensi absolut, format Rupiah dan tanggal, IF, COUNTIF/SUMIF, fungsi teks dan tanggal, VLOOKUP, INDEX+MATCH, XLOOKUP, sort, filter, PivotTable, grafik, studi kasus dan simulasi tes kerja, dengan praktik di lembar Excel tiruan |
-| **RESTful API** | HTTP, prinsip REST, curl dan fetch, desain API, OpenAPI, keamanan (OWASP API Top 10), proyek API toko online |
-| **Spring Boot** | Spring Dasar: IoC, bean, dependency injection, component scan, scope dan siklus hidup bean (teori + praktik di komputer sendiri) |
-| **DevOps** | Mengenal DevOps (siklus, CI/CD, container, DORA), Docker Dasar, Docker Compose, CI/CD Lanjutan (build image, versi, secret, cache, keamanan pipeline), Deploy ke Server, Kubernetes Dasar, Cloud Dasar, Monitoring dan Log, dan Terraform (teori + praktik di komputer sendiri) |
-| **English for IT** | Bahasa Inggris dasar sehari-hari sampai bahasa Inggris dunia kerja IT, dengan latihan mendengar dan menyusun kalimat |
+| **Java** | Java Basics, Todolist Project, OOP, Collections, Records & Sealed Classes, Standard Classes, Generics, Lambda, Stream, Date & Time, Input Output, OOP Todolist Project, Maven, Unit Testing, Logging, Lombok, JDBC, Database Todolist Project, Validation, JSON, CSV, Internationalization, Threads, Reflection & Annotations, Web Servlet, JPA & Hibernate, Resilience4j, Java 21 |
+| **JavaScript** | JavaScript Basics, Todolist Project, OOP, DOM, Standard Library, Async, and Modules |
+| **Python** | Python Basics (20 lessons with Todolist practice), Conditions, Loops, Collections, Functions, Text and Files, Errors and OOP, and a final Todolist project; code runs on real Python (Pyodide) in the browser |
+| **PHP** | PHP Basics: echo, variables and types, strings, operators, if/elseif/match, loops, arrays, functions, up to a Todolist app project; code runs on real PHP 8.3 (WebAssembly) in the browser |
+| **TypeScript** | Basic types, objects and interfaces, functions, unions and narrowing, generics, classes, utility types, async and modules, tooling (tsc, tsconfig, npm) and a Todolist project; code is checked by the real TypeScript compiler (strict) in the browser |
+| **Node.js** | Node.js basics, ESM and CommonJS, npm, file system, async and the event loop, streams, HTTP server, Express 5, middleware and Zod validation, layered REST API, authentication (bcrypt, JWT), PostgreSQL with Prisma, testing (node:test, Supertest), production and deployment, REST API Todolist project; Node.js code runs in the browser |
+| **Git & GitHub** | From Git on your laptop to GitHub: tags and releases, pull requests, code review, project management, security, CI/CD, fixing history (amend, revert, reset, rebase), and team workflows |
+| **Tailwind CSS** | Tailwind v4: colors, spacing, flexbox, grid, mobile-first responsive design, states, group/peer, dark mode, arbitrary values, theming with @theme, @apply, and a Todolist UI project (live preview in the browser) |
+| **React** | React 19: components and JSX, props, conditional rendering, lists and keys, state and events, controlled forms, useRef, useEffect, Context, useReducer, custom hooks, React Router 7, and a Todolist project through build and publish (React code runs in the browser) |
+| **Linux & Terminal** | Linux basics, terminal and navigation, files and folders, reading and searching text, permissions, installing software, processes and services, networking and SSH, bash scripting, cron, server hardening, Nginx |
+| **Microsoft Excel** | Worksheets and formulas (Indonesian locale), SUM to absolute references, Rupiah and date formats, IF, COUNTIF/SUMIF, text and date functions, VLOOKUP, INDEX+MATCH, XLOOKUP, sort, filter, PivotTable, charts, case studies and job-test simulations, practiced on a mock Excel sheet |
+| **RESTful API** | HTTP, REST principles, curl and fetch, API design, OpenAPI, security (OWASP API Top 10), online store API project |
+| **Spring Boot** | Spring Basics: IoC, beans, dependency injection, component scan, bean scopes and lifecycle (theory + practice on your own computer) |
+| **DevOps** | DevOps basics, Docker, Docker Compose, advanced CI/CD, deploying to a server, Kubernetes, cloud basics, monitoring and logs, and Terraform (theory + practice on your own computer) |
+| **English for IT** | Everyday English up to workplace English for IT, with listening and sentence-building exercises |
 
-## Fitur
+## Tech stack
 
-- **Kode berjalan di browser.** Java dijalankan dengan [CheerpJ](https://cheerpj.com/), JavaScript dengan Web Worker, TypeScript diperiksa compiler TypeScript asli sebelum dijalankan, Node.js (fs, http, Express) dijalankan runtime Node tiruan di Web Worker, Python dengan Pyodide, dan PHP 8.3 dengan WebAssembly. Tidak perlu server.
-- **Praktik bersama Lingga.** Di banyak materi (Java, JavaScript, Python Dasar, PHP Dasar) ada praktik terpandu di editor: Lingga memberi contoh, lalu kamu melanjutkan kodenya langkah demi langkah sambil membangun aplikasi Todolist.
-- **Latihan bertahap.** Setiap pelajaran berisi teori, contoh yang bisa dijalankan, cek pemahaman, soal isian, dan tantangan kode. Setiap modul ditutup quiz dengan pilihan jawaban yang diacak.
-- **Progres tersimpan.** Masuk dengan Google, lalu XP, streak, dan pelajaran yang selesai tersinkron lewat Supabase. Kalau offline, progres tetap tersimpan di perangkat.
-- **Bisa dipasang di HP** sebagai aplikasi (PWA).
+| Part | Used |
+| --- | --- |
+| UI | React 19, TypeScript, Tailwind CSS 4, React Router (HashRouter), CodeMirror |
+| Build | Vite, PWA (vite-plugin-pwa) |
+| Data and auth | Supabase (Google sign-in, progress sync, Edge Functions) |
+| Running code | CheerpJ (Java 8), Web Workers (JavaScript, emulated Node.js), TypeScript compiler, Pyodide (Python), @php-wasm (PHP 8.3) |
+| Testing | Vitest, Playwright |
 
-## Teknologi
+## Running locally
 
-Vite · React 19 · TypeScript · Tailwind CSS 4 · React Router · Supabase · CheerpJ · Vitest · Playwright
-
-## Menjalankan di komputer
-
-Butuh Node.js 22 atau lebih baru.
+Requires Node.js 22 or newer.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Buka `http://localhost:5173`.
+Open `http://localhost:5173`.
 
-Untuk login dan sinkron progres, buat file `.env.local`:
+For sign-in and progress sync, create `.env.local`:
 
 ```
 VITE_SUPABASE_URL=https://xxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=kunci-anon-dari-supabase
+VITE_SUPABASE_ANON_KEY=anon-key-from-supabase
 ```
 
-Pakai **anon key** saja. Jangan pernah memasukkan `service_role` key ke proyek ini. File `.env.local` tidak ikut di-commit.
+Use the **anon key** only. Never put a `service_role` key in this project. `.env.local` is not committed.
 
-## Perintah
+### Commands
 
-| Perintah | Fungsi |
+| Command | Purpose |
 | --- | --- |
-| `npm run dev` | server pengembangan |
-| `npm run build` | cek konten, cek tipe, lalu build ke `dist/` |
-| `npm run test:unit` | test unit (Vitest) |
-| `npm run test:content` | validasi semua file materi |
-| `npm run test:java` | kompilasi dan jalankan semua contoh kode Java (butuh JDK) |
-| `npm run test:e2e` | test end-to-end (Playwright) |
+| `npm run dev` | development server |
+| `npm run build` | check content and types, then build to `dist/` |
+| `npm run test:unit` | unit tests (Vitest) |
+| `npm run test:content` | validate every lesson file |
+| `npm run test:java` | compile and run every Java example (needs a JDK) |
+| `npm run test:e2e` | end-to-end tests (Playwright) |
 
-## Struktur folder
+### Folder structure
 
 ```
-content/              materi, satu folder per kelas
-  courses.json        daftar kelas
-  jalur-karier.json   jalur karier di beranda
-  roadmap.json        rencana belajar per peran
-  <kelas>/            java, javascript, typescript, nodejs, git, mysql, linux, html-css, tailwind, rest-api, english, excel, python, php
-    modules.json      daftar modul kelas itu
-    <modul>/          lesson-XX.json + quiz.json
-public/               gambar, ilustrasi, audio English, ikon PWA, dan tools.jar untuk CheerpJ
+content/              lessons, one folder per course
+  courses.json        course list
+  jalur-karier.json   career paths on the home page
+  roadmap.json        learning plans per role
+  <course>/           java, javascript, typescript, nodejs, git, mysql, linux, html-css, tailwind, rest-api, english, excel, python, php
+    modules.json      modules of that course
+    <module>/         lesson-XX.json + quiz.json
+public/               images, illustrations, English audio, PWA icons, and tools.jar for CheerpJ
 src/
-  components/         komponen tampilan (kartu materi, layout, latihan English)
-  context/            login dan progres
-  data/               data statis (daftar rekaman suara English)
-  lib/                logika: konten, quiz, runner Java/JS, streak, suara
-  pages/              halaman
-  types/              tipe data konten (schema.ts)
-  test/               test unit (beberapa test kecil ada di samping file yang diuji)
-scripts/              cek konten, validasi materi, test Java, pengumuman modul baru
-supabase/             Edge Functions dan migrasi database (notifikasi email)
-e2e/                  test Playwright
-.github/workflows/    cek.yml (test + build) dan rilis.yml (deploy dari tag versi)
+  components/         UI components (lesson cards, layout, English exercises)
+  context/            auth and progress
+  data/               static data (English voice recordings list)
+  lib/                logic: content, quiz, Java/JS/Python/PHP runners, streak, audio
+  pages/              pages
+  types/              content data types (schema.ts)
+  test/               unit tests (some small tests sit next to the file they test)
+scripts/              content checks, lesson validation, Java tests, new-module announcements
+supabase/             Edge Functions and database migrations (email notifications)
+e2e/                  Playwright tests
+.github/workflows/    cek.yml (test + build) and rilis.yml (deploy from a version tag)
 ```
 
-## Menambah materi
+## Adding lessons
 
-Materi hanya berupa file JSON, tanpa perlu mengubah kode:
+Lessons are plain JSON files, no code changes needed:
 
-1. Buat folder modul di `content/<kelas>/`, lalu isi dengan `lesson-01.json`, `lesson-02.json`, dan seterusnya, ditambah `quiz.json`.
-2. Daftarkan modulnya di `content/<kelas>/modules.json` (`id`, `title`, `order`, `lessonCount`, `status: "ready"`, `requires`).
-3. Jalankan `npm run build && npm run test:content`. Untuk kelas Java, jalankan juga `npm run test:java`.
+1. Create a module folder in `content/<course>/` with `lesson-01.json`, `lesson-02.json`, and so on, plus `quiz.json`.
+2. Register the module in `content/<course>/modules.json` (`id`, `title`, `order`, `lessonCount`, `status: "ready"`, `requires`).
+3. Run `npm run build && npm run test:content`. For the Java course, also run `npm run test:java`.
 
-Jenis kartu dan field-nya ada di `src/types/schema.ts`. Kode Java yang dijalankan di browser harus kompatibel dengan **Java 8**, karena editor memakai CheerpJ 3 (Java 8). Pelajaran yang butuh fitur lebih baru diberi `"javaVersion": 17` atau `21` dan `"runnable": false`: isinya teori dan soal, praktiknya di komputer pelajar.
+Card types and their fields are in `src/types/schema.ts`. Java code that runs in the browser must be **Java 8** compatible, because the editor uses CheerpJ 3 (Java 8). Lessons that need newer features use `"javaVersion": 17` or `21` with `"runnable": false`: theory and questions only, practiced on the learner's own computer.
 
-Library Java untuk editor (JUnit 5, Mockito, Logback, Lombok, H2, Hibernate Validator, Jackson, Commons CSV, Hibernate ORM, Jakarta Servlet, Resilience4j) ada di `public/java-lib` dan dipasang otomatis sesuai `import` di kode, lewat aturan di `src/lib/javaPustaka.json`. Sumber `bisangoding.jar` (penjalan test JUnit, format log, dan `ServerUji` untuk Servlet) ada di `pustaka-java/`, dibangun dengan `pustaka-java/bangun.sh`.
+Java libraries for the editor (JUnit 5, Mockito, Logback, Lombok, H2, Hibernate Validator, Jackson, Commons CSV, Hibernate ORM, Jakarta Servlet, Resilience4j) live in `public/java-lib` and are added automatically based on the code's `import` statements, using the rules in `src/lib/javaPustaka.json`. The source of `bisangoding.jar` (JUnit runner, log format, and `ServerUji` for Servlets) is in `pustaka-java/`, built with `pustaka-java/bangun.sh`.
 
-## Deploy
+## Deployment
 
-Situs hanya diperbarui saat **tag versi** di-push (contoh `v0.0.1`), lewat `.github/workflows/rilis.yml`: cek tag ada di `main`, test, build, deploy ke GitHub Pages, lalu umumkan modul baru. Nomor versi tampil di aplikasi dan di `version.json`.
+The site only updates when a **version tag** is pushed (for example `v0.0.1`), through `.github/workflows/rilis.yml`: check the tag is on `main`, test, build, deploy to GitHub Pages, then announce new modules. The version number appears in the app and in `version.json`.
 
-Push ke `main`, `kecil/*`, atau `feat/*` hanya menjalankan test dan build (`.github/workflows/cek.yml`), tanpa mengubah situs.
+Pushes to `main`, `kecil/*`, or `feat/*` only run tests and the build (`.github/workflows/cek.yml`) without changing the site.
 
-Versi: angka terakhir untuk perbaikan (`v0.0.1` → `v0.0.2`), angka tengah untuk materi, kelas, atau fitur baru (`v0.0.2` → `v0.1.0`). Kembali ke rilis lama: Actions > **Rilis ke GitHub Pages** > **Run workflow** > pilih tag lama.
+Versioning: the last number for fixes (`v0.0.1` → `v0.0.2`), the middle number for new lessons, courses, or features (`v0.0.2` → `v0.1.0`). To roll back: Actions > **Rilis ke GitHub Pages** > **Run workflow** > pick an older tag.
 
-`VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY` diambil dari GitHub Secrets.
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` come from GitHub Secrets.
+
+## License
+
+Released under the [MIT License](LICENSE). Free to use, modify, and share, as long as the copyright notice and license are included.
+
+Made by [Lingga Ardyansyah](https://github.com/Aeriss99).
