@@ -1,0 +1,86 @@
+{
+  "id": "ms-komunikasi-02",
+  "moduleId": "ms-komunikasi",
+  "order": 2,
+  "title": "Event dan Message Broker",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Cara kedua service berkomunikasi adalah **asinkron**: service mengumumkan sesuatu yang terjadi, lalu melanjutkan pekerjaannya tanpa menunggu siapa pun.\n\nPengumuman itu disebut **event**, misalnya `PesananDibuat`, `PembayaranBerhasil`, atau `StokHabis`. Event dikirim ke **message broker**, perantara yang menyimpan dan menyalurkan pesan.\n\n```text\nservice-pembayaran ──PembayaranBerhasil──▶ [ Kafka ]\n                                              │\n                    ┌─────────────┬───────────┴───────┐\n              service-pesanan  service-pengiriman  service-notifikasi\n```\n\nService yang mengirim disebut **producer**. Service yang mendengarkan disebut **consumer**. Producer tidak perlu tahu siapa saja consumer-nya."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan grup WhatsApp keluarga. Ibu menulis, \"Besok makan malam di rumah nenek jam 7.\" Ibu tidak menelepon setiap anggota keluarga satu per satu dan menunggu masing-masing menjawab. Ia cukup mengirim satu pesan, lalu kembali memasak.\n\nSetiap anggota keluarga membaca pesan itu saat sempat, lalu bereaksi sendiri: kakak memesan kue, ayah mengatur mobil. Kalau adik sedang tidur, pesannya tetap ada dan bisa dibaca nanti.\n\nMessage broker adalah grup itu. Event adalah pesannya. Pengirim tidak terganggu oleh siapa yang sedang sibuk atau tidur."
+    },
+    {
+      "type": "theory",
+      "content": "### Kafka dan RabbitMQ\n\nDua message broker yang paling sering ditemui:\n\n| | Apache Kafka | RabbitMQ |\n|---|---|---|\n| Model | log event yang disimpan lama dan bisa dibaca ulang | antrean pesan yang dihapus setelah diproses |\n| Kekuatan | volume sangat besar, banyak consumer membaca event yang sama | perutean pesan yang fleksibel, mudah dimulai |\n| Istilah | topic, partition, consumer group | exchange, queue, binding |\n| Contoh pakai | event pesanan, klik pengguna, data untuk gudang data | antrean tugas seperti kirim email atau buat PDF |\n\nKeduanya sama-sama menyelesaikan masalah utama: service bisa berkomunikasi tanpa harus hidup dan siap pada saat yang sama."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nEvent yang dikirim service Pembayaran ke topic `pembayaran`:\n\n```json\n{\n  \"idEvent\": \"evt-9f21\",\n  \"jenis\": \"PembayaranBerhasil\",\n  \"waktu\": \"2026-11-18T14:05:12+07:00\",\n  \"data\": {\n    \"idPesanan\": 501,\n    \"jumlah\": 36000,\n    \"metode\": \"e-wallet\"\n  }\n}\n```\n\nTiga consumer bereaksi:\n\n- **Pesanan** mengubah status pesanan 501 menjadi `DIBAYAR`.\n- **Pengiriman** memesan kurir untuk pesanan 501.\n- **Notifikasi** mengirim pesan \"Pembayaranmu berhasil\".\n\nBulan depan, tim **Loyalitas** ingin memberi poin setiap pembayaran. Mereka cukup menambah consumer baru. Service Pembayaran tidak perlu diubah sama sekali."
+    },
+    {
+      "type": "theory",
+      "content": "### Sifat-sifat event yang perlu diingat\n\n- **Bisa terkirim lebih dari sekali.** Broker biasanya menjamin pesan sampai *setidaknya sekali* (at-least-once). Consumer harus **idempoten**: memproses event yang sama dua kali tidak boleh menghasilkan dua pengiriman kurir. Caranya, catat `idEvent` yang sudah diproses.\n- **Urutan tidak selalu terjamin**, kecuali untuk event dengan kunci yang sama di partisi yang sama (Kafka).\n- **Data menyusul**: setelah event dikirim, consumer butuh beberapa milidetik sampai detik untuk memproses. Ini disebut **eventual consistency**: data di semua service akan sama, tapi tidak seketika.\n- **Event adalah fakta masa lalu.** Namai dengan bentuk lampau: `PesananDibuat`, bukan `BuatPesanan`."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Consumer tidak idempoten**\n\nEvent yang terkirim dua kali membuat pelanggan menerima dua email atau dua kurir datang. Selalu periksa apakah event sudah pernah diproses.\n\n**2. Memakai event untuk hal yang harus ditunggu**\n\nKalau pengguna harus tahu hasilnya sekarang, misalnya stok cukup atau tidak, pakai panggilan sinkron.\n\n**3. Event terlalu sedikit isinya**\n\nEvent berisi `{\"idPesanan\": 501}` saja memaksa setiap consumer memanggil balik service Pesanan untuk detailnya. Sertakan data yang umumnya dibutuhkan.\n\n**4. Lupa pesan yang gagal diproses**\n\nPesan yang terus gagal sebaiknya dipindah ke **dead letter queue** untuk diperiksa, bukan diulang tanpa akhir."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Service yang mengirim event ke message broker disebut...",
+          "options": [
+            "Consumer",
+            "Producer",
+            "Gateway",
+            "Database"
+          ],
+          "answer": 1,
+          "explanation": "Producer mengirim; consumer mendengarkan.",
+          "remedial": "- Komunikasi asinkron: service mengumumkan event lalu melanjutkan tanpa menunggu.\n- Message broker seperti Kafka dan RabbitMQ menyimpan dan menyalurkan event.\n- Producer tidak perlu tahu siapa consumer-nya; consumer baru bisa ditambah kapan saja.\n- Event bisa terkirim lebih dari sekali, jadi consumer harus idempoten.\n- Data antar service menjadi sama setelah beberapa saat (eventual consistency)."
+        },
+        {
+          "question": "Consumer yang idempoten berarti...",
+          "options": [
+            "Memproses event yang sama dua kali tetap menghasilkan efek sekali",
+            "Tidak pernah menerima event",
+            "Memproses event secepat mungkin tanpa memeriksa apa pun",
+            "Hanya bisa membaca event sekali seumur hidup"
+          ],
+          "answer": 0,
+          "explanation": "Karena event bisa terkirim lebih dari sekali, consumer harus aman diproses ulang.",
+          "remedial": "- Komunikasi asinkron: service mengumumkan event lalu melanjutkan tanpa menunggu.\n- Message broker seperti Kafka dan RabbitMQ menyimpan dan menyalurkan event.\n- Producer tidak perlu tahu siapa consumer-nya; consumer baru bisa ditambah kapan saja.\n- Event bisa terkirim lebih dari sekali, jadi consumer harus idempoten.\n- Data antar service menjadi sama setelah beberapa saat (eventual consistency)."
+        },
+        {
+          "question": "Kenapa tim Loyalitas bisa menambah fitur poin tanpa mengubah service Pembayaran?",
+          "options": [
+            "Karena mereka cukup menambah consumer baru untuk event yang sudah ada",
+            "Karena Pembayaran dihapus",
+            "Karena poin disimpan di aplikasi HP",
+            "Karena Kafka menulis kode otomatis"
+          ],
+          "answer": 0,
+          "explanation": "Producer tidak perlu tahu siapa saja consumer-nya.",
+          "remedial": "- Komunikasi asinkron: service mengumumkan event lalu melanjutkan tanpa menunggu.\n- Message broker seperti Kafka dan RabbitMQ menyimpan dan menyalurkan event.\n- Producer tidak perlu tahu siapa consumer-nya; consumer baru bisa ditambah kapan saja.\n- Event bisa terkirim lebih dari sekali, jadi consumer harus idempoten.\n- Data antar service menjadi sama setelah beberapa saat (eventual consistency)."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Komunikasi asinkron: service mengumumkan event lalu melanjutkan tanpa menunggu.",
+        "Message broker seperti Kafka dan RabbitMQ menyimpan dan menyalurkan event.",
+        "Producer tidak perlu tahu siapa consumer-nya; consumer baru bisa ditambah kapan saja.",
+        "Event bisa terkirim lebih dari sekali, jadi consumer harus idempoten.",
+        "Data antar service menjadi sama setelah beberapa saat (eventual consistency)."
+      ]
+    }
+  ]
+}

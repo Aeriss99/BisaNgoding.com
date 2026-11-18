@@ -28,6 +28,8 @@ export const STIKER_MAP: Record<string, StikerConfig> = {
   excel: { label: 'EXCEL', warna: '#7ee2a8', bentuk: 'kotak', rotasi: 5 },
   python: { label: 'PYTHON', warna: '#ffd43b', bentuk: 'pil', rotasi: -8 },
   php: { label: 'PHP', warna: '#b197fc', bentuk: 'pil', rotasi: 6 },
+  'kerja-se': { label: 'KERJA SE', warna: '#ffa94d', bentuk: 'kotak', rotasi: -6 },
+  microservices: { label: 'MICROSERVICES', warna: '#63e6be', bentuk: 'pil', rotasi: 4 },
 };
 
 const PREFERRED_STIKER_ORDER = [
@@ -48,6 +50,8 @@ const PREFERRED_STIKER_ORDER = [
   'excel',
   'python',
   'php',
+  'kerja-se',
+  'microservices',
 ];
 
 const FAQ_LIST = [

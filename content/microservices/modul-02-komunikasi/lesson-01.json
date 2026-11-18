@@ -1,0 +1,86 @@
+{
+  "id": "ms-komunikasi-01",
+  "moduleId": "ms-komunikasi",
+  "order": 1,
+  "title": "Komunikasi Sinkron dengan REST",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Cara paling sederhana agar satu service berbicara dengan service lain adalah **memanggil API-nya lalu menunggu jawaban**. Cara ini disebut komunikasi **sinkron**.\n\n```text\nservice-pesanan  ──GET /produk/KOPI-01──▶  service-katalog\n                 ◀──200 {\"harga\": 18000}──\n```\n\nYang paling umum memakai **REST over HTTP** dengan data JSON, persis seperti yang kamu pelajari di kelas REST API. Bedanya, yang memanggil bukan aplikasi HP, melainkan service lain.\n\nAlternatif yang juga sering dipakai adalah **gRPC**: lebih cepat dan memakai format biner, cocok untuk komunikasi antar service di dalam perusahaan.\n\nDi Spring Boot, panggilan ke service lain biasanya memakai `RestClient`, `WebClient`, atau **OpenFeign**."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan kamu menelepon apotek untuk menanyakan apakah obat tertentu tersedia. Kamu menunggu di telepon sampai petugasnya menjawab. Selama menunggu, kamu tidak bisa melakukan hal lain dengan telepon itu.\n\nItulah komunikasi sinkron. Cocok kalau kamu **butuh jawabannya sekarang** untuk melanjutkan. Masalahnya muncul kalau petugas apotek lama sekali menjawab, atau teleponnya tidak diangkat. Kamu ikut terjebak menunggu. Di microservices, service yang memanggil juga ikut lambat atau gagal kalau service yang dipanggil bermasalah."
+    },
+    {
+      "type": "theory",
+      "content": "### Kontrak API\n\nKarena service dipegang tim berbeda, API menjadi **kontrak** antar tim. Tim Katalog boleh mengubah isi servicenya, asalkan kontraknya tetap dipenuhi.\n\nBeberapa kebiasaan menjaga kontrak:\n\n- **Dokumentasikan** dengan OpenAPI (Swagger), supaya tim lain tahu bentuk permintaan dan jawabannya.\n- **Versi API**: perubahan yang merusak dibuat di versi baru, misalnya `/v2/produk`, sementara `/v1/produk` tetap ada untuk sementara.\n- **Tambah, jangan ubah**: menambah kolom baru di JSON aman. Mengganti nama atau menghapus kolom bisa merusak service lain.\n- **Contract test**: test otomatis yang memastikan service masih memenuhi kontrak yang diharapkan pemanggilnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nService Pesanan memanggil Katalog untuk memeriksa harga sebelum menyimpan pesanan:\n\n```java\n@Service\npublic class KatalogClient {\n    private final RestClient rest = RestClient.create(\"http://katalog\");\n\n    public int hargaTerbaru(String kodeProduk) {\n        Produk p = rest.get()\n                .uri(\"/v1/produk/{kode}\", kodeProduk)\n                .retrieve()\n                .body(Produk.class);\n        return p.harga();\n    }\n}\n```\n\nAlamatnya `http://katalog`, bukan alamat IP. Nama `katalog` diubah menjadi alamat server yang sebenarnya oleh **service discovery**, yang dibahas di materi keempat modul ini.\n\nKalau Katalog lambat 5 detik, pengguna yang menekan tombol Bayar ikut menunggu 5 detik. Inilah kelemahan sinkron yang diatasi di modul ketiga."
+    },
+    {
+      "type": "theory",
+      "content": "### Rantai panggilan\n\nMasalah sinkron membesar saat panggilan **berantai**:\n\n```text\nGateway → Pesanan → Katalog → Promo → Stok\n```\n\nKalau setiap panggilan butuh 100 ms, totalnya sudah 400 ms. Kalau masing-masing service bisa sedang bermasalah 1% dari waktu, peluang seluruh rantai berhasil turun. Semakin panjang rantainya, semakin rapuh.\n\nCara mengurangi masalah ini:\n\n- Pakai sinkron hanya untuk hal yang **benar-benar harus ditunggu**.\n- Simpan salinan data yang sering dibaca, supaya tidak perlu bertanya setiap saat.\n- Pakai **event** untuk hal yang tidak perlu ditunggu. Ini dibahas di materi berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tanpa batas waktu (timeout)**\n\nPanggilan tanpa timeout bisa menunggu selamanya kalau service tujuan macet, lalu menghabiskan thread dan membuat service pemanggil ikut macet.\n\n**2. Mengubah kontrak tanpa pemberitahuan**\n\nMengganti nama kolom `harga` menjadi `price` merusak semua pemanggil. Tambah versi baru atau tambah kolom baru.\n\n**3. Rantai panggilan panjang**\n\nLima service dipanggil berurutan untuk satu permintaan pengguna membuat aplikasi lambat dan rapuh.\n\n**4. Memakai alamat IP tetap**\n\nIP server bisa berubah saat server diganti. Pakai nama service lewat service discovery."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Komunikasi di mana pemanggil menunggu jawaban sebelum melanjutkan disebut...",
+          "options": [
+            "Asinkron",
+            "Sinkron",
+            "Event",
+            "Batch"
+          ],
+          "answer": 1,
+          "explanation": "Sinkron berarti memanggil lalu menunggu jawaban.",
+          "remedial": "- Komunikasi sinkron: memanggil API service lain lalu menunggu jawaban.\n- Yang paling umum REST dengan JSON; gRPC dipakai untuk kecepatan.\n- API adalah kontrak antar tim: dokumentasikan, beri versi, tambah jangan ubah.\n- Rantai panggilan panjang membuat aplikasi lambat dan rapuh.\n- Pakai sinkron hanya untuk hal yang benar-benar harus ditunggu."
+        },
+        {
+          "question": "Cara aman mengubah API yang dipakai service lain adalah...",
+          "options": [
+            "Mengganti nama kolom diam-diam",
+            "Membuat versi baru atau menambah kolom baru",
+            "Menghapus endpoint lama tanpa pemberitahuan",
+            "Mengubah format JSON menjadi XML"
+          ],
+          "answer": 1,
+          "explanation": "Menambah dan membuat versi baru menjaga pemanggil lama tetap berjalan.",
+          "remedial": "- Komunikasi sinkron: memanggil API service lain lalu menunggu jawaban.\n- Yang paling umum REST dengan JSON; gRPC dipakai untuk kecepatan.\n- API adalah kontrak antar tim: dokumentasikan, beri versi, tambah jangan ubah.\n- Rantai panggilan panjang membuat aplikasi lambat dan rapuh.\n- Pakai sinkron hanya untuk hal yang benar-benar harus ditunggu."
+        },
+        {
+          "question": "Masalah rantai panggilan sinkron yang panjang adalah...",
+          "options": [
+            "Aplikasi menjadi lebih cepat",
+            "Waktu tunggu bertambah dan peluang gagal makin besar",
+            "Data menjadi lebih aman",
+            "Tidak membutuhkan jaringan"
+          ],
+          "answer": 1,
+          "explanation": "Setiap panggilan menambah waktu dan peluang gagal.",
+          "remedial": "- Komunikasi sinkron: memanggil API service lain lalu menunggu jawaban.\n- Yang paling umum REST dengan JSON; gRPC dipakai untuk kecepatan.\n- API adalah kontrak antar tim: dokumentasikan, beri versi, tambah jangan ubah.\n- Rantai panggilan panjang membuat aplikasi lambat dan rapuh.\n- Pakai sinkron hanya untuk hal yang benar-benar harus ditunggu."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Komunikasi sinkron: memanggil API service lain lalu menunggu jawaban.",
+        "Yang paling umum REST dengan JSON; gRPC dipakai untuk kecepatan.",
+        "API adalah kontrak antar tim: dokumentasikan, beri versi, tambah jangan ubah.",
+        "Rantai panggilan panjang membuat aplikasi lambat dan rapuh.",
+        "Pakai sinkron hanya untuk hal yang benar-benar harus ditunggu."
+      ]
+    }
+  ]
+}

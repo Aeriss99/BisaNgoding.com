@@ -1,0 +1,86 @@
+{
+  "id": "ms-operasi-01",
+  "moduleId": "ms-operasi",
+  "order": 1,
+  "title": "Resilience: Timeout, Retry, Circuit Breaker",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di microservices, service lain **pasti** suatu saat lambat atau gagal. Pertanyaannya bukan apakah, tapi kapan. **Resilience** adalah kemampuan service tetap berfungsi sebaik mungkin saat service lain bermasalah.\n\nEmpat teknik yang paling sering dipakai:\n\n| Teknik | Fungsinya |\n|---|---|\n| Timeout | berhenti menunggu setelah batas waktu tertentu |\n| Retry | mencoba lagi untuk kegagalan sementara |\n| Circuit breaker | berhenti memanggil service yang sedang rusak untuk sementara |\n| Fallback | memberi jawaban cadangan saat panggilan gagal |\n\nDi Java, teknik ini biasanya memakai library **Resilience4j**, yang juga sudah dibahas di kelas Java BisaNgoding."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan sekring listrik di rumah. Kalau ada korsleting di satu stopkontak, sekring putus dan memutus aliran ke bagian itu. Rumah tidak terbakar, dan bagian lain rumah tetap menyala. Setelah masalahnya diperbaiki, sekring dinaikkan lagi.\n\n**Circuit breaker** bekerja persis seperti sekring. Kalau service Promo terus gagal, circuit breaker \"putus\" dan service Pesanan berhenti memanggil Promo untuk sementara. Pesanan tidak ikut terseret, dan Promo diberi waktu untuk pulih tanpa terus dibanjiri permintaan."
+    },
+    {
+      "type": "theory",
+      "content": "### Tiga keadaan circuit breaker\n\n| Keadaan | Artinya |\n|---|---|\n| CLOSED (tertutup) | normal, panggilan diteruskan; kegagalan dihitung |\n| OPEN (terbuka) | kegagalan melewati batas, misalnya 50% dari 20 panggilan terakhir; panggilan langsung ditolak tanpa menghubungi service tujuan |\n| HALF_OPEN (setengah terbuka) | setelah jeda, misalnya 30 detik, beberapa panggilan percobaan diizinkan; kalau berhasil kembali CLOSED, kalau gagal kembali OPEN |\n\nSaat OPEN, service pemanggil langsung menjalankan **fallback**. Pengguna mendapat jawaban cepat walaupun tidak lengkap, daripada menunggu lama lalu gagal."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nService Pesanan memanggil service Promo untuk mengecek voucher. Konfigurasi Resilience4j:\n\n```java\n@CircuitBreaker(name = \"promo\", fallbackMethod = \"tanpaPromo\")\n@Retry(name = \"promo\")\n@TimeLimiter(name = \"promo\")\npublic CompletableFuture<Integer> potongan(String kodeVoucher) {\n    return CompletableFuture.supplyAsync(() -> promoClient.cek(kodeVoucher));\n}\n\nprivate CompletableFuture<Integer> tanpaPromo(String kodeVoucher, Throwable e) {\n    return CompletableFuture.completedFuture(0);\n}\n```\n\nYang terjadi saat Promo bermasalah:\n\n1. Panggilan lebih dari 2 detik dihentikan oleh **timeout**.\n2. Kegagalan sementara dicoba ulang maksimal 2 kali oleh **retry**.\n3. Kalau gagal terus, **circuit breaker** terbuka.\n4. **Fallback** mengembalikan potongan 0. Checkout tetap jalan tanpa voucher, dengan pesan \"Voucher sedang tidak bisa dipakai, coba lagi nanti\"."
+    },
+    {
+      "type": "theory",
+      "content": "### Retry yang tidak menambah masalah\n\nRetry terdengar sederhana, tapi bisa memperburuk keadaan. Bayangkan 1.000 pengguna, masing-masing di-retry 3 kali, ke service yang sudah kewalahan. Beban justru naik empat kali lipat.\n\nAturan retry yang aman:\n\n- **Hanya untuk kegagalan sementara**, seperti timeout atau error 503. Jangan retry error 400 karena datanya memang salah.\n- **Jeda yang makin lama** (*exponential backoff*): tunggu 100 ms, lalu 200 ms, lalu 400 ms.\n- **Tambah sedikit acak** (*jitter*), supaya ribuan retry tidak datang bersamaan.\n- **Batasi jumlahnya**, misalnya maksimal 3 kali.\n- **Hanya untuk operasi idempoten**. Retry pembayaran tanpa kunci idempoten bisa memotong saldo dua kali.\n\nAda juga **bulkhead**: membatasi jumlah panggilan bersamaan ke satu service, supaya satu service yang lambat tidak menghabiskan semua thread."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Timeout terlalu panjang**\n\nTimeout 60 detik sama saja dengan tidak ada timeout dari sudut pandang pengguna. Sesuaikan dengan waktu yang wajar, biasanya 1 sampai 5 detik.\n\n**2. Retry tanpa jeda**\n\nRetry langsung berkali-kali membanjiri service yang sedang kesulitan dan memperlama pemulihannya.\n\n**3. Fallback yang menyesatkan**\n\nFallback \"stok tersedia\" saat service Stok mati bisa membuat barang terjual padahal habis. Pilih fallback yang aman, misalnya \"stok sedang dicek\".\n\n**4. Tidak memantau circuit breaker**\n\nCircuit breaker yang sering terbuka adalah tanda ada masalah serius. Pasang alert untuk keadaan OPEN."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Teknik berhenti memanggil service yang sedang rusak untuk sementara disebut...",
+          "options": [
+            "Retry",
+            "Circuit breaker",
+            "Load balancing",
+            "Saga"
+          ],
+          "answer": 1,
+          "explanation": "Circuit breaker memutus panggilan seperti sekring listrik.",
+          "remedial": "- Service lain pasti suatu saat gagal; resilience menjaga service tetap berfungsi.\n- Timeout, retry, circuit breaker, dan fallback adalah teknik utama.\n- Circuit breaker punya keadaan CLOSED, OPEN, dan HALF_OPEN.\n- Retry hanya untuk kegagalan sementara, dengan backoff, jitter, dan batas.\n- Fallback harus aman dan tidak menyesatkan."
+        },
+        {
+          "question": "Saat circuit breaker berada di keadaan OPEN, panggilan...",
+          "options": [
+            "Tetap diteruskan seperti biasa",
+            "Langsung ditolak dan fallback dijalankan",
+            "Diulang terus tanpa jeda",
+            "Disimpan di database"
+          ],
+          "answer": 1,
+          "explanation": "Keadaan OPEN menolak panggilan supaya pemanggil tidak ikut terseret.",
+          "remedial": "- Service lain pasti suatu saat gagal; resilience menjaga service tetap berfungsi.\n- Timeout, retry, circuit breaker, dan fallback adalah teknik utama.\n- Circuit breaker punya keadaan CLOSED, OPEN, dan HALF_OPEN.\n- Retry hanya untuk kegagalan sementara, dengan backoff, jitter, dan batas.\n- Fallback harus aman dan tidak menyesatkan."
+        },
+        {
+          "question": "Aturan retry yang aman adalah...",
+          "options": [
+            "Retry semua error tanpa batas",
+            "Retry hanya kegagalan sementara dengan jeda yang makin lama",
+            "Retry langsung tanpa jeda sepuluh kali",
+            "Retry pembayaran tanpa kunci idempoten"
+          ],
+          "answer": 1,
+          "explanation": "Jeda bertambah dan batas jumlah mencegah banjir permintaan.",
+          "remedial": "- Service lain pasti suatu saat gagal; resilience menjaga service tetap berfungsi.\n- Timeout, retry, circuit breaker, dan fallback adalah teknik utama.\n- Circuit breaker punya keadaan CLOSED, OPEN, dan HALF_OPEN.\n- Retry hanya untuk kegagalan sementara, dengan backoff, jitter, dan batas.\n- Fallback harus aman dan tidak menyesatkan."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Service lain pasti suatu saat gagal; resilience menjaga service tetap berfungsi.",
+        "Timeout, retry, circuit breaker, dan fallback adalah teknik utama.",
+        "Circuit breaker punya keadaan CLOSED, OPEN, dan HALF_OPEN.",
+        "Retry hanya untuk kegagalan sementara, dengan backoff, jitter, dan batas.",
+        "Fallback harus aman dan tidak menyesatkan."
+      ]
+    }
+  ]
+}
