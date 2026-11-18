@@ -1,0 +1,86 @@
+{
+  "id": "ms-dasar-05",
+  "moduleId": "ms-dasar",
+  "order": 5,
+  "title": "Arsitektur Toko Online",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Mari satukan semua yang sudah dipelajari menjadi satu gambaran arsitektur toko online berbasis microservices.\n\n```text\n           Aplikasi Android / iOS / Web\n                       │\n                  API Gateway\n     ┌──────┬──────────┼──────────┬────────────┐\n   Akun  Katalog   Pesanan   Pembayaran   Pengiriman\n     │      │          │          │            │\n   (DB)   (DB)       (DB)       (DB)         (DB)\n                       │\n                 Message broker\n                 ┌─────┴─────┐\n           Notifikasi     Gudang data\n```\n\n- **API Gateway**: satu pintu masuk untuk semua aplikasi.\n- **Service domain**: masing-masing punya database sendiri.\n- **Message broker**: tempat service mengumumkan kejadian, misalnya \"pesanan dibuat\", supaya service lain bisa bereaksi.\n\nSetiap kotak di gambar ini akan dibahas lebih dalam di modul-modul berikutnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan bandara. Penumpang masuk lewat satu pintu terminal (API Gateway). Di dalam ada bagian check-in, imigrasi, keamanan, dan boarding. Setiap bagian punya petugas dan sistemnya sendiri (service dan database).\n\nBandara juga punya papan pengumuman: \"Penerbangan GA-123 tertunda\". Pengumuman ini didengar oleh bagian yang berkepentingan: katering menunda makanan, petugas gerbang menenangkan penumpang, sopir bus menunggu. Petugas yang mengumumkan tidak perlu menelepon setiap bagian satu per satu. Itulah **message broker**."
+    },
+    {
+      "type": "theory",
+      "content": "### Alur satu pesanan\n\nPengguna menekan tombol **Bayar**:\n\n1. Aplikasi mengirim `POST /pesanan` ke **API Gateway**.\n2. Gateway memeriksa token login, lalu meneruskan ke **service Pesanan**.\n3. Pesanan memanggil **service Katalog** untuk memastikan harga terbaru (komunikasi sinkron).\n4. Pesanan menyimpan data dengan status `MENUNGGU_BAYAR`, lalu memanggil **service Pembayaran**.\n5. Pembayaran berhasil. Pembayaran mengumumkan event **PembayaranBerhasil** ke message broker.\n6. Pesanan mendengar event itu dan mengubah status menjadi `DIBAYAR`.\n7. **Pengiriman** mendengar event yang sama dan memesan kurir.\n8. **Notifikasi** mendengar event yang sama dan mengirim push ke HP pengguna.\n\nLangkah 3 dan 4 menunggu jawaban. Langkah 5 sampai 8 berjalan tanpa saling menunggu."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nApa yang terjadi kalau **service Notifikasi mati** selama 10 menit?\n\n- Pengguna tetap bisa memesan dan membayar, karena Notifikasi tidak berada di jalur utama.\n- Event **PembayaranBerhasil** tetap tersimpan di message broker.\n- Saat Notifikasi hidup lagi, ia membaca event yang tertunda dan mengirim semua push yang terlewat.\n\nBandingkan dengan monolith: bug di fitur notifikasi yang membuat aplikasi kehabisan memori bisa mematikan checkout juga.\n\nSekarang, bagaimana kalau **service Pembayaran mati**? Checkout tidak bisa selesai, karena pembayaran memang di jalur utama. Tapi halaman produk, pencarian, dan profil tetap bisa dibuka. Kerusakannya terbatas, tidak menjalar ke seluruh aplikasi."
+    },
+    {
+      "type": "theory",
+      "content": "### Teknologi yang umum dipakai\n\n| Bagian | Contoh teknologi |\n|---|---|\n| Service | Spring Boot, Node.js, Go |\n| API Gateway | Spring Cloud Gateway, Kong, Nginx |\n| Message broker | Apache Kafka, RabbitMQ |\n| Database | MySQL, PostgreSQL, MongoDB, Redis |\n| Container | Docker |\n| Orkestrasi | Kubernetes |\n| Pemantauan | Prometheus, Grafana, Jaeger, ELK |\n\nKamu tidak perlu menguasai semuanya sekaligus. Kelas Spring Boot, REST API, dan DevOps di BisaNgoding sudah membahas sebagian besar bagian dasarnya. Kelas ini menunjukkan bagaimana bagian-bagian itu dirangkai."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Semua komunikasi dibuat menunggu**\n\nKalau Pesanan memanggil Pembayaran, lalu Pengiriman, lalu Notifikasi, lalu Laporan secara berurutan dan menunggu semuanya, satu service lambat membuat checkout lambat. Pakai event untuk hal yang tidak perlu ditunggu.\n\n**2. Aplikasi memanggil setiap service langsung**\n\nTanpa API Gateway, aplikasi HP harus tahu alamat setiap service, dan setiap service harus memeriksa login sendiri.\n\n**3. Notifikasi di jalur utama**\n\nPengguna tidak perlu menunggu email terkirim untuk mendapat konfirmasi pesanan. Kirim lewat event.\n\n**4. Menganggap gambar arsitektur sudah final**\n\nArsitektur berubah seiring bisnis. Gambar yang benar hari ini mungkin perlu diubah tahun depan."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Satu pintu masuk untuk semua permintaan dari aplikasi disebut...",
+          "options": [
+            "Message broker",
+            "API Gateway",
+            "Gudang data",
+            "Database"
+          ],
+          "answer": 1,
+          "explanation": "API Gateway menerima semua permintaan lalu meneruskannya ke service yang tepat.",
+          "remedial": "- Arsitektur umum: aplikasi, API Gateway, service domain dengan database masing-masing, dan message broker.\n- Langkah yang butuh jawaban segera memakai panggilan sinkron; sisanya lewat event.\n- Event membuat service lain bereaksi tanpa membuat pengguna menunggu.\n- Kerusakan satu service terbatas, tidak menjalar ke seluruh aplikasi.\n- Kelas Spring Boot, REST API, dan DevOps sudah membahas bagian-bagian dasarnya."
+        },
+        {
+          "question": "Service Notifikasi mati 10 menit. Apa yang terjadi pada checkout?",
+          "options": [
+            "Checkout ikut mati",
+            "Checkout tetap berjalan; notifikasi dikirim setelah service hidup lagi",
+            "Semua data pesanan hilang",
+            "Pengguna harus memesan ulang"
+          ],
+          "answer": 1,
+          "explanation": "Notifikasi tidak di jalur utama dan event-nya tersimpan di message broker.",
+          "remedial": "- Arsitektur umum: aplikasi, API Gateway, service domain dengan database masing-masing, dan message broker.\n- Langkah yang butuh jawaban segera memakai panggilan sinkron; sisanya lewat event.\n- Event membuat service lain bereaksi tanpa membuat pengguna menunggu.\n- Kerusakan satu service terbatas, tidak menjalar ke seluruh aplikasi.\n- Kelas Spring Boot, REST API, dan DevOps sudah membahas bagian-bagian dasarnya."
+        },
+        {
+          "question": "Hal yang sebaiknya dikirim lewat event, bukan ditunggu, adalah...",
+          "options": [
+            "Memeriksa harga terbaru sebelum menyimpan pesanan",
+            "Mengirim email konfirmasi pesanan",
+            "Memeriksa token login",
+            "Menyimpan pesanan ke database"
+          ],
+          "answer": 1,
+          "explanation": "Pengguna tidak perlu menunggu email terkirim untuk mendapat konfirmasi.",
+          "remedial": "- Arsitektur umum: aplikasi, API Gateway, service domain dengan database masing-masing, dan message broker.\n- Langkah yang butuh jawaban segera memakai panggilan sinkron; sisanya lewat event.\n- Event membuat service lain bereaksi tanpa membuat pengguna menunggu.\n- Kerusakan satu service terbatas, tidak menjalar ke seluruh aplikasi.\n- Kelas Spring Boot, REST API, dan DevOps sudah membahas bagian-bagian dasarnya."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Arsitektur umum: aplikasi, API Gateway, service domain dengan database masing-masing, dan message broker.",
+        "Langkah yang butuh jawaban segera memakai panggilan sinkron; sisanya lewat event.",
+        "Event membuat service lain bereaksi tanpa membuat pengguna menunggu.",
+        "Kerusakan satu service terbatas, tidak menjalar ke seluruh aplikasi.",
+        "Kelas Spring Boot, REST API, dan DevOps sudah membahas bagian-bagian dasarnya."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "id": "ms-komunikasi-03",
+  "moduleId": "ms-komunikasi",
+  "order": 3,
+  "title": "API Gateway",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aplikasi HP dan web tidak memanggil setiap service secara langsung. Semua permintaan masuk lewat satu pintu: **API Gateway**.\n\n```text\nAplikasi ──▶ API Gateway ──▶ /akun/**       → service-akun\n                         ──▶ /produk/**     → service-katalog\n                         ──▶ /pesanan/**    → service-pesanan\n```\n\nTugas yang biasanya dikerjakan gateway:\n\n| Tugas | Penjelasan |\n|---|---|\n| Routing | meneruskan permintaan ke service yang tepat berdasarkan alamatnya |\n| Autentikasi | memeriksa token login sekali di depan |\n| Rate limiting | membatasi jumlah permintaan per pengguna per menit |\n| CORS dan SSL | mengurus keamanan koneksi dari browser |\n| Logging | mencatat semua permintaan yang masuk |\n\nContoh teknologi: Spring Cloud Gateway, Kong, Nginx, dan layanan cloud seperti AWS API Gateway."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan resepsionis di gedung perkantoran. Tamu tidak berkeliling mencari ruangan sendiri. Mereka datang ke meja resepsionis, menunjukkan identitas, lalu diarahkan ke lantai dan ruangan yang tepat.\n\nResepsionis juga bisa menolak tamu tanpa identitas, membatasi tamu yang datang terlalu sering, dan mencatat siapa saja yang masuk hari itu. Kantor-kantor di dalam gedung tidak perlu memeriksa KTP sendiri-sendiri.\n\nAPI Gateway adalah resepsionis itu. Service di belakangnya bisa fokus pada pekerjaannya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kenapa tidak langsung ke service?\n\nTanpa gateway:\n\n- Aplikasi HP harus tahu alamat setiap service. Kalau satu service dipecah atau dipindah, aplikasi harus diperbarui di Play Store dan App Store.\n- Setiap service harus memeriksa token login sendiri. Kalau aturannya berubah, semua service harus diubah.\n- Service internal ikut terbuka ke internet, sehingga permukaan serangan lebih luas.\n\nDengan gateway, aplikasi hanya mengenal satu alamat, misalnya `api.toko.contoh`. Susunan service di belakangnya bebas berubah tanpa aplikasi tahu.\n\nAda juga pola **BFF** (*Backend for Frontend*): gateway terpisah untuk aplikasi HP dan untuk web, karena kebutuhan datanya berbeda."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKonfigurasi rute di Spring Cloud Gateway (`application.yml`):\n\n```yaml\nspring:\n  cloud:\n    gateway:\n      routes:\n        - id: katalog\n          uri: lb://katalog\n          predicates:\n            - Path=/produk/**\n        - id: pesanan\n          uri: lb://pesanan\n          predicates:\n            - Path=/pesanan/**\n          filters:\n            - name: RequestRateLimiter\n```\n\nArtinya:\n\n- Permintaan `/produk/...` diteruskan ke service bernama `katalog`.\n- Permintaan `/pesanan/...` diteruskan ke service `pesanan`, dengan pembatasan jumlah permintaan.\n- `lb://` berarti gateway mencari alamat service lewat service discovery dan membagi beban (*load balancing*) ke beberapa server."
+    },
+    {
+      "type": "theory",
+      "content": "### Menggabungkan data\n\nHalaman beranda aplikasi butuh data dari banyak service: profil pengguna, promo, dan produk rekomendasi. Kalau aplikasi HP memanggil tiga service sendiri, ada tiga perjalanan jaringan dari HP yang mungkin sinyalnya lemah.\n\nGateway atau BFF bisa **menggabungkan** (*aggregation*): aplikasi memanggil satu endpoint `/beranda`, lalu BFF memanggil tiga service di jaringan internal yang cepat dan mengembalikan satu jawaban.\n\nHati-hati: gateway sebaiknya tetap **tipis**. Logika bisnis seperti menghitung diskon tetap milik service domain. Gateway yang penuh logika bisnis lama-lama menjadi monolith baru yang semua tim harus ubah."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Logika bisnis di gateway**\n\nMenghitung diskon atau stok di gateway membuat semua tim harus mengubah gateway. Gateway hanya mengurus hal lintas service.\n\n**2. Satu gateway tanpa cadangan**\n\nKarena semua permintaan lewat gateway, gateway yang mati berarti seluruh aplikasi mati. Jalankan beberapa salinan gateway.\n\n**3. Service internal tetap terbuka ke internet**\n\nKalau service masih bisa diakses langsung tanpa lewat gateway, pemeriksaan login di gateway bisa dilewati. Tutup akses langsung.\n\n**4. Tidak ada rate limiting**\n\nTanpa pembatasan, satu skrip nakal bisa mengirim jutaan permintaan dan membebani semua service."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Tugas utama API Gateway adalah...",
+          "options": [
+            "Menyimpan data pesanan",
+            "Menjadi satu pintu masuk yang meneruskan permintaan ke service yang tepat",
+            "Mengirim email ke pelanggan",
+            "Menggantikan semua service domain"
+          ],
+          "answer": 1,
+          "explanation": "Gateway meneruskan permintaan dan mengurus hal lintas service.",
+          "remedial": "- API Gateway adalah satu pintu masuk untuk semua aplikasi.\n- Gateway mengurus routing, autentikasi, rate limiting, dan logging.\n- Aplikasi hanya mengenal satu alamat; susunan service di belakang bebas berubah.\n- BFF adalah gateway khusus per jenis aplikasi, bisa menggabungkan data.\n- Gateway harus tipis dan dijalankan lebih dari satu salinan."
+        },
+        {
+          "question": "Logika menghitung diskon sebaiknya ditempatkan di...",
+          "options": [
+            "API Gateway",
+            "Service domain yang memilikinya",
+            "Aplikasi HP saja",
+            "Message broker"
+          ],
+          "answer": 1,
+          "explanation": "Gateway sebaiknya tipis; logika bisnis milik service domain.",
+          "remedial": "- API Gateway adalah satu pintu masuk untuk semua aplikasi.\n- Gateway mengurus routing, autentikasi, rate limiting, dan logging.\n- Aplikasi hanya mengenal satu alamat; susunan service di belakang bebas berubah.\n- BFF adalah gateway khusus per jenis aplikasi, bisa menggabungkan data.\n- Gateway harus tipis dan dijalankan lebih dari satu salinan."
+        },
+        {
+          "question": "Pola gateway terpisah untuk aplikasi HP dan web disebut...",
+          "options": [
+            "Backend for Frontend (BFF)",
+            "Dead letter queue",
+            "Strangler fig",
+            "Saga"
+          ],
+          "answer": 0,
+          "explanation": "BFF menyesuaikan data untuk kebutuhan setiap jenis aplikasi.",
+          "remedial": "- API Gateway adalah satu pintu masuk untuk semua aplikasi.\n- Gateway mengurus routing, autentikasi, rate limiting, dan logging.\n- Aplikasi hanya mengenal satu alamat; susunan service di belakang bebas berubah.\n- BFF adalah gateway khusus per jenis aplikasi, bisa menggabungkan data.\n- Gateway harus tipis dan dijalankan lebih dari satu salinan."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "API Gateway adalah satu pintu masuk untuk semua aplikasi.",
+        "Gateway mengurus routing, autentikasi, rate limiting, dan logging.",
+        "Aplikasi hanya mengenal satu alamat; susunan service di belakang bebas berubah.",
+        "BFF adalah gateway khusus per jenis aplikasi, bisa menggabungkan data.",
+        "Gateway harus tipis dan dijalankan lebih dari satu salinan."
+      ]
+    }
+  ]
+}

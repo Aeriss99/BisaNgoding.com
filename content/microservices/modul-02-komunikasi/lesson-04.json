@@ -1,0 +1,86 @@
+{
+  "id": "ms-komunikasi-04",
+  "moduleId": "ms-komunikasi",
+  "order": 4,
+  "title": "Service Discovery dan Konfigurasi Terpusat",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di microservices, setiap service biasanya dijalankan di **beberapa salinan** (*instance*) supaya kuat dan bisa menangani banyak pengguna. Salinan ini bisa bertambah, berkurang, atau pindah server kapan saja, sehingga alamat IP-nya berubah-ubah.\n\nLalu bagaimana service Pesanan tahu alamat service Katalog saat ini? Jawabannya **service discovery**:\n\n1. Saat salinan service hidup, ia **mendaftarkan diri** ke registry: \"Saya katalog, alamat saya 10.0.3.7:8080.\"\n2. Saat service lain butuh Katalog, ia **bertanya** ke registry dan mendapat daftar alamat yang sedang hidup.\n3. Salinan yang mati otomatis dihapus dari daftar.\n\nContoh teknologi: Eureka, Consul. Di **Kubernetes**, fitur ini sudah bawaan: cukup panggil nama service seperti `http://katalog`."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan buku telepon kantor yang selalu diperbarui otomatis. Saat pegawai baru masuk, namanya langsung tercatat beserta nomor mejanya. Saat pegawai pindah meja, nomornya diperbarui. Saat pegawai cuti, namanya ditandai tidak tersedia.\n\nKamu tidak perlu menghafal nomor meja setiap orang. Cukup cari nama \"Bagian Keuangan\" di buku telepon, lalu hubungi nomor yang tertera saat itu.\n\nService discovery adalah buku telepon otomatis itu. Service cukup tahu **nama** service lain, bukan alamatnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Load balancing\n\nKalau Katalog punya 4 salinan, permintaan dibagi ke keempatnya supaya tidak ada yang kewalahan. Ini disebut **load balancing**. Cara pembagian yang umum:\n\n- **Round robin**: bergiliran, 1, 2, 3, 4, lalu kembali ke 1.\n- **Least connections**: ke salinan yang sedang paling sedikit melayani.\n- **Health check**: salinan yang tidak sehat tidak diberi permintaan.\n\nSetiap salinan menyediakan endpoint kesehatan, misalnya `/actuator/health` di Spring Boot. Registry atau Kubernetes memeriksanya berkala. Salinan yang menjawab tidak sehat dikeluarkan dari pembagian sampai pulih."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nKonfigurasi aplikasi biasanya berbeda di setiap lingkungan:\n\n| Pengaturan | Staging | Produksi |\n|---|---|---|\n| URL database | db-staging | db-prod |\n| Batas waktu panggilan bank | 10 detik | 3 detik |\n| Fitur voucher | nyala | mati (belum rilis) |\n\nDengan 20 service, mengubah satu pengaturan di 20 file konfigurasi sangat rawan salah. Solusinya **konfigurasi terpusat**: semua pengaturan disimpan di satu tempat, misalnya Spring Cloud Config, Consul, atau ConfigMap di Kubernetes. Setiap service membaca pengaturannya saat mulai berjalan, dan sebagian bisa diperbarui tanpa rilis ulang.\n\nFeature flag yang dibahas di kelas Kerja Jadi Software Engineer biasanya juga disimpan di sistem seperti ini."
+    },
+    {
+      "type": "theory",
+      "content": "### Rahasia tidak sama dengan konfigurasi\n\nKata sandi database, kunci API bank, dan kunci rahasia JWT disebut **secret**. Secret tidak boleh disimpan sembarangan:\n\n- **Jangan** ditulis di kode atau di repositori Git, walaupun repositorinya privat.\n- Simpan di sistem khusus, misalnya HashiCorp Vault, AWS Secrets Manager, atau Kubernetes Secret.\n- Batasi siapa yang bisa membacanya.\n- Ganti secara berkala, dan segera ganti kalau pernah bocor.\n\nService membaca secret saat berjalan, biasanya lewat variabel lingkungan atau file yang dipasang otomatis."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Menulis alamat IP di kode**\n\nSaat server diganti atau salinan bertambah, alamatnya berubah dan panggilan gagal. Pakai nama service.\n\n**2. Tidak ada health check**\n\nTanpa health check, permintaan tetap dikirim ke salinan yang macet, dan sebagian pengguna terus mendapat error.\n\n**3. Secret di repositori Git**\n\nRiwayat Git menyimpan semuanya. Menghapus secret di commit berikutnya tidak cukup. Secret yang pernah masuk Git harus dianggap bocor dan diganti.\n\n**4. Konfigurasi berbeda tanpa catatan**\n\nPengaturan yang diubah manual di satu server dan tidak tercatat membuat masalah sulit dilacak. Simpan semua konfigurasi di sistem terpusat."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Fungsi service discovery adalah...",
+          "options": [
+            "Mencari bug di service",
+            "Memberi tahu alamat service yang sedang hidup berdasarkan namanya",
+            "Menyimpan data pesanan",
+            "Mengirim email"
+          ],
+          "answer": 1,
+          "explanation": "Service cukup tahu nama service lain; alamatnya dicari lewat registry.",
+          "remedial": "- Service dijalankan dalam beberapa salinan yang alamatnya bisa berubah.\n- Service discovery mencatat alamat salinan yang hidup; service cukup tahu nama.\n- Load balancing membagi permintaan; health check mengeluarkan salinan yang sakit.\n- Konfigurasi terpusat menyimpan pengaturan semua service di satu tempat.\n- Secret disimpan di sistem khusus, tidak pernah di kode atau Git."
+        },
+        {
+          "question": "Permintaan dibagi ke beberapa salinan service supaya tidak ada yang kewalahan. Ini disebut...",
+          "options": [
+            "Load balancing",
+            "Rate limiting",
+            "Rollback",
+            "Refactoring"
+          ],
+          "answer": 0,
+          "explanation": "Load balancing membagi beban ke beberapa salinan.",
+          "remedial": "- Service dijalankan dalam beberapa salinan yang alamatnya bisa berubah.\n- Service discovery mencatat alamat salinan yang hidup; service cukup tahu nama.\n- Load balancing membagi permintaan; health check mengeluarkan salinan yang sakit.\n- Konfigurasi terpusat menyimpan pengaturan semua service di satu tempat.\n- Secret disimpan di sistem khusus, tidak pernah di kode atau Git."
+        },
+        {
+          "question": "Kata sandi database sebaiknya disimpan di...",
+          "options": [
+            "Kode program",
+            "Repositori Git privat",
+            "Sistem penyimpanan secret seperti Vault",
+            "README proyek"
+          ],
+          "answer": 2,
+          "explanation": "Secret disimpan di sistem khusus dan aksesnya dibatasi.",
+          "remedial": "- Service dijalankan dalam beberapa salinan yang alamatnya bisa berubah.\n- Service discovery mencatat alamat salinan yang hidup; service cukup tahu nama.\n- Load balancing membagi permintaan; health check mengeluarkan salinan yang sakit.\n- Konfigurasi terpusat menyimpan pengaturan semua service di satu tempat.\n- Secret disimpan di sistem khusus, tidak pernah di kode atau Git."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Service dijalankan dalam beberapa salinan yang alamatnya bisa berubah.",
+        "Service discovery mencatat alamat salinan yang hidup; service cukup tahu nama.",
+        "Load balancing membagi permintaan; health check mengeluarkan salinan yang sakit.",
+        "Konfigurasi terpusat menyimpan pengaturan semua service di satu tempat.",
+        "Secret disimpan di sistem khusus, tidak pernah di kode atau Git."
+      ]
+    }
+  ]
+}

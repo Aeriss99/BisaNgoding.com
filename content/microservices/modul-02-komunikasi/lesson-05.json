@@ -1,0 +1,86 @@
+{
+  "id": "ms-komunikasi-05",
+  "moduleId": "ms-komunikasi",
+  "order": 5,
+  "title": "Transaksi Terdistribusi dan Saga",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di monolith dengan satu database, checkout bisa dibungkus satu **transaksi**: kurangi stok, buat pesanan, potong saldo. Kalau satu langkah gagal, semuanya dibatalkan (*rollback*) otomatis oleh database.\n\nDi microservices, data itu ada di tiga database milik tiga service. Tidak ada satu transaksi database yang bisa membungkus ketiganya. Lalu bagaimana menjaga data tetap benar kalau langkah kedua berhasil tapi langkah ketiga gagal?\n\nJawaban yang paling umum adalah pola **Saga**: rangkaian langkah lokal, di mana setiap langkah punya **langkah pembatalan** (*compensating action*) kalau langkah berikutnya gagal."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan kamu merencanakan liburan: memesan tiket pesawat, lalu hotel, lalu sewa mobil. Ketiganya di perusahaan berbeda, jadi tidak bisa dipesan dalam satu kali bayar.\n\nKamu memesan tiket pesawat, berhasil. Memesan hotel, berhasil. Memesan mobil, ternyata habis. Kamu tidak bisa menekan tombol ajaib untuk membatalkan semuanya sekaligus. Kamu harus **membatalkan satu per satu**: batalkan hotel, lalu batalkan tiket pesawat, mungkin dengan biaya pembatalan.\n\nSaga persis begitu. Setiap langkah dikerjakan sendiri, dan kalau ada yang gagal, langkah-langkah sebelumnya dibatalkan dengan tindakan kebalikannya."
+    },
+    {
+      "type": "theory",
+      "content": "### Langkah dan pembatalannya\n\nSaga checkout toko online:\n\n| Langkah | Service | Pembatalan kalau langkah berikutnya gagal |\n|---|---|---|\n| 1. Buat pesanan (status MENUNGGU) | Pesanan | ubah status menjadi DIBATALKAN |\n| 2. Pesan stok | Stok | kembalikan stok |\n| 3. Potong saldo | Pembayaran | kembalikan saldo (refund) |\n| 4. Konfirmasi pesanan | Pesanan | tidak perlu, ini langkah terakhir |\n\nKalau langkah 3 gagal karena saldo kurang, dijalankan pembatalan langkah 2 lalu langkah 1. Hasil akhirnya konsisten: stok kembali, pesanan dibatalkan.\n\nPerhatikan, pembatalan bukan berarti data tidak pernah ada. Pesanan tetap tercatat dengan status DIBATALKAN. Ini jejak yang berguna untuk laporan dan layanan pelanggan."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nAda dua cara menjalankan saga:\n\n**Koreografi**: setiap service mendengarkan event dan tahu sendiri apa yang harus dilakukan.\n\n```text\nPesanan: PesananDibuat ──▶ Stok: StokDipesan ──▶ Pembayaran: PembayaranGagal\n                                    │                         │\n             Stok mendengar PembayaranGagal → kembalikan stok ◀┘\n             Pesanan mendengar PembayaranGagal → batalkan pesanan\n```\n\nSederhana untuk saga pendek, tapi alurnya tersebar dan sulit dilihat secara utuh.\n\n**Orkestrasi**: ada satu pengatur (*orchestrator*), misalnya di service Pesanan, yang menyuruh setiap service melangkah dan memutuskan pembatalan.\n\n```text\nOrchestrator → Stok: pesan stok → OK\nOrchestrator → Pembayaran: potong saldo → GAGAL\nOrchestrator → Stok: kembalikan stok\nOrchestrator → Pesanan: batalkan\n```\n\nAlurnya mudah dibaca di satu tempat. Cocok untuk saga yang panjang."
+    },
+    {
+      "type": "theory",
+      "content": "### Hidup dengan eventual consistency\n\nSelama saga berjalan, data antar service bisa **belum sama** untuk sesaat. Contohnya, stok sudah dikurangi tapi pembayaran belum selesai. Desain aplikasi harus siap dengan ini:\n\n- Tampilkan status yang jujur ke pengguna: \"Pesanan sedang diproses\", bukan langsung \"Berhasil\".\n- Pastikan setiap langkah dan pembatalan **idempoten**, karena bisa terulang.\n- Simpan status saga, supaya kalau service mati di tengah jalan, saga bisa dilanjutkan atau dibatalkan saat hidup lagi.\n- Untuk event yang harus pasti terkirim setelah data disimpan, banyak tim memakai pola **outbox**: event disimpan di tabel yang sama dalam satu transaksi lokal, lalu dikirim ke broker oleh proses terpisah."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira transaksi database bisa melintasi service**\n\nSatu `@Transactional` tidak bisa membatalkan perubahan di database service lain. Gunakan saga.\n\n**2. Lupa menyiapkan pembatalan**\n\nSetiap langkah yang mengubah data harus punya pasangan pembatalannya. Tanpa itu, saldo bisa terpotong padahal pesanan batal.\n\n**3. Pembatalan yang tidak idempoten**\n\nKalau refund terkirim dua kali, pelanggan menerima uang dua kali.\n\n**4. Menyembunyikan status perantara dari pengguna**\n\nMenampilkan \"Berhasil\" sebelum saga selesai membuat pengguna bingung kalau pesanannya ternyata dibatalkan.\n\n**5. Saga untuk segalanya**\n\nKalau beberapa langkah selalu harus berhasil bersama, mungkin datanya memang seharusnya ada di satu service."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pola rangkaian langkah lokal yang punya langkah pembatalan disebut...",
+          "options": [
+            "Saga",
+            "API Gateway",
+            "Load balancing",
+            "Strangler fig"
+          ],
+          "answer": 0,
+          "explanation": "Saga menjaga konsistensi tanpa satu transaksi database bersama.",
+          "remedial": "- Transaksi database tidak bisa melintasi database milik service berbeda.\n- Saga: rangkaian langkah lokal, masing-masing punya langkah pembatalan.\n- Koreografi memakai event; orkestrasi memakai satu pengatur.\n- Selama saga berjalan, data antar service belum sama untuk sesaat.\n- Langkah dan pembatalan harus idempoten; pola outbox memastikan event terkirim."
+        },
+        {
+          "question": "Langkah potong saldo gagal setelah stok dipesan. Yang dilakukan saga adalah...",
+          "options": [
+            "Membiarkan stok terpakai",
+            "Menjalankan pembatalan: kembalikan stok, lalu batalkan pesanan",
+            "Mengulang potong saldo selamanya",
+            "Menghapus semua data pengguna"
+          ],
+          "answer": 1,
+          "explanation": "Langkah-langkah sebelumnya dibatalkan dengan tindakan kebalikannya.",
+          "remedial": "- Transaksi database tidak bisa melintasi database milik service berbeda.\n- Saga: rangkaian langkah lokal, masing-masing punya langkah pembatalan.\n- Koreografi memakai event; orkestrasi memakai satu pengatur.\n- Selama saga berjalan, data antar service belum sama untuk sesaat.\n- Langkah dan pembatalan harus idempoten; pola outbox memastikan event terkirim."
+        },
+        {
+          "question": "Saga dengan satu pengatur yang menyuruh setiap service melangkah disebut...",
+          "options": [
+            "Koreografi",
+            "Orkestrasi",
+            "Polyglot",
+            "Canary"
+          ],
+          "answer": 1,
+          "explanation": "Orkestrasi memusatkan alur di satu orchestrator.",
+          "remedial": "- Transaksi database tidak bisa melintasi database milik service berbeda.\n- Saga: rangkaian langkah lokal, masing-masing punya langkah pembatalan.\n- Koreografi memakai event; orkestrasi memakai satu pengatur.\n- Selama saga berjalan, data antar service belum sama untuk sesaat.\n- Langkah dan pembatalan harus idempoten; pola outbox memastikan event terkirim."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Transaksi database tidak bisa melintasi database milik service berbeda.",
+        "Saga: rangkaian langkah lokal, masing-masing punya langkah pembatalan.",
+        "Koreografi memakai event; orkestrasi memakai satu pengatur.",
+        "Selama saga berjalan, data antar service belum sama untuk sesaat.",
+        "Langkah dan pembatalan harus idempoten; pola outbox memastikan event terkirim."
+      ]
+    }
+  ]
+}

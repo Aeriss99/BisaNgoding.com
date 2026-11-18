@@ -1,0 +1,86 @@
+{
+  "id": "ms-dasar-04",
+  "moduleId": "ms-dasar",
+  "order": 4,
+  "title": "Database per Service",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Aturan penting dalam microservices: **setiap service memiliki datanya sendiri**. Service lain tidak boleh membaca atau menulis tabel milik service lain secara langsung. Mereka harus meminta lewat API service pemiliknya.\n\n```text\nservice-pesanan   → database pesanan\nservice-akun      → database akun\n\nPesanan butuh alamat pengguna?\n  BENAR: panggil GET /akun/42/alamat ke service-akun\n  SALAH: SELECT * FROM akun.alamat WHERE user_id = 42\n```\n\nDatabase setiap service boleh berbeda jenis. Service Pesanan memakai MySQL, service Katalog memakai Elasticsearch untuk pencarian, dan service Sesi memakai Redis. Pilihan ini disebut **polyglot persistence**."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan setiap gerai di food court punya kulkas sendiri. Koki gerai bakso tidak boleh membuka kulkas gerai nasi goreng dan mengambil telur seenaknya. Kalau butuh telur, ia meminta ke pegawai gerai nasi goreng.\n\nKedengarannya repot, tapi bayangkan kalau semua koki bebas membuka semua kulkas. Gerai nasi goreng tidak pernah tahu kenapa telurnya tiba-tiba habis, dan tidak bisa menata ulang kulkasnya tanpa bertanya ke semua gerai.\n\nDengan aturan kulkas masing-masing, setiap gerai bebas menata kulkasnya sendiri. Yang lain cukup tahu cara memintanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Kenapa tidak berbagi database?\n\nKalau dua service membaca tabel yang sama:\n\n- Tim Akun ingin mengganti nama kolom `alamat` menjadi `alamat_lengkap`. Mereka harus memastikan service Pesanan, Pengiriman, dan Laporan tidak rusak. Semua tim harus rapat dan merilis bersamaan.\n- Query berat dari service Laporan memperlambat database, dan checkout di service Pesanan ikut lambat.\n- Tidak jelas siapa yang berhak mengubah data. Bug di satu service bisa merusak data milik service lain.\n\nDengan database per service, tim Akun bebas mengubah tabelnya selama **API**-nya tetap sama. API menjadi kontrak, dan isi di baliknya urusan tim pemilik."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nBagaimana halaman **Riwayat Pesanan** menampilkan nama produk, padahal nama produk ada di service Katalog?\n\n**Cara 1: memanggil saat dibutuhkan**\n\nService Pesanan mengambil daftar pesanan, lalu memanggil service Katalog untuk nama setiap produk. Sederhana, tapi kalau Katalog sedang lambat, halaman riwayat ikut lambat.\n\n**Cara 2: menyimpan salinan**\n\nSaat pesanan dibuat, service Pesanan menyimpan **salinan** nama produk dan harga saat itu:\n\n```text\ntabel pesanan_item\nid | pesanan_id | kode_produk | nama_saat_dibeli | harga_saat_dibeli | jumlah\n1  | 501        | KOPI-01     | Kopi Susu 250ml  | 18000             | 2\n```\n\nHalaman riwayat tidak perlu memanggil Katalog sama sekali. Ini justru benar secara bisnis, karena riwayat harus menunjukkan nama dan harga **saat dibeli**."
+    },
+    {
+      "type": "theory",
+      "content": "### Data yang terpisah, laporan yang utuh\n\nTim bisnis tetap butuh laporan gabungan, misalnya \"penjualan per kategori produk per kota\". Data ini tersebar di service Pesanan, Katalog, dan Akun.\n\nSolusi umumnya adalah **gudang data** (*data warehouse*) terpisah:\n\n1. Setiap service mengirim salinan datanya, misalnya setiap malam atau lewat event.\n2. Data dikumpulkan di gudang data seperti BigQuery atau Snowflake.\n3. Tim data membuat laporan dari sana, tanpa membebani database service.\n\nDengan cara ini, query laporan yang berat tidak pernah mengganggu checkout pengguna."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. JOIN antar database service**\n\nQuery yang menggabungkan tabel dua service secara langsung mengikat keduanya. Perubahan di satu sisi bisa merusak sisi lain.\n\n**2. Shared database karena malas**\n\n\"Sementara dulu baca langsung, nanti kita rapikan\" biasanya bertahan bertahun-tahun.\n\n**3. Mengira salinan data itu salah**\n\nMenyimpan salinan nama dan harga produk di service Pesanan bukan duplikasi yang buruk. Itu catatan sejarah yang memang dibutuhkan.\n\n**4. Laporan langsung ke database produksi**\n\nQuery laporan yang berat bisa memperlambat layanan untuk pengguna. Pakai gudang data atau replika baca.\n\n**5. Lupa bahwa data bisa tidak sinkron sesaat**\n\nSalinan bisa tertinggal beberapa detik. Desain fitur harus siap dengan keadaan ini."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Service Pesanan butuh alamat pengguna yang dimiliki service Akun. Cara yang benar adalah...",
+          "options": [
+            "Membaca tabel alamat milik Akun langsung",
+            "Meminta lewat API service Akun",
+            "Menyalin database Akun setiap detik",
+            "Menulis alamat ke database Akun"
+          ],
+          "answer": 1,
+          "explanation": "Data diakses lewat API pemiliknya, bukan langsung ke tabelnya.",
+          "remedial": "- Setiap service memiliki datanya sendiri; service lain mengakses lewat API.\n- Database per service membuat tim bebas mengubah tabelnya selama API tetap sama.\n- Service boleh memakai jenis database berbeda (polyglot persistence).\n- Menyimpan salinan data saat transaksi sering justru benar secara bisnis.\n- Laporan gabungan dibuat dari gudang data, bukan query ke database produksi."
+        },
+        {
+          "question": "Memakai jenis database berbeda untuk service berbeda disebut...",
+          "options": [
+            "Polyglot persistence",
+            "Shared database",
+            "Strangler fig",
+            "Bounded context"
+          ],
+          "answer": 0,
+          "explanation": "Setiap service memilih database yang paling cocok dengan kebutuhannya.",
+          "remedial": "- Setiap service memiliki datanya sendiri; service lain mengakses lewat API.\n- Database per service membuat tim bebas mengubah tabelnya selama API tetap sama.\n- Service boleh memakai jenis database berbeda (polyglot persistence).\n- Menyimpan salinan data saat transaksi sering justru benar secara bisnis.\n- Laporan gabungan dibuat dari gudang data, bukan query ke database produksi."
+        },
+        {
+          "question": "Laporan gabungan dari beberapa service sebaiknya dibuat dari...",
+          "options": [
+            "Query JOIN langsung ke database produksi semua service",
+            "Gudang data yang menerima salinan dari setiap service",
+            "Log aplikasi saja",
+            "Spreadsheet yang diisi manual"
+          ],
+          "answer": 1,
+          "explanation": "Gudang data menjaga laporan berat tidak mengganggu layanan pengguna.",
+          "remedial": "- Setiap service memiliki datanya sendiri; service lain mengakses lewat API.\n- Database per service membuat tim bebas mengubah tabelnya selama API tetap sama.\n- Service boleh memakai jenis database berbeda (polyglot persistence).\n- Menyimpan salinan data saat transaksi sering justru benar secara bisnis.\n- Laporan gabungan dibuat dari gudang data, bukan query ke database produksi."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Setiap service memiliki datanya sendiri; service lain mengakses lewat API.",
+        "Database per service membuat tim bebas mengubah tabelnya selama API tetap sama.",
+        "Service boleh memakai jenis database berbeda (polyglot persistence).",
+        "Menyimpan salinan data saat transaksi sering justru benar secara bisnis.",
+        "Laporan gabungan dibuat dari gudang data, bukan query ke database produksi."
+      ]
+    }
+  ]
+}

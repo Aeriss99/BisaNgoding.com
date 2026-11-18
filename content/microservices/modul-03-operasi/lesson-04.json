@@ -1,0 +1,86 @@
+{
+  "id": "ms-operasi-04",
+  "moduleId": "ms-operasi",
+  "order": 4,
+  "title": "Kubernetes dan Deploy per Service",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di produksi, perusahaan menjalankan puluhan service, masing-masing dengan beberapa salinan, tersebar di banyak server. Mengatur semua itu dengan tangan tidak mungkin. Di sinilah **Kubernetes** (sering disingkat K8s) dipakai.\n\nKubernetes adalah **orkestrator container**. Kamu menulis keadaan yang diinginkan, misalnya \"service katalog harus selalu punya 3 salinan\", dan Kubernetes terus berusaha menjaga keadaan itu:\n\n- Salinan yang mati diganti otomatis.\n- Salinan ditempatkan di server yang masih punya ruang.\n- Beban dibagi ke semua salinan.\n- Rilis versi baru dilakukan bertahap.\n\nKonsep Kubernetes dasar sudah dibahas di kelas DevOps. Materi ini fokus pada hubungannya dengan microservices."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan manajer restoran waralaba dengan banyak cabang. Ia tidak memasak sendiri. Ia menetapkan aturan: \"setiap cabang harus selalu punya 3 koki\". Kalau satu koki sakit, manajer segera mengirim pengganti. Kalau cabang mendadak ramai, ia menambah koki. Kalau ada resep baru, ia melatih koki satu per satu supaya cabang tidak berhenti beroperasi.\n\nKubernetes adalah manajer itu. Kamu memberi tahu jumlah salinan yang diinginkan, dan Kubernetes memastikan jumlahnya selalu terpenuhi, apa pun yang terjadi pada servernya."
+    },
+    {
+      "type": "theory",
+      "content": "### Objek Kubernetes untuk satu service\n\nSetiap microservice biasanya punya beberapa objek:\n\n| Objek | Fungsinya |\n|---|---|\n| Deployment | menjalankan dan menjaga sejumlah Pod (salinan) dari satu image |\n| Service | nama dan alamat tetap untuk menjangkau semua Pod, sekaligus load balancing |\n| ConfigMap | konfigurasi non-rahasia |\n| Secret | konfigurasi rahasia seperti kata sandi |\n| Ingress | pintu masuk dari internet, sering bersama API Gateway |\n| HorizontalPodAutoscaler | menambah atau mengurangi Pod otomatis sesuai beban |\n\nObjek Service inilah yang membuat `http://katalog` bisa dipanggil dari service lain. Kubernetes punya DNS internal yang mengubah nama itu menjadi alamat Pod yang sehat."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nDeployment untuk service katalog:\n\n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: katalog\nspec:\n  replicas: 3\n  selector:\n    matchLabels: { app: katalog }\n  template:\n    metadata:\n      labels: { app: katalog }\n    spec:\n      containers:\n        - name: katalog\n          image: registry.toko.contoh/katalog:1.8.2\n          ports: [{ containerPort: 8080 }]\n          readinessProbe:\n            httpGet: { path: /actuator/health/readiness, port: 8080 }\n          livenessProbe:\n            httpGet: { path: /actuator/health/liveness, port: 8080 }\n```\n\n- `replicas: 3`: selalu ada tiga salinan.\n- `readinessProbe`: Pod baru menerima permintaan setelah benar-benar siap.\n- `livenessProbe`: Pod yang macet dimatikan dan diganti.\n\nSaat image diganti ke `katalog:1.9.0`, Kubernetes melakukan **rolling update**: Pod baru dinyalakan satu per satu, Pod lama dimatikan setelah yang baru siap. Pengguna tidak merasakan gangguan."
+    },
+    {
+      "type": "theory",
+      "content": "### Deploy setiap service sendiri\n\nKeuntungan besar microservices adalah setiap service **dirilis sendiri**. Biasanya setiap service punya:\n\n- **Repositori atau folder sendiri** dan pipeline CI/CD sendiri.\n- **Image dengan versi sendiri**, misalnya `katalog:1.9.0` dan `pesanan:3.2.1`.\n- **Jadwal rilis sendiri**. Tim Katalog bisa rilis lima kali sehari tanpa menunggu tim Pesanan.\n\nAgar rilis mandiri tetap aman:\n\n1. Jaga **kompatibilitas mundur** API: versi baru tetap melayani pemanggil lama.\n2. Pakai **rilis bertahap** (canary) dan feature flag.\n3. Pantau metrik service setelah rilis, dan siapkan **rollback** cepat, misalnya `kubectl rollout undo deployment/katalog`.\n\nBanyak perusahaan juga memakai **Helm** untuk membungkus kumpulan file Kubernetes, dan **GitOps** (misalnya Argo CD) untuk menerapkan perubahan langsung dari repositori Git."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Tanpa readiness probe**\n\nPod baru langsung menerima permintaan sebelum aplikasi siap, sehingga pengguna mendapat error selama rilis.\n\n**2. Memakai tag latest**\n\nImage `katalog:latest` membuat sulit tahu versi mana yang sedang berjalan dan sulit rollback. Pakai nomor versi yang jelas.\n\n**3. Rilis yang merusak kompatibilitas**\n\nMengubah API dan merilisnya sebelum semua pemanggil siap membuat service lain langsung error.\n\n**4. Satu salinan saja di produksi**\n\nDengan `replicas: 1`, setiap rilis atau server bermasalah berarti service mati. Jalankan minimal dua atau tiga salinan.\n\n**5. Tidak membatasi sumber daya**\n\nTanpa batas CPU dan memori, satu service yang bocor memori bisa mengganggu service lain di server yang sama."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Fungsi utama Kubernetes adalah...",
+          "options": [
+            "Menulis kode Java otomatis",
+            "Menjaga container berjalan sesuai keadaan yang diinginkan di banyak server",
+            "Menggantikan database",
+            "Merancang tampilan aplikasi"
+          ],
+          "answer": 1,
+          "explanation": "Kubernetes adalah orkestrator container.",
+          "remedial": "- Kubernetes menjaga keadaan yang diinginkan: jumlah salinan, penempatan, dan pemulihan.\n- Setiap service punya Deployment, Service, ConfigMap, dan Secret.\n- Readiness dan liveness probe menjaga hanya Pod sehat yang menerima permintaan.\n- Rolling update merilis versi baru bertahap tanpa gangguan.\n- Setiap service dirilis sendiri dengan versi image, pipeline, dan rollback sendiri."
+        },
+        {
+          "question": "Objek Kubernetes yang memberi nama dan alamat tetap untuk menjangkau semua Pod satu service adalah...",
+          "options": [
+            "Deployment",
+            "Service",
+            "ConfigMap",
+            "Secret"
+          ],
+          "answer": 1,
+          "explanation": "Objek Service membuat nama seperti katalog bisa dipanggil.",
+          "remedial": "- Kubernetes menjaga keadaan yang diinginkan: jumlah salinan, penempatan, dan pemulihan.\n- Setiap service punya Deployment, Service, ConfigMap, dan Secret.\n- Readiness dan liveness probe menjaga hanya Pod sehat yang menerima permintaan.\n- Rolling update merilis versi baru bertahap tanpa gangguan.\n- Setiap service dirilis sendiri dengan versi image, pipeline, dan rollback sendiri."
+        },
+        {
+          "question": "Rolling update berarti...",
+          "options": [
+            "Semua Pod dimatikan lalu dinyalakan ulang sekaligus",
+            "Pod baru dinyalakan bertahap dan Pod lama dimatikan setelah yang baru siap",
+            "Database dihapus setiap rilis",
+            "Rilis hanya boleh setahun sekali"
+          ],
+          "answer": 1,
+          "explanation": "Rolling update membuat rilis tanpa gangguan bagi pengguna.",
+          "remedial": "- Kubernetes menjaga keadaan yang diinginkan: jumlah salinan, penempatan, dan pemulihan.\n- Setiap service punya Deployment, Service, ConfigMap, dan Secret.\n- Readiness dan liveness probe menjaga hanya Pod sehat yang menerima permintaan.\n- Rolling update merilis versi baru bertahap tanpa gangguan.\n- Setiap service dirilis sendiri dengan versi image, pipeline, dan rollback sendiri."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Kubernetes menjaga keadaan yang diinginkan: jumlah salinan, penempatan, dan pemulihan.",
+        "Setiap service punya Deployment, Service, ConfigMap, dan Secret.",
+        "Readiness dan liveness probe menjaga hanya Pod sehat yang menerima permintaan.",
+        "Rolling update merilis versi baru bertahap tanpa gangguan.",
+        "Setiap service dirilis sendiri dengan versi image, pipeline, dan rollback sendiri."
+      ]
+    }
+  ]
+}

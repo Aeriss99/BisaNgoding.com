@@ -1,0 +1,86 @@
+{
+  "id": "ms-operasi-02",
+  "moduleId": "ms-operasi",
+  "order": 2,
+  "title": "Observability: Log, Metrik, dan Tracing",
+  "estimatedMinutes": 11,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di monolith, saat ada error kamu membuka satu file log. Di microservices, satu klik pengguna bisa melewati lima service di puluhan server. Mencari penyebab error tanpa alat yang tepat seperti mencari jarum di tumpukan jerami.\n\n**Observability** adalah kemampuan memahami apa yang terjadi di dalam sistem dari data yang dikeluarkannya. Ada tiga pilar:\n\n| Pilar | Menjawab pertanyaan | Contoh alat |\n|---|---|---|\n| Log | apa yang terjadi, dengan detail | ELK (Elasticsearch, Logstash, Kibana), Loki |\n| Metrik | berapa banyak dan seberapa cepat | Prometheus, Grafana |\n| Tracing | lewat mana saja satu permintaan, dan di mana lambatnya | Jaeger, Zipkin, OpenTelemetry |"
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan kamu mengirim paket lewat jasa ekspedisi. Paket punya **nomor resi**. Dengan nomor itu, kamu bisa melihat paketmu sudah sampai di gudang mana dan jam berapa: Jakarta pukul 08.00, Semarang pukul 15.00, Surabaya pukul 22.00. Kalau paketnya tertahan, kamu tahu persis di gudang mana.\n\n**Tracing** memberi setiap permintaan pengguna sebuah nomor resi (*trace ID*). Nomor ini ikut dibawa ke setiap service yang dilewati. Saat ada masalah, kamu cukup mencari satu nomor itu untuk melihat seluruh perjalanannya."
+    },
+    {
+      "type": "theory",
+      "content": "### Log terpusat dan terstruktur\n\nSetiap service mengirim log-nya ke **satu tempat**, sehingga engineer bisa mencari log dari semua service sekaligus.\n\nLog sebaiknya **terstruktur**, misalnya berformat JSON, bukan kalimat bebas:\n\n```json\n{\"waktu\":\"2026-11-18T14:05:12+07:00\",\"level\":\"ERROR\",\"service\":\"pembayaran\",\n \"traceId\":\"a1b2c3\",\"idPesanan\":501,\"pesan\":\"Bank menolak: format rekening salah\"}\n```\n\nDengan log terstruktur, kamu bisa mencari \"semua ERROR dari service pembayaran untuk pesanan 501\" dengan cepat.\n\nSatu aturan penting: **jangan pernah mencatat data rahasia** di log, seperti kata sandi, nomor kartu, atau token."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nPengguna mengeluh checkout lambat. Engineer membuka tracing untuk satu permintaan:\n\n```text\ntraceId a1b2c3   POST /pesanan                     total 3.240 ms\n├── gateway                                          12 ms\n├── pesanan                                          45 ms\n│   ├── katalog   GET /produk/KOPI-01                38 ms\n│   ├── promo     GET /voucher/ONGKIR10           3.050 ms  ◀ lambat\n│   └── pembayaran POST /tagihan                     80 ms\n```\n\nLangsung terlihat bahwa yang lambat adalah service **promo**. Engineer lalu membuka metrik Promo di Grafana: waktu respons naik sejak rilis jam 13.00. Log Promo dengan `traceId a1b2c3` menunjukkan query database tanpa index.\n\nTanpa tracing, tim harus menebak dan memeriksa lima service satu per satu."
+    },
+    {
+      "type": "theory",
+      "content": "### Metrik yang penting\n\nUntuk setiap service, ada empat metrik dasar yang sering disebut **golden signals**:\n\n1. **Latency**: berapa lama permintaan dilayani, misalnya p99 di bawah 500 ms.\n2. **Traffic**: berapa banyak permintaan per detik.\n3. **Errors**: berapa persen permintaan yang gagal.\n4. **Saturation**: seberapa penuh sumber dayanya, misalnya CPU, memori, atau koneksi database.\n\nDari metrik ini, tim menetapkan **SLO** (*Service Level Objective*), target yang dijanjikan, misalnya \"99,9% permintaan checkout berhasil dalam sebulan\". Alert dibuat berdasarkan SLO, bukan berdasarkan hal kecil yang tidak dirasakan pengguna.\n\nDi Spring Boot, metrik bisa dikeluarkan lewat **Actuator** dan **Micrometer**, lalu dikumpulkan Prometheus."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Log tersebar di setiap server**\n\nMasuk ke server satu per satu untuk membaca log tidak mungkin dilakukan dengan puluhan service. Kumpulkan di satu tempat.\n\n**2. Trace ID tidak diteruskan**\n\nKalau satu service lupa meneruskan trace ID ke service berikutnya, jejak permintaan terputus di tengah jalan.\n\n**3. Data rahasia di log**\n\nKata sandi atau nomor kartu di log bisa dibaca banyak orang yang punya akses ke sistem log. Samarkan sebelum dicatat.\n\n**4. Terlalu banyak log**\n\nMencatat setiap detail di level INFO membuat biaya penyimpanan membengkak dan log penting tenggelam.\n\n**5. Rata-rata yang menipu**\n\nRata-rata waktu respons 200 ms bisa menyembunyikan 1% pengguna yang menunggu 10 detik. Lihat juga persentil, seperti p95 dan p99."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Pilar observability yang menunjukkan perjalanan satu permintaan melewati banyak service adalah...",
+          "options": [
+            "Log",
+            "Metrik",
+            "Tracing",
+            "Backup"
+          ],
+          "answer": 2,
+          "explanation": "Tracing mengikuti satu permintaan lewat trace ID.",
+          "remedial": "- Observability: memahami sistem dari log, metrik, dan tracing.\n- Log dikumpulkan di satu tempat dan dibuat terstruktur, tanpa data rahasia.\n- Tracing memberi setiap permintaan trace ID untuk melacak perjalanannya.\n- Golden signals: latency, traffic, errors, saturation.\n- SLO menetapkan target layanan; alert dibuat berdasarkan SLO."
+        },
+        {
+          "question": "Kenapa log sebaiknya terstruktur, misalnya berformat JSON?",
+          "options": [
+            "Supaya lebih indah dibaca",
+            "Supaya mudah dicari dan disaring berdasarkan kolom",
+            "Karena kalimat bebas dilarang",
+            "Supaya ukurannya lebih besar"
+          ],
+          "answer": 1,
+          "explanation": "Kolom seperti service dan traceId membuat pencarian cepat.",
+          "remedial": "- Observability: memahami sistem dari log, metrik, dan tracing.\n- Log dikumpulkan di satu tempat dan dibuat terstruktur, tanpa data rahasia.\n- Tracing memberi setiap permintaan trace ID untuk melacak perjalanannya.\n- Golden signals: latency, traffic, errors, saturation.\n- SLO menetapkan target layanan; alert dibuat berdasarkan SLO."
+        },
+        {
+          "question": "Kenapa rata-rata waktu respons saja bisa menipu?",
+          "options": [
+            "Karena rata-rata selalu salah hitung",
+            "Karena bisa menyembunyikan sebagian kecil pengguna yang menunggu sangat lama",
+            "Karena metrik tidak boleh dipakai",
+            "Karena Prometheus tidak bisa menghitung rata-rata"
+          ],
+          "answer": 1,
+          "explanation": "Persentil seperti p99 menunjukkan pengalaman pengguna yang paling lambat.",
+          "remedial": "- Observability: memahami sistem dari log, metrik, dan tracing.\n- Log dikumpulkan di satu tempat dan dibuat terstruktur, tanpa data rahasia.\n- Tracing memberi setiap permintaan trace ID untuk melacak perjalanannya.\n- Golden signals: latency, traffic, errors, saturation.\n- SLO menetapkan target layanan; alert dibuat berdasarkan SLO."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Observability: memahami sistem dari log, metrik, dan tracing.",
+        "Log dikumpulkan di satu tempat dan dibuat terstruktur, tanpa data rahasia.",
+        "Tracing memberi setiap permintaan trace ID untuk melacak perjalanannya.",
+        "Golden signals: latency, traffic, errors, saturation.",
+        "SLO menetapkan target layanan; alert dibuat berdasarkan SLO."
+      ]
+    }
+  ]
+}

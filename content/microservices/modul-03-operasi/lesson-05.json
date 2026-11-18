@@ -1,0 +1,86 @@
+{
+  "id": "ms-operasi-05",
+  "moduleId": "ms-operasi",
+  "order": 5,
+  "title": "Keamanan Antar Service",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Di monolith, bagian-bagian aplikasi saling memanggil di dalam satu program. Di microservices, panggilan itu melewati **jaringan**, dan jaringan bisa disadap atau dipalsukan. Karena itu keamanan perlu dipikirkan di dua tempat:\n\n1. **Dari pengguna ke sistem**: siapa pengguna ini, dan apa yang boleh ia lakukan?\n2. **Antar service**: apakah yang memanggil benar service yang berhak, dan apakah komunikasinya aman?\n\nPrinsip yang banyak dipakai sekarang adalah **zero trust**: jangan percaya apa pun hanya karena berada di jaringan internal. Setiap panggilan harus membuktikan identitasnya."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan gedung kantor dengan resepsionis di lobi. Dulu, siapa pun yang sudah lewat lobi dianggap aman dan bebas masuk ke ruangan mana pun, termasuk ruang server dan brankas.\n\nKantor modern memakai kartu akses di setiap pintu. Walaupun sudah di dalam gedung, kamu tetap harus menempelkan kartu untuk masuk ke ruangan tertentu, dan kartumu hanya membuka ruangan yang memang menjadi hakmu.\n\nZero trust sama. Lolos dari API Gateway tidak berarti bebas memanggil service mana pun. Setiap service tetap memeriksa siapa yang memanggil dan apa haknya."
+    },
+    {
+      "type": "theory",
+      "content": "### Token pengguna dengan JWT\n\nAlur yang umum untuk pengguna:\n\n1. Pengguna login ke service **Akun** (atau penyedia identitas seperti Keycloak).\n2. Akun memberi **access token**, biasanya berbentuk **JWT**, yang berisi ID pengguna, peran, dan waktu kedaluwarsa, lalu ditandatangani.\n3. Aplikasi mengirim token di header `Authorization: Bearer ...` ke API Gateway.\n4. Gateway memeriksa tanda tangan dan masa berlaku token.\n5. Token atau identitas pengguna diteruskan ke service di belakang.\n6. Setiap service tetap memeriksa **otorisasi**: apakah pengguna 42 boleh melihat pesanan 501?\n\nLangkah 6 penting. Gateway tahu **siapa** penggunanya, tapi hanya service Pesanan yang tahu pesanan 501 milik siapa."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\nCelah yang sering terjadi: **IDOR** (*Insecure Direct Object Reference*).\n\n```text\nGET /pesanan/501   (token milik pengguna 42)\n```\n\nKalau service Pesanan hanya memeriksa \"token valid\" lalu langsung mengembalikan pesanan 501, pengguna 42 bisa mengganti angka menjadi 502, 503, dan seterusnya untuk melihat pesanan orang lain.\n\nPemeriksaan yang benar di service Pesanan:\n\n```java\nPesanan p = repo.findById(501);\nif (!p.getIdPengguna().equals(idPenggunaDariToken)) {\n    throw new ResponseStatusException(HttpStatus.FORBIDDEN);\n}\nreturn p;\n```\n\nAutentikasi di gateway saja tidak cukup. Setiap service yang memegang data harus memeriksa kepemilikan."
+    },
+    {
+      "type": "theory",
+      "content": "### Mengamankan panggilan antar service\n\nUntuk komunikasi service ke service, beberapa teknik umum:\n\n| Teknik | Penjelasan |\n|---|---|\n| mTLS | kedua pihak saling menunjukkan sertifikat; komunikasi terenkripsi dan identitas service terbukti |\n| Token service | service meminta token khusus (misalnya OAuth2 client credentials) untuk memanggil service lain |\n| Network policy | aturan jaringan, misalnya hanya service pesanan yang boleh menghubungi database pesanan |\n| Service mesh | alat seperti Istio atau Linkerd yang mengatur mTLS, retry, dan pemantauan otomatis untuk semua service |\n\nDitambah dasar-dasar yang sudah dibahas sebelumnya: secret di tempat aman, tidak mencatat data rahasia di log, dan membatasi jumlah permintaan di gateway."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Percaya penuh pada jaringan internal**\n\nKalau satu service berhasil diretas, penyerang bisa bebas memanggil semua service lain yang tidak memeriksa identitas.\n\n**2. Hanya memeriksa login di gateway**\n\nGateway tidak tahu siapa pemilik setiap data. Pemeriksaan kepemilikan harus ada di service yang memegang data.\n\n**3. Token tanpa masa berlaku**\n\nToken yang berlaku selamanya sangat berbahaya kalau bocor. Pakai masa berlaku pendek dan refresh token.\n\n**4. Menyimpan data sensitif di dalam JWT**\n\nIsi JWT bisa dibaca siapa saja yang memegang token. Tanda tangan hanya mencegah perubahan, bukan menyembunyikan isi.\n\n**5. Database bisa dijangkau dari mana saja**\n\nBatasi agar hanya service pemiliknya yang bisa terhubung ke database."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Prinsip zero trust berarti...",
+          "options": [
+            "Semua yang ada di jaringan internal otomatis dipercaya",
+            "Setiap panggilan harus membuktikan identitasnya, termasuk dari dalam",
+            "Tidak memakai kata sandi sama sekali",
+            "Hanya gateway yang perlu aman"
+          ],
+          "answer": 1,
+          "explanation": "Zero trust tidak memercayai sesuatu hanya karena berada di jaringan internal.",
+          "remedial": "- Panggilan antar service lewat jaringan, sehingga keamanan diperlukan di setiap langkah.\n- Zero trust: setiap panggilan membuktikan identitas, termasuk dari jaringan internal.\n- Gateway memeriksa token; setiap service tetap memeriksa hak atas datanya.\n- IDOR terjadi kalau service tidak memeriksa kepemilikan data.\n- Antar service diamankan dengan mTLS, token service, network policy, atau service mesh."
+        },
+        {
+          "question": "Pengguna bisa melihat pesanan orang lain dengan mengganti angka ID di URL. Celah ini disebut...",
+          "options": [
+            "IDOR",
+            "Rolling update",
+            "Circuit breaker",
+            "Saga"
+          ],
+          "answer": 0,
+          "explanation": "IDOR terjadi saat service tidak memeriksa kepemilikan data.",
+          "remedial": "- Panggilan antar service lewat jaringan, sehingga keamanan diperlukan di setiap langkah.\n- Zero trust: setiap panggilan membuktikan identitas, termasuk dari jaringan internal.\n- Gateway memeriksa token; setiap service tetap memeriksa hak atas datanya.\n- IDOR terjadi kalau service tidak memeriksa kepemilikan data.\n- Antar service diamankan dengan mTLS, token service, network policy, atau service mesh."
+        },
+        {
+          "question": "Teknik di mana dua service saling menunjukkan sertifikat dan berkomunikasi terenkripsi adalah...",
+          "options": [
+            "mTLS",
+            "Round robin",
+            "Strangler fig",
+            "Feature flag"
+          ],
+          "answer": 0,
+          "explanation": "mTLS membuktikan identitas kedua pihak dan mengenkripsi komunikasi.",
+          "remedial": "- Panggilan antar service lewat jaringan, sehingga keamanan diperlukan di setiap langkah.\n- Zero trust: setiap panggilan membuktikan identitas, termasuk dari jaringan internal.\n- Gateway memeriksa token; setiap service tetap memeriksa hak atas datanya.\n- IDOR terjadi kalau service tidak memeriksa kepemilikan data.\n- Antar service diamankan dengan mTLS, token service, network policy, atau service mesh."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Panggilan antar service lewat jaringan, sehingga keamanan diperlukan di setiap langkah.",
+        "Zero trust: setiap panggilan membuktikan identitas, termasuk dari jaringan internal.",
+        "Gateway memeriksa token; setiap service tetap memeriksa hak atas datanya.",
+        "IDOR terjadi kalau service tidak memeriksa kepemilikan data.",
+        "Antar service diamankan dengan mTLS, token service, network policy, atau service mesh."
+      ]
+    }
+  ]
+}

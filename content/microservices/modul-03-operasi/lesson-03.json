@@ -1,0 +1,86 @@
+{
+  "id": "ms-operasi-03",
+  "moduleId": "ms-operasi",
+  "order": 3,
+  "title": "Docker Compose untuk Banyak Service",
+  "estimatedMinutes": 10,
+  "runnable": false,
+  "cards": [
+    {
+      "type": "theory",
+      "content": "Menjalankan satu service di laptop itu mudah. Menjalankan lima service, tiga database, dan satu message broker sekaligus bisa sangat merepotkan kalau dilakukan manual.\n\n**Docker Compose** menyelesaikan masalah ini. Semua bagian ditulis di satu file `compose.yaml`, lalu dijalankan dengan satu perintah:\n\n```text\ndocker compose up -d\n```\n\nSetiap service berjalan di container sendiri. Compose juga membuat jaringan bersama, sehingga container bisa saling memanggil dengan **nama service** sebagai alamatnya, misalnya `http://katalog:8080`. Inilah bentuk paling sederhana dari service discovery.\n\nDocker dan Compose dasar sudah dibahas di kelas DevOps. Materi ini menunjukkan cara memakainya untuk microservices."
+    },
+    {
+      "type": "theory",
+      "content": "### Gampangnya begini\n\nBayangkan kamu mengadakan pesta dan memesan beberapa katering sekaligus: nasi, lauk, minuman, dan kue. Tanpa koordinator, kamu harus menelepon setiap katering satu per satu, menjelaskan alamat, jam datang, dan urutan penyajian.\n\nDocker Compose adalah koordinator pesta itu. Kamu cukup menulis daftar lengkap sekali: siapa saja yang datang, apa yang dibawa, siapa yang harus datang lebih dulu. Setelah itu, satu perintah membuat semuanya datang dan siap bersamaan. Satu perintah lagi membubarkan semuanya."
+    },
+    {
+      "type": "theory",
+      "content": "### Struktur file Compose\n\nBagian penting di setiap service:\n\n| Kunci | Fungsinya |\n|---|---|\n| `image` atau `build` | image yang dipakai, atau folder Dockerfile yang dibangun |\n| `ports` | port yang dibuka ke laptop, misalnya `8080:8080` |\n| `environment` | variabel lingkungan, misalnya alamat database |\n| `depends_on` | service lain yang harus dijalankan lebih dulu |\n| `volumes` | penyimpanan supaya data database tidak hilang saat container dihapus |\n| `healthcheck` | perintah untuk memeriksa apakah container sudah siap |\n\nHanya gateway yang perlu membuka port ke laptop. Service lain cukup berbicara di jaringan internal Compose."
+    },
+    {
+      "type": "theory",
+      "content": "### Contoh\n\n`compose.yaml` untuk toko online kecil:\n\n```yaml\nservices:\n  gateway:\n    build: ./gateway\n    ports: [\"8080:8080\"]\n    depends_on: [katalog, pesanan]\n\n  katalog:\n    build: ./katalog\n    environment:\n      DB_URL: jdbc:mysql://db-katalog:3306/katalog\n    depends_on:\n      db-katalog: { condition: service_healthy }\n\n  pesanan:\n    build: ./pesanan\n    environment:\n      DB_URL: jdbc:mysql://db-pesanan:3306/pesanan\n      KATALOG_URL: http://katalog:8080\n      KAFKA: kafka:9092\n    depends_on: [db-pesanan, kafka]\n\n  db-katalog:\n    image: mysql:8.4\n    environment: { MYSQL_DATABASE: katalog, MYSQL_ROOT_PASSWORD: rahasia }\n    healthcheck: { test: [\"CMD\", \"mysqladmin\", \"ping\"], interval: 5s }\n    volumes: [data-katalog:/var/lib/mysql]\n\n  db-pesanan:\n    image: mysql:8.4\n    environment: { MYSQL_DATABASE: pesanan, MYSQL_ROOT_PASSWORD: rahasia }\n\n  kafka:\n    image: apache/kafka:3.8.0\n\nvolumes:\n  data-katalog:\n```\n\nPerhatikan: setiap service punya database sendiri, dan pesanan memanggil katalog dengan nama `katalog`, bukan IP."
+    },
+    {
+      "type": "theory",
+      "content": "### Perintah yang sering dipakai\n\n| Perintah | Fungsinya |\n|---|---|\n| `docker compose up -d` | menjalankan semua di latar belakang |\n| `docker compose ps` | melihat status setiap container |\n| `docker compose logs -f pesanan` | mengikuti log service pesanan |\n| `docker compose up -d --build katalog` | membangun ulang dan menjalankan ulang katalog saja |\n| `docker compose down` | menghentikan dan menghapus semua container |\n| `docker compose down -v` | sama, sekaligus menghapus volume data |\n\nCompose sangat cocok untuk **laptop engineer** dan **test integrasi di CI**. Untuk produksi dengan banyak server, salinan, dan kebutuhan pulih otomatis, perusahaan biasanya memakai Kubernetes."
+    },
+    {
+      "type": "theory",
+      "content": "### Kesalahan yang sering terjadi\n\n**1. Mengira depends_on menunggu aplikasi siap**\n\nTanpa `condition: service_healthy`, `depends_on` hanya menunggu container **mulai**, bukan siap menerima koneksi. Service bisa gagal karena database belum siap.\n\n**2. Memakai localhost antar container**\n\nDi dalam container, `localhost` berarti container itu sendiri. Pakai nama service, misalnya `db-katalog`.\n\n**3. Kata sandi asli di compose.yaml**\n\nFile Compose biasanya masuk Git. Untuk laptop, kata sandi contoh tidak masalah. Untuk server sungguhan, pakai file `.env` yang tidak di-commit atau sistem secret.\n\n**4. Lupa volume**\n\nTanpa volume, data database hilang setiap kali container dihapus.\n\n**5. Membuka port semua service**\n\nMembuka port setiap service ke luar membuat gateway bisa dilewati."
+    },
+    {
+      "type": "understanding_check",
+      "minCorrect": 2,
+      "questions": [
+        {
+          "question": "Di dalam jaringan Compose, service pesanan memanggil katalog dengan alamat...",
+          "options": [
+            "http://localhost:8080",
+            "http://katalog:8080",
+            "Alamat IP yang dihafal",
+            "http://gateway:3306"
+          ],
+          "answer": 1,
+          "explanation": "Compose membuat nama service bisa dipakai sebagai alamat.",
+          "remedial": "- Docker Compose menjalankan banyak service dan database dengan satu file dan satu perintah.\n- Container dalam satu Compose saling memanggil dengan nama service.\n- Pakai healthcheck dan condition service_healthy supaya urutan siap benar.\n- Hanya gateway yang perlu membuka port; volume menjaga data database.\n- Compose cocok untuk laptop dan CI; produksi besar biasanya memakai Kubernetes."
+        },
+        {
+          "question": "Supaya service menunggu database benar-benar siap, depends_on sebaiknya memakai...",
+          "options": [
+            "condition: service_healthy bersama healthcheck",
+            "ports",
+            "volumes",
+            "image saja"
+          ],
+          "answer": 0,
+          "explanation": "Tanpa kondisi sehat, depends_on hanya menunggu container mulai.",
+          "remedial": "- Docker Compose menjalankan banyak service dan database dengan satu file dan satu perintah.\n- Container dalam satu Compose saling memanggil dengan nama service.\n- Pakai healthcheck dan condition service_healthy supaya urutan siap benar.\n- Hanya gateway yang perlu membuka port; volume menjaga data database.\n- Compose cocok untuk laptop dan CI; produksi besar biasanya memakai Kubernetes."
+        },
+        {
+          "question": "Fungsi volume pada container database adalah...",
+          "options": [
+            "Membuka port ke laptop",
+            "Menyimpan data supaya tidak hilang saat container dihapus",
+            "Mempercepat jaringan",
+            "Menyimpan log"
+          ],
+          "answer": 1,
+          "explanation": "Volume menyimpan data di luar siklus hidup container.",
+          "remedial": "- Docker Compose menjalankan banyak service dan database dengan satu file dan satu perintah.\n- Container dalam satu Compose saling memanggil dengan nama service.\n- Pakai healthcheck dan condition service_healthy supaya urutan siap benar.\n- Hanya gateway yang perlu membuka port; volume menjaga data database.\n- Compose cocok untuk laptop dan CI; produksi besar biasanya memakai Kubernetes."
+        }
+      ]
+    },
+    {
+      "type": "summary",
+      "points": [
+        "Docker Compose menjalankan banyak service dan database dengan satu file dan satu perintah.",
+        "Container dalam satu Compose saling memanggil dengan nama service.",
+        "Pakai healthcheck dan condition service_healthy supaya urutan siap benar.",
+        "Hanya gateway yang perlu membuka port; volume menjaga data database.",
+        "Compose cocok untuk laptop dan CI; produksi besar biasanya memakai Kubernetes."
+      ]
+    }
+  ]
+}
