@@ -23,7 +23,7 @@ import { WadahHasilDom } from './WadahHasilDom';
 type Entri =
   | { jenis: 'lingga'; teks: string; label?: string; tantangan?: boolean }
   | { jenis: 'kode'; kode: string }
-  | { jenis: 'hasil'; teks: string; status: 'benar' | 'salah' | 'error'; judul: string };
+  | { jenis: 'hasil'; teks: string; status: 'benar' | 'salah' | 'error' | 'target'; judul: string };
 
 /** Jeda animasi contoh Lingga (milidetik). Kode lebih panjang dari perintah terminal, jadi diketik lebih cepat. */
 const JEDA_MULAI = 600;
@@ -96,8 +96,8 @@ function BlokKode({ kode, kursor, namaFile = 'Main.java' }: { kode: string; kurs
   );
 }
 
-function BlokHasil({ teks, status, judul }: { teks: string; status: 'benar' | 'salah' | 'error'; judul: string }) {
-  const warna = status === 'benar' ? 'text-[#7ee2a8]' : status === 'error' ? 'text-[#ff9b8f]' : 'text-[#f5d76e]';
+function BlokHasil({ teks, status, judul }: { teks: string; status: 'benar' | 'salah' | 'error' | 'target'; judul: string }) {
+  const warna = status === 'benar' ? 'text-[#7ee2a8]' : status === 'error' ? 'text-[#ff9b8f]' : status === 'target' ? 'text-[#9cc9ff]' : 'text-[#f5d76e]';
   return (
     <div className="rounded-[10px] overflow-hidden border-2 border-[var(--color-text-main)]">
       <div className={`px-3 py-1 bg-[#2b2b28] font-mono text-[12px] ${warna}`}>{judul}</div>
@@ -106,6 +106,16 @@ function BlokHasil({ teks, status, judul }: { teks: string; status: 'benar' | 's
       </pre>
     </div>
   );
+}
+
+/** Arahan sebuah langkah. Untuk tugas pengguna, sertakan hasil yang harus muncul supaya jelas targetnya. */
+function entriArahan(card: PraktikJavaCard, i: number): Entri[] {
+  const l = card.langkah[i];
+  const hasil: Entri[] = [{ jenis: 'lingga', teks: l.arahan, label: labelLangkahJava(card, i), tantangan: l.tantangan }];
+  if (!l.otomatis && l.keluaran) {
+    hasil.push({ jenis: 'hasil', teks: rapikanKeluaran(l.keluaran), status: 'target', judul: 'Hasil yang harus muncul' });
+  }
+  return hasil;
 }
 
 export function PraktikJavaCardComponent(props: { card: PraktikJavaCard; onSuccess: (attempts: number) => void }) {
@@ -123,14 +133,7 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
   const [langkahKe, setLangkahKe] = useState(0);
   const [entri, setEntri] = useState<Entri[]>(() => {
     const awal: Entri[] = [{ jenis: 'lingga', teks: card.pembuka }];
-    if (card.langkah[0]) {
-      awal.push({
-        jenis: 'lingga',
-        teks: card.langkah[0].arahan,
-        label: labelLangkahJava(card, 0),
-        tantangan: card.langkah[0].tantangan,
-      });
-    }
+    if (card.langkah[0]) awal.push(...entriArahan(card, 0));
     return awal;
   });
   const [kode, setKode] = useState(() => kodeAwalLangkah(card, card.langkah[0]?.otomatis ? 1 : 0));
@@ -158,12 +161,7 @@ function Praktik({ card, onSuccess }: { card: PraktikJavaCard; onSuccess: (attem
     if (langkah.benar) baru.push({ jenis: 'lingga', teks: langkah.benar });
     const berikut = card.langkah[langkahKe + 1];
     if (berikut) {
-      baru.push({
-        jenis: 'lingga',
-        teks: berikut.arahan,
-        label: labelLangkahJava(card, langkahKe + 1),
-        tantangan: berikut.tantangan,
-      });
+      baru.push(...entriArahan(card, langkahKe + 1));
       setLangkahKe(langkahKe + 1);
       setSalahDiLangkah(0);
       setKode(kodeAwalLangkah(card, langkahKe + 1));
