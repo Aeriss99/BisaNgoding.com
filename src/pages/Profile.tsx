@@ -9,14 +9,17 @@ import {
   LogIn,
   LogOut,
   Unlock,
+  RotateCcw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useKonfirmasi } from '../components/ui/DialogKonfirmasi';
 import { useKeluar } from '../components/layout/MenuAtas';
 import { formatTanggalBuild } from '../lib/pembaruanAplikasi';
+import { ringkasanProgres } from '../lib/progres';
+import { isiKelas } from '../lib/resetKelas';
 
 export default function Profile() {
-  const { progress, importProgress, toggleUnlockAll, syncStatus, streakHariIni } =
+  const { progress, importProgress, toggleUnlockAll, resetKelas, syncStatus, streakHariIni } =
     useProgress();
   const { user, isAdmin, masukGoogle, isSupabaseConfigured } =
     useAuth();
@@ -110,6 +113,26 @@ export default function Profile() {
       e.target.value = '';
     };
     reader.readAsText(file);
+  };
+
+  // Kelas yang sudah dimulai: ada materi selesai atau nilai quiz di salah satu modulnya.
+  const kelasDimulai = ringkasanProgres(progress).kelas.filter((k) => {
+    if (k.totalSelesai > 0) return true;
+    const { modul } = isiKelas(k.course.id);
+    return Object.keys(progress.quizScores || {}).some((id) => modul.has(id));
+  });
+
+  const handleResetKelas = async (courseId: string, nama: string) => {
+    const setuju = await konfirmasi({
+      judul: `Reset ${nama}?`,
+      pesan: `Materi, nilai quiz, dan cek pemahaman di ${nama} akan dihapus, jadi kelas ini mulai dari awal. XP, streak, sertifikat, dan kelas lain tetap. Tindakan ini tidak bisa dibatalkan.`,
+      teksYa: 'RESET KELAS',
+      teksBatal: 'BATAL',
+      bahaya: true,
+    });
+    if (!setuju) return;
+    resetKelas(courseId);
+    tampilkanPesan(`Progres ${nama} berhasil direset!`);
   };
 
   const handleReset = async () => {
@@ -282,6 +305,33 @@ export default function Profile() {
               onChange={handleImport}
             />
           </label>
+
+          <div className="mt-8 space-y-2" data-testid="reset-per-kelas">
+            <h3 className="font-bold text-gray-800">Reset per kelas</h3>
+            <p className="text-sm text-gray-600">Mulai ulang satu kelas saja. XP, streak, sertifikat, dan kelas lain tidak berubah.</p>
+            {kelasDimulai.length === 0 ? (
+              <p className="text-sm text-gray-500">Belum ada kelas yang dimulai.</p>
+            ) : (
+              kelasDimulai.map((k) => {
+                const nama = k.course.title.replace(/^Kelas /, '');
+                return (
+                  <div key={k.course.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 bg-white">
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-800 truncate">{nama}</div>
+                      <div className="text-xs text-gray-500">{k.totalSelesai} dari {k.totalMateri} materi · {k.persen}%</div>
+                    </div>
+                    <button
+                      onClick={() => handleResetKelas(k.course.id, nama)}
+                      className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-2"
+                      aria-label={`Reset ${nama}`}
+                    >
+                      <RotateCcw className="w-4 h-4" /> Reset
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
 
           <button
             onClick={handleReset}
