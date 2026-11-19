@@ -521,6 +521,8 @@ export interface UserProgress {
   unlockAll?: boolean;
   justReset?: boolean;
   resetAt?: string;
+  /** Waktu reset per kelas (courseId -> ISO). Lihat src/lib/resetKelas.ts. */
+  resetKelas?: Record<string, string>;
   /** Soal yang pernah dijawab salah. Kunci: lihat src/lib/latihanUlang.ts. */
   latihanUlang?: Record<string, EntriLatihanUlang>;
 }

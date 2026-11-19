@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import type { UserProgress } from '../types/schema';
 import { toISODate } from '../lib/resetLogic';
+import { resetSatuKelas } from '../lib/resetKelas';
 import { useAuth } from './AuthContext';
 import { progresSetelahMateri, streakTampil, tanggalLokal } from '../lib/streak';
 import {
@@ -33,6 +34,8 @@ export interface ProgressContextType {
   markCheckPassed: (lessonId: string) => void;
   importProgress: (data: any) => boolean;
   toggleUnlockAll: (enabled: boolean) => void;
+  /** Hapus progres satu kelas saja (materi, quiz, cek pemahaman). */
+  resetKelas: (courseId: string) => void;
   addXP: (amount: number) => void;
   saveQuizScore: (moduleId: string, score: number, passed: boolean) => void;
   catatJawabanSalah: (kunci: string, jenis: 'cek' | 'quiz', sumber: string) => void;
@@ -446,6 +449,14 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const resetKelas = (courseId: string) => {
+    setProgress((prev) => {
+      const next = resetSatuKelas(prev, courseId);
+      saveProgressState(next);
+      return next;
+    });
+  };
+
   const addXP = (amount: number) => {
     setProgress((prev) => {
       const nextProgress = { ...prev, xp: prev.xp + amount };
@@ -536,6 +547,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         markCheckPassed,
         importProgress,
         toggleUnlockAll,
+        resetKelas,
         addXP,
         saveQuizScore,
         catatJawabanSalah,

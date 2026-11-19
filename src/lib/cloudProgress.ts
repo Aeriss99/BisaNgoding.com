@@ -3,6 +3,7 @@ import type { UserProgress } from '../types/schema';
 import { gabungStreak, lengkapiStreak } from './streak';
 import { apakahModeLokal } from './modeLokal';
 import { gabungLatihanUlang } from './latihanUlang';
+import { sesuaikanResetKelas } from './resetKelas';
 
 const BASE_STORAGE_KEY = 'bisangoding_progress';
 const CURRENT_USER_KEY = 'bisangoding_current_user';
@@ -97,6 +98,12 @@ export function mergeProgress(
     return local;
   }
 
+  // Reset per kelas: buang data kelas yang sudah di-reset dari pihak yang belum tahu reset itu.
+  const disesuaikan = sesuaikanResetKelas(local, cloud);
+  local = disesuaikan.local;
+  cloud = disesuaikan.cloud;
+  const resetKelas = disesuaikan.resetKelas;
+
   const completedLessons = Array.from(
     new Set([
       ...(local.completedLessons || []),
@@ -158,6 +165,7 @@ export function mergeProgress(
     lastActiveDate,
     maxSeenDate,
     resetAt,
+    ...(Object.keys(resetKelas).length ? { resetKelas } : {}),
     latihanUlang: gabungLatihanUlang(local.latihanUlang ?? {}, cloud.latihanUlang ?? {}),
   };
 }
