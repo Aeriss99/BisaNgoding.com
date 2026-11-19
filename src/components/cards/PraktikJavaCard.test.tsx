@@ -74,6 +74,14 @@ describe('Kartu praktik Java bersama Lingga', () => {
     expect((screen.getByLabelText('kode') as HTMLTextAreaElement).value).toBe(KODE1);
   });
 
+  it('setiap tugas menampilkan "Hasil yang harus muncul" sebelum dijalankan', async () => {
+    render(<PraktikJavaCardComponent card={kartu} onSuccess={() => {}} />);
+    expect(screen.getAllByText('Hasil yang harus muncul').length).toBe(1);
+    await jalankan(KODE2, { stdout: 'Warung Kita\nBuka setiap hari\n' });
+    expect(screen.getAllByText('Hasil yang harus muncul').length).toBe(2);
+    expect(screen.getAllByText('Sisa: 1').length).toBeGreaterThan(0);
+  });
+
   it('menjalankan kode pengguna, menerima keluaran yang sama, lalu lanjut ke tantangan dengan kode awalnya', async () => {
     const onSuccess = vi.fn();
     render(<PraktikJavaCardComponent card={kartu} onSuccess={onSuccess} />);
